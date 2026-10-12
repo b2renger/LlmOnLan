@@ -60,12 +60,22 @@
   .hero-name { font-size: 22px; font-weight: 650; letter-spacing: -.01em; }
   .hero-meta { color: var(--muted); font-size: 12.5px; }
   .hero-meta b { color: var(--text); }
-  .engines { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 4px 0 8px; }
-  .engine { text-align: left; padding: 10px 12px; min-width: 0; background: var(--surface2); }
-  .engine .meta { margin-top: 2px; }
-  .engine.active { border-color: color-mix(in srgb, var(--ok) 45%, var(--border)); background: color-mix(in srgb, var(--ok) 7%, var(--surface2)); opacity: 1; }
-  .engine:disabled { cursor: default; }
-  .engine:not(.active):disabled { opacity: .5; }
+  /* The engine sections: one per engine, opened and closed by its summary line, which says its state. */
+  details.eng > summary { list-style: none; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; border-radius: 8px; }
+  details.eng > summary::-webkit-details-marker { display: none; }
+  details.eng > summary::before { content: '▸'; display: inline-block; width: 12px; color: var(--muted); transition: transform .15s; }
+  details.eng[open] > summary::before { transform: rotate(90deg); }
+  details.eng > summary:focus-visible { outline: 2px solid var(--accent2); outline-offset: 4px; }
+  details.eng > summary:hover .ename { color: var(--text); }
+  details.eng[open] > summary { margin-bottom: 12px; }
+  h2.ename { display: inline; margin: 0; font-size: 16px; text-transform: none; letter-spacing: 0; color: var(--text); }
+  .estate { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); min-width: 0; }
+  .estate .dot { align-self: center; }
+  .dot.busy { background: var(--warn); }
+  .dot.bad { background: var(--err); }
+  .subsec { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 12px; }
+  .ebody > .subsec:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
+  @media (prefers-reduced-motion: reduce) { details.eng > summary::before { transition: none; } }
   .hint { color: var(--muted); font-size: 12px; padding: 2px 0 8px; }
   .hint b { color: var(--text); font-weight: 600; }
   input[type=text] { font: inherit; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); padding: 5px 9px; min-width: 190px; }
@@ -94,7 +104,7 @@
   .spark i.z { background: var(--surface2); }
   .warnline { color: var(--warn); font-size: 12.5px; padding: 4px 0; }
   .warnline b { color: var(--warn); }
-  @media (max-width: 620px) { .engines { grid-template-columns: 1fr; } .badges { flex-wrap: wrap; } }
+  @media (max-width: 620px) { .badges { flex-wrap: wrap; } }
 </style>
 </head>
 <body>
@@ -112,17 +122,18 @@ let lastState = null;
 // The Clients section is collapsible; the 5s poll rebuilds the DOM, so its
 // open/closed state lives here (and in localStorage) instead of in the element.
 let clientsOpen = localStorage.getItem('lolClientsOpen') === '1';
-// The vLLM card stays open once the operator pressed the vLLM button (same reason); the check of this computer
-// runs once per open, never per poll; the log is shown until hidden.
-let vllmOpen = localStorage.getItem('lolVllmOpen') === '1';
+// The engine sections (owner, 2026-10-12): Ollama, llama.cpp, vLLM (and External only while configured), each holding
+// everything about its engine. Same reason: what the person opened or closed lives here (and in localStorage); a section
+// nobody touched is open while its engine serves. The check of this computer runs once per page when vLLM's opens,
+// never per poll; vLLM's log is shown until hidden.
+let engOpen = {};          // { ollama: true|false, … }: what the person chose; absent = the default
+let servingSeen = null;    // the engine that served at the last render: when it changes, the new one opens
+try { engOpen = JSON.parse(localStorage.getItem('lolEngineOpen') || '{}') || {}; servingSeen = localStorage.getItem('lolServingSeen'); } catch { /* private window */ }
 let vllmChecking = false;
 let vllmAutoChecked = false;
 let vllmLogLines = null;
-// The llama.cpp card, opened by the llama.cpp button while another engine serves: the operator sees and prepares what a
-// switch would serve before switching (owner, 2026-10-09).
-let lcOpen = localStorage.getItem('lolLcOpen') === '1';
 // Model storage (owner, 2026-10-12): what is typed in its folder fields (kept across the 5 s re-render), the last look
-// in a folder ("Use the models in this folder": each engine's card shows its part) and what is ticked there.
+// in a folder ("Use the models in this folder": each engine's section shows its part) and what is ticked there.
 let stDir = null;          // "Keep everything here" (null = the farm's folder, as it is)
 let stScanDir = '';        // "Use the models in this folder"
 let wslDest = '';          // WSL's Linux disk: where to move it
@@ -209,18 +220,20 @@ function render(s) {
   // while the farm keeps serving. Each gets Stop when it can be stopped halfway.
   const jobBar = barOf(job, 'job') + barOf(s.download, 'download');
 
-  // --- backend ------------------------------------------------------------------
+  // --- what serves ----------------------------------------------------------------
   // The headline answers the two questions the panel never used to: what is users'
   // model actually called, and which engine is behind it.
   const engineName = ENGINE_LABEL[be.engine] || 'Ollama';
   const v = s.vllm || {};
   const isV = be.engine === 'vllm';
+  const serving = SECTION_OF[be.engine] || 'ollama';
+  noteServing(serving);
   // A server this farm does not run (set up by a developer): its model, context and
   // people at once are its own, so none of the controls below apply to it (§7.7).
   const externalRow = be.engine === 'external'
     ? `<div class="warnline">Serving through a server this farm does not run, at <b>${esc(be.baseUrl || '')}</b>. `
       + `Its model, context and people at once are set where that server runs. `
-      + `To serve from this farm instead, pick Ollama, llama.cpp or vLLM above.</div>`
+      + `To serve from this farm instead, press Serve with in the Ollama, llama.cpp or vLLM section below.</div>`
     : '';
   const perSlot = be.contextPerSlot || be.contextLength || 0;
   const slotLine = isV
@@ -230,14 +243,7 @@ function render(s) {
         ? `${be.slots} people at once · up to ${fmtK(be.contextLength)} of context (shared pool, ${fmtK(perSlot)} guaranteed)`
         : `${be.slots} people at once · ${fmtK(perSlot)} of context each`)
     : `1 person at a time · ${fmtK(perSlot)} of context`;
-  // The badge on the engine that serves: vLLM says where it is in its life (§1.5).
-  const VLLM_BADGE = { starting: 'starting', restarting: 'starting', stopping: 'stopping', stopped: 'stopped', guard: 'stopped', down: 'not answering' };
-  const engineBtn = (id, title, sub, active, blocked) =>
-    `<button class="engine${active ? ' active' : ''}" data-engine="${id}"${active || jobRunning || blocked ? ' disabled' : ''}>`
-    + `<div class="mname">${title}${active ? ` <span class="badge on">${id === 'vllm' ? (VLLM_BADGE[v.phase] || 'running') : 'running'}</span>` : ''}</div>`
-    + `<div class="meta">${sub}</div></button>`;
 
-  const lcAvailable = s.llamacppAvailable !== false;
   // The engine can have FALLEN BACK at boot (weights failed to fetch, platform
   // unsupported): the farm serves with Ollama and this is the only place the
   // operator learns why — the run itself looks healthy.
@@ -249,9 +255,9 @@ function render(s) {
   const clockErr = gpu.stuckMhz
     ? `<div class="warnline">The GPU is stuck at a low clock (${esc(String(gpu.stuckMhz))} MHz): fully power the box off (unplug it for a minute), then start it again.</div>`
     : '';
-  const backendCard =
+  const heroCard =
     `<div class="card">`
-    + `<h2>Backend</h2>`
+    + `<h2>Serving</h2>`
     + bootErr
     + clockErr
     + externalRow
@@ -259,36 +265,16 @@ function render(s) {
     + `<div class="hero"><div class="hero-name">${esc(be.alias || '—')}</div>`
     + `<div class="hero-meta">${esc(engineName)} · ${esc(be.model || '—')}</div>`
     + `<div class="hero-meta">${esc(slotLine)}${cap.clients != null ? ` · <b>${cap.clients}</b> connected now` : ''}</div></div>`
-    + `<div class="engines">`
-    // `active` must be an explicit equality: with the external engine serving, none
-    // of the farm's own engines runs, and marking one "running" would be a lie on
-    // the one card that answers "what is actually serving".
-    + engineBtn('ollama', 'Ollama', 'The models below. Several to choose from, for a few people at once.', be.engine === 'ollama', false)
-    + engineBtn('llamacpp', 'llama.cpp',
-        lcAvailable
-          ? 'One model, fastest. Quantised KV cache; speculative decoding (MTP) on quants that keep their MTP head.'
-          : 'Not available on this computer: there is no ready-made llama.cpp for it.',
-        be.engine === 'llama.cpp', !lcAvailable)
-    + engineBtn('vllm', 'vLLM', vllmEngineSub(v), isV, v.supported === false)
-    // Only while a developer configured one (D2): the panel never offers it otherwise.
-    + (s.externalConfigured ? engineBtn('external', 'External server', 'A server this farm does not run, set up by a developer.', be.engine === 'external', false) : '')
-    + `</div>`
-    + `<div class="hint">Switching stops the current engine and starts the other: about a minute for Ollama or llama.cpp, about 2 minutes for vLLM.</div>`
+    + `</div>`;
 
-    // The advertised name — llama.cpp and vLLM: it IS that engine's one served alias.
-    // On the Ollama engine names live on the model rows (per-model Rename); a
-    // global field here silently fought them (owner report 2026-08-31).
-    + (be.engine === 'llama.cpp' || isV
-      ? `<div class="row"><span></span><span><div class="mname">Name users see</div>`
-        + `<div class="meta">${isV ? 'what appears in the model picker. Renaming takes a few seconds; vLLM keeps running.' : 'what appears in the model picker — not the checkpoint\'s technical name'}</div></span>`
-        + `<span class="badges"><input id="name-in" type="text" maxlength="48" spellcheck="false" value="${esc(be.alias || '')}" data-orig="${esc(be.alias || '')}" /></span></div>`
-      : '')
-
-    // Capacity. The knob that decides whether a workshop works. Hidden under an
-    // external server: its concurrency is its own.
-    // On Ollama the setting is PER BOX (ollama.numParallel) while be.slots is the
-    // farm total (x reachable hosts) — showing the total and writing it back as the
-    // per-box value made "2 hosts x 2" read "4", and picking 8 gave 16.
+  // --- the serving engine's people and context -------------------------------------
+  // In the section of the engine that serves: Apply writes them to that engine. The
+  // knob that decides whether a workshop works. Hidden under an external server: its
+  // concurrency and window are its own.
+  // On Ollama the setting is PER BOX (ollama.numParallel) while be.slots is the
+  // farm total (x reachable hosts) — showing the total and writing it back as the
+  // per-box value made "2 hosts x 2" read "4", and picking 8 gave 16.
+  const capacity = `<div class="subsec"><h2>People and context</h2>`
     + (be.engine === 'external' ? '' : isV ? vllmSlotsRow(v) : (() => {
         const cur = be.engine === 'ollama' ? ((s.ollama && s.ollama.numParallel) || be.slots) : be.slots;
         const opts = [1, 2, 3, 4, 6, 8];
@@ -305,6 +291,35 @@ function render(s) {
               opts.map((n) => `<option value="${n}"${n === cur ? ' selected' : ''}>${n}</option>`).join('')
             }</select></span></div>`;
       })())
+
+    // Context window. What it gives each person is the line below (tradeLine), which
+    // follows an edit — a static sum here contradicted it mid-edit. Hidden under an
+    // external server: its window is whatever that server was launched with.
+    + (be.engine === 'external' ? '' : isV ? vllmCtxRow(v) + vllmKvRow(v) : `<div class="row"><span></span><span><div class="mname">Context window</div>`
+    + `<div class="meta">how much text the model reads at once — bigger fits whole documents, costs VRAM</div></span>`
+    + `<span class="badges"><select id="ctx-sel" data-orig="${esc(String((be.engine === 'llama.cpp' ? lc.contextLength : (s.ollama && s.ollama.contextLength)) ?? 'auto'))}">${be.engine === 'llama.cpp'
+        ? ctxOptions(lc.contextLength, lc.contextResolved || be.contextLength, s.fit, s.fit && s.fit.nativeMax)
+        : ctxOptions((s.ollama && s.ollama.contextLength) ?? be.contextLength, be.contextLength, null, s.ollama && s.ollama.nativeMax)}</select></span></div>`)
+
+    // What the settings above give each person, and what the clients do with it,
+    // updated as the operator edits (tradeLine). Under an external server: the declared values.
+    + `<div id="trade">${isV ? vllmTrade(s) : tradeLine(s)}</div>`
+    + (be.engine === 'external' ? '' : '<div class="hint">They apply with <b>Apply changes</b>, at the end of Access below.</div>')
+    + `</div>`;
+
+  // --- Access: what every engine shares -------------------------------------------
+  // The name users see, the seat hold and the farm password, then the ONE Apply.
+  const accessCard = `<div class="card" id="access"><h2>Access</h2>`
+    // The advertised name — llama.cpp and vLLM: it IS that engine's one served alias.
+    // On the Ollama engine names live on the model rows (per-model Rename); a
+    // global field here silently fought them (owner report 2026-08-31).
+    + (be.engine === 'llama.cpp' || isV
+      ? `<div class="row"><span></span><span><div class="mname">Name users see</div>`
+        + `<div class="meta">${isV ? 'what appears in the model picker. Renaming takes a few seconds; vLLM keeps running.' : 'what appears in the model picker — not the checkpoint\'s technical name'}</div></span>`
+        + `<span class="badges"><input id="name-in" type="text" maxlength="48" spellcheck="false" value="${esc(be.alias || '')}" data-orig="${esc(be.alias || '')}" /></span></div>`
+      : be.engine === 'ollama'
+      ? '<div class="row"><span></span><span><div class="mname">Name users see</div><div class="meta">on Ollama each model has its own: <b>Rename</b> on its row, in the Ollama section above</div></span><span></span></div>'
+      : '')
 
     // The seat hold (proxy.seatIdleSec, owner 2026-10-04): short for a class, back to
     // 15 min after. Minutes here, seconds in the file. Only while the seat gate is on
@@ -330,22 +345,10 @@ function render(s) {
     <span class="badges"><input id="sec-in" type="password" placeholder="${s.requiresKey ? '••••••••' : 'choose a password'}" maxlength="128" spellcheck="false" autocomplete="new-password" data-orig="" />${
       s.requiresKey ? `<button id="sec-clear" class="stop"${jobRunning ? ' disabled' : ''}>Remove</button>` : ''}</span></div>`
 
-    // Context window. What it gives each person is the line below (tradeLine), which
-    // follows an edit — a static sum here contradicted it mid-edit. Hidden under an
-    // external server: its window is whatever that server was launched with.
-    + (be.engine === 'external' ? '' : isV ? vllmCtxRow(v) + vllmKvRow(v) : `<div class="row"><span></span><span><div class="mname">Context window</div>`
-    + `<div class="meta">how much text the model reads at once — bigger fits whole documents, costs VRAM</div></span>`
-    + `<span class="badges"><select id="ctx-sel" data-orig="${esc(String((be.engine === 'llama.cpp' ? lc.contextLength : (s.ollama && s.ollama.contextLength)) ?? 'auto'))}">${be.engine === 'llama.cpp'
-        ? ctxOptions(lc.contextLength, lc.contextResolved || be.contextLength, s.fit, s.fit && s.fit.nativeMax)
-        : ctxOptions((s.ollama && s.ollama.contextLength) ?? be.contextLength, be.contextLength, null, s.ollama && s.ollama.nativeMax)}</select></span></div>`)
-
-    // What the settings above give each person, and what the clients do with it,
-    // updated as the operator edits (tradeLine). Under an external server: the declared values.
-    + `<div id="trade">${isV ? vllmTrade(s) : tradeLine(s)}</div>`
-
     // ONE Apply for everything above (owner ask 2026-08-31): each setting used to
     // carry its own button, and each press restarted the server — four restarts to
-    // change four things. Edits are collected and applied together in one restart.
+    // change four things. Edits are collected and applied together in one restart:
+    // these rows and the serving engine's people and context, in its section above.
     // On vLLM some changes restart it and some do not: the row says which, and Apply
     // asks the farm first (a dry run) and confirms only a restart.
     + `<div class="row"><span></span><span><div class="meta">${isV
@@ -392,7 +395,7 @@ function render(s) {
   if (be.engine === 'vllm' && s.ocrFits === false && s.ocrModel) {
     const gemma = /^gemma4:12b$/.test(String(s.ocrModel));
     perfWarns.push(`Document reading uses ${s.ocrModel} (${s.ocrGb} GB), which does not fit the ${(s.vllm && s.vllm.ocrReserveGib) || 0} GB kept for it beside vLLM: documents will read slowly.`
-      + (gemma ? '' : ' Download gemma4:12b in the Ollama list below; the farm then uses it.'));
+      + (gemma ? '' : ' Download gemma4:12b in the Ollama section above; the farm then uses it.'));
   }
   const perfBits = [
     // A vLLM counts requests, not seats: one person can run several, up to its --max-num-seqs
@@ -417,18 +420,16 @@ function render(s) {
     (g.vramUsedGb != null && g.vramTotalGb != null) ? `VRAM <b>${g.vramUsedGb}/${g.vramTotalGb} GB</b>` : '',
     g.gpuUtil != null ? `GPU <b>${g.gpuUtil}%</b>` : '',
   ].filter(Boolean).join('');
-  // An external server shows the card only once it has proven to be a vLLM; the farm's own vLLM always does.
-  const perfCard = be.engine === 'llama.cpp' || be.engine === 'vllm' || (be.engine === 'external' && perf)
-    ? `<div class="card"><h2>Performance</h2>`
+  // In the section of the engine that serves. An external server shows it only once it has proven to be a vLLM; the
+  // farm's own vLLM always does.
+  const perfBlock = be.engine === 'llama.cpp' || be.engine === 'vllm' || (be.engine === 'external' && perf)
+    ? `<div class="subsec"><h2>Performance</h2>`
       + `<div class="perfnum">${perf && perf.lastGenTokSec != null ? perf.lastGenTokSec : '—'} <small>tok/s while generating${perf && perf.lastActiveTs ? '' : ' · no traffic measured yet'}</small></div>`
       + `<div class="health">${perfBits}</div>`
       + spark
       + perfWarns.map((w) => `<div class="warnline">⚠ ${esc(w)}</div>`).join('')
       + `</div>`
     : '';
-
-  // --- the llama.cpp model library ---------------------------------------------
-  const libCard = llamacppCard(s, jobRunning);
 
   // --- Ollama catalog ------------------------------------------------------------
   // STANDBY whenever Ollama is not the engine: llama.cpp OR an external server.
@@ -462,7 +463,7 @@ function render(s) {
     // name users see; the checkpoint id moves into the meta line.
     const renamed = m.servedAs && m.servedAs !== m.id;
     // Not on the default row while llama.cpp or vLLM serves: a switch back gives the
-    // default that engine's name (so bound chats survive), so it is renamed up in Backend.
+    // default that engine's name (so bound chats survive), so it is renamed in Access.
     const rnBtn = m.served && !((be.engine === 'llama.cpp' || be.engine === 'vllm') && m.isDefault)
       ? `<button data-rn="${esc(m.id)}" data-cur="${esc(m.servedAs || m.id)}" title="The name users see for this model"${jobRunning ? ' disabled' : ''}>Rename</button>` : '';
     const metaLine = [renamed ? `checkpoint ${m.id}` : '', meta].filter(Boolean).join(' · ');
@@ -471,8 +472,7 @@ function render(s) {
       + `<span class="badges">${badges}${defBtn}${rnBtn}${btn}${del}</span></div>`;
   }).join('') : '<div class="empty">No models installed on any reachable host.</div>';
 
-  const ollamaCard = `<div class="card"><h2>Models · Ollama${standby ? ' <span class="badge">standby</span>' : ''}</h2>`
-    + `<div class="hint">${standby
+  const ollamaBody = `<div class="hint">Several models to choose from, for a few people at once. ${standby
         ? `<b>Not served right now</b> — one engine at a time, and ${esc(engineName)} is serving. These stay installed for an engine switch, and document reading uses its model from here.`
         : 'These are what this farm serves. The ★ one is what clients auto-select.'}</div>`
     + ollamaStorageRows(s, jobRunning)
@@ -481,7 +481,19 @@ function render(s) {
     + `<div class="meta">an Ollama model name, e.g. <b>gemma4:12b</b> or <b>qwen3.8:14b</b> — downloaded to this box and offered to clients while Ollama is the engine</div></span>`
     + `<span class="badges"><input id="ol-id" type="text" placeholder="gemma4:12b" spellcheck="false" />`
     + `<button id="ol-pull"${jobRunning ? ' disabled' : ''}>Download</button></span></div>`
-    + `</div>`;
+    + (standby ? serveRow(s, 'ollama', jobRunning) : capacity);
+
+  // --- the engine sections, in a fixed order ----------------------------------------
+  // Each holds everything about its engine; the serving one adds its people and context
+  // and its Performance, every other one ends with its Serve with button.
+  const sections = section(s, 'ollama', ollamaBody)
+    + section(s, 'llamacpp', llamacppSection(s, jobRunning, capacity, perfBlock))
+    + section(s, 'vllm', vllmSection(s, jobRunning, capacity, perfBlock))
+    // Only while a developer configured one (D2): the panel never offers it otherwise.
+    + (s.externalConfigured || be.engine === 'external'
+      ? section(s, 'external', '<div class="hint">A server this farm does not run, set up by a developer.</div>'
+        + (be.engine === 'external' ? capacity + perfBlock : serveRow(s, 'external', jobRunning)))
+      : '');
 
   // --- farm health --------------------------------------------------------------
   const healthBits = [
@@ -545,7 +557,7 @@ function render(s) {
   // Ollama started by somebody else = our concurrency/KV env never applied, so
   // the slot (and therefore seat) count is a wish, not a measurement. Say so
   // where the number is shown, with the exact line that makes it true. Ollama
-  // only: an external server's seats are declared, which the Backend card says.
+  // only: an external server's seats are declared, which the Serving card says.
   const unverifiedRow = (cap.slotsVerified === false && be.engine === 'ollama')
     ? `<div class="row"><span class="dot"></span><span><div class="mname">Capacity is unverified</div>`
       + `<div class="meta">Ollama on ${esc((cap.unmanagedHosts || []).join(', ') || 'this box')} was already running when the farm started, `
@@ -577,37 +589,39 @@ function render(s) {
       + `Counts only, kept in the farm's memory and never per person; they reset when the farm restarts.</div>`
     : '';
 
+  // The 5 s rebuild replaces every element: what had the keyboard's focus (a section's summary, a button) gets it back.
+  const refocus = focusKeyOf(document.activeElement);
   app.innerHTML =
     `<header class="top"><h1>lol <span class="lol">${esc(s.name || 'farm')}</span></h1>`
     + `<a class="plan" href="/lol/capacity" target="_blank" rel="noopener" title="Which hardware and model serve how many people, with ready-made scenarios and this farm marked">Plan capacity ↗</a></header>`
     + `<p class="sub">Changes apply to the running farm and are kept for the next start, except the plugin toggles and the Blender recommendation (this session only) and Ollama's people served at once (after a farm restart).</p>`
     + jobBar
-    + takeOverCard(s, jobRunning)
-    + backendCard
-    + vllmCard(s, jobRunning)
-    + perfCard
-    + libCard
-    + ollamaCard
+    + heroCard
+    + sections
+    + accessCard
     + storageCard(s, jobRunning)
     + `<div class="card"><h2>Plugins</h2>${pluginRows}${blenderRow}</div>`
     + `<div class="card"><details id="clients-d"${clientsOpen ? ' open' : ''}><summary><h2>Clients (${clients.length})${capLabel}</h2></summary>${seatRows}${metricsRow}${unverifiedRow}${clientRows}</details></div>`
     + `<div class="card"><h2>This box</h2><div class="health">${healthBits}</div></div>`;
+  if (refocus) { const el = app.querySelector(refocus); if (el) el.focus({ preventScroll: true }); }
 
   app.querySelectorAll('button[data-act]').forEach((b) => { b.onclick = () => act(b.dataset.act, b.dataset.id, b); });
   app.querySelectorAll('button[data-dact]').forEach((b) => { b.onclick = () => defaultAct(b.dataset.id, b); });
   app.querySelectorAll('button[data-pact]').forEach((b) => { b.onclick = () => pluginAct(b.dataset.pact, b.dataset.id, b); });
   app.querySelectorAll('button[data-ract]').forEach((b) => { b.onclick = () => recommendAct(b.dataset.ract, b.dataset.id, b); });
-  app.querySelectorAll('button[data-engine]').forEach((b) => { b.onclick = () => engineClick(s, b.dataset.engine, b); });
+  app.querySelectorAll('button[data-serve]').forEach((b) => { b.onclick = () => engineClick(s, b.dataset.serve, b); });
+  // A person's click on a section's summary (a toggle the render itself caused matches data-open and is not one).
+  app.querySelectorAll('details[data-eng]').forEach((d) => d.addEventListener('toggle', () => {
+    if (d.open === (d.dataset.open === '1')) return;
+    d.dataset.open = d.open ? '1' : '0';
+    sectionToggled(d.dataset.eng, d.open);
+  }));
   // Stop on either bar (the job, the download).
   app.querySelectorAll('button[data-cancel]').forEach((b) => { b.onclick = () => post('/lol/admin/job/cancel', { slot: b.dataset.cancel }, b, 'Stopping…'); });
   wireVllm(s);
   wireStorage(s);
   const lcServing = be.engine === 'llama.cpp';
   app.querySelectorAll('button[data-lcuse]').forEach((b) => { b.onclick = () => post('/lol/admin/llamacpp/model', { id: b.dataset.lcuse }, b, lcServing ? 'Loading the model…' : 'Downloading…'); });
-  app.querySelectorAll('button[data-lcswitch]').forEach((b) => { b.onclick = () => { if (confirm(switchConfirm(s, 'llamacpp'))) post('/lol/admin/backend', { engine: 'llamacpp' }, b, 'Switching…'); }; });
-  app.querySelectorAll('button[data-lcclose]').forEach((b) => {
-    b.onclick = () => { lcOpen = false; try { localStorage.removeItem('lolLcOpen'); } catch { /* private window */ } render(s); };
-  });
   app.querySelectorAll('button[data-lcdel]').forEach((b) => { b.onclick = () => post('/lol/admin/llamacpp/library/remove', { id: b.dataset.lcdel }, b, 'Removed'); });
   // Inline rename editor. window.prompt() is NOT supported inside Electron (the
   // Farm app's window) — it throws, which read as "the button does nothing"
@@ -865,19 +879,118 @@ function barOf(x, slot) {
 // Can a switch to vLLM go ahead from here: checked, and nothing in the checklist blocks it.
 function vllmUsable(v) { return !!(v && v.supported && v.probe && !v.probe.problems.length); }
 
-function vllmEngineSub(v) {
-  const lead = 'Many people at once on a big NVIDIA GPU.';
-  if (!v || v.supported === false) return 'Not available on this computer: vLLM needs an NVIDIA GPU on Linux, or Windows with WSL.';
-  if (v.takeOver) return `${lead} The vLLM already on this computer: press to let the farm run it, as it runs now.`;
-  // A GPU no model of the list fits (an RTX 4070 or 4080), said before any check: never an offer to set it up.
-  const fit = v.hostFit;
-  if ((v.probe && v.probe.gpuTooSmall) || (fit && !fit.fits)) {
-    return `Not for this GPU${fit && !fit.fits ? ` (${fit.gb} GB; vLLM's models need about ${fit.needGb} GB)` : ''}: llama.cpp or Ollama is the engine for it. Press to see why.`;
+// ---- The engine sections (owner, 2026-10-12) --------------------------------------------------------------------------
+const SECTION_OF = { ollama: 'ollama', 'llama.cpp': 'llamacpp', llamacpp: 'llamacpp', vllm: 'vllm', external: 'external' };
+function saveOpen() {
+  try { localStorage.setItem('lolEngineOpen', JSON.stringify(engOpen)); localStorage.setItem('lolServingSeen', servingSeen || ''); } catch { /* private window */ }
+}
+// Open: what the person chose, else while its engine serves, or (vLLM) while it has something to say: the take-over
+// offered or done, a start that failed while Ollama serves, an install or a download of its own running.
+function secOpen(s, id) {
+  if (typeof engOpen[id] === 'boolean') return engOpen[id];
+  const be = s.backend || {}; const v = s.vllm || {}; const dl = s.download;
+  if (SECTION_OF[be.engine] === id) return true;
+  return id === 'vllm' && !!(v.takeOver || v.takenOver || (v.bootError && be.engine === 'ollama') || (dl && !dl.done && dl.kind !== 'move'));
+}
+// The engine that serves changed (a switch, a fallback): its section opens, whatever was chosen for it before.
+function noteServing(id) {
+  if (id === servingSeen) return;
+  servingSeen = id;
+  delete engOpen[id];
+  saveOpen();
+}
+// A person opened or closed a section (its summary): kept across the 5 s rebuild and the next visit. Opening vLLM's
+// checks this computer once per page (§7.1): what the vLLM button did before the sections.
+function sectionToggled(id, open) {
+  engOpen[id] = open;
+  saveOpen();
+  const v = (lastState && lastState.vllm) || {};
+  if (id === 'vllm' && open && !vllmAutoChecked && v.supported !== false && !v.probe) { vllmAutoChecked = true; vllmCheck(); }
+}
+// Opened from the page itself (a look in a folder found models for it), brought into view.
+function openSection(s, id) {
+  engOpen[id] = true;
+  saveOpen();
+  render(s);
+  const el = document.getElementById('eng-' + id);
+  if (el) el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+}
+// One section: its summary says the state and the one fact that matters without opening it (a real button for the
+// keyboard and screen readers: <summary>), the body holds everything about the engine.
+function section(s, id, body) {
+  const sum = SUMMARY[id](s, SECTION_OF[(s.backend || {}).engine] === id);
+  const open = secOpen(s, id);
+  return `<div class="card"><details class="eng" id="eng-${id}" data-eng="${id}" data-open="${open ? '1' : '0'}"${open ? ' open' : ''}>`
+    + `<summary><h2 class="ename">${ENGINE_LABEL[id]}</h2><span class="estate"><span class="dot${sum.tone ? ' ' + sum.tone : ''}" aria-hidden="true"></span>${esc(sum.state)}${sum.fact ? ` · ${esc(sum.fact)}` : ''}</span></summary>`
+    + `<div class="ebody">${body}</div></details></div>`;
+}
+// "Serve with …", at the end of every section but the serving one's: the switch, with the question it always asked.
+// The line says what it costs (the question without its "Switch to …?"), or why it cannot go ahead.
+function serveRow(s, id, jobRunning) {
+  const v = s.vllm || {};
+  let why = '';
+  if (id === 'llamacpp') {
+    if (s.llamacppAvailable === false) why = 'Not available on this computer: there is no ready-made llama.cpp for it.';
+    else if (!lcChosen(s)) why = 'Choose a model above first.';
   }
-  if (!v.probe && v.noNvidia) return 'vLLM needs an NVIDIA GPU, and none was found on this computer. Press to check it.';
-  if (!v.probe) return `${lead} Press to check this computer.`;
-  if (!v.probe.problems.length) return `${lead} One model; it takes about 2 minutes to start.`;
-  return `${lead} Not set up on this computer yet: press to see how.`;
+  if (id === 'vllm') {
+    if (v.takeOver) return '';   // the offer above is the way: the farm runs the vLLM already here, nothing restarted
+    if (v.supported === false) why = 'Not available on this computer: vLLM needs an NVIDIA GPU on Linux, or Windows with WSL.';
+    else if (!vllmUsable(v)) why = v.probe ? 'Not set up on this computer yet: the list above says what is missing.' : 'This computer is checked first: the list above says what it has.';
+  }
+  const cost = switchConfirm(s, id).replace(/^Switch to [^?]*\? /, '');
+  return `<div class="row"><span></span><span><div class="mname">Serve with ${ENGINE_LABEL[id]}</div><div class="meta">${esc(why || cost)}</div></span>`
+    + `<span class="badges"><button class="start" data-serve="${id}"${jobRunning || why ? ' disabled' : ''}>Serve with ${ENGINE_LABEL[id]}</button></span></div>`;
+}
+// The summaries: { state, tone (the dot: served = green, busy = amber, bad = red, none = grey), fact }.
+const VLLM_STATE = { ready: 'serving', starting: 'starting', restarting: 'starting', stopping: 'stopping', stopped: 'stopped', guard: 'stopped', down: 'not answering' };
+const SUMMARY = {
+  ollama(s, serving) {
+    const models = s.models || [];
+    const def = models.find((m) => m.isDefault);
+    return { state: serving ? 'serving' : 'standby', tone: serving ? 'served' : '',
+      fact: models.length ? `${models.length} model${models.length === 1 ? '' : 's'}${def ? ` · ${def.id} default` : ''}` : 'no models on this computer' };
+  },
+  llamacpp(s, serving) {
+    const c = lcChosen(s);
+    if (serving) return { state: 'serving', tone: 'served', fact: c ? c.label : (s.backend || {}).model };
+    if (s.llamacppAvailable === false) return { state: 'cannot run on this computer', tone: '', fact: '' };
+    if (s.llamacppBootError) return { state: 'could not start', tone: 'bad', fact: 'the farm serves with Ollama for now' };
+    return { state: 'standby', tone: '', fact: c ? `${c.label} chosen${c.downloaded ? '' : ', to download'}` : 'no model chosen' };
+  },
+  vllm(s, serving) {
+    const v = s.vllm || {}; const be = s.backend || {};
+    const chosen = (v.library || []).find((e) => e.active);
+    if (serving) {
+      const state = VLLM_STATE[v.phase] || 'serving';
+      return { state, tone: state === 'serving' ? 'served' : ['starting', 'stopping'].includes(state) ? 'busy' : 'bad',
+        fact: `${chosen ? chosen.label : be.model || ''} · ${be.slots} at ${fmtK(be.contextLength)}` };
+    }
+    if (v.supported === false) return { state: 'cannot run on this computer', tone: '', fact: 'it needs an NVIDIA GPU on Linux, or Windows with WSL' };
+    if (v.takeOver) return { state: 'already running on this computer', tone: '', fact: 'the farm can run it, as it runs now' };
+    // A GPU no model of the list fits (an RTX 4070 or 4080), said before any check: never an offer to set it up.
+    const fit = v.hostFit;
+    if ((v.probe && v.probe.gpuTooSmall) || (fit && !fit.fits)) {
+      return { state: 'not for this GPU', tone: '', fact: `${fit && !fit.fits ? `${fit.gb} GB; vLLM's models need about ${fit.needGb} GB: ` : ''}llama.cpp or Ollama is the engine for it` };
+    }
+    if (!v.probe && v.noNvidia) return { state: 'no NVIDIA GPU found', tone: '', fact: 'open to check this computer' };
+    if (v.bootError && be.engine === 'ollama') return { state: 'could not start', tone: 'bad', fact: 'the farm serves with Ollama for now' };
+    if (!v.probe) return { state: 'standby', tone: '', fact: 'open to check this computer' };
+    if (v.probe.problems.length) return { state: v.installed ? 'not set up yet' : 'not installed', tone: '', fact: chosen ? `${chosen.label} chosen` : '' };
+    return { state: 'standby', tone: '', fact: chosen ? `${chosen.label} chosen · about 2 minutes to start` : 'about 2 minutes to start' };
+  },
+  external(s, serving) {
+    const be = s.backend || {};
+    return { state: serving ? 'serving' : 'standby', tone: serving ? 'served' : '', fact: serving ? `at ${be.baseUrl || ''}` : 'a server this farm does not run' };
+  },
+};
+// What has the keyboard's focus, as a selector that finds it again after the rebuild (null: nothing to give back).
+function focusKeyOf(a) {
+  if (!a || typeof app.contains !== 'function' || !app.contains(a)) return null;
+  if (a.id) return '#' + CSS.escape(a.id);
+  if (a.tagName === 'SUMMARY' && a.parentElement && a.parentElement.id) return '#' + CSS.escape(a.parentElement.id) + ' > summary';
+  const data = a.tagName === 'BUTTON' && [...a.attributes].find((x) => x.name.startsWith('data-'));
+  return data ? `button[${data.name}="${CSS.escape(data.value)}"]` : null;
 }
 
 const isLoopback = (url) => /^https?:\/\/(127\.|localhost[:/]|\[::1\])/i.test(String(url || ''));
@@ -899,7 +1012,7 @@ function switchConfirm(s, to) {
   }
   return `Switch to ${name}? ${cost}`;
 }
-// A press on an engine button (§7.1).
+// A press on Serve with … (§7.1).
 function engineClick(s, to, b) {
   // The vLLM the farm routes to runs on this computer and can be kept as the farm's own (§9): that is what vLLM
   // means then, with nothing restarted, not a stop and a 2-minute start of the same thing.
@@ -907,15 +1020,13 @@ function engineClick(s, to, b) {
     if (confirm(takeOverConfirm(s.vllm.takeOver))) post('/lol/admin/vllm/take-over', {}, b, 'The farm runs vLLM now.');
     return;
   }
-  // vLLM not set up here yet: open its card and check this computer, without switching (§7.1).
-  if (to === 'vllm' && !vllmUsable(s.vllm)) { openVllmCard(s); return; }
-  // llama.cpp: its card first, with the model the switch will serve and its own Switch button.
-  if (to === 'llamacpp') { openLcCard(s); return; }
+  // vLLM not set up here yet: its section, which checks this computer, never a switch (§7.1).
+  if (to === 'vllm' && !vllmUsable(s.vllm)) { openSection(s, 'vllm'); return; }
   // A switch stops one engine and loads another: downtime for everyone connected, said first.
   if (!confirm(switchConfirm(s, to))) return;
   post('/lol/admin/backend', { engine: to }, b, 'Switching…');
 }
-// "Let the farm run vLLM" (§9.2), from its card or from the vLLM button: what it does, before it does it.
+// "Let the farm run vLLM" (§9.2), from its section or from Serve with vLLM: what it does, before it does it.
 function takeOverConfirm(t) {
   return (t.running
     ? 'Let the farm run the vLLM already on this computer? It keeps the same model, name and settings and keeps running: nobody is interrupted.'
@@ -926,7 +1037,7 @@ function takeOverConfirm(t) {
 // at a desktop log-in only. A box that starts with no one logging in to its desktop must hear it before the click.
 const LINUX_BOOT = 'From then on vLLM starts when the farm starts, not by itself at boot: with the Farm app, that is when someone logs in to the desktop of this computer (Launch at login, in its settings).';
 
-// The line under the Backend title: where vLLM is in its life (§1.5, §7.1).
+// The line under the Serving title: where vLLM is in its life (§1.5, §7.1).
 function vllmStatusLine(s) {
   const v = s.vllm || {}; const be = s.backend || {};
   if (be.engine !== 'vllm') {
@@ -935,7 +1046,7 @@ function vllmStatusLine(s) {
     const why = String(v.bootError).replace(/^vLLM could not start:\s*/, '').replace(/[.\s]+$/, '');
     const what = /^vLLM stopped working/.test(why) ? why : `vLLM could not start: ${why}`;
     // Its log says more only when vLLM ran; a start that stopped at the check (or a boot) has the checklist's words.
-    const more = v.bootErrorRan ? " (vLLM's log below says more)" : (v.probe && (v.probe.problems || []).length ? ' (the checklist on the vLLM card below says what is missing)' : '');
+    const more = v.bootErrorRan ? " (vLLM's log below says more)" : (v.probe && (v.probe.problems || []).length ? ' (the checklist in the vLLM section below says what is missing)' : '');
     return `<div class="warnline">${esc(what)}. The farm serves with Ollama for now. Fix the cause${more}, then switch back to vLLM.</div>`;
   }
   const hint = (t) => `<div class="hint">${t}</div>`;
@@ -1041,7 +1152,7 @@ function vllmTrade(s, slots, ctx, kv) {
     `${edited ? 'After Apply, each' : 'Each'} person gets <b>${fmtK(ctx)}</b> of context.`,
     fit != null ? ` The memory for conversations holds <b>${fit}</b> people at that size.` : '',
     meas ? ` Measured on this card with this model: ${esc(meas.every)} at ${fmtK(meas.ctx)} when everyone writes at once${meas.steady ? `, ${esc(meas.steady)} in normal use` : ''}.`
-      : ` Not measured on this card with this model: start with fewer people and watch the Performance card. ${plan} estimates it.`,
+      : ` Not measured on this card with this model: start with fewer people and watch Performance, below. ${plan} estimates it.`,
   ].join('');
   // Automatic never goes past what was measured or what the memory holds; a set number can.
   const n = slots === 'auto' ? null : slots;
@@ -1061,18 +1172,18 @@ function lcChosen(s) {
   return (lc.library || []).find((e) => (e.url || e.path) === lc.model) || { label: String(lc.model).split(/[\\/]/).pop(), url: lc.model, downloaded: false };
 }
 
-// The llama.cpp card ("Model · llama.cpp"): while llama.cpp serves, and, before a switch, once the operator pressed
-// the llama.cpp button. Before the switch, Use this CHOOSES the model the switch will serve (and downloads it now, as
-// the job); the engine that serves keeps serving until Switch to llama.cpp.
-function llamacppCard(s, jobRunning) {
+// The llama.cpp section: the library, Add, and, while llama.cpp serves, its people and context and Performance. Before a
+// switch, Use this CHOOSES the model the switch will serve (and downloads it now, as the job); the engine that serves
+// keeps serving until Serve with llama.cpp (owner, 2026-10-09).
+function llamacppSection(s, jobRunning, capacity, perfBlock) {
   const lc = s.llamacpp || {}; const be = s.backend || {};
   const serving = be.engine === 'llama.cpp';
-  if (!(serving || lcOpen)) return '';
   const now = ENGINE_LABEL[be.engine] || 'Ollama';
   const off = jobRunning ? ' disabled' : '';
-  const out = ['<div class="card" id="lc-card"><h2>Model · llama.cpp</h2>'];
-  if (!serving) {
-    out.push(`<div class="hint">llama.cpp serves one model, fast, for a few people at once. Choose here the model it will serve: <b>Use this</b> downloads it now, and ${esc(now)} keeps serving meanwhile. Nothing changes for the people connected until you press <b>Switch to llama.cpp</b>.</div>`);
+  const out = ['<div class="hint">One model, fastest. Quantised KV cache; speculative decoding (MTP) on quants that keep their MTP head.</div>'];
+  if (s.llamacppAvailable === false) out.push('<div class="warnline">Not available on this computer: there is no ready-made llama.cpp for it.</div>');
+  else if (!serving) {
+    out.push(`<div class="hint">llama.cpp serves one model, fast, for a few people at once. Choose here the model it will serve: <b>Use this</b> downloads it now, and ${esc(now)} keeps serving meanwhile. Nothing changes for the people connected until you press <b>Serve with llama.cpp</b>.</div>`);
   }
   out.push((lc.library || []).map((e) => {
     const active = (e.url || e.path) === lc.model;   // a link, or a file used where it is
@@ -1093,42 +1204,24 @@ function llamacppCard(s, jobRunning) {
   }).join('') || '<div class="empty">No models in the library.</div>');
   out.push(scanRows('gguf', s, jobRunning));
   out.push('<div class="row"><span></span><span><div class="mname">Add a model</div>'
-    + '<div class="meta">paste the link to a .gguf file — on HuggingFace, the file\'s <b>download</b> link (…/resolve/main/….gguf). Split models (…-00001-of-00003.gguf) work too: paste any part, all parts are fetched. Or the whole path of a .gguf already on this computer (F:\\models\\….gguf): it is used where it is, nothing is copied.</div></span></span>'
+    + '<div class="meta">paste the link to a .gguf file — on HuggingFace, the file\'s <b>download</b> link (…/resolve/main/….gguf). Split models (…-00001-of-00003.gguf) work too: paste any part, all parts are fetched. Or the whole path of a .gguf already on this computer (F:\\models\\….gguf): it is used where it is, nothing is copied.</div></span>'
     + '<span class="badges"><input id="lc-url" type="text" placeholder="https://huggingface.co/…/model.gguf" spellcheck="false" />'
     + `<button id="lc-add"${off}>Add</button></span></div>`);
   out.push(serving
     ? '<div class="hint">Adding only remembers it. Press <b>Use this</b> to download and serve it — that can take a while on a first use.</div>'
     : '<div class="hint">Adding only remembers it. Press <b>Use this</b> to download it and make it the one llama.cpp will serve.</div>');
-  if (!serving) {
-    const chosen = lcChosen(s);
-    out.push(`<div class="row"><span></span><span><div class="mname">Switch to llama.cpp</div>`
-      + `<div class="meta">${chosen ? `It serves ${esc(chosen.label)}.` : 'Choose a model above first.'} ${esc(now)} stops, and anyone connected waits about a minute.</div></span>`
-      + `<span class="badges"><button class="start" data-lcswitch${jobRunning || !chosen || s.llamacppAvailable === false ? ' disabled' : ''}>Switch to llama.cpp</button>`
-      + '<button data-lcclose>Close</button></span></div>');
-  }
-  out.push('</div>');
+  out.push(serving ? capacity + perfBlock : serveRow(s, 'llamacpp', jobRunning));
   return out.join('');
 }
 
-function openLcCard(s) {
-  lcOpen = true;
-  try { localStorage.setItem('lolLcOpen', '1'); } catch { /* private window */ }
-  render(s);
-  // Below the Backend card, out of sight in a window of ordinary height: brought into view, as the vLLM card is.
-  const card = document.getElementById('lc-card');
-  if (card) card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-}
-
-// The vLLM card ("Model · vLLM", §7.2): while vLLM is the engine, after the operator pressed the vLLM button, while
-// one of its downloads runs, or after it could not start (its log says why). What this computer has and lacks,
-// Install, the model list, and the engine's own controls (Stop, Start, the log).
-function vllmCard(s, jobRunning) {
+// The vLLM section (§7.2): the take-over offer, what this computer has and lacks, Install, the model list, while vLLM
+// serves its people, context and memory and its own controls (Stop, Start), WSL's disk, the log, and Performance.
+function vllmSection(s, jobRunning, capacity, perfBlock) {
   const v = s.vllm || {}; const be = s.backend || {};
   const dl = s.download && !s.download.done ? s.download : null;
-  if (!(be.engine === 'vllm' || vllmOpen || dl || v.bootError)) return '';
   const isV = be.engine === 'vllm';
   const off = (blocked) => (blocked ? ' disabled' : '');
-  const out = [`<div class="card" id="vllm-card"><h2>Model · vLLM</h2>`,
+  const out = [takeOverBlock(s, jobRunning),
     `<div class="hint">vLLM is an engine made for serving many people at once on a big NVIDIA GPU. On Windows it runs inside WSL, the Linux that comes with Windows. The farm installs it, starts it and stops it.</div>`];
   // The checklist: what is in place (muted), what blocks it (✗), what is said without blocking (⚠).
   if (v.supported === false) out.push(`<div class="warnline">✗ Not available on this computer: vLLM needs an NVIDIA GPU on Linux, or Windows with WSL.</div>`);
@@ -1146,8 +1239,7 @@ function vllmCard(s, jobRunning) {
   }
   if (v.supported !== false) {
     out.push(`<div class="row"><span></span><span><div class="meta">${v.probe ? `Checked at ${esc(new Date(v.probe.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}.` : ''}</div></span>`
-      + `<span class="badges"><button data-vcheck${off(vllmChecking)}>Check again</button>`
-      + (vllmOpen && !isV ? '<button data-vclose>Close</button>' : '') + '</span></div>');
+      + `<span class="badges"><button data-vcheck${off(vllmChecking)}>Check again</button></span></div>`);
   }
   // Install: once the check sees a GPU vLLM can use, and vLLM is not there yet.
   const chosen = (v.library || []).find((e) => e.active) || null;
@@ -1188,8 +1280,10 @@ function vllmCard(s, jobRunning) {
   out.push(`<div class="row"><span></span><span><div class="mname">Add a model</div>`
     + `<div class="meta">the name of a model on Hugging Face (owner/name), made for vLLM. Adding only remembers it: press Download, then Use this.</div></span>`
     + `<span class="badges"><input id="vllm-repo" type="text" placeholder="nvidia/Qwen3.6-35B-A3B-NVFP4" spellcheck="false" /><button id="vllm-add">Add</button></span></div>`);
-  // The engine's own controls, while it is the engine: Stop and Start (a start in progress stops from its bar).
+  // While it is the engine: its people, context and memory, then its own controls, Stop and Start (a start in progress
+  // stops from its bar).
   if (isV) {
+    out.push(capacity);
     const canStop = ['ready', 'down'].includes(v.phase);
     const canStart = !['ready', 'down', 'starting', 'restarting', 'stopping'].includes(v.phase);
     out.push(`<div class="row"><span class="dot${v.phase === 'ready' ? ' served' : ''}"></span><span><div class="mname">Run vLLM</div>`
@@ -1209,7 +1303,7 @@ function vllmCard(s, jobRunning) {
   if (vllmLogLines) {
     out.push(`<pre style="max-height:320px;overflow:auto;font-size:11.5px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;white-space:pre-wrap">${esc(vllmLogLines.join('\n') || '(empty)')}</pre>`);
   }
-  out.push('</div>');
+  out.push(isV ? perfBlock : serveRow(s, 'vllm', jobRunning));
   return out.join('');
 }
 
@@ -1221,14 +1315,14 @@ const browseBtn = (target) => (canBrowse() ? `<button data-stbrowse="${target}" 
 function gbText(n) { return n == null ? '' : n >= 10 ? `${Math.round(n)} GB` : n >= 0.1 ? `${Math.round(n * 10) / 10} GB` : n > 0 ? 'less than 0.1 GB' : 'empty'; }
 
 // The card: where each store is now, "Keep everything here" (Move here), a move left unfinished (Finish, Forget), and
-// "Use the models in this folder" (Look; what it finds is listed on each engine's card).
+// "Use the models in this folder" (Look; what it finds is listed in each engine's section).
 function storageCard(s, jobRunning) {
   const st = s.storage;
   if (!st) return '';
   const mv = st.move; const dlBusy = !!(s.download && !s.download.done);
   const off = (b) => (b ? ' disabled' : '');
   const out = ['<div class="card" id="storage-card"><h2>Model storage</h2>',
-    `<div class="hint">Where this farm keeps its models. Choose ONE folder for everything it downloads: llama.cpp's models, document search, speech to text and Ollama's models${st.platform === 'linux' ? ', and vLLM\'s' : ''}. An SSD is best: models load from it every time an engine starts.${st.platform === 'win32' ? ' vLLM\'s models live in WSL\'s Linux disk, which moves from the vLLM card.' : ''}</div>`];
+    `<div class="hint">Where this farm keeps its models. Choose ONE folder for everything it downloads: llama.cpp's models, document search, speech to text and Ollama's models${st.platform === 'linux' ? ', and vLLM\'s' : ''}. An SSD is best: models load from it every time an engine starts.${st.platform === 'win32' ? ' vLLM\'s models live in WSL\'s Linux disk, which moves from the vLLM section.' : ''}</div>`];
   if (st.missing) out.push(`<div class="warnline">⚠ ${esc(st.missing)}</div>`);
   if (st.stores == null) out.push('<div class="meta">Measuring the folders…</div>');
   for (const x of st.stores || []) {
@@ -1264,9 +1358,9 @@ function storageCard(s, jobRunning) {
   if (scanResult) {
     const f = scanResult.found || {};
     const parts = [
-      f.gguf && f.gguf.length ? `${f.gguf.length} .gguf model${f.gguf.length === 1 ? '' : 's'} (on the llama.cpp card)` : '',
-      f.vllm && f.vllm.length ? `${f.vllm.length} model folder${f.vllm.length === 1 ? '' : 's'} for vLLM (on the vLLM card)` : '',
-      f.ollama && f.ollama.length ? `${f.ollama.length === 1 ? 'an Ollama model folder' : `${f.ollama.length} Ollama model folders`} (on the Ollama card)` : '',
+      f.gguf && f.gguf.length ? `${f.gguf.length} .gguf model${f.gguf.length === 1 ? '' : 's'} (in the llama.cpp section)` : '',
+      f.vllm && f.vllm.length ? `${f.vllm.length} model folder${f.vllm.length === 1 ? '' : 's'} for vLLM (in the vLLM section)` : '',
+      f.ollama && f.ollama.length ? `${f.ollama.length === 1 ? 'an Ollama model folder' : `${f.ollama.length} Ollama model folders`} (in the Ollama section)` : '',
     ].filter(Boolean);
     out.push(`<div class="hint">${parts.length ? `In ${esc(scanResult.dir)}: ${esc(parts.join(', '))}.` : `No models found in ${esc(scanResult.dir)}.`}${scanResult.truncated ? ' It holds very many files: the look stopped early; choose a folder closer to the models.' : ''} <button data-stscanclose style="min-width:0">Clear</button></div>`);
   }
@@ -1279,7 +1373,7 @@ function ollamaStep(platform, x) {
     : `One step is yours, in the Ollama app (its icon by the clock, then Settings): set Model location to ${x.to}. Ollama starts again by itself.`)
     + ` Then press Finish: the farm checks that Ollama reads the new folder, and only then deletes the old copy in ${x.from}.`;
 }
-// What a look in a folder found for one engine ('gguf' on the llama.cpp card, 'vllm' on the vLLM card), with ticks.
+// What a look in a folder found for one engine ('gguf' in the llama.cpp section, 'vllm' in the vLLM section), with ticks.
 // What is already in the list is read from the farm's own state, never from the page's memory.
 const samePath = (a, b) => (/^[A-Za-z]:/.test(String(a || ''))   // Windows: a name in either case is the same
   ? String(a).toLowerCase() === String(b || '').toLowerCase() : !!a && a === b);
@@ -1299,7 +1393,7 @@ function scanRows(kind, s, jobRunning) {
   return `<div class="hint">Found in ${esc(scanResult.dir)} — tick what to add; it is used where it is.</div>${rows}`
     + `<div class="row"><span></span><span></span><span class="badges">${kind === 'gguf' && scanResult.into ? `<button data-stmovein${jobRunning ? ' disabled' : ''}>Move the ticked ones into the farm's folder</button>` : ''}<button class="start" data-stuse="${kind}"${jobRunning ? ' disabled' : ''}>Add the ticked ones</button></span></div>`;
 }
-// The Ollama card: the folder its models are in, and an Ollama model folder found by a look (Use this folder).
+// The Ollama section: the folder its models are in, and an Ollama model folder found by a look (Use this folder).
 function ollamaStorageRows(s, jobRunning) {
   const st = s.storage || {};
   const x = (st.stores || []).find((y) => y.id === 'ollama');
@@ -1314,7 +1408,7 @@ function ollamaStorageRows(s, jobRunning) {
   }
   return out.join('');
 }
-// The vLLM card, on Windows: WSL's Linux disk (vLLM and its models are in it) and its Move.
+// The vLLM section, on Windows: WSL's Linux disk (vLLM and its models are in it) and its Move.
 function wslDiskRow(v, jobRunning, dlBusy) {
   const w = v.wslDisk;
   if (!w) return '';
@@ -1386,9 +1480,9 @@ function wireStorage(s) {
       const r = await api('/lol/admin/storage/scan', { method: 'POST', body: JSON.stringify({ dir }) });
       if (r && r.ok === false) { toast(r.error || 'Could not look there.'); return; }
       scanResult = r; scanPicked.clear();
-      // Each engine's card lists its part: the ones that are not on screen open.
-      if ((r.found.gguf || []).length && !lcOpen) { lcOpen = true; try { localStorage.setItem('lolLcOpen', '1'); } catch { /* private window */ } }
-      if ((r.found.vllm || []).length && !vllmOpen) { vllmOpen = true; try { localStorage.setItem('lolVllmOpen', '1'); } catch { /* private window */ } }
+      // Each engine's section lists its part: those sections open.
+      for (const [kind, id] of [['ollama', 'ollama'], ['gguf', 'llamacpp'], ['vllm', 'vllm']]) if ((r.found[kind] || []).length) engOpen[id] = true;
+      saveOpen();
     } catch (e) { if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; } toast('Error: ' + (e.message || e)); return; }
     finally { b.disabled = false; b.textContent = 'Look'; }
     refresh(true);
@@ -1439,16 +1533,17 @@ function wireStorage(s) {
 }
 
 // "Let the farm run vLLM" (§9.2): a vLLM on this computer that the farm routes to without running it. The farm
-// offers it; a person clicks it (the owner's question (a)). Once done, the card says so until the farm restarts,
-// with Undo while vLLM still runs as it was taken over and no setting changed since (§9.4).
-function takeOverCard(s, jobRunning) {
+// offers it; a person clicks it (the owner's question (a)). Once done, the block says so until the farm restarts,
+// with Undo while vLLM still runs as it was taken over and no setting changed since (§9.4). At the top of the vLLM
+// section, which opens by itself while it has one of them.
+function takeOverBlock(s, jobRunning) {
   const t = s.vllm && s.vllm.takeOver;
   const d = s.vllm && s.vllm.takenOver;
   if (!t && d) {
     const tail = d.platform === 'win32'
       ? 'If this computer started vLLM at log on before, that now only opens the Farm app.'
       : 'If a service started it at boot before (lol-vllm), that service starts nothing now: to remove it, run  sudo systemctl disable lol-vllm .';
-    return `<div class="card"><h2>vLLM on this computer</h2>`
+    return `<div class="subsec"><h2>vLLM on this computer</h2>`
       + `<div class="hint">The farm now runs vLLM, from ${esc(d.root)}: you change its model, people and context here, and it starts and stops with the farm. ${tail}</div>`
       + (d.undo ? `<div class="row"><span class="meta">Undo puts it back as it was: the farm routes to this vLLM without running it, and vLLM keeps running. Possible until a setting changes or the farm restarts.</span><span></span>`
         + `<span class="badges"><button data-vundo${jobRunning ? ' disabled' : ''}>Undo</button></span></div>` : '')
@@ -1458,21 +1553,11 @@ function takeOverCard(s, jobRunning) {
   const tail = t.running
     ? 'It keeps the same model, name and settings and keeps running: nobody is interrupted.'
     : 'It keeps the same model, name and settings and starts it now: about 2 minutes, during which nobody can chat.';
-  return `<div class="card"><h2>vLLM on this computer</h2>`
+  return `<div class="subsec"><h2>vLLM on this computer</h2>`
     + `<div class="hint">The vLLM this farm routes to runs on this computer, from ${esc(t.root)}. The farm can run it itself: then you change its model, people and context here, and it starts and stops with the farm. ${tail}${t.platform === 'linux' ? ` ${LINUX_BOOT}` : ''}</div>`
     + `<div class="row"><span></span><span></span><span class="badges"><button class="start" data-vtake${jobRunning ? ' disabled' : ''}>Let the farm run vLLM</button></span></div></div>`;
 }
 
-function openVllmCard(s) {
-  vllmOpen = true;
-  try { localStorage.setItem('lolVllmOpen', '1'); } catch { /* private window */ }
-  render(s);
-  // It opens below the Backend card, out of sight in a window of ordinary height: a click on vLLM looked like
-  // nothing happened (the owner, on the PRO 6000, 2026-10-08). Bring it into view.
-  const card = document.getElementById('vllm-card');
-  if (card) card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-  if (s.vllm && s.vllm.supported !== false && !s.vllm.probe) { vllmAutoChecked = true; vllmCheck(); }
-}
 async function vllmCheck() {
   if (vllmChecking) return;
   vllmChecking = true;
@@ -1493,13 +1578,6 @@ function wireVllm(s) {
   const v = s.vllm || {};
   const on = (sel, fn) => app.querySelectorAll(sel).forEach((b) => { b.onclick = () => fn(b); });
   on('button[data-vcheck]', () => vllmCheck());
-  // Close the card opened by a press on the vLLM button (it is remembered in this browser): a farm whose GPU is too
-  // small would show its red list on every page otherwise.
-  on('button[data-vclose]', () => {
-    vllmOpen = false;
-    try { localStorage.removeItem('lolVllmOpen'); } catch { /* private window */ }
-    render(s);
-  });
   on('button[data-vinstall]', (b) => post('/lol/admin/vllm/install', {}, b, 'Installing vLLM…'));
   on('button[data-vdl]', (b) => post('/lol/admin/vllm/download', { id: b.dataset.vdl }, b, 'Downloading…'));
   on('button[data-vuse]', (b) => {
@@ -1522,9 +1600,10 @@ function wireVllm(s) {
   on('button[data-vtake]', (b) => post('/lol/admin/vllm/take-over', {}, b, 'The farm runs vLLM now and is starting it.'));
   on('button[data-vundo]', (b) => post('/lol/admin/vllm/take-over/undo', {}, b, 'Back as before.'));
   bindApply('#vllm-add', '#vllm-repo', (val) => post('/lol/admin/vllm/library/add', { repo: val }, $('#vllm-add'), 'Added to the list.'));
-  // The card's first open checks this computer once per page (never per poll, and not again when the farm could
-  // not answer it: Check again is there for that).
-  if (!vllmAutoChecked && (vllmOpen || (s.backend || {}).engine === 'vllm') && v.supported !== false && !v.probe) { vllmAutoChecked = true; vllmCheck(); }
+  // The section's first open checks this computer once per page (never per poll, and not again when the farm could
+  // not answer it: Check again is there for that). Opened by a person (sectionToggled checks at the click) or by the
+  // page, or vLLM serving; not when it opened by itself for a download or a failed start.
+  if (!vllmAutoChecked && (engOpen.vllm === true || (s.backend || {}).engine === 'vllm') && v.supported !== false && !v.probe) { vllmAutoChecked = true; vllmCheck(); }
 }
 
 // Wire an Apply button + its text field: Enter submits, an empty value is a no-op.
