@@ -974,7 +974,8 @@ const SUMMARY = {
       return { state: 'not for this GPU', tone: '', fact: `${fit && !fit.fits ? `${fit.gb} GB; vLLM's models need about ${fit.needGb} GB: ` : ''}llama.cpp or Ollama is the engine for it` };
     }
     if (!v.probe && v.noNvidia) return { state: 'no NVIDIA GPU found', tone: '', fact: 'open to check this computer' };
-    if (v.bootError && be.engine === 'ollama') return { state: 'could not start', tone: 'bad', fact: 'the farm serves with Ollama for now' };
+    // A start that failed, or a vLLM that stopped working while it served (twice in 5 minutes): each says its own.
+    if (v.bootError && be.engine === 'ollama') return { state: /^vLLM stopped working/.test(v.bootError) ? 'stopped working' : 'could not start', tone: 'bad', fact: 'the farm serves with Ollama for now' };
     if (!v.probe) return { state: 'standby', tone: '', fact: 'open to check this computer' };
     if (v.probe.problems.length) return { state: v.installed ? 'not set up yet' : 'not installed', tone: '', fact: chosen ? `${chosen.label} chosen` : '' };
     return { state: 'standby', tone: '', fact: chosen ? `${chosen.label} chosen · about 2 minutes to start` : 'about 2 minutes to start' };

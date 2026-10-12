@@ -2143,16 +2143,23 @@ function loadPanel({ fetch: fetchFn = () => new Promise(() => {}), confirm: conf
     const localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
     // eslint-disable-next-line no-new-func
     const fn = new Function('document', 'localStorage', 'setInterval', 'fetch', 'confirm', 'matchMedia',
-        `${m[1]}\n;return { render, switchConfirm: typeof switchConfirm === 'function' ? switchConfirm : () => '', engineClick: typeof engineClick === 'function' ? engineClick : null, setScan: typeof scanResult !== 'undefined' ? (v) => { scanResult = v; } : null };`);
+        `${m[1]}\n;return { render, switchConfirm: typeof switchConfirm === 'function' ? switchConfirm : () => '', engineClick: typeof engineClick === 'function' ? engineClick : null, setScan: typeof scanResult !== 'undefined' ? (v) => { scanResult = v; } : null, sectionToggled: typeof sectionToggled === 'function' ? sectionToggled : null };`);
     const out = fn(document, localStorage, () => 0, fetchFn, confirmFn, () => ({ matches: false }));
     const render = (state) => { out.render(state); return el('#app').innerHTML; };
     render.el = el;   // the stubs, for a test that edits a control after render
     render.switchConfirm = out.switchConfirm;
-    render.engineClick = out.engineClick;   // an engine button's press (the stubs wire no clicks)
+    render.engineClick = out.engineClick;   // a press on Serve with … (the stubs wire no clicks)
     render.setScan = out.setScan;           // what a look in a folder found ("Use the models in this folder")
+    render.toggle = out.sectionToggled;     // a person's click on an engine section's summary: (id, open)
     render.scrolled = scrolled;
     return render;
 }
+// One engine section of the rendered panel (its summary and body), whether it is open, and its summary as read.
+const engSection = (html, id) => { const i = html.indexOf(`<details class="eng" id="eng-${id}"`); return i < 0 ? '' : html.slice(i, html.indexOf('</details>', i)); };
+const engIsOpen = (html, id) => new RegExp(`<details class="eng" id="eng-${id}"[^>]* open>`).test(html);
+const engSummary = (html, id) => ((/<summary>([\s\S]*?)<\/summary>/.exec(engSection(html, id)) || [])[1] || '').replace(/<[^>]+>/g, '').replace(/&#39;/g, "'");
+// The Access card: what every engine shares.
+const accessCard = (html) => { const i = html.indexOf('<div class="card" id="access">'); return i < 0 ? '' : html.slice(i, html.indexOf('<div class="card"', i + 10)); };
 
 function adminState(over = {}) {
     return {
@@ -4093,14 +4100,27 @@ test('vLLM launch: the farm\'s whole argv, its environment, and how a script run
     assert.deepEqual([l.cmd, l.args, l.cwd, l.env], ['bash', ['./status.sh'], '/opt/farm/vllm', { PATH: 'p', LOL_VLLM_ROOT: '/r' }]);
 });
 
-test('vLLM card: a press on vLLM before it is set up opens its card AND brings it into view (it opened below the Backend card, out of sight: the press looked like it did nothing, PRO 6000 2026-10-08)', () => {
-    const p = loadPanel({ fetch: async () => ({ status: 200, json: async () => ({ ok: true }) }) });
-    const s = ollamaWithVllm({ probe: { at: 1, oks: [], problems: ['vLLM is not installed on this computer yet: press Install vLLM.'], warnings: [], gpuTooSmall: false } });
-    p(s);
-    assert.ok(!p.el('#app').innerHTML.includes('id="vllm-card"'), 'closed before the press');
-    p.engineClick(s, 'vllm', { dataset: {} });
-    assert.ok(p.el('#app').innerHTML.includes('id="vllm-card"'), 'the card is drawn');
-    assert.deepEqual(p.scrolled, ['vllm-card'], 'and scrolled to');
+test('vLLM section: opened by a person before vLLM is set up, it checks this computer once; Serve with vLLM never switches to a vLLM not set up (the vLLM button\'s job before the sections, PRO 6000 2026-10-08)', async () => {
+    const posts = [];
+    const p = loadPanel({ fetch: async (url) => { posts.push(url); return { status: 200, json: async () => ({ ok: true }) }; } });
+    const s = ollamaWithVllm({ probe: null });
+    assert.ok(!engIsOpen(p(s), 'vllm'), 'closed while Ollama serves and nobody opened it');
+    p.toggle('vllm', true);
+    await new Promise((r) => setTimeout(r, 10));
+    assert.deepEqual(posts.filter((u) => u !== '/lol/admin/state'), ['/lol/admin/vllm/check'], 'opening it checks this computer');
+    assert.ok(engIsOpen(p(s), 'vllm'), 'and it stays open through the 5 s rebuild');
+    p.toggle('vllm', false); p.toggle('vllm', true);
+    await new Promise((r) => setTimeout(r, 10));
+    assert.equal(posts.filter((u) => u === '/lol/admin/vllm/check').length, 1, 'once per page, never per open');
+    // Serve with vLLM is off while the checklist blocks it; pressed anyway, it opens the section in view, never a switch.
+    const q = loadPanel({ fetch: async (url) => { posts.push(url); return { status: 200, json: async () => ({ ok: true }) }; }, confirm: () => true });
+    const notSet = ollamaWithVllm({ probe: { at: 1, oks: [], problems: ['vLLM is not installed on this computer yet: press Install vLLM.'], warnings: [], gpuTooSmall: false } });
+    assert.ok(/data-serve="vllm" disabled/.test(q(notSet)), 'the button is off');
+    assert.ok(engSection(q(notSet), 'vllm').includes('Not set up on this computer yet: the list above says what is missing.'));
+    q.engineClick(notSet, 'vllm', { dataset: {} });
+    assert.deepEqual(q.scrolled, ['eng-vllm'], 'brought into view');
+    assert.ok(engIsOpen(q.el('#app').innerHTML, 'vllm'));
+    assert.ok(!posts.includes('/lol/admin/backend'), 'no switch');
 });
 
 test('vLLM: a script missing from farm/vllm is said as such, before anything starts (the Farm app\'s update stopped half-way)', async () => {
@@ -4826,7 +4846,8 @@ test('document reading beside vLLM: its model fits the memory kept for it, or th
     const vstate = (over) => adminState({ backend: { engine: 'vllm', alias: 'Qwen3.6', model: 'Qwen3.6', contextLength: 65536, contextPerSlot: 65536, slots: 48, slotsVerified: true },
         vllm: { ...vllmPanel(), ocrReserveGib: 9 }, ...over });
     const html = render(vstate({ ocrModel: 'qwen3.8:latest', ocrFits: false, ocrGb: 18.7 }));
-    assert.ok(html.includes('Document reading uses qwen3.8:latest (18.7 GB), which does not fit the 9 GB kept for it beside vLLM: documents will read slowly. Download gemma4:12b in the Ollama list below; the farm then uses it.'), 'the warning with what to do');
+    assert.ok(html.includes('Document reading uses qwen3.8:latest (18.7 GB), which does not fit the 9 GB kept for it beside vLLM: documents will read slowly. Download gemma4:12b in the Ollama section above; the farm then uses it.'), 'the warning with what to do');
+    assert.ok(engSection(html, 'vllm').includes('Document reading uses qwen3.8:latest'), 'in the vLLM section\'s Performance');
     assert.ok(render(vstate({ ocrModel: 'gemma4:12b', ocrFits: false, ocrGb: 11 })).includes('documents will read slowly.</div>'), 'already gemma4:12b: no advice to download it');
     assert.ok(!render(vstate({ ocrModel: 'gemma4:12b', ocrFits: true, ocrGb: 8.1 })).includes('Document reading uses'));
     const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
@@ -4853,33 +4874,51 @@ const vllmState = (v = {}, over = {}) => adminState({ backend: vllmBackend, vllm
     capacity: { slots: 48, clients: 12, seats: [], seatIdleSec: 900, slotsVerified: true, unmanagedHosts: [], ollamaEnvAdvice: null }, ...over });
 const ollamaWithVllm = (v = {}, over = {}) => adminState({ vllm: vllmPanel({ enabled: false, phase: null, running: false, adopted: false, ...v }), externalConfigured: false, ...over });
 
-test('panel: the engine grid — Ollama, llama.cpp, vLLM, and External only while a developer configured one; vLLM\'s button by what this computer has (§7.1, §11.1-18)', async () => {
+test('panel: one section per engine — Ollama, llama.cpp, vLLM in that order, External only while a developer configured one; each summary says its state; Serve with … in every section but the serving one (§7.1, §11.1-18, owner 2026-10-12)', async () => {
     const render = loadPanel();
-    const engines = (html) => [...html.matchAll(/data-engine="(\w+)"/g)].map((m) => m[1]);
-    assert.deepEqual(engines(render(ollamaWithVllm())), ['ollama', 'llamacpp', 'vllm'], 'three buttons');
+    const ids = (html) => [...html.matchAll(/<details class="eng" id="eng-(\w+)"/g)].map((m) => m[1]);
+    assert.deepEqual(ids(render(ollamaWithVllm())), ['ollama', 'llamacpp', 'vllm'], 'three sections, in this order');
     const ext = render(ollamaWithVllm({}, { externalConfigured: true }));
-    assert.deepEqual(engines(ext), ['ollama', 'llamacpp', 'vllm', 'external'], 'four only while the file holds an external server');
-    assert.ok(ext.includes('A server this farm does not run, set up by a developer.'));
+    assert.deepEqual(ids(ext), ['ollama', 'llamacpp', 'vllm', 'external'], 'four only while the file holds an external server');
+    assert.ok(engSection(ext, 'external').includes('A server this farm does not run, set up by a developer.'));
     const html = render(ollamaWithVllm());
-    assert.ok(fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8').includes('.engines { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));'), 'three or four buttons fit one grid');
-    assert.ok(html.includes('The models below. Several to choose from, for a few people at once.'));
-    assert.ok(html.includes('Many people at once on a big NVIDIA GPU. One model; it takes about 2 minutes to start.'), 'ready to use');
-    assert.ok(render(ollamaWithVllm({ probe: { at: 1, oks: [], problems: ['vLLM is not installed on this computer yet: press Install vLLM.'], warnings: [] } }))
-        .includes('Many people at once on a big NVIDIA GPU. Not set up on this computer yet: press to see how.'), 'not set up');
-    assert.ok(render(ollamaWithVllm({ probe: null })).includes('Many people at once on a big NVIDIA GPU. Press to check this computer.'), 'not checked yet: no guess');
+    // The summaries: the state and the one fact, readable with every section closed.
+    assert.equal(engSummary(html, 'ollama'), 'Ollamaserving · 3 models · gemma4:12b default');
+    assert.equal(engSummary(html, 'llamacpp'), 'llama.cppstandby · no model chosen');
+    assert.equal(engSummary(html, 'vllm'), 'vLLMstandby · Qwen3.6 35B-A3B · NVFP4 chosen · about 2 minutes to start', 'ready to use');
+    assert.ok(engSection(html, 'ollama').includes('Several models to choose from, for a few people at once.'));
+    assert.ok(engSection(html, 'llamacpp').includes('One model, fastest. Quantised KV cache; speculative decoding (MTP) on quants that keep their MTP head.'));
+    assert.equal(engSummary(render(ollamaWithVllm({ installed: false, probe: { at: 1, oks: [], problems: ['vLLM is not installed on this computer yet: press Install vLLM.'], warnings: [] } })), 'vllm'),
+        'vLLMnot installed · Qwen3.6 35B-A3B · NVFP4 chosen', 'not set up');
+    assert.equal(engSummary(render(ollamaWithVllm({ probe: { at: 1, oks: [], problems: ['No C compiler'], warnings: [] } })), 'vllm'), 'vLLMnot set up yet · Qwen3.6 35B-A3B · NVFP4 chosen');
+    assert.equal(engSummary(render(ollamaWithVllm({ probe: null })), 'vllm'), 'vLLMstandby · open to check this computer', 'not checked yet: no guess');
     const unsup = render(ollamaWithVllm({ supported: false, probe: null }));
-    assert.ok(unsup.includes('Not available on this computer: vLLM needs an NVIDIA GPU on Linux, or Windows with WSL.'));
-    assert.ok(/data-engine="vllm" disabled/.test(unsup), 'unsupported: the button is off');
-    assert.ok(render(ollamaWithVllm({}, { llamacppAvailable: false })).includes('Not available on this computer: there is no ready-made llama.cpp for it.'));
-    assert.ok(html.includes('Switching stops the current engine and starts the other: about a minute for Ollama or llama.cpp, about 2 minutes for vLLM.'));
-    // The active engine's badge says where vLLM is in its life.
-    const badge = (phase) => (/data-engine="vllm"[^>]*><div class="mname">vLLM <span class="badge on">([^<]+)</.exec(render(vllmState({ phase }))) || [])[1];
-    assert.deepEqual(['ready', 'starting', 'stopped', 'guard', 'down'].map(badge), ['running', 'starting', 'stopped', 'stopped', 'not answering']);
-    // Switching away from an external server is allowed now (§1.2): its buttons are live.
+    assert.equal(engSummary(unsup, 'vllm'), 'vLLMcannot run on this computer · it needs an NVIDIA GPU on Linux, or Windows with WSL');
+    assert.ok(/data-serve="vllm" disabled/.test(unsup), 'unsupported: Serve with vLLM is off');
+    const noLc = render(ollamaWithVllm({}, { llamacppAvailable: false }));
+    assert.equal(engSummary(noLc, 'llamacpp'), 'llama.cppcannot run on this computer');
+    assert.ok(engSection(noLc, 'llamacpp').includes('Not available on this computer: there is no ready-made llama.cpp for it.') && /data-serve="llamacpp" disabled/.test(noLc));
+    // The engine that serves: its state where vLLM is in its life (§1.5), the model and people at once; its dot.
+    const vsum = (phase) => engSummary(render(vllmState({ phase })), 'vllm');
+    assert.deepEqual(['ready', 'starting', 'stopped', 'guard', 'down'].map(vsum), ['serving', 'starting', 'stopped', 'stopped', 'not answering'].map((x) => `vLLM${x} · Qwen3.6 35B-A3B · NVFP4 · 48 at 64k`));
+    const dot = (phase) => (/<summary>[\s\S]*?<span class="(dot[^"]*)"/.exec(engSection(render(vllmState({ phase })), 'vllm')) || [])[1];
+    assert.deepEqual(['ready', 'starting', 'stopped'].map(dot), ['dot served', 'dot busy', 'dot bad'], 'green, amber, red');
+    // Serve with …: not in the serving section; in the others, with what the switch costs, or why it cannot go ahead.
+    const serves = (h) => [...h.matchAll(/data-serve="(\w+)"/g)].map((m) => m[1]);
+    assert.deepEqual(serves(html), ['llamacpp', 'vllm'], 'Ollama serves: no Serve with Ollama');
+    assert.ok(engSection(html, 'vllm').includes('data-serve="vllm"') && engSection(html, 'llamacpp').includes('data-serve="llamacpp"'), 'each in its own section');
+    assert.ok(engSection(html, 'vllm').includes('Chat stops for about 2 minutes while vLLM loads the model (longer the very first time, while it prepares the GPU).') && !/data-serve="vllm" disabled/.test(html), 'set up: the cost, the button on');
+    assert.ok(engSection(html, 'llamacpp').includes('Choose a model above first.') && /data-serve="llamacpp" disabled/.test(html), 'no model chosen: off');
+    assert.deepEqual(serves(render(vllmState())), ['ollama', 'llamacpp']);
+    assert.ok(engSection(render(vllmState()), 'ollama').includes('vLLM stops and Ollama loads its model: about a minute, and anyone connected waits.'));
+    assert.ok(!/data-serve="\w+" disabled/.test(render(vllmState({}, { llamacpp: { enabled: false, alias: 'a', model: 'https://h/x.gguf', library: [{ id: 'x', label: 'X', url: 'https://h/x.gguf', downloaded: true }], contextLength: 'auto', parallel: 1 } }))), 'nothing blocks: all on');
+    assert.ok(/data-serve="ollama" disabled/.test(render(vllmState({}, { job: { label: 'x', done: false } }))), 'not while a job runs');
+    // Switching away from an external server is allowed (§1.2): its sections' buttons are live.
     const extServing = render(adminState({ backend: { engine: 'external', alias: 'a', model: 'm', baseUrl: 'http://127.0.0.1:8100/v1', contextLength: 65536, contextPerSlot: 65536, slots: 48, slotsVerified: false },
-        externalConfigured: true, vllm: vllmPanel({ enabled: false, phase: null, probe: null }) }));
-    assert.ok(/data-engine="ollama">/.test(extServing) && /data-engine="vllm">/.test(extServing), 'not disabled under an external server');
-    assert.ok(extServing.includes('Serving through a server this farm does not run, at <b>http://127.0.0.1:8100/v1</b>. Its model, context and people at once are set where that server runs. To serve from this farm instead, pick Ollama, llama.cpp or vLLM above.'));
+        externalConfigured: true, vllm: vllmPanel({ enabled: false, phase: null }) }));
+    assert.ok(/data-serve="ollama">/.test(extServing) && /data-serve="vllm">/.test(extServing) && !extServing.includes('data-serve="external"'), 'not disabled under an external server');
+    assert.equal(engSummary(extServing, 'external'), 'External serverserving · at http://127.0.0.1:8100/v1');
+    assert.ok(extServing.includes('Serving through a server this farm does not run, at <b>http://127.0.0.1:8100/v1</b>. Its model, context and people at once are set where that server runs. To serve from this farm instead, press Serve with in the Ollama, llama.cpp or vLLM section below.'));
     // What each switch costs, said before it (§7.1, §1.2).
     const sc = render.switchConfirm;
     assert.equal(sc(ollamaWithVllm(), 'vllm'), 'Switch to vLLM? Chat stops for about 2 minutes while vLLM loads the model (longer the very first time, while it prepares the GPU).');
@@ -4889,11 +4928,23 @@ test('panel: the engine grid — Ollama, llama.cpp, vLLM, and External only whil
     assert.equal(sc(extState, 'ollama'), 'Switch to Ollama? Ollama loads its model: about a minute, and anyone connected waits. The server at http://127.0.0.1:8100/v1 keeps running and keeps its share of the GPU: Ollama gets only what is left (21 GB free now).');
     assert.equal(sc(extState, 'vllm'), 'Switch to vLLM? Chat stops for about 2 minutes while vLLM loads the model (longer the very first time, while it prepares the GPU). The server at http://127.0.0.1:8100/v1 keeps running and keeps its share of the GPU: vLLM gets only what is left (21 GB free now).');
     assert.equal(sc({ ...extState, backend: { engine: 'external', baseUrl: 'http://10.0.0.5:8000/v1' } }, 'ollama'), 'Switch to Ollama? Ollama loads its model: about a minute, and anyone connected waits.', 'another machine keeps its own GPU');
+    // A press on Serve with … asks that question, then the same route as before the sections.
+    for (const [state, to] of [[vllmState(), 'ollama'], [ollamaWithVllm(), 'vllm'], [extState, 'ollama']]) {
+        const posts = []; const asked = [];
+        const p = loadPanel({ fetch: async (url, o) => { posts.push([url, o && o.body ? JSON.parse(o.body) : null]); return { status: 200, json: async () => ({ ok: true }) }; }, confirm: (q) => { asked.push(q); return true; } });
+        p(state);
+        p.engineClick(state, to, { dataset: {} });
+        await new Promise((r) => setTimeout(r, 10));
+        assert.deepEqual(asked, [sc(state, to)], `the question, ${to}`);
+        assert.deepEqual(posts.filter(([u]) => u !== '/lol/admin/state'), [['/lol/admin/backend', { engine: to }]], `the switch, ${to}`);
+    }
     // A take-over offered (production before it, review 2026-10-07): a switch away still says the server keeps its
-    // GPU share, and how to keep it serving instead; the vLLM button IS the take-over, with nothing restarted.
+    // GPU share, and how to keep it serving instead; in the vLLM section the offer is the way, with nothing restarted.
     const offered = { ...extState, vllm: vllmPanel({ probe: null, takeOver: { root: '/r', running: true } }) };
     assert.equal(sc(offered, 'llamacpp'), 'Switch to llama.cpp? llama.cpp loads its model: about a minute, and anyone connected waits. The server at http://127.0.0.1:8100/v1 keeps running and keeps its share of the GPU: llama.cpp gets only what is left (21 GB free now). To keep it serving as this farm\'s own vLLM instead, press Let the farm run vLLM.');
-    assert.ok(render(offered).includes('Many people at once on a big NVIDIA GPU. The vLLM already on this computer: press to let the farm run it, as it runs now.'));
+    const off = render(offered);
+    assert.equal(engSummary(off, 'vllm'), 'vLLMalready running on this computer · the farm can run it, as it runs now');
+    assert.ok(engIsOpen(off, 'vllm') && engSection(off, 'vllm').includes('data-vtake') && !off.includes('data-serve="vllm"'), 'open by itself, the offer instead of Serve with vLLM');
     const posts = []; const asked = [];
     const p = loadPanel({ fetch: async (url, o) => { posts.push([url, o && o.body ? JSON.parse(o.body) : null]); return { status: 200, json: async () => ({ ok: true }) }; }, confirm: (q) => { asked.push(q); return true; } });
     p(offered);
@@ -4903,30 +4954,30 @@ test('panel: the engine grid — Ollama, llama.cpp, vLLM, and External only whil
     assert.deepEqual(posts.filter(([u]) => u !== '/lol/admin/state').map(([u]) => u), ['/lol/admin/vllm/take-over'], 'not a switch: the take-over');
     const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
     assert.ok(/if \(want === 'vllm' && from === 'external' && takeOverOffer\) return serialize\(\(\) => vllmTakeOverRun\(\)\);/.test(upSrc), 'the farm does the same for a switch asked any other way');
-    assert.ok(/return !\(engineOf\(config\) === 'vllm' && loopbackPort\(config\.external\.baseUrl\) === config\.vllm\.port\);/.test(upSrc), 'no External button pointing at the vLLM the farm runs');
+    assert.ok(/return !\(engineOf\(config\) === 'vllm' && loopbackPort\(config\.external\.baseUrl\) === config\.vllm\.port\);/.test(upSrc), 'no External section pointing at the vLLM the farm runs');
 });
 
-test('panel: a GPU vLLM cannot use says so on its button, before any check; its card closes; the take-over on Linux says when vLLM starts (review 2026-10-07)', async () => {
+test('panel: a GPU vLLM cannot use says so on its summary, before any check; its section closes and stays closed; the take-over on Linux says when vLLM starts (review 2026-10-07)', async () => {
     const render = loadPanel();
-    const sub = (html) => (/data-engine="vllm"[\s\S]*?<\/button>/.exec(html) || [''])[0];
+    const sub = (html) => engSummary(html, 'vllm');
     // The studio's RTX 4070 / 4080: what nvidia-smi showed at boot is enough to say it, with no offer to set it up.
     const small = sub(render(ollamaWithVllm({ probe: null, hostFit: { gb: 12, fits: false, needGb: 35 } })));
-    assert.ok(small.includes('Not for this GPU (12 GB; vLLM&#39;s models need about 35 GB): llama.cpp or Ollama is the engine for it. Press to see why.')
-        || small.includes("Not for this GPU (12 GB; vLLM's models need about 35 GB): llama.cpp or Ollama is the engine for it. Press to see why."), small);
+    assert.equal(small, "vLLMnot for this GPU · 12 GB; vLLM's models need about 35 GB: llama.cpp or Ollama is the engine for it");
     assert.ok(!/set up|check this computer/i.test(small), small);
-    assert.ok(sub(render(ollamaWithVllm({ probe: { at: 1, oks: [], problems: ['x'], warnings: [], gpuTooSmall: true }, hostFit: null }))).includes('Not for this GPU: llama.cpp or Ollama is the engine for it.'), 'the check says it too');
-    assert.ok(sub(render(ollamaWithVllm({ probe: null, hostFit: null, noNvidia: true }))).includes('vLLM needs an NVIDIA GPU, and none was found on this computer. Press to check it.'));
-    assert.ok(sub(render(ollamaWithVllm({ probe: null, hostFit: { gb: 96, fits: true, needGb: 35 } }))).includes('Many people at once on a big NVIDIA GPU. Press to check this computer.'), 'a PRO 6000: as before');
-    // The card a press opened closes again (it is remembered in this browser, and showed a small GPU's red list on
-    // every page); not while vLLM is the engine.
-    const card = (html) => (/<h2>Model · vLLM<\/h2>[\s\S]*?(?=<div class="card"><h2>|$)/.exec(html) || [''])[0];
+    assert.equal(sub(render(ollamaWithVllm({ probe: { at: 1, oks: [], problems: ['x'], warnings: [], gpuTooSmall: true }, hostFit: null }))), 'vLLMnot for this GPU · llama.cpp or Ollama is the engine for it', 'the check says it too');
+    assert.equal(sub(render(ollamaWithVllm({ probe: null, hostFit: null, noNvidia: true }))), 'vLLMno NVIDIA GPU found · open to check this computer');
+    assert.equal(sub(render(ollamaWithVllm({ probe: null, hostFit: { gb: 96, fits: true, needGb: 35 } }))), 'vLLMstandby · open to check this computer', 'a PRO 6000: as before');
+    // A section a person opened closes again, and stays closed through the rebuild (it showed a small GPU's red list on
+    // every page when it could not); while vLLM serves it is open by itself.
     const p = loadPanel({ fetch: async () => ({ status: 200, json: async () => ({ ok: true }) }) });
     const s = ollamaWithVllm({ probe: { at: 1, oks: [], problems: ['This GPU has 12 GB: too little'], warnings: [], gpuTooSmall: true } });
-    assert.equal(card(p(s)), '', 'closed until pressed');
-    p.engineClick(s, 'vllm', { dataset: {} });
-    assert.ok(card(p.el('#app').innerHTML).includes('data-vclose'), 'opened by the press: Close');
-    assert.ok(!card(render(vllmState())).includes('data-vclose'), 'the engine: no Close');
-    assert.ok(fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8').includes("try { localStorage.removeItem('lolVllmOpen'); } catch { /* private window */ }"), 'Close forgets it');
+    assert.ok(!engIsOpen(p(s), 'vllm'), 'closed until opened');
+    p.toggle('vllm', true);
+    assert.ok(engIsOpen(p(s), 'vllm') && engSection(p(s), 'vllm').includes('✗ This GPU has 12 GB: too little'), 'opened: its list');
+    p.toggle('vllm', false);
+    assert.ok(!engIsOpen(p(s), 'vllm'), 'closed again, through the rebuild');
+    assert.ok(engIsOpen(render(vllmState()), 'vllm'), 'the engine: open');
+    assert.ok(fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8').includes("localStorage.setItem('lolEngineOpen', JSON.stringify(engOpen))"), 'kept in this browser');
     // On Linux (a DGX Spark) the take-over makes the boot service a no-op: before the click, the panel says vLLM then
     // starts with the farm, which the Farm app does at a desktop log-in.
     const LINUX = 'From then on vLLM starts when the farm starts, not by itself at boot: with the Farm app, that is when someone logs in to the desktop of this computer (Launch at login, in its settings).';
@@ -4939,7 +4990,7 @@ test('panel: a GPU vLLM cannot use says so on its button, before any check; its 
     assert.ok(asked[0] && asked[0].endsWith(LINUX), asked[0]);
 });
 
-test('panel: the llama.cpp button opens its card before the switch: the list, Use this choosing the model, then Switch (owner 2026-10-09)', async () => {
+test('panel: the llama.cpp section before the switch: the list, Use this choosing the model, then Serve with llama.cpp (owner 2026-10-09)', async () => {
     const Q = 'https://huggingface.co/u/Q-GGUF/resolve/main/Q-UD-Q2_K_XL.gguf';
     const G = 'https://huggingface.co/u/G-GGUF/resolve/main/G-Q4_K_M.gguf';
     const lib = [
@@ -4947,33 +4998,43 @@ test('panel: the llama.cpp button opens its card before the switch: the list, Us
         { id: 'g', label: 'Gemma Q4_K_M', url: G, sizeGb: 7.1, mtp: false, note: '', downloaded: false },
     ];
     const onOllama = adminState({ llamacpp: { enabled: false, running: false, alias: 'assistant', model: Q, library: lib, contextLength: 'auto', contextResolved: null, parallel: 1 } });
-    const card = (html) => (/<div class="card" id="lc-card">[\s\S]*?(?=<div class="card"|$)/.exec(html) || [''])[0];
     const posts = []; const asked = [];
     const p = loadPanel({ fetch: async (url, o) => { posts.push([url, o && o.body ? JSON.parse(o.body) : null]); return { status: 200, json: async () => ({ ok: true }) }; }, confirm: (q) => { asked.push(q); return true; } });
-    assert.equal(card(p(onOllama)), '', 'closed on Ollama until the button is pressed');
-    // The button opens the card and brings it into view: no question, no switch yet.
-    p.engineClick(onOllama, 'llamacpp', { dataset: {} });
+    const html = p(onOllama);
+    assert.ok(!engIsOpen(html, 'llamacpp'), 'closed on Ollama until opened');
+    assert.equal(engSummary(html, 'llamacpp'), 'llama.cppstandby · Qwen UD-Q2_K_XL chosen', 'the summary names what the switch would serve');
+    // Opening it asks nothing and switches nothing: it shows what the switch would serve.
+    p.toggle('llamacpp', true);
     await new Promise((r) => setTimeout(r, 10));
-    assert.deepEqual(asked, [], 'a press asks nothing: it shows what the switch would serve');
+    assert.deepEqual(asked, [], 'opening asks nothing');
     assert.deepEqual(posts.filter(([u]) => u !== '/lol/admin/state'), [], 'and switches nothing');
-    assert.deepEqual(p.scrolled, ['lc-card'], 'scrolled into view, as the vLLM card is');
-    const c = card(p.el('#app').innerHTML);
-    assert.ok(c.includes('Ollama keeps serving meanwhile. Nothing changes for the people connected until you press <b>Switch to llama.cpp</b>.'), 'says the farm keeps serving until the switch');
+    const c = engSection(p(onOllama), 'llamacpp');
+    assert.ok(engIsOpen(p(onOllama), 'llamacpp'), 'open, through the rebuild');
+    assert.ok(c.includes('Ollama keeps serving meanwhile. Nothing changes for the people connected until you press <b>Serve with llama.cpp</b>.'), 'says the farm keeps serving until the switch');
     assert.ok(/Qwen UD-Q2_K_XL<\/div>[\s\S]*?<span class="badge on">chosen<\/span><span class="badge">downloaded<\/span><\/span>/.test(c), 'the chosen one, not "serving"');
     assert.ok(c.includes('data-lcuse="g"') && c.includes('>Use this</button>'), 'Use this on the other one');
     assert.ok(c.includes('id="lc-url"') && c.includes('id="lc-add"'), 'Add by link');
-    assert.ok(c.includes('It serves Qwen UD-Q2_K_XL. Ollama stops, and anyone connected waits about a minute.') && c.includes('data-lcswitch') && c.includes('data-lcclose'));
+    assert.ok(c.includes('llama.cpp loads Qwen UD-Q2_K_XL: about a minute, and anyone connected waits.') && /data-serve="llamacpp">Serve with llama.cpp<\/button>/.test(c), 'Serve with llama.cpp, in its section, with what it costs');
+    // The press: the question it always asked, then the switch.
+    p.engineClick(onOllama, 'llamacpp', { dataset: {} });
+    await new Promise((r) => setTimeout(r, 10));
+    assert.deepEqual(asked, ['Switch to llama.cpp? llama.cpp loads Qwen UD-Q2_K_XL: about a minute, and anyone connected waits.']);
+    assert.deepEqual(posts.filter(([u]) => u !== '/lol/admin/state'), [['/lol/admin/backend', { engine: 'llamacpp' }]]);
     // The chosen one not downloaded yet: Download (the same request downloads it).
     const notYet = adminState({ llamacpp: { ...onOllama.llamacpp, model: G } });
-    const c2 = card(p(notYet));
+    const c2 = engSection(p(notYet), 'llamacpp');
     assert.ok(/data-lcuse="g"[^>]*>Download<\/button>/.test(c2), c2);
+    assert.equal(engSummary(p(notYet), 'llamacpp'), 'llama.cppstandby · Gemma Q4_K_M chosen, to download');
     // The switch names the model it loads.
     assert.equal(p.switchConfirm(notYet, 'llamacpp'), 'Switch to llama.cpp? llama.cpp loads Gemma Q4_K_M, which it downloads first (7.1 GB): longer than a minute, and anyone connected waits.');
     assert.equal(p.switchConfirm(onOllama, 'llamacpp'), 'Switch to llama.cpp? llama.cpp loads Qwen UD-Q2_K_XL: about a minute, and anyone connected waits.');
-    // While llama.cpp serves: the card as before (serving, no Switch, no Close).
+    // While llama.cpp serves: open by itself, serving, no Serve with, its people and context in it.
     const serving = adminState({ backend: { engine: 'llama.cpp', alias: 'assistant', model: 'Q', contextLength: 32768, contextPerSlot: 32768, slots: 1 }, llamacpp: { ...onOllama.llamacpp, enabled: true, running: true } });
-    const c3 = card(loadPanel()(serving));
-    assert.ok(c3.includes('<span class="badge on">serving</span>') && !c3.includes('data-lcswitch') && !c3.includes('keeps serving meanwhile'), c3);
+    const all3 = loadPanel()(serving);
+    const c3 = engSection(all3, 'llamacpp');
+    assert.ok(engIsOpen(all3, 'llamacpp') && c3.includes('<span class="badge on">serving</span>') && !c3.includes('data-serve') && !c3.includes('keeps serving meanwhile'), c3);
+    assert.ok(c3.includes('id="slots-sel"') && c3.includes('id="ctx-sel"') && c3.includes('id="trade"') && c3.includes('<h2>Performance</h2>'), 'people, context and Performance in its section');
+    assert.equal(engSummary(all3, 'llamacpp'), 'llama.cppserving · Qwen UD-Q2_K_XL');
     // The farm: Use this while another engine serves downloads and chooses (a job), never refused as "switch to it first".
     const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
     assert.ok(!upSrc.includes('The llama.cpp backend is off'), 'no refusal while llama.cpp is off');
@@ -5058,7 +5119,7 @@ test('panel: vLLM\'s line for each phase, its hero, and a start that fell back t
     // checklist does (verifier, 2026-10-08); with nothing on the checklist, neither is named.
     const missing = 'vLLM is not installed on this computer yet: press Install vLLM.';
     const never = render(ollamaWithVllm({ bootError: missing, probe: { at: 1, oks: [], problems: [missing], warnings: [] } }));
-    assert.ok(never.includes(`<div class="warnline">vLLM could not start: ${missing.slice(0, -1)}. The farm serves with Ollama for now. Fix the cause (the checklist on the vLLM card below says what is missing), then switch back to vLLM.</div>`), never.slice(0, 600));
+    assert.ok(never.includes(`<div class="warnline">vLLM could not start: ${missing.slice(0, -1)}. The farm serves with Ollama for now. Fix the cause (the checklist in the vLLM section below says what is missing), then switch back to vLLM.</div>`), never.slice(0, 600));
     assert.ok(!never.includes('log below says more'));
     const portTaken = render(ollamaWithVllm({ phase: 'failed', bootError: 'vLLM could not start: Another program uses port 8100, maybe a vLLM started outside the farm. Stop it, then press Start vLLM.' }));
     assert.ok(portTaken.includes('The farm serves with Ollama for now. Fix the cause, then switch back to vLLM.</div>'), portTaken.slice(0, 600));
@@ -5073,14 +5134,15 @@ test('panel: vLLM\'s line for each phase, its hero, and a start that fell back t
     assert.ok(crashed.includes('<div class="warnline">vLLM stopped working twice in 5 minutes (the second time, it shut down by itself). The farm serves with Ollama for now.'), crashed.slice(0, 600));
     assert.ok(!crashed.includes('could not start') && !/status \d/.test(crashed));
     assert.ok(upSrc0.includes("onVllmDown('it shut down by itself', `status ${code}`);") && upSrc0.includes('`vLLM stopped working twice in 5 minutes (the second time, ${why}).`'), 'the farm writes it so; the status goes to its log only');
-    assert.ok(failed.includes('<h2>Model · vLLM</h2>'), 'its card stays, for the log');
+    assert.ok(engIsOpen(failed, 'vllm') && engSection(failed, 'vllm').includes('data-vlog'), 'its section opens by itself, with the log');
+    assert.equal(engSummary(failed, 'vllm'), 'vLLMcould not start · the farm serves with Ollama for now');
     assert.ok(!render(adminState({ backend: { engine: 'llama.cpp', alias: 'a', model: 'm', contextLength: 8192, contextPerSlot: 8192, slots: 1 }, vllm: vllmPanel({ bootError: 'x', enabled: false }) })).includes('The farm serves with Ollama for now'), 'only while Ollama serves');
 });
 
-test('panel: the vLLM card — the checklist, Install only when not installed, Download / Use this / Remove by state, Start, Stop, the log, the take-over offer (§7.2, §9.2, §11.1-18)', () => {
+test('panel: the vLLM section — the checklist, Install only when not installed, Download / Use this / Remove by state, Start, Stop, the log, the take-over offer (§7.2, §9.2, §11.1-18)', () => {
     const render = loadPanel();
-    const card = (html) => (/<h2>Model · vLLM<\/h2>[\s\S]*?(?=<div class="card"><h2>)/.exec(html) || [''])[0];
-    assert.equal(card(render(ollamaWithVllm())), '', 'not shown while another engine serves and nobody asked');
+    const card = (html) => engSection(html, 'vllm');
+    assert.ok(!engIsOpen(render(ollamaWithVllm()), 'vllm'), 'closed while another engine serves and nobody opened it');
     const c = card(render(vllmState()));
     assert.ok(c.includes('vLLM is an engine made for serving many people at once on a big NVIDIA GPU. On Windows it runs inside WSL, the Linux that comes with Windows. The farm installs it, starts it and stops it.'));
     assert.ok(c.includes('<div class="meta">✓ WSL is installed, with Ubuntu on WSL 2.</div>'), 'what is in place, muted');
@@ -5111,8 +5173,10 @@ test('panel: the vLLM card — the checklist, Install only when not installed, D
     const f = card(render(adminState({ vllm: fresh, download: { kind: 'download', label: 'x', done: false, about: 'nope' } })));
     assert.ok(f.includes('<div class="warnline">✗ vLLM is not installed on this computer yet: press Install vLLM.</div>'), 'what blocks it');
     assert.ok(f.includes('data-vinstall disabled'), 'one download at a time');
-    assert.equal(card(render(adminState({ vllm: fresh }))), '', 'not open, nothing downloading: no card');
-    // The card shows once a download of its own runs, or after the button opened it; here a download runs.
+    assert.ok(!engIsOpen(render(adminState({ vllm: fresh })), 'vllm'), 'nobody opened it, nothing downloading: closed');
+    // The section opens by itself while a download of its own runs (or once a person opened it); here a download runs.
+    assert.ok(engIsOpen(render(adminState({ vllm: fresh, download: { kind: 'download', label: 'x', done: false, about: 'nope' } })), 'vllm'), 'open by itself');
+    assert.ok(!engIsOpen(render(adminState({ vllm: fresh, download: { kind: 'move', label: 'Moving the models', done: false } })), 'vllm'), 'not for a move of the models');
     const withDl = card(render(adminState({ vllm: fresh, download: { kind: 'download', label: 'Downloading Fake', done: false, about: 'qwen3.6-35b-a3b' } })));
     assert.ok(withDl.includes('Downloads vLLM 0.30.0 (about 8 GB) and Qwen3.6 35B-A3B · NVFP4 (23.4 GB) into Ubuntu, in /home/me/lol-spike. About 45 minutes on a typical connection. The farm keeps serving while it downloads; a stopped download keeps the files it finished.'), withDl);
     assert.ok(withDl.includes('<span class="badge">downloading</span>') && !withDl.includes('data-vdl="qwen3.6-35b-a3b"') && !withDl.includes('data-vrm="qwen3.6-35b-a3b"'), 'the row being downloaded');
@@ -5131,9 +5195,9 @@ test('panel: the vLLM card — the checklist, Install only when not installed, D
     // The take-over offer (§9.2; the next slice makes the farm fill it).
     const to = render(adminState({ backend: { engine: 'external', alias: 'Qwen3.6', model: 'm', baseUrl: 'http://127.0.0.1:8100/v1', contextLength: 65536, contextPerSlot: 65536, slots: 48 }, externalConfigured: true,
         vllm: vllmPanel({ enabled: false, phase: null, takeOver: { root: '/home/me/lol-spike', running: true } }) }));
-    assert.ok(to.includes('<h2>vLLM on this computer</h2>') && to.includes('The vLLM this farm routes to runs on this computer, from /home/me/lol-spike. The farm can run it itself: then you change its model, people and context here, and it starts and stops with the farm. It keeps the same model, name and settings and keeps running: nobody is interrupted.') && to.includes('Let the farm run vLLM'));
+    assert.ok(engIsOpen(to, 'vllm') && engSection(to, 'vllm').includes('<h2>vLLM on this computer</h2>') && to.includes('The vLLM this farm routes to runs on this computer, from /home/me/lol-spike. The farm can run it itself: then you change its model, people and context here, and it starts and stops with the farm. It keeps the same model, name and settings and keeps running: nobody is interrupted.') && to.includes('Let the farm run vLLM'));
     assert.ok(render(adminState({ vllm: vllmPanel({ takeOver: { root: '/r', running: false } }) })).includes('and starts it now: about 2 minutes, during which nobody can chat.'));
-    assert.ok(!render(vllmState()).includes('vLLM on this computer'), 'nothing to take over: no card');
+    assert.ok(!render(vllmState()).includes('vLLM on this computer'), 'nothing to take over: no block');
     // The panel's requests for these buttons reach routes that exist.
     const panelSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
     const srvSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'selfServer.js'), 'utf8');
@@ -5185,7 +5249,7 @@ test('panel: vLLM\'s rows, its trade line and the Apply text; Apply asks the far
     assert.ok(e16.includes('<b>16k</b>') && e16.includes('the 8 most relevant passages') && e16.includes('Every connected Open WebUI restarts once'), e16);
     // A card and model nobody measured: said, with the estimator (the owner's question (c)).
     const nm = render(vllmState({ measured: null }));
-    assert.ok(nm.includes('Not measured on this card with this model: start with fewer people and watch the Performance card. <a class="plan" href="/lol/capacity" target="_blank" rel="noopener">Plan capacity ↗</a> estimates it.'));
+    assert.ok(nm.includes('Not measured on this card with this model: start with fewer people and watch Performance, below. <a class="plan" href="/lol/capacity" target="_blank" rel="noopener">Plan capacity ↗</a> estimates it.'));
     assert.ok(html.includes('Changes above apply together. A new context, memory or model restarts vLLM: about 2 minutes during which nobody can chat. The name, the password and people at once apply in a few seconds, up to a point for people: many more can restart vLLM too, and Apply asks first when it would.'), 'never "people in a few seconds" alone: 48 → 80 restarts vLLM (review 2026-10-07)');
     assert.ok(render(adminState()).includes('Changes above apply together — one restart for all of them.'), 'Ollama keeps its own');
 
@@ -5207,6 +5271,75 @@ test('panel: vLLM\'s rows, its trade line and the Apply text; Apply asks the far
         assert.equal(applies.length, sends, `restart ${restart}, answer ${answer}`);
         if (sends) assert.deepEqual(applies[0][1], { slots: 80 });
     }
+});
+
+test('panel sections: the serving one opens by itself, and again when the engine changes; the others keep what the person chose, through the 5 s rebuild (owner 2026-10-12)', () => {
+    const p = loadPanel();
+    const open = (html) => ['ollama', 'llamacpp', 'vllm'].filter((id) => engIsOpen(html, id));
+    const onOllama = ollamaWithVllm();
+    assert.deepEqual(open(p(onOllama)), ['ollama'], 'the serving one, alone');
+    assert.deepEqual(open(p(onOllama)), ['ollama'], 'the same after a rebuild');
+    p.toggle('ollama', false);
+    p.toggle('llamacpp', true);
+    assert.deepEqual(open(p(onOllama)), ['llamacpp'], 'what the person chose, kept through the rebuild, the serving one too');
+    // A switch to vLLM: its section opens; llama.cpp stays open, Ollama stays closed (both the person's choice).
+    assert.deepEqual(open(p(vllmState())), ['llamacpp', 'vllm']);
+    p.toggle('vllm', false);
+    assert.deepEqual(open(p(vllmState())), ['llamacpp'], 'the serving one closed by the person stays closed while it serves');
+    // Back to Ollama (a fallback, a switch): Ollama opens again, whatever was chosen for it before.
+    assert.deepEqual(open(p(onOllama)), ['ollama', 'llamacpp']);
+    // The rendered state carries what the toggle handler compares a click against (a toggle the render caused is no click).
+    assert.ok(/<details class="eng" id="eng-ollama" data-eng="ollama" data-open="1" open>/.test(p(onOllama)) && /id="eng-vllm" data-eng="vllm" data-open="0">/.test(p(onOllama)));
+    const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
+    assert.ok(src.includes("if (d.open === (d.dataset.open === '1')) return;") && src.includes("d.addEventListener('toggle'"), 'only a person\'s click is kept');
+    // The summary is a <summary>: a button for the keyboard and screen readers; the focus it had comes back after the rebuild.
+    assert.ok(/<summary><h2 class="ename">vLLM<\/h2>/.test(p(onOllama)));
+    assert.ok(src.includes('const refocus = focusKeyOf(document.activeElement);') && src.includes("if (a.tagName === 'SUMMARY' && a.parentElement && a.parentElement.id)"));
+});
+
+test('panel: Access holds what every engine shares (the name users see, the idle seat, the password), the serving section its people and context, and the ONE Apply still sends every field (owner 2026-10-12)', async () => {
+    const render = loadPanel();
+    const lcServing = adminState({
+        backend: { engine: 'llama.cpp', alias: 'assistant', model: 'q.gguf', contextLength: 65536, contextPerSlot: 32768, contextAuto: false, kvUnified: true, slots: 2, slotsVerified: true },
+        llamacpp: { enabled: true, running: true, alias: 'assistant', library: [], contextLength: 65536, contextResolved: 65536, parallel: 2 },
+        requiresKey: true,
+    });
+    for (const [state, id] of [[lcServing, 'llamacpp'], [vllmState(), 'vllm'], [adminState(), 'ollama']]) {
+        const html = render(state);
+        const acc = accessCard(html);
+        for (const needle of ['<h2>Access</h2>', 'id="idle-sel"', 'id="sec-in"', 'id="settings-apply"', 'Name users see']) assert.ok(acc.includes(needle), `${id}: Access has ${needle}`);
+        for (const needle of ['id="slots-sel"', 'id="ctx-sel"', 'id="kv-sel"', 'id="trade"']) assert.ok(!acc.includes(needle), `${id}: ${needle} is not in Access`);
+        const sec = engSection(html, id);
+        for (const needle of ['id="slots-sel"', 'id="ctx-sel"', 'id="trade"', '<h2>People and context</h2>']) assert.ok(sec.includes(needle), `${id}: ${needle} in its section`);
+        assert.ok(html.indexOf('id="eng-vllm"') < html.indexOf('id="access"'), 'Access under the three sections');
+        for (const other of ['ollama', 'llamacpp', 'vllm'].filter((x) => x !== id)) assert.ok(!engSection(html, other).includes('id="slots-sel"'), `${id} serves: nothing to set in ${other}`);
+    }
+    assert.ok(accessCard(render(lcServing)).includes('id="name-in"') && accessCard(render(vllmState())).includes('id="name-in"'), 'llama.cpp and vLLM: the one served name');
+    assert.ok(!render(adminState()).includes('id="name-in"') && accessCard(render(adminState())).includes('<b>Rename</b> on its row, in the Ollama section above'), 'Ollama: each model\'s own name, on its row');
+    assert.ok(accessCard(render(lcServing)).includes('id="sec-clear"'), 'Remove the password, there too');
+    assert.ok(engSection(render(adminState()), 'ollama').includes('They apply with <b>Apply changes</b>, at the end of Access below.'), 'the section points at the one Apply');
+
+    // Apply gathers the fields of both places, as before: llama.cpp (no dry run), then vLLM (its dry run first).
+    const fill = (p, vals) => {
+        for (const id of ['#name-in', '#slots-sel', '#ctx-sel', '#kv-sel', '#idle-sel', '#sec-in']) { p.el(id).value = ''; p.el(id).dataset.orig = ''; }
+        for (const [id, [value, orig]] of Object.entries(vals)) { p.el(id).value = value; p.el(id).dataset.orig = orig; }
+    };
+    let calls = [];
+    const fetchFn = async (url, o) => { const body = o && o.body ? JSON.parse(o.body) : null; calls.push([url, body]); return { status: 200, json: async () => (body && body.dryRun ? { ok: true, dryRun: true, restart: false } : { ok: true, started: true }) }; };
+    const p = loadPanel({ fetch: fetchFn, confirm: () => true });
+    p(lcServing);
+    fill(p, { '#name-in': ['Tutor', 'assistant'], '#slots-sel': ['4', '2'], '#ctx-sel': ['32768', '65536'], '#idle-sel': ['120', '900'], '#sec-in': ['s3cret', ''] });
+    await p.el('#settings-apply').onclick();
+    await new Promise((r) => setTimeout(r, 10));
+    assert.deepEqual(calls.filter(([u]) => u === '/lol/admin/apply'), [['/lol/admin/apply', { name: 'Tutor', slots: 4, seatIdleSec: 120, password: 's3cret', context: 32768 }]], 'one Apply, every field');
+    calls = [];
+    const q = loadPanel({ fetch: fetchFn, confirm: () => true });
+    q(vllmState());
+    fill(q, { '#name-in': ['Tutor', 'Qwen3.6'], '#slots-sel': ['32', 'auto'], '#ctx-sel': ['32768', '65536'], '#kv-sel': ['40', 'auto'], '#idle-sel': ['120', '900'], '#sec-in': ['s3cret', ''] });
+    await q.el('#settings-apply').onclick();
+    await new Promise((r) => setTimeout(r, 10));
+    const want = { name: 'Tutor', slots: 32, kvCacheGib: 40, seatIdleSec: 120, password: 's3cret', context: 32768 };
+    assert.deepEqual(calls.filter(([u]) => u === '/lol/admin/apply'), [['/lol/admin/apply', { ...want, dryRun: true }], ['/lol/admin/apply', want]], 'vLLM: the dry run, then the same fields');
 });
 
 test('panel: the job bar and the download bar, each with Stop when it can stop (§7.3)', () => {
@@ -5875,7 +6008,7 @@ test('panel: the Model storage card — where each store is, Move here, an unfin
     assert.ok(c1.includes('<h2>Model storage</h2>'));
     assert.ok(c1.includes('C:\\farm\\.models · 23 GB') && c1.includes('C:\\Users\\me\\.ollama\\models · 127 GB · run by the Ollama app or a service'), c1);
     assert.ok(/data-stmove>Move here<\/button>/.test(c1) && /data-stscan>Look<\/button>/.test(c1));
-    assert.ok(c1.includes('vLLM\'s models live in WSL\'s Linux disk, which moves from the vLLM card.'));
+    assert.ok(c1.includes('vLLM\'s models live in WSL\'s Linux disk, which moves from the vLLM section.'));
     assert.ok(!c1.includes('data-stbrowse'), 'no Browse outside the Farm app');
     // A move cut short, then one switched that waits for the Ollama app.
     const cut = card(render(adminState({ storage: { ...storage, move: { to: 'F:\\LLM', switched: false, left: [{ id: 'gguf', label: 'Model files', from: 'C:\\farm\\.models', to: 'F:\\LLM\\gguf' }] } } })));
@@ -5886,7 +6019,7 @@ test('panel: the Model storage card — where each store is, Move here, an unfin
     const fns = loadPanel();
     assert.ok(fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8').includes("scanResult = r; scanPicked.clear();"));
     const panelSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
-    assert.ok(/function llamacppCard[\s\S]*?scanRows\('gguf'/.test(panelSrc) && /function vllmCard[\s\S]*?scanRows\('vllm'/.test(panelSrc) && /function vllmCard[\s\S]*?wslDiskRow\(/.test(panelSrc), 'each engine\'s part in its own card');
+    assert.ok(/function llamacppSection[\s\S]*?scanRows\('gguf'/.test(panelSrc) && /function vllmSection[\s\S]*?scanRows\('vllm'/.test(panelSrc) && /function vllmSection[\s\S]*?wslDiskRow\(/.test(panelSrc), 'each engine\'s part in its own section');
     void fns;
     // The vLLM card on Windows: WSL's Linux disk and its Move.
     const v = render(vllmState({ wslDisk: { distro: 'Ubuntu', folder: 'C:\\Users\\me\\AppData\\Local\\wsl\\{9197}', gb: 421, drive: 'C' } }));
@@ -5919,14 +6052,14 @@ test('panel: what a look in a folder found, on each engine\'s own card; a .gguf 
         ollama: [{ path: 'F:/models/ollama', models: ['gemma4:12b'], gb: 8 }] } });
     const html = render(adminState({ backend: { engine: 'llama.cpp', alias: 'assistant', model: 'SmolLM2-135M', contextLength: 8192, contextPerSlot: 8192, slots: 1 }, llamacpp: lc,
         storage: { platform: 'win32', stores: [], dir: null, ollamaFolder: 'f:/MODELS/ollama', move: null, moving: false } }));
-    const lcCard = html.slice(html.indexOf('<div class="card" id="lc-card">'), html.indexOf('Models · Ollama'));
+    const lcCard = engSection(html, 'llamacpp');
     assert.ok(/SmolLM2-135M<\/div>[\s\S]*?<span class="badge on">serving<\/span>/.test(lcCard), 'the file used where it is is the one serving');
     assert.ok(lcCard.includes('Found in F:/models') && lcCard.includes('data-stpick="gguf:F:/models/SmolLM2-135M.gguf" disabled') && lcCard.includes('already in the list'), 'already in the list: read from the farm\'s state');
     assert.ok(/Big<\/label>[\s\S]*?a part of it is missing/.test(lcCard) && lcCard.includes('data-stuse="gguf"'));
     assert.ok(!lcCard.includes('/mnt/f/models/Gemma'), 'the vLLM folder is not on the llama.cpp card');
-    assert.ok(html.includes('Ollama model folder: F:/models/ollama') && html.includes('<span class="badge on">chosen</span>'), 'the Ollama card: chosen, read from the farm (either case)');
+    assert.ok(engSection(html, 'ollama').includes('Ollama model folder: F:/models/ollama') && engSection(html, 'ollama').includes('<span class="badge on">chosen</span>'), 'the Ollama section: chosen, read from the farm (either case)');
     const v = render(vllmState({}, { storage: { platform: 'win32', stores: [], move: null } }));
-    assert.ok(v.includes('F:/models/Gemma') && v.includes('on a Windows drive: it loads slower through WSL') && v.includes('data-stuse="vllm"'), 'the vLLM card lists its part');
+    assert.ok(engSection(v, 'vllm').includes('F:/models/Gemma') && engSection(v, 'vllm').includes('on a Windows drive: it loads slower through WSL') && engSection(v, 'vllm').includes('data-stuse="vllm"'), 'the vLLM section lists its part');
     // While the move runs, the card points at the bar and says nothing about an unfinished move.
     const moving = render(adminState({ storage: { platform: 'win32', stores: [], moving: true, move: { to: 'F:/LLM', switched: false, left: [{ id: 'ollama', label: 'x', from: 'a', to: 'b', by: 'other' }] } } }));
     assert.ok(moving.includes('Moving: the bar at the top of the page says how far.') && !moving.includes('did not finish') && !moving.includes('set Model location'), 'no stale words during the move');
