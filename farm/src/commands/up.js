@@ -4656,19 +4656,19 @@ function makeStorage(ctx) {
     // and put back on a failure); when it cannot, the person's step is said. → true when the app was pointed there.
     async function pointOllamaApp(s, save, tell, notes) {
         const det = await ollamaApp.detect().catch((e) => ({ ok: false, why: e.message }));
-        if (!det.ok) { notes.push(`One step left for Ollama's models (copied to ${s.to}): ${ollamaStepText(s)}`); return false; }
+        if (!det.ok) return false;   // the person's step is said by finishStore (it checks the folder first)
         tell('pointing the Ollama app at the new folder (it restarts)');
         if (s.appBefore == null) { s.appBefore = det.before; save(); }
         const host = localOllamaHost();
         const upAgain = async () => { for (let i = 0; i < 60; i++) { if (host && (await ollama.version(host, 1000))) return true; await sleep(1000); } return false; };
         const r = await ollamaApp.setModels(s.to, det, { upAgain });
-        if (!r.ok) { notes.push(`${r.error} ${ollamaStepText(s)}`); return false; }
+        if (!r.ok) { notes.push(r.error); return false; }
         // It came back: is it reading the new folder? (An app that cannot reach a folder falls back to its default.)
         const reads = host ? await storageMod.ollamaReads(host, s.to, tagsOf) : null;
         if (reads !== true) {
             const again = await ollamaApp.detect().catch(() => null);
             if (again && again.ok) await ollamaApp.setModels(s.appBefore, again, { upAgain });
-            notes.push(`The Ollama app did not read ${s.to} after its Model location was set, so it was put back as it was (${s.appBefore || 'its default'}); nothing was deleted. ${ollamaStepText(s)}`);
+            notes.push(`The Ollama app did not read ${s.to} after its Model location was set, so it was put back as it was (${s.appBefore || 'its default'}); nothing was deleted.`);
             return false;
         }
         s.appSet = true; save();
@@ -4819,7 +4819,7 @@ function makeStorage(ctx) {
                 // The Ollama app not reading the new folder yet: the farm points it there (it restarts), then checks.
                 if (s.id === 'ollama' && s.by === 'other' && !s.appSet && ollamaRunBy() === 'other') {
                     const host = localOllamaHost();
-                    if (host && (await storageMod.ollamaReads(host, s.to, tagsOf)) === false) await pointOllamaApp(s, save, tell, []);
+                    if (host && (await storageMod.ollamaReads(host, s.to, tagsOf)) === false) await pointOllamaApp(s, save, tell, notes);
                 }
                 tell(`checking and deleting the old copy of ${storageMod.LABEL[s.id].replace(/^\w/, (c) => c.toLowerCase())}`);
                 const f = await finishStore(s);
