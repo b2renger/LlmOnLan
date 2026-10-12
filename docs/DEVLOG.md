@@ -69,12 +69,16 @@ SmolLM2 GGUF from its own folder (a path with a space) and answered a chat; the 
 distribution: terminate, `--move` kept by WSL, 90 s, a plain message, Ubuntu still running. Scratch data, the scratch
 Ollama and the two scratch distributions removed after.
 
-**Not done.** The independent review of the data-loss paths was started but had not reported when this branch was
-handed back: run it (or read its findings) before merging. The real moves are the owner's: HUMAN_TESTS session O
-(the farm's models and Ollama's 127 GB to `F:\LlmOnLan`, Ubuntu's disk to `F:\WSL\Ubuntu`); the full WSL move was never
-run here (it needs all of WSL stopped while Ubuntu serves). Linux (a DGX Spark): the `hf` link move only unit-tested.
-Note: the Farm app's `supervisor.test.js` polls `127.0.0.1:41997/lol/self` for readiness (read-only), which on this box
-is the live farm. Questions for the owner: HUMAN_TESTS "Questions" 9.
+**Not done.** (The independent reviews of the data-loss paths reported; their fixes are below.) The real moves are the
+owner's: HUMAN_TESTS session O (everything to `F:\LlmOnLan`, Ubuntu's disk to `F:\LlmOnLan\wsl\Ubuntu`, the Ollama app
+pointed there by the farm); the full WSL move was never run here (it needs all of WSL stopped while Ubuntu serves), nor
+the Ollama app's quit / write / reopen (never against the owner's app). Linux (a DGX Spark): the `hf` link move only
+unit-tested. Note: the Farm app's `supervisor.test.js` polls `127.0.0.1:41997/lol/self` for readiness (read-only),
+which on this box is the live farm; and `vllm-lifecycle.js` starts `lol up` from the worktree, which downloads
+document search's model into `farm/.models` (557 MB) — then `test/run.js`'s *classify + stt start AFTER the farm is
+public* fails (it expects that model absent): delete it after a lifecycle run. HUMAN_TESTS "Questions" 9: answered
+(below). A folder set by this branch's first build (d8ddb62) has no marker and is said missing: put an empty
+`.lol-storage` in it, or Move here again.
 
 ## 2026-10-10 (19:08) — Release client v0.2.11 and Farm app farm-v0.0.45: the voice mode, Gemma 4 and Qwen3-Omni on vLLM
 

@@ -470,7 +470,8 @@ async function ensureOllama(config) {
     }
 
     if (!reachable.length) {
-        log.err('No reachable Ollama host. Start Ollama (https://ollama.com) and check ollama.hosts.');
+        // The farm's model folder missing is the reason, when it is: said as such (the farm starts no Ollama on it).
+        log.err(storageMod.missingText() ? `${storageMod.missingText()} The farm cannot start without Ollama.` : 'No reachable Ollama host. Start Ollama (https://ollama.com) and check ollama.hosts.');
         return null;
     }
 
@@ -4716,7 +4717,8 @@ function makeStorage(ctx) {
             keep = await storageMod.ollamaKeep(s.from, s.to, files, h);
         } else {
             if (s.id === 'vllm' && !storageMod.hfLinked(s.root, s.to)) return { done: false, note: `vLLM's old copy in ${s.from} is kept: ${pathMod.join(s.root, 'hf')} does not lead to the new folder yet. Press Finish to make it.` };
-            const usesTo = s.id === 'vllm' || storageMod.inside(s.to, storageMod.dirsFor(config.storage)[s.id] || '');
+            const own = storageMod.dirsFor(config.storage)[s.id];
+            const usesTo = s.id === 'vllm' || !!(own && storageMod.inside(s.to, own));
             if (!usesTo) return { done: false, note: `${label}: the farm does not use ${s.to} yet.` };
             // What has a copy is checked (a file without one is simply kept); what was deleted from the folder since is not
             // brought back (the folder is the source of truth).

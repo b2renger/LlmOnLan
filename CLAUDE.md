@@ -145,22 +145,32 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     the capacity explorer with this farm's box and model marked, and usage scenarios (documents for 5, vibe-coding
     for 10, a class of 30, …) whose picks come from the spike's measurements and the calibrated estimator
     (`scenarios.js`; the GeForce cards count as one-person boxes; the model served now comes first when it covers).
-  - **Model storage** (owner 2026-10-12, `src/storage.js`, the panel's Model storage card; branch `model-storage`): ONE
-    folder for the farm's models, `storage.dir` (null = today's places: `farm/.models`, `farm/.stt/models`, Ollama's own).
-    Everything downloaded goes into `<dir>/gguf` (llama.cpp, document search, drafts), `speech-to-text/`, `ollama/` (the
-    `OLLAMA_MODELS` of an Ollama the farm starts: `lol up`, `lol install`, the Farm app's wizard) and on Linux `vllm/`.
-    **Move here** (download slot) copies through `.lolmove-part` + fsync + rename, checks sizes and the sha256 it knows
-    (Ollama blobs, document search's pin; a damaged file is left and named), then in one serialize step stops what holds
-    the files, copies what changed, checks, saves the folder, restarts, and only then deletes each old copy whose user
-    reads the new one (file by file, never the same file twice). Cut short → `.lol-storage-move.json` beside the config,
-    and Move here goes on (a half copy is copied again); Finish / Forget. An Ollama run by another program (the desktop
-    app: its Settings ▸ Model location lives in its own database and wins over `OLLAMA_MODELS`) is copied, the panel
-    says what to set, and Finish deletes its old copy only once a canary manifest shows Ollama reads the new folder.
-    **Use the models in this folder**: a scan; `.gguf` → llama.cpp entries by `path`, HF folders → vLLM entries by
-    `path` (status.sh `pathmodel=`), an Ollama folder → `storage.ollama`; nothing copied. Linux vLLM: `<root>/hf` becomes a
-    link to `<dir>/vllm/hf` (`storage.linkHf`). Windows: the vLLM card's **WSL's Linux disk** row runs `wsl --manage <d>
-    --move` (vLLM stopped first; `wsl --shutdown` only after a second question naming every running Linux: WSL keeps a
-    terminated distribution's disk while another runs, measured). A hard disk or USB drive is said.
+  - **Model storage** (owner 2026-10-12, `src/storage.js` + `up.js` `makeStorage`, the panel's Model storage card; branch
+    `model-storage`): ONE folder for the farm's models, `storage.dir` (null = today's places: `farm/.models`,
+    `farm/.stt/models`, Ollama's own, the shared Hugging Face cache, Kokoro's source tree), and the folder is the source
+    of truth. Everything goes into `<dir>/gguf` (llama.cpp, document search, drafts), `speech-to-text/`, `classify/`
+    (Laya, its own HF cache), `kokoro/` (the voice's .pth), `ollama/` (the `OLLAMA_MODELS` of an Ollama the farm starts:
+    `lol up`, `lol install`, the Farm app's wizard), on Linux `vllm/` (`<root>/hf` a link to `<dir>/vllm/hf`), and the
+    vLLM card offers `<dir>\wsl\<distro>` for WSL's disk. A `.gguf` dropped into `gguf/` joins the llama.cpp list and one
+    deleted leaves it; vLLM's `hf/` folders likewise. `<dir>/.lol-storage` (written at the switch) proves the folder is
+    there: without it the farm says the folder is missing and downloads or starts nothing from it. **Move here** (download
+    slot) copies only each store's own files (Ollama's `blobs/` + `manifests/`, vLLM's list folders, Laya's repo; the
+    rest named and left) through `.lolmove-part` + fsync + rename, the sha256 in the journal; a file it did not write
+    counts only when its bytes match; then in one serialize step stops what holds the files, copies what changed, checks
+    (sizes, small files byte for byte, sums), writes the marker and the config (paths by entry follow) flushed, marks the
+    journal `switched`, restarts (a farm Ollama on `ollama/` only when its models moved, else `storage.ollama` keeps its
+    folder), and only then deletes each old copy, checked again (nothing when the folders are one through a link; an
+    Ollama manifest only with its whole, checked copy; a file in use waits for Finish). Cut short →
+    `.lol-storage-move.json`; Move here goes on; Finish (vLLM's link, checked) / Forget. **The Ollama desktop app**: after
+    the copy is checked the farm sets its Model location itself (`src/ollamaApp.js`: the `models` column of its SQLite
+    settings, the app quit as its tray does and reopened hidden, the old value kept and put back on any failure), and
+    deletes the old copy only once the app (never the farm's own Ollama) is seen reading the new folder; Linux (a service)
+    or an app it cannot change: the panel says what to set, after the move. **Use the models in this folder**: a scan;
+    `.gguf` → llama.cpp entries by `path`, HF folders → vLLM entries by `path`, an Ollama folder → `storage.ollama`
+    (`OLLAMA_NOPRUNE=1`); **Move into the farm's folder** for `.gguf` and a lent Ollama folder. Windows: the vLLM card's
+    **WSL's Linux disk** row runs `wsl --manage <d> --move` (checked first; vLLM stopped first; `wsl --shutdown` only after
+    a second question naming every running Linux, from `wsl -l --running -q`). A hard disk or USB drive is said; network
+    folders refused. Two independent reviews of the data-loss paths (2026-10-12) fixed: DEVLOG.
   - **Plugins** (`plugins/registry.js`): web search (SearXNG, ON), document OCR (`farm/src/pysvc` +
     `extract.js`, ON — hybrid text/vision PDF extraction), Kokoro TTS (OFF), and since 2026-09-27 **Classify**
     (Laya on the CPU, `classify.js` + `pysvc/classify_server.py`, OFF) and **speech to text** (faster-whisper,
@@ -430,7 +440,8 @@ When working here, keep honoring the **prime directive** below.
    the admin panel as its window (token auto-seeded) — which is where the model, its name and the capacity
    are run. **Private by default** (`proxy.host` 127.0.0.1, beacon off) until Settings ▸ Share compute.
    The panel's Browse… (Model storage) is the app's folder picker (`choose-folder`, `webviewPreload.js`), and its own
-   Ollama starts with the `OLLAMA_MODELS` the panel chose (`installer.ts` `ollamaModelsEnv`).
+   Ollama starts with the `OLLAMA_MODELS` the panel chose (`installer.ts` `ollamaModelsEnv`; never on a model folder gone
+   missing, never pruning a lent one), and a wizard run again keeps the config's keys (`storage` above all: `farmConfigFor`).
    Its Settings drawer holds only app-level things (share-with-LAN → `proxy.host`/`beacon.enabled`, theme,
    launch-at-login, update notifications + Check for updates, the panel access token, logs folder); it
    deliberately never re-applies model settings at boot, which used to overwrite the panel's. Its Quit and Stop run
@@ -886,7 +897,8 @@ LlmOnLan/
     bin/lol.js           #   CLI entry
     src/                 #   beacon.js, selfServer.js (+ admin/ panel page, capacity/ the Plan capacity page), snapshot.js, seats.js,
                          #   plugins/ (registry), pysvc/ (OCR service), extract.js, embed.js (document search),
-                         #   llamacpp.js/gguf.js, vllm.js, storage.js (where the models are; Move here),
+                         #   llamacpp.js/gguf.js, vllm.js, storage.js (where the models are; Move here), ollamaApp.js (the
+                         #   Ollama app's Model location),
                          #   litellm.js/ollama.js, configFile.js, commands/ (up/down/install/...)
     contract/            #   snapshot.schema.json — the beacon / GET /lol/self shape; farm + shell tests check it
     vllm/                #   the vLLM scripts the farm drives (serve/stop/install/status.sh, relay.py) — also the
