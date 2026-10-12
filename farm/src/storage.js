@@ -458,7 +458,7 @@ async function ollamaStoreFromLog(opts) {
 // Does the Ollama answering at `host` read its models from `store`? A copy of one of the store's manifests goes in under a
 // name nobody uses (lol-where-check:<random>) for a moment: Ollama lists it when it reads that folder (it reads its
 // manifests at each /api/tags, measured on 0.40.3). → true, false, or null (no manifest to copy, or Ollama did not
-// answer). `listModels(host)` = ollama.listModels.
+// answer). `listModels(host)` = the names of /api/tags, or null when Ollama does not answer (up.js tagsOf).
 async function ollamaReads(host, store, listModels) {
     const base = path.join(store, 'manifests', 'registry.ollama.ai', 'library', CANARY);
     await fsp.rm(base, { recursive: true, force: true }).catch(() => {});   // one left by a farm stopped mid-check
@@ -468,8 +468,8 @@ async function ollamaReads(host, store, listModels) {
     await fsp.mkdir(base, { recursive: true });
     try {
         await fsp.copyFile(one, path.join(base, tag));
-        const names = await listModels(host);
-        return names.length ? names.includes(`${CANARY}:${tag}`) : null;
+        const names = await listModels(host);   // null when Ollama did not answer
+        return Array.isArray(names) ? names.includes(`${CANARY}:${tag}`) : null;
     } finally {
         await fsp.rm(base, { recursive: true, force: true }).catch(() => {});
     }

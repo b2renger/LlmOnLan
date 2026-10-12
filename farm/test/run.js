@@ -5460,6 +5460,381 @@ test('panel: after the take-over, what changed and Undo while it is possible; th
     assert.ok(/takeOver: takeOverOffer \?/.test(upSrc) && /takenOver: takeOverDone \?/.test(upSrc));
 });
 
+// ---- model storage (owner, 2026-10-12: ONE folder for the farm's models; src/storage.js) -----------------------------
+const ST = require('../src/storage');
+const tmpDir = (tag) => fs.mkdtempSync(path.join(os.tmpdir(), `lol-storage-${tag}-`));
+const writeFile = (p, data) => { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, data); };
+const sha = (b) => require('crypto').createHash('sha256').update(b).digest('hex');
+
+test('storage: the farm\'s folders with and without a folder chosen (every user of them follows)', () => {
+    const ollamaMod = require('../src/ollama');
+    const sttM = require('../src/stt');
+    const lc = require('../src/llamacpp');
+    const emb = require('../src/embed');
+    const before = { ...ST.useStorage({}) };
+    try {
+        // None chosen: today's places, nothing changes for a farm that never sets it.
+        ST.useStorage({ storage: { dir: null, ollama: null } });
+        assert.equal(ollamaMod.modelsDir(), path.join(__dirname, '..', '.models'));
+        assert.equal(sttM.modelsDir(), path.join(__dirname, '..', '.stt', 'models'));
+        assert.equal(ST.ollamaModelsFor(), null, 'Ollama keeps its own place');
+        assert.deepEqual(ST.ollamaEnv(), {}, 'and the farm sets no OLLAMA_MODELS');
+        assert.equal(ConfigSchema.parse({}).storage.dir, null);
+        // A folder chosen: every download goes into it, one subfolder per store.
+        const dir = path.join(os.tmpdir(), 'LlmOnLan models');
+        ST.useStorage({ storage: { dir, ollama: null } });
+        assert.equal(ollamaMod.modelsDir(), path.join(dir, 'gguf'), 'llama.cpp\'s models, drafts, the build\'s archives');
+        assert.equal(path.dirname(ollamaMod.ggufPathFor('https://h.co/r/resolve/main/x.gguf')), path.join(dir, 'gguf'));
+        assert.equal(lc.fileFor('https://h.co/r/resolve/main/x.gguf'), path.join(dir, 'gguf', 'x.gguf'));
+        assert.equal(lc.fileFor('F:\\models\\y.gguf'), 'F:\\models\\y.gguf', 'a file by path is used where it is');
+        assert.ok(emb.argsFor({ proxy: {}, embed: { port: 1 } })[1].startsWith(path.join(dir, 'gguf')), 'document search\'s model');
+        assert.equal(sttM.modelsDir(), path.join(dir, 'speech-to-text'));
+        assert.deepEqual(ST.ollamaEnv(), { OLLAMA_MODELS: path.join(dir, 'ollama') }, 'an Ollama the farm starts');
+        // An Ollama model folder used where it is wins over <dir>/ollama.
+        assert.deepEqual(ST.ollamaEnv({ dir, ollama: 'E:\\ollama-models' }), { OLLAMA_MODELS: 'E:\\ollama-models' });
+        // Linux: vLLM's root for a new install, only with a folder its scripts take.
+        assert.equal(ST.vllmRootFor({ dir: '/data/llm' }), '/data/llm/vllm');
+        assert.equal(ST.vllmRootFor({ dir: '/data/my models' }), null, 'a space: vLLM\'s scripts refuse it, so not there');
+        const st = V.parseStatus('home=/home/me\narch=x86_64\nroot=/x\n');
+        assert.equal(V.resolveRoot({ vllm: { root: null }, storage: { dir: '/data/llm' } }, st), '/data/llm/vllm', 'a new install goes into the folder');
+        assert.equal(V.resolveRoot({ vllm: { root: null }, storage: { dir: null } }, st), '/home/me/lol-vllm');
+        assert.equal(V.resolveRoot({ vllm: { root: '/opt/v' }, storage: { dir: '/data/llm' } }, st), '/opt/v', 'an install stays where it is');
+        // loadConfig sets them for every command (lol up, lol install): the one place.
+        const cfgDir = tmpDir('cfg');
+        fs.writeFileSync(path.join(cfgDir, 'lol.config.json'), JSON.stringify({ storage: { dir } }));
+        require('../src/config').loadConfig(path.join(cfgDir, 'lol.config.json'));
+        assert.equal(ollamaMod.modelsDir(), path.join(dir, 'gguf'));
+        fs.rmSync(cfgDir, { recursive: true, force: true });
+        // The schema: absolute paths only.
+        assert.equal(ConfigSchema.safeParse({ storage: { dir: 'models' } }).success, false, 'a relative folder');
+        assert.equal(ConfigSchema.safeParse({ storage: { dir, bogus: 1 } }).success, false, 'strict');
+    } finally { ST.useStorage({ storage: before }); }
+});
+
+test('storage: Move here copies, checks, then deletes — a cut mid-copy is finished, never trusted; nothing deleted that has no copy', async () => {
+    const root = tmpDir('move');
+    try {
+        const from = path.join(root, 'old'); const to = path.join(root, 'new', 'gguf');
+        const big = Buffer.alloc(3 * 1024 * 1024 + 17, 7);
+        writeFile(path.join(from, 'model.gguf'), big);
+        writeFile(path.join(from, 'sub', 'draft.gguf'), Buffer.from('draft'));
+        writeFile(path.join(from, 'half.gguf.part'), Buffer.from('a download in progress'));   // never copied, never deleted
+        const files = await ST.listFiles(from);
+        assert.deepEqual(files.map((f) => f.rel).sort(), ['model.gguf', path.join('sub', 'draft.gguf')]);
+        assert.equal(await ST.bytesToCopy(from, to, files), big.length + 5);
+        // A cut in the middle of the big file (Stop, a crash): its part file is dropped, nothing is renamed into place.
+        let seen = 0;
+        await assert.rejects(ST.copyStore(from, to, files, { onBytes: (n) => { seen += n; }, isCancelled: () => seen > 0, since: 0 }), /Stopped/);
+        assert.ok(!fs.existsSync(path.join(to, 'model.gguf')), 'no half file under its own name');
+        // A power cut can leave a part file behind: it is copied again, never trusted.
+        writeFile(path.join(to, 'model.gguf' + ST.PART), Buffer.from('garbage'));
+        const since = Date.now() - 1000;
+        const r = await ST.copyStore(from, to, files, { since });
+        assert.equal(r.copied, 2);
+        assert.ok(fs.readFileSync(path.join(to, 'model.gguf')).equals(big), 'the copy is the original');
+        assert.ok(!fs.existsSync(path.join(to, 'model.gguf' + ST.PART)), 'the part file became the copy');
+        const v = await ST.verifyStore(from, to, files);
+        assert.deepEqual(v, { ok: true, problems: [] });
+        // A copy that differs is never deleted from: its original stays.
+        fs.writeFileSync(path.join(to, 'sub', 'draft.gguf'), 'DRAFT!!');
+        const v2 = await ST.verifyStore(from, to, files);
+        assert.equal(v2.ok, false);
+        assert.match(v2.problems[0], /is 7 bytes, not 5/);
+        const d = await ST.deleteMoved(from, to);
+        assert.deepEqual([d.deleted, d.kept], [1, 1]);
+        assert.ok(!fs.existsSync(path.join(from, 'model.gguf')) && fs.existsSync(path.join(from, 'sub', 'draft.gguf')), 'only the file with a good copy went');
+        assert.ok(fs.existsSync(path.join(from, 'half.gguf.part')), 'an unfinished download stays');
+        // Someone else's file under the same name, older than the move: never overwritten, the move stops.
+        const other = path.join(root, 'other'); writeFile(path.join(other, 'a.bin'), Buffer.from('mine'));
+        const theirs = path.join(root, 'theirs'); writeFile(path.join(theirs, 'a.bin'), Buffer.from('theirs, longer'));
+        fs.utimesSync(path.join(theirs, 'a.bin'), new Date(2020, 1, 1), new Date(2020, 1, 1));
+        await assert.rejects(ST.copyStore(other, theirs, await ST.listFiles(other), { since: Date.now() }), /already there and differs/);
+        assert.equal(fs.readFileSync(path.join(theirs, 'a.bin'), 'utf8'), 'theirs, longer');
+        // ...but a copy this move wrote, whose original changed meanwhile (a manifest re-written by a pull): replaced.
+        await ST.copyStore(other, theirs, await ST.listFiles(other), { since: 0 });
+        assert.equal(fs.readFileSync(path.join(theirs, 'a.bin'), 'utf8'), 'mine');
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('storage: a checksum the farm knows is checked (Ollama\'s blobs, document search\'s model); the same file twice is never deleted', async () => {
+    const root = tmpDir('sum');
+    try {
+        const from = path.join(root, 'ollama'); const to = path.join(root, 'F', 'ollama');
+        const blob = Buffer.from('weights of a model');
+        writeFile(path.join(from, 'blobs', `sha256-${sha(blob)}`), blob);
+        writeFile(path.join(from, 'blobs', `sha256-${'0'.repeat(64)}`), Buffer.from('damaged'));   // its name says another content
+        writeFile(path.join(from, 'manifests', 'registry.ollama.ai', 'library', 'm', 'latest'), Buffer.from('{}'));
+        assert.equal(ST.digestOf('ollama', path.join('blobs', `sha256-${sha(blob)}`)), sha(blob));
+        assert.equal(ST.digestOf('ollama', path.join('manifests', 'x')), null);
+        assert.equal(ST.digestOf('gguf', 'embeddinggemma-2-BF16.gguf', { 'embeddinggemma-2-BF16.gguf': 'abc' }), 'abc');
+        const files = await ST.listFiles(from);
+        const digestFor = (rel) => ST.digestOf('ollama', rel);
+        await assert.rejects(ST.copyStore(from, to, files, { digestFor }), /does not match its checksum/);
+        assert.ok(!fs.existsSync(path.join(to, 'blobs', `sha256-${'0'.repeat(64)}`)), 'a damaged file never lands');
+        fs.rmSync(path.join(from, 'blobs', `sha256-${'0'.repeat(64)}`));
+        const files2 = await ST.listFiles(from);
+        const r = await ST.copyStore(from, to, files2, { digestFor });
+        assert.equal(r.hashed.size, 1, 'checked while copying');
+        // A copy made by an earlier run (a move cut short) is read again and checked.
+        fs.writeFileSync(path.join(to, 'blobs', `sha256-${sha(blob)}`), Buffer.from('weights of a modeL'));   // same size, other bytes
+        const v = await ST.verifyStore(from, to, files2, { digestFor });
+        assert.equal(v.ok, false);
+        assert.match(v.problems[0], /does not match its checksum/);
+        // The same folder under two names (a junction): never "copied" onto itself, never deleted.
+        const link = path.join(root, 'alias');
+        fs.symlinkSync(from, link, 'junction');
+        assert.ok(ST.sameFile(path.join(from, 'manifests', 'registry.ollama.ai', 'library', 'm', 'latest'), path.join(link, 'manifests', 'registry.ollama.ai', 'library', 'm', 'latest')));
+        const d = await ST.deleteMoved(from, link);
+        assert.equal(d.deleted, 0, 'nothing deleted when the "copy" is the file itself');
+        assert.ok(fs.existsSync(path.join(from, 'blobs', `sha256-${sha(blob)}`)));
+        fs.rmSync(link, { recursive: true, force: true });
+        assert.ok(fs.existsSync(path.join(from, 'blobs')), 'removing the junction left the folder');
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('storage: the folders a person may not choose (the farm\'s own files, one store inside another, a network share)', () => {
+    const farm = path.join(__dirname, '..');
+    const win = process.platform === 'win32';
+    const at = (p) => (win ? `F:\\${p}` : `/data/${p}`);
+    assert.match(ST.checkDir('').error, /Type a folder/);
+    assert.match(ST.checkDir('models').error, /whole folder/);
+    if (win) assert.match(ST.checkDir('\\\\nas\\share\\models').error, /another computer of the network/);
+    assert.match(ST.checkDir(path.join(farm, 'models')).error, /inside the farm's own files/);
+    assert.match(ST.checkDir(farm).error, /inside the farm's own files/);
+    const stores = [{ id: 'ollama', from: at('ollama-models'), to: path.join(at('ollama-models'), 'x', 'ollama') }];
+    assert.match(ST.checkDir(path.join(at('ollama-models'), 'x'), { stores }).error, /Ollama's models are in .*cannot be inside that folder, nor hold it/);
+    const holds = [{ id: 'gguf', from: path.join(at('LLM'), 'gguf', 'old'), to: path.join(at('LLM'), 'gguf') }];
+    assert.match(ST.checkDir(at('LLM'), { stores: holds }).error, /cannot be inside that folder, nor hold it/);
+    assert.deepEqual(ST.checkDir(at('LlmOnLan models'), { stores: [{ id: 'gguf', from: path.join(farm, '.models'), to: path.join(at('LlmOnLan models'), 'gguf') }] }), { ok: true, error: null });
+    if (win) assert.ok(ST.inside('f:\\llm\\GGUF', 'F:\\LLM'), 'Windows: a name in either case is the same folder');
+});
+
+test('storage: a hard disk or a USB drive is said (Windows: Get-PhysicalDisk; Linux: /sys/block)', async () => {
+    assert.equal(ST.parseWinDisk('HDD|SATA\r\n'), 'hdd');
+    assert.equal(ST.parseWinDisk('SSD|NVMe'), 'ssd');
+    assert.equal(ST.parseWinDisk('SSD|USB'), 'usb', 'the PRO 6000\'s drive E: (a USB SSD)');
+    assert.equal(ST.parseWinDisk('Unspecified|RAID'), null);
+    assert.equal(ST.linuxDiskKind({ sysPath: '/sys/devices/pci0000:00/0000:00:14.0/usb2/2-1/2-1:1.0/host6/target6:0:0/6:0:0:0/block/sdb/sdb1', rotational: '0\n' }), 'usb');
+    assert.equal(ST.linuxDiskKind({ sysPath: '/sys/devices/pci0000:00/ata1/host0/target0:0:0/0:0:0:0/block/sda/sda1', rotational: '1\n' }), 'hdd');
+    assert.equal(ST.linuxDiskKind({ sysPath: '/sys/devices/pci0000:00/nvme/nvme0/nvme0n1/nvme0n1p2', rotational: '0' }), 'ssd');
+    assert.equal(ST.linuxDiskKind({ sysPath: '/sys/devices/virtual/block/dm-0', rotational: null }), null);
+    const mi = '22 1 259:2 / / rw - ext4 /dev/nvme0n1p2 rw\n90 22 8:17 / /mnt/big rw - ext4 /dev/sdb1 rw\n91 22 8:1 / /mnt/big\\040disk rw - ext4 /dev/sda1 rw\n';
+    assert.equal(ST.mountDevice(mi, '/mnt/big/llm'), '8:17');
+    assert.equal(ST.mountDevice(mi, '/mnt/big disk/llm'), '8:1', 'a mount point with a space');
+    assert.equal(ST.mountDevice(mi, '/mnt/bigger'), '259:2', 'not a prefix of a name');
+    let asked = null;
+    const kind = await ST.diskKind('Q:\\models', { platform: 'win32', run: async (cmd, args) => { asked = args.join(' '); return { ok: true, out: 'HDD|SATA' }; } });
+    assert.equal(kind, 'hdd');
+    assert.match(asked, /Get-Partition -DriveLetter Q/);
+    assert.match(ST.slowDiskText('hdd'), /hard disk/);
+    assert.match(ST.slowDiskText('usb'), /USB/);
+    assert.equal(ST.slowDiskText('ssd'), null);
+});
+
+test('storage: "Use the models in this folder" finds .gguf files (split parts grouped), Hugging Face folders and an Ollama model folder', async () => {
+    const root = tmpDir('scan');
+    try {
+        writeFile(path.join(root, 'a', 'Qwen-Q4.gguf'), Buffer.alloc(10));
+        writeFile(path.join(root, 'a', 'mmproj-F16.gguf'), Buffer.alloc(3));
+        writeFile(path.join(root, 'a', 'mtp-Qwen-Q4_0.gguf'), Buffer.alloc(3));             // a draft: not a model to chat with
+        writeFile(path.join(root, 'b', 'Big-00001-of-00002.gguf'), Buffer.alloc(5));
+        writeFile(path.join(root, 'b', 'Big-00002-of-00002.gguf'), Buffer.alloc(5));
+        writeFile(path.join(root, 'b', 'Half-00001-of-00003.gguf'), Buffer.alloc(5));       // two parts missing
+        writeFile(path.join(root, 'hf', 'Gemma', 'config.json'), '{"vision_config": {}}');
+        writeFile(path.join(root, 'hf', 'Gemma', 'model.safetensors'), Buffer.alloc(20));
+        writeFile(path.join(root, 'hf', 'Gemma', 'sub', 'x.gguf'), Buffer.alloc(1));         // inside a model folder: not looked at
+        writeFile(path.join(root, 'notes', 'config.json'), '{}');                            // no weights: no model
+        writeFile(path.join(root, 'ol', 'blobs', 'sha256-' + 'a'.repeat(64)), Buffer.alloc(7));
+        writeFile(path.join(root, 'ol', 'manifests', 'registry.ollama.ai', 'library', 'gemma4', '12b'), '{}');
+        writeFile(path.join(root, 'ol', 'manifests', 'hf.co', 'unsloth', 'Qwen-GGUF', 'UD-Q4'), '{}');
+        const f = await ST.scanFolder(root);
+        const g = Object.fromEntries(f.gguf.map((x) => [x.label, x]));
+        assert.deepEqual(Object.keys(g).sort(), ['Big', 'Half', 'Qwen-Q4']);
+        assert.equal(g['Qwen-Q4'].mmproj, path.join(root, 'a', 'mmproj-F16.gguf'), 'its projector, next to it');
+        assert.deepEqual([g.Big.parts, g.Big.complete, g.Big.bytes, g.Big.path], [2, true, 10, path.join(root, 'b', 'Big-00001-of-00002.gguf')]);
+        assert.deepEqual([g.Half.complete, g.Half.found], [false, 1]);
+        assert.deepEqual(f.hf.map((x) => [x.label, x.vision, x.bytes]), [['Gemma', true, 20 + 21]]);
+        assert.deepEqual(f.ollama.map((x) => [x.path, x.models, x.bytes]), [[path.join(root, 'ol'), ['gemma4:12b', 'hf.co/unsloth/Qwen-GGUF:UD-Q4'], 7]]);
+        assert.equal(ST.wslPathOf('F:\\LLM models\\Gemma'), '/mnt/f/LLM models/Gemma', 'vLLM in WSL reads a Windows drive there');
+        assert.equal(ST.wslPathOf('/home/x'), null);
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('storage: Ollama\'s model folder — its manifests, its own log, and the check that tells which folder it reads', async () => {
+    assert.deepEqual(ST.manifestRels('gemma4:12b'), [path.join('manifests', 'registry.ollama.ai', 'library', 'gemma4', '12b'), path.join('manifests-v2', 'ollama.com', 'library', 'gemma4', '12b')]);
+    assert.deepEqual(ST.manifestRels('hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ2_XXS')[0], path.join('manifests', 'hf.co', 'unsloth', 'Qwen3.8-27B-GGUF', 'UD-IQ2_XXS'));
+    assert.deepEqual(ST.manifestRels('me/model')[0], path.join('manifests', 'registry.ollama.ai', 'me', 'model', 'latest'));
+    assert.deepEqual(ST.manifestRels('../x'), [], 'no way out of the folder');
+    // The "server config" line Ollama's app writes at each start (from the PRO 6000's server.log, 2026-10-12).
+    const line = 'time=2026-10-07T13:43:00.000+02:00 level=INFO source=routes.go msg="server config" env="map[CUDA_VISIBLE_DEVICES: OLLAMA_MODELS:C:\\\\Users\\\\ateliernum\\\\.ollama\\\\models OLLAMA_MULTIUSER_CACHE:false OLLAMA_NEW_ENGINE:false]"';
+    assert.equal(ST.ollamaStoreInLog(line), 'C:\\Users\\ateliernum\\.ollama\\models');
+    assert.equal(ST.ollamaStoreInLog(line.replace('C:\\\\Users\\\\ateliernum\\\\.ollama\\\\models', 'D:\\\\LLM models\\\\ollama')), 'D:\\LLM models\\ollama', 'a folder with a space');
+    assert.equal(ST.ollamaStoreInLog(`${line}\n${line.replace('C:\\\\Users', 'E:\\\\Users')}`), 'E:\\Users\\ateliernum\\.ollama\\models', 'the last start wins');
+    assert.equal(ST.ollamaStoreInLog('nothing here'), null);
+    assert.equal(ST.ollamaLogFile({ platform: 'win32', env: { LOCALAPPDATA: 'C:\\L' } }), path.join('C:\\L', 'Ollama', 'server.log'));
+    assert.equal(ST.ollamaLogFile({ platform: 'linux' }), null);
+    // The check: a copy of a manifest under a name nobody uses; Ollama lists it only when it reads that folder.
+    const store = tmpDir('ollama');
+    try {
+        writeFile(path.join(store, 'blobs', 'sha256-' + 'b'.repeat(64)), Buffer.alloc(3));
+        writeFile(path.join(store, 'manifests', 'registry.ollama.ai', 'library', 'gemma4', '12b'), '{"m":1}');
+        writeFile(path.join(store, 'manifests', 'registry.ollama.ai', 'library', ST.CANARY, 'left0'), '{}');   // left by a farm stopped mid-check
+        let listed = null;
+        const reads = (base) => async () => { const dir = path.join(base, 'manifests', 'registry.ollama.ai', 'library', ST.CANARY); listed = fs.existsSync(dir) ? fs.readdirSync(dir) : []; return ['gemma4:12b', ...listed.map((t) => `${ST.CANARY}:${t}`)]; };
+        assert.equal(await ST.ollamaReads('h', store, reads(store)), true, 'it reads this folder');
+        assert.equal(listed.length, 1, 'one check at a time; the leftover went first');
+        assert.ok(!fs.existsSync(path.join(store, 'manifests', 'registry.ollama.ai', 'library', ST.CANARY)), 'the check leaves nothing behind');
+        assert.equal(await ST.ollamaReads('h', store, async () => ['gemma4:12b']), false, 'it reads another folder');
+        assert.equal(await ST.ollamaReads('h', store, async () => null), null, 'no answer: cannot tell');
+        assert.equal(ST.storeHasModel(store, 'gemma4:12b'), true);
+        assert.equal(ST.storeHasModel(store, 'qwen3:8b'), false);
+        assert.ok(ST.isOllamaStore(store));
+    } finally { fs.rmSync(store, { recursive: true, force: true }); }
+});
+
+test('llama.cpp: a .gguf by path is used where it is — never downloaded, said when it is gone', async () => {
+    const lc = require('../src/llamacpp');
+    const dir = tmpDir('lcpath');
+    try {
+        const one = path.join(dir, 'My Model-00001-of-00002.gguf');
+        writeFile(one, Buffer.alloc(4));
+        const cfg = (model) => ({ llamacpp: { ...defaultConfig().llamacpp, model, mmproj: null } });
+        assert.equal(lc.onDisk(one), false, 'a part is missing');
+        const miss = await lc.ensureModel(cfg(one));
+        assert.equal(miss.ok, false);
+        assert.match(miss.message, /is not there any more \(or a part of it is missing\)/);
+        writeFile(path.join(dir, 'My Model-00002-of-00002.gguf'), Buffer.alloc(6));
+        const ok = await lc.ensureModel(cfg(path.join(dir, 'My Model-00002-of-00002.gguf')));
+        assert.deepEqual([ok.ok, ok.modelPath, ok.cached], [true, one, true], 'any part given: the first part is loaded');
+        assert.equal(lc.weightsBytesFor(one), 10);
+        // The schema: an entry by path, or by link; one of the two.
+        const lib = ConfigSchema.parse({ llamacpp: { model: one, library: [{ id: 'm', label: 'M', path: one }] } }).llamacpp;
+        assert.deepEqual([lib.model, lib.library[0].url, lib.library[0].path], [one, null, one]);
+        assert.equal(ConfigSchema.safeParse({ llamacpp: { library: [{ id: 'm', label: 'M' }] } }).success, false, 'neither a link nor a file');
+        assert.equal(ConfigSchema.safeParse({ llamacpp: { model: 'models/x.gguf' } }).success, false, 'a relative path');
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('vLLM: a model folder by path anywhere in its Linux (status.sh pathmodel=), never deleted by Remove', () => {
+    const st = V.parseStatus('home=/home/me\narch=x86_64\nroot=/home/me/lol-vllm\nmodel=Qwen3.6-35B-A3B-NVFP4 23000000 vision=1 native=262144 partial=0\npathmodel=9100000 vision=1 native=131072 partial=0 /mnt/f/LLM models/gemma-4\n');
+    assert.deepEqual(st.models.map((m) => [m.folder, m.path || null]), [['Qwen3.6-35B-A3B-NVFP4', null], [null, '/mnt/f/LLM models/gemma-4']]);
+    const r = V.newLibraryEntry({ path: '/mnt/f/LLM models/gemma-4/', found: { bytes: 9.3e9, vision: true } }, defaultConfig().vllm.library);
+    assert.equal(r.entry.path, '/mnt/f/LLM models/gemma-4');
+    assert.deepEqual([r.entry.repo, r.entry.folder, r.entry.sizeGb, r.entry.vision], [null, null, 9.3, true]);
+    assert.ok(r.entry.args.includes('gemma4'), 'its family\'s flags');
+    assert.match(V.newLibraryEntry({ path: '/mnt/f/LLM models/gemma-4' }, [r.entry]).error, /already in the list/);
+    assert.equal(V.newLibraryEntry({ path: '/home/me/../etc' }, []).error, 'That is not a model folder.');
+    assert.equal(V.newLibraryEntry({ path: 'relative/x' }, []).error, 'That is not a model folder.');
+    assert.equal(V.newLibraryEntry({ path: '/x/"quoted"' }, []).error, 'That is not a model folder.');
+    const cfg = ConfigSchema.parse({ vllm: { model: r.entry.id, library: [...defaultConfig().vllm.library, r.entry] } });
+    assert.equal(V.diskOf(st, r.entry).path, '/mnt/f/LLM models/gemma-4');
+    assert.equal(V.diskOf(st, { ...r.entry, path: '/nowhere' }), undefined);
+    assert.equal(V.modelDir(r.entry, '/home/me/lol-vllm'), '/mnt/f/LLM models/gemma-4', 'loaded where it is');
+    assert.equal(V.modelDir(cfg.vllm.library[0], '/home/me/lol-vllm'), '/home/me/lol-vllm/hf/Qwen3.6-35B-A3B-NVFP4');
+    assert.equal(V.settingsOf(cfg, '/home/me/lol-vllm').modelPath, '/mnt/f/LLM models/gemma-4', 'adoption compares the folder it runs from');
+    const st2 = { ...st, gpu: { name: 'NVIDIA RTX PRO 6000 Blackwell Workstation Edition', totalGib: 95.6, freeGib: 90, cap: 12 } };
+    const plan = V.planFor(cfg, st2);
+    assert.equal(plan.ok, true, plan.reason);
+    assert.equal(plan.env.LOL_VLLM_MODEL, '/mnt/f/LLM models/gemma-4');
+    const gone = V.problemsFrom({ platform: 'linux', arch: 'x64', st: { ...st2, models: st2.models.filter((m) => !m.path), installs: [{ root: '/home/me/lol-vllm', version: '0.30.0' }], curl: '/usr/bin/curl', cc: '/usr/bin/gcc' } }, cfg);
+    assert.ok(gone.problems.some((p) => /is not in \/mnt\/f\/LLM models\/gemma-4 any more/.test(p)), gone.problems.join(' | '));
+    assert.equal(ConfigSchema.safeParse({ vllm: { library: [{ id: 'x', label: 'x', path: '/a/../b' }] } }).success, false);
+});
+
+test('WSL\'s Linux disk: where it is, and its move (terminate, then all of WSL only when it keeps the disk)', async () => {
+    const reg = [
+        'HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss',
+        '    DefaultDistribution    REG_SZ    {9197}',
+        '',
+        'HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss\\{9197}',
+        '    DistributionName    REG_SZ    Ubuntu',
+        '    BasePath    REG_SZ    C:\\Users\\me\\AppData\\Local\\wsl\\{9197}',
+        '    VhdFileName    REG_SZ    ext4.vhdx',
+        '',
+        'HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss\\{3de4}',
+        '    DistributionName    REG_SZ    docker-desktop',
+        '    BasePath    REG_SZ    \\\\?\\D:\\docker\\wsl',
+    ].join('\r\n');
+    assert.deepEqual(V.lxssEntries(reg), [
+        { name: 'Ubuntu', folder: 'C:\\Users\\me\\AppData\\Local\\wsl\\{9197}', vhd: 'ext4.vhdx' },
+        { name: 'docker-desktop', folder: 'D:\\docker\\wsl', vhd: 'ext4.vhdx' },
+    ]);
+    // What wsl.exe answered (WSL 2.6.3, French Windows, measured 2026-10-12 on a scratch distribution).
+    const fr = (code) => ({ code: 4294967295, out: `Impossible d’effectuer l’opération.\r\nCode d'erreur : Wsl/Service/MoveDistro/${code}\r\n`, err: '', timedOut: false, error: null });
+    assert.equal(V.moveAnswer(fr('WSL_E_DISTRO_NOT_STOPPED')).kind, 'running');
+    assert.equal(V.moveAnswer(fr('ERROR_SHARING_VIOLATION')).kind, 'in-use');
+    assert.equal(V.moveAnswer({ code: 0, out: 'L’opération a réussi.', err: '' }).kind, 'ok');
+    assert.equal(V.moveAnswer({ code: 1, out: '', err: 'something else', timedOut: false }).kind, 'error');
+    // The move: terminate; WSL keeps the disk → `wsl --shutdown` (every distribution: the panel asked first) → moved.
+    const disk = { distro: 'Ubuntu', folder: 'C:\\w', file: 'C:\\w\\ext4.vhdx', bytes: 10, drive: 'C' };
+    const calls = []; const answers = [fr('ERROR_SHARING_VIOLATION'), fr('ERROR_SHARING_VIOLATION'), { code: 0, out: '', err: '' }];
+    const run = async (cmd, args) => { calls.push(args.join(' ')); return args.includes('--move') ? answers.shift() : { code: 0, out: '', err: '' }; };
+    const r = await V.moveWsl('Ubuntu', 'F:\\WSL\\Ubuntu', { run, wait: async () => {}, disk });
+    assert.deepEqual([r.ok, r.shutdown], [true, true]);
+    assert.deepEqual(calls, ['--terminate Ubuntu', '--manage Ubuntu --move F:\\WSL\\Ubuntu', '--shutdown', '--manage Ubuntu --move F:\\WSL\\Ubuntu', '--manage Ubuntu --move F:\\WSL\\Ubuntu']);
+    // Moved at once (nothing else kept WSL up): no shutdown.
+    const calls2 = [];
+    const r2 = await V.moveWsl('Ubuntu', 'F:\\x', { run: async (c, a) => { calls2.push(a.join(' ')); return { code: 0, out: '', err: '' }; }, wait: async () => {}, disk });
+    assert.deepEqual([r2.ok, r2.shutdown, calls2.includes('--shutdown')], [true, false, false]);
+    // A folder that holds another distribution: said, nothing else tried.
+    const r3 = await V.moveWsl('Ubuntu', 'F:\\x', { run: async (c, a) => (a.includes('--move') ? { code: 1, out: 'Wsl/Service/MoveDistro/ERROR_FILE_EXISTS', err: '' } : { code: 0, out: '', err: '' }), wait: async () => {}, disk });
+    assert.match(r3.error, /already holds another Linux disk/);
+});
+
+test('panel: the Model storage card — where each store is, Move here, an unfinished move, Ollama\'s step; each engine card lists what a look found', () => {
+    const render = loadPanel();
+    const storage = {
+        platform: 'win32', dir: null, ollamaFolder: null, ollamaBy: 'other', kind: null, slow: null, freeBytes: null, moving: false,
+        stores: [
+            { id: 'gguf', label: 'Model files for llama.cpp, document search and drafts', dir: 'C:\\farm\\.models', bytes: 23.4e9 },
+            { id: 'stt', label: 'Speech to text\'s models', dir: 'C:\\farm\\.stt\\models', bytes: 1.6e9 },
+            { id: 'ollama', label: 'Ollama\'s models', dir: 'C:\\Users\\me\\.ollama\\models', by: 'other', bytes: 127e9, models: 9 },
+        ],
+        move: null,
+    };
+    const card = (html) => (/<div class="card" id="storage-card">[\s\S]*?(?=<div class="card">)/.exec(html) || [''])[0];
+    const c1 = card(render(adminState({ storage })));
+    assert.ok(c1.includes('<h2>Model storage</h2>'));
+    assert.ok(c1.includes('C:\\farm\\.models · 23 GB') && c1.includes('C:\\Users\\me\\.ollama\\models · 127 GB · run by the Ollama app or a service'), c1);
+    assert.ok(/data-stmove>Move here<\/button>/.test(c1) && /data-stscan>Look<\/button>/.test(c1));
+    assert.ok(c1.includes('vLLM\'s models live in WSL\'s Linux disk, which moves from the vLLM card.'));
+    assert.ok(!c1.includes('data-stbrowse'), 'no Browse outside the Farm app');
+    // A move cut short, then one switched that waits for the Ollama app.
+    const cut = card(render(adminState({ storage: { ...storage, move: { to: 'F:\\LLM', switched: false, left: [{ id: 'gguf', label: 'Model files', from: 'C:\\farm\\.models', to: 'F:\\LLM\\gguf' }] } } })));
+    assert.ok(cut.includes('A move to F:\\LLM did not finish') && cut.includes('data-stforget'), cut);
+    const wait = card(render(adminState({ storage: { ...storage, dir: 'F:\\LLM', kind: 'hdd', slow: 'This folder is on a hard disk: slow.', move: { to: 'F:\\LLM', switched: true, ollamaStep: true, left: [{ id: 'ollama', label: 'Ollama\'s models', from: 'C:\\Users\\me\\.ollama\\models', to: 'F:\\LLM\\ollama', by: 'other' }] } } })));
+    assert.ok(wait.includes('set Model location to F:\\LLM\\ollama') && wait.includes('data-stfinish') && wait.includes('⚠ This folder is on a hard disk'), wait);
+    // What a look found: on the llama.cpp card, the vLLM card and the Ollama card (render's own scan state, set by Look).
+    const fns = loadPanel();
+    assert.ok(fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8').includes("scanResult = r; scanPicked.clear();"));
+    const panelSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
+    assert.ok(/function llamacppCard[\s\S]*?scanRows\('gguf'/.test(panelSrc) && /function vllmCard[\s\S]*?scanRows\('vllm'/.test(panelSrc) && /function vllmCard[\s\S]*?wslDiskRow\(/.test(panelSrc), 'each engine\'s part in its own card');
+    void fns;
+    // The vLLM card on Windows: WSL's Linux disk and its Move.
+    const v = render(vllmState({ wslDisk: { distro: 'Ubuntu', folder: 'C:\\Users\\me\\AppData\\Local\\wsl\\{9197}', gb: 421, drive: 'C' } }));
+    assert.ok(v.includes('Ubuntu, 421 GB, in C:\\Users\\me\\AppData\\Local\\wsl\\{9197}') && /data-wslmove>Move…<\/button>/.test(v), 'the WSL row');
+    // A folder by path in the vLLM list: Remove never offers its files.
+    const lib = vllmPanel().library.concat([{ id: 'g', label: 'Gemma here', path: '/mnt/f/m/g', downloaded: true, gbOnDisk: 9, active: false }]);
+    assert.ok(/data-vrm="g" data-label="Gemma here" data-files="0"/.test(render(vllmState({ library: lib }))));
+    // The routes exist on both sides.
+    const srvSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'selfServer.js'), 'utf8');
+    for (const r of ['storage/move', 'storage/finish', 'storage/forget', 'storage/scan', 'storage/use', 'storage/check', 'vllm/wsl-move']) {
+        assert.ok(panelSrc.includes(`'/lol/admin/${r}'`) && srvSrc.includes(`'/lol/admin/${r}'`), r);
+    }
+});
+
+test('the Farm app starts its Ollama where the farm keeps the models (same rule as storage.js)', () => {
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'farm-app', 'src', 'main', 'installer.ts'), 'utf8');
+    assert.ok(src.includes("const dir = s.ollama || (s.dir ? path.join(s.dir, 'ollama') : null);"), 'installer.ts ollamaModelsEnv');
+    assert.ok(/env: \{ \.\.\.childEnv\(\), \.\.\.ollamaModelsEnv\(\), OLLAMA_HOST/.test(src));
+    assert.equal(ST.SUB.ollama, 'ollama');
+    assert.deepEqual(ST.ollamaEnv({ dir: 'X:\\m', ollama: null }), { OLLAMA_MODELS: path.join('X:\\m', 'ollama') });
+    const up = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(up.includes('...storageMod.ollamaEnv(config.storage),'), 'lol up\'s own Ollama');
+    const inst = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'install.js'), 'utf8');
+    assert.ok(inst.includes("require('../storage').ollamaEnv(config.storage)"), 'lol install\'s');
+});
+
 (async () => {
     for (const { name, fn } of tests) {
         try { await fn(); console.log(`  ok  ${name}`); passed++; }
