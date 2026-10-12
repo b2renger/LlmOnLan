@@ -65,6 +65,25 @@ const GAP = { 'user.level': 50, 'bot.level': 50, 'bot.text': 100 };
 const PULSE_MS = 150;
 /** A cue blip lasts this long; the detector treats it as the bot's sound. */
 const CUE_MS = 130;
+/** A press on ● Start opens the microphone only if the run it starts reaches the box this soon: a press
+ * whose run waited (merged behind another conversation, say) asks to be pressed again. */
+export const PRESS_TTL_MS = 15000;
+/** partId -> when ● Start was pressed (the time half of Button's press registry). */
+const pressedAt = new Map();
+/** The face's press: noted in Button's registry (so the host's clearPresses forgets it) and timed.
+ * @param {string} id */
+export function pressStart(id) {
+  notePress(id);
+  pressedAt.set(String(id), Date.now());
+}
+/** Consume a press if there is one AND it is fresh. @param {string} id @returns {boolean} */
+export function freshPress(id) {
+  const had = consumePress(id);
+  const at = pressedAt.get(String(id));
+  pressedAt.delete(String(id));
+  return had && typeof at === 'number' && Date.now() - at <= PRESS_TTL_MS;
+}
+
 /** The local voice's locale per language knob. */
 const LOCALE = { fr: 'fr-FR', en: 'en-US', es: 'es-ES', de: 'de-DE', it: 'it-IT', pt: 'pt-PT', nl: 'nl-NL' };
 
@@ -103,7 +122,7 @@ function publish(id, snap) {
 export function conversationOf(partId) {
   const s = sessions.get(String(partId));
   if (!s || !s.snap) return null;
-  return { running: !!s.end, mic: !!s.snap.mic, state: String(s.snap.state || '') };
+  return { running: !!(s.end && s.end.end), mic: !!s.snap.mic, state: String(s.snap.state || '') };
 }
 
 /** Forget every conversation's leftovers (a unit test between cases). */
@@ -645,30 +664,47 @@ export async function converse(o) {
     const code = err && /** @type {any} */ (err).code;
     throw partFail(code === 'refused' ? t('parts.converseMicRefused') : t('parts.converseNoMic'), 'part');
   }
-  if (closed || o.signal.aborted || !o.shownNow()) {
-    // Left (or stopped) while the system asked for the microphone: it closes before anything is heard.
-    try { mic.close(); } catch { /* already */ }
-    if (!closed) finish(o.signal.aborted ? 'stop' : 'hidden', o.signal.aborted ? t('parts.converseEndedStop') : t('parts.converseEndedHidden'));
-  } else {
-    o.onSession(() => requestEnd('end', t('parts.converseEndedEnd')));
-    snap.mic = true;
-    mic.startTake();
-    setState('listening');
-    fire('start', { persona: String(o.persona || '').slice(0, 200) });
-    const loop = () => { if (closed) return; tick(); if (!closed) stopFrame = o.frame(loop); };
-    stopFrame = o.frame(loop);
-    if (k.greeting) {
-      const hello = { stage: 'thinking', user: '', greeting: true, said: /** @type {string[]} */ ([]), moments: {}, askAc: linked(), sayAc: linked() };
-      cur = hello;
-      pipeline = pipeline.then(() => answer(hello, t('parts.converseGreetingAsk'))).catch(() => backToListening());
+  /** Anything unexpected ends the conversation, and so closes the microphone: it is never left open
+   * by a loop that stopped turning. @param {any} err */
+  const crash = (err) => {
+    console.error('[lolcomputer] converse stopped on an error', err);
+    finish('error', t('parts.converseAskErr', { message: String((err && err.message) || err) }));
+  };
+  try {
+    if (closed || o.signal.aborted || !o.shownNow()) {
+      // Left (or stopped) while the system asked for the microphone: it closes before anything is heard.
+      try { mic.close(); } catch { /* already */ }
+      if (!closed) finish(o.signal.aborted ? 'stop' : 'hidden', o.signal.aborted ? t('parts.converseEndedStop') : t('parts.converseEndedHidden'));
     } else {
-      fire('listening');
+      // ■ End finishes the sentence; `stop` (the box deleted under it) ends it now.
+      o.onSession({ end: () => requestEnd('end', t('parts.converseEndedEnd')), stop: () => finish('stop', t('parts.converseEndedStop')) });
+      snap.mic = true;
+      mic.startTake();
+      setState('listening');
+      fire('start', { persona: String(o.persona || '').slice(0, 200) });
+      const loop = () => {
+        if (closed) return;
+        try { tick(); } catch (err) { crash(err); return; }
+        if (!closed) stopFrame = o.frame(loop);
+      };
+      stopFrame = o.frame(loop);
+      if (k.greeting) {
+        const hello = { stage: 'thinking', user: '', greeting: true, said: /** @type {string[]} */ ([]), moments: {}, askAc: linked(), sayAc: linked() };
+        cur = hello;
+        pipeline = pipeline.then(() => answer(hello, t('parts.converseGreetingAsk'))).catch(() => backToListening());
+      } else {
+        fire('listening');
+      }
     }
+    await ended;
+  } catch (err) {
+    crash(err);
+  } finally {
+    if (!closed) finish('error');
+    offWatch();
+    o.signal.removeEventListener('abort', onStop);
+    o.onSession(null);
   }
-  await ended;
-  offWatch();
-  o.signal.removeEventListener('abort', onStop);
-  o.onSession(null);
   if (endWhy === 'error' && !personTurns()) throw partFail(endNote || lastProblem || t('parts.converseEndedError'), 'part');
   return { value: valueOf('json', resultOf()), bar: personTurns() === 0 };
 
@@ -823,14 +859,14 @@ export const conversePart = /** @type {any} */ ({
     start.dataset.part = id;
     start.textContent = t('parts.converseStart');
     start.title = t('parts.converseStartHint');
-    start.addEventListener('click', () => { notePress(id); });
+    start.addEventListener('click', () => { pressStart(id); });
     const end = /** @type {HTMLButtonElement} */ (make('button', 'graph-part-control graph-converse-end'));
     end.type = 'button';
     end.dataset.action = 'end';
     end.dataset.part = id;
     end.textContent = t('parts.converseEnd');
     end.title = t('parts.converseEndHint');
-    end.addEventListener('click', () => { const s = sessions.get(id); if (s && typeof s.end === 'function') s.end(); });
+    end.addEventListener('click', () => { const s = sessions.get(id); if (s && s.end && typeof s.end.end === 'function') s.end.end(); });
     const buttons = make('div', 'graph-converse-buttons');
     buttons.append(start, end);
 
@@ -990,6 +1026,12 @@ export const conversePart = /** @type {any} */ ({
       update(next) { live = next || live; paintSettings(); paint(); },
       destroy() {
         destroyed = true;
+        // The box was deleted (or undone away) while it talked: nothing could show the microphone any
+        // more, or end it — so it ends now. A box only redrawn keeps its conversation.
+        const running = sessions.get(id);
+        const session = app && app.host && app.host.session;
+        const d = session && typeof session.doc === 'function' ? session.doc() : null;
+        if (running && running.end && typeof running.end.stop === 'function' && d && !d.parts.some((/** @type {any} */ p) => p.id === id)) running.end.stop();
         const w = watchers.get(id);
         if (w) w.delete(paint);
         try { offTick(); } catch { /* gone */ }
@@ -1004,7 +1046,7 @@ export const conversePart = /** @type {any} */ ({
     const id = String(input.part.id);
     // Decision 7: only a person's ● Start on this box opens the microphone. Run all never gets here
     // (manual); the title-bar ▶, a Trigger, an MCP run_graph and a wave from upstream carry no press.
-    if (!consumePress(id)) throw partFail(t('parts.converseNoPress'), 'part');
+    if (!freshPress(id)) throw partFail(t('parts.converseNoPress'), 'part');
     const app = input.app;
     const farm = app && app.farm && typeof app.farm.get === 'function' ? app.farm.get() : null;
     const stt = farm && farm.stt && farm.stt.url ? farm.stt : null;
@@ -1047,7 +1089,7 @@ export const conversePart = /** @type {any} */ ({
       },
       shownNow: () => !!(app && app.state && app.state.shown !== false && app.state.pageVisible !== false),
       onChange: (snap) => publish(id, snap),
-      onSession: (endFn) => { const s = sessions.get(id) || {}; sessions.set(id, { ...s, end: endFn }); },
+      onSession: (handles) => { const s = sessions.get(id) || {}; sessions.set(id, { ...s, end: handles }); },
     });
     return out;
   },

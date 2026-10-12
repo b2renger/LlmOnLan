@@ -149,6 +149,14 @@ export default (test) => {
     });
   });
 
+  test('openListening: a window that cannot measure the microphone lets it go at once (never open and deaf)', async () => {
+    const s = stream();
+    await withDevices({ navigator: { mediaDevices: { getUserMedia: async () => s } }, MediaRecorder: FakeRecorder }, async () => {
+      await assert.rejects(openListening({ audioContext: () => null }), (/** @type {any} */ e) => e.code === 'no-device');
+      assert.equal(s.tracks[0].stopped, true, 'the device was let go');
+    });
+  });
+
   test('openListening: a refused or missing microphone is a code the box can word', async () => {
     await withDevices({ navigator: { mediaDevices: { getUserMedia: async () => { throw Object.assign(new Error('no'), { name: 'NotAllowedError' }); } } }, MediaRecorder: FakeRecorder }, async () => {
       await assert.rejects(openListening(), (/** @type {any} */ e) => e.code === 'refused');

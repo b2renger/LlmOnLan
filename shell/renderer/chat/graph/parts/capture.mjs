@@ -107,6 +107,11 @@ export async function openListening(o = {}) {
       if (ac.state === 'suspended' && typeof ac.resume === 'function') { const r = ac.resume(); if (r && r.catch) r.catch(() => {}); }
     }
   } catch { source = null; meter = null; block = null; }
+  // Without a meter nothing can hear the turns: the device is let go at once rather than held open deaf.
+  if (!meter) {
+    release(stream);
+    throw Object.assign(new Error('this window cannot measure the microphone'), { code: 'no-device' });
+  }
   const mime = typeof Rec.isTypeSupported === 'function' && Rec.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : '';
   const now = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
   let shut = false;

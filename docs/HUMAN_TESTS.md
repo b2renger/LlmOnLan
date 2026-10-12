@@ -35,7 +35,7 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 | C. Upgrades and the data folder | a v0.2.9 laptop, the owner's v0.2.7 client, a spare profile, a USB stick | 6 | C1, C2 | 2.5 h |
 | D. Two machines, two farms, other subnets | 2 laptops, a second farm, a guest Wi-Fi | 15 | — | 4 h |
 | E. Mac and Linux clients | Apple Silicon + Intel Mac, a Linux PC | 4 | — | 3 h |
-| F. The Computer's devices | mic, webcam, speakers, OSC tool, Art-Net light, Arduino/ESP32 | 7 | — | 4 h |
+| F. The Computer's devices | mic, webcam, speakers, a headset, OSC tool, Art-Net light, Arduino/ESP32; F11: 5–10 laptops | 11 | — | 6 h (+1 h F11) |
 | G. LOL Vibe's IDE | 1 laptop, a password farm, a GitHub account | 10 | — | 2.5 h |
 | H. Home Assistant on a real home | the office's Home Assistant Green | 4 | — | 2.5 h |
 | I. Document search on the farm | the farm, 2 laptops (one with old documents) | 7 | I1–I5 | 2 h |
@@ -46,7 +46,7 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 | N. The Farm app on a clean box | a PC with no Ollama or Python, a Mac | 5 | — | 2 h + downloads |
 | O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 5 | — | 2 h 30 |
 | P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
-| **Total** | | **113** | **19** | about 51–56 h |
+| **Total** | | **117** | **19** | about 54–59 h |
 
 **The release, in order:** K1–K5 on the test box first (the Farm app update, the held-file copy, llama.cpp b11512,
 document search's first start, the small cards), then P1 and J1–J4 on the PRO 6000 (once `panel-engines` is merged), then I1–I5 and A1, B1 with the
@@ -900,6 +900,73 @@ port. The page shows *board1 says …*, covering the sensor switches the LED on.
 frame; the camera light goes off. 9: *Dry run — would send: OSC /lol/level 0.75*; the arming list shows
 `127.0.0.1:9000 /lol/level (this computer)`; *Sent: …* reaches the UDP 9000 listener. 10: *not armed* first; armed,
 every 3 s *Tick N, heard at …*; gap 6: the face's *skipped* count grows (the docs said *merged*); disarmed: no more runs.
+- [ ] Done · Found:
+
+### F8 Converse with a real microphone: a quiet room, a noisy room, a headset, loudspeakers
+*Proves:* Converse's turn-taking where people really are (its unit tests used synthetic levels, its harness and end-to-end
+runs a recorded voice through Chromium's fake microphone with no echo: DEVLOG 2026-10-12). *Needs:* the farm with
+**Speech to text** (on its GPU, ideally) and **Kokoro TTS** on; a client built from the `converse` branch; the laptop's
+built-in microphone and loudspeakers, then a headset. *Was:* new (COMPUTER_VOICE_PLAN §11, "Human").
+1. ＋ Show ▸ **Voice face**, ▶ Live. ＋ Think ▸ **Converse**, a Text box wired into persona (*"You are a calm guide…"*).
+   **● Start**, allow the microphone, ask a question in English; wait for the answer; ask a follow-up.
+2. A quiet room, then the studio at a busy moment (or music at a talking level): two questions each, then 20 s of
+   silence.
+3. With the loudspeakers at a normal volume, ask a question and say nothing while it answers. Then talk over it.
+4. The same with a headset. Then turn **You can talk over it** off, on the loudspeakers, and talk over it.
+5. Turn **End of turn after** to 300, then 2000; **Sensitivity** to 0.2, then 0.9; **Added delay** to 3000. Start again
+   each time.
+
+*Expect:* the face breathes while it listens, grows with your voice, closes its eyes while it thinks and moves its mouth
+with the voice. The box shows *heard in · first word · first sound* (write the first-sound numbers: about 1.3 s with
+800 ms and a small model, measured end to end on the PRO 6000). The noisy room still ends your turns (the noise floor
+follows the room) and 20 s of silence starts nothing. On loudspeakers the bot should not stop itself (its threshold is
+raised while it speaks); if it does, write how often — the answer is a headset, a lower volume or turning off **You can
+talk over it**. With a headset, talking over it stops it within about half a second. Off: talking over it changes
+nothing. 300 ms: it cuts you off at a pause; 2000: it makes you wait. 0.9: a whisper starts a turn; 0.2: only clear
+speech. The added delay shows in *first sound*.
+- [ ] Done · Found:
+
+### F9 French with ff_siwis: the Voice persona template
+*Proves:* the template and a French conversation, with Kokoro's French voice. *Needs:* F8's setup. *Was:* new.
+1. Learn ▸ Templates ▸ **Voice persona**. ▶ Live the face, **● Start** on Converse, talk with Margot in French for
+   four or five turns, interrupt her once, then **■ End**.
+2. Read the box's value (click it) and the Instruction's answer and the Markdown view after it.
+3. Change Margot's rules in the Text box (*"Tu tutoies, tu fais des blagues"*) and talk again.
+
+*Expect:* your French is written down with its accents; Margot answers in French in two short sentences and a question,
+with the French voice; the interruption keeps what she had said. After ■ End the Instruction reads the conversation
+(one generation) and names where she made you wait, cut you off or misunderstood; the value lists every turn with its
+timings. The new rules change how she talks.
+- [ ] Done · Found:
+
+### F10 The microphone is a person's, and only while the Computer is shown
+*Proves:* decision 7 of COMPUTER_VOICE_PLAN on a real window, with the operating system's own microphone light.
+*Needs:* F8's setup; on Windows the microphone icon in the taskbar (macOS: the orange dot). *Was:* new.
+1. With nothing pressed: **Run all**, the **▶** in Converse's title bar, a **Trigger** wired to it (armed), and Open
+   WebUI asked *"run the graph from the Converse box"* (Use the Computer's tools on).
+2. **● Start**, then each of: **■ End**; the run bar's **Stop**; switching to LOL Vibe; switching to Open WebUI;
+   minimising the window; deleting the Converse box while it talks; closing the app. Start again before each.
+3. The Record log on (● Record log) during one conversation; open the file.
+
+*Expect:* step 1: no microphone light; the box (or Open WebUI) says *Press ● Start on the box: only a person opens the
+microphone*. Step 2: the box shows **● Microphone on** in red while it listens, and every one of those ends the
+conversation and turns the system's microphone light off within a second (leaving and coming back does not resume
+it). Step 3: the file has `voice.*` lines (events and timings) and `http.*` lines for the speech to text with no sound
+in them; no recording is anywhere in the data folder.
+- [ ] Done · Found:
+
+### F11 A class of several laptops on one farm
+*Proves:* what a classroom does to the farm's one-at-a-time speech to text and to the seats (COMPUTER_VOICE_PLAN §12).
+*Needs:* 5–10 laptops with the `converse` build (D's setup, more of it), the PRO 6000 with Speech to text on its GPU
+and Kokoro on; then, if possible, a farm whose speech to text runs on the CPU. *Was:* new.
+1. Everyone opens **Voice persona**, ▶ Live, **● Start**, and talks at the same time for five minutes.
+2. Write down, on three laptops, the *first sound* of each turn, and how often a box says *The farm is busy writing
+   down someone else's words* or *no free seat*.
+3. On the CPU farm: three laptops at once.
+
+*Expect:* on the GPU farm most turns stay under about 2 s of first sound; a burst of several people finishing at the
+same moment adds a fraction of a second each, and the 5th waiting gets a busy answer, retried once after 3 s. On the
+CPU farm the waits grow by about 2 s a person: write the numbers — they decide whether a workshop needs the GPU.
 - [ ] Done · Found:
 
 ## G. LOL Vibe's IDE — the coding agent — about 2.5 h

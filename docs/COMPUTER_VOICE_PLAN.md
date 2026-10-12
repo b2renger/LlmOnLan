@@ -549,3 +549,16 @@ a reader of §8 is not misled.
     timings; levels and the streaming text are counted, not written. No part imports the recorder.
     The recorder's own request summary already writes only the method and address of a multipart
     upload, so the STT request's sound never reaches the file either.
+11. **Found while building (2026-10-12).** `meteredAsk` (`graph/runner.mjs`) replaced the caller's `signal` with the
+    run's, so an interrupted answer could not be aborted and would have held the window's one background lane until it
+    finished; it now combines both (`AbortSignal.any`: the part's own signal, or Stop). An answer cut by an interruption
+    is an `aborted` ask, which the Cap does not count. The *Voice persona* template declares **13** generations, not 1:
+    the shelf quotes a template's most (as for the Agent), and a conversation can answer 12 turns. A press counts for
+    **15 s** (`PRESS_TTL_MS`): a press whose run waited behind another conversation asks to be pressed again, instead of
+    opening the microphone minutes later. `openListening` refuses (and lets the device go) when the window cannot
+    measure the microphone: without a meter the box could not hear a turn and would hold the microphone open, deaf.
+    A Converse box deleted while it talks ends its conversation at once (nothing could show **● Microphone on** or
+    **■ End** any more). Any exception in the frame loop or the start ends the conversation, so it never stops turning
+    with the microphone open. The *Voice face* preset is a p5 Preview matched on its code; `presetOf` now takes the most
+    specific match (a Voice face also matches *p5.js sketch*), and the preset is named *Voice face (p5.js sketch)* so a
+    search for "p5" still lists the plain sketch and *Write a p5.js sketch* first.

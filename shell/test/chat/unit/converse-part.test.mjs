@@ -6,10 +6,11 @@
 // timings are exact. The consent rules are also proven through the box's real `run()`: no press, no
 // microphone; the Computer left or the window hidden, the conversation ends and the microphone closes.
 import assert from 'node:assert/strict';
-import { converse, conversePart, notePress, consumePress, clearConversations, SPOKEN_MAX_TOKENS } from '../../../renderer/chat/graph/parts/converse.mjs';
+import { converse, conversePart, notePress, consumePress, pressStart, freshPress, clearConversations, conversationOf, SPOKEN_MAX_TOKENS, PRESS_TTL_MS } from '../../../renderer/chat/graph/parts/converse.mjs';
 import { clearPresses } from '../../../renderer/chat/graph/parts/button.mjs';
 import { knobs } from '../../../renderer/chat/graph/voice.mjs';
 import { createBus, EV } from '../../../renderer/chat/core/events.mjs';
+import { audioContext } from '../../../renderer/chat/graph/parts/audio.mjs';
 import { runTool, CONVERSE_NOTE } from '../../../renderer/chat/computer/mcp-tools.mjs';
 import { t } from '../../../renderer/chat/core/i18n.mjs';
 
@@ -164,7 +165,7 @@ export default (test) => {
     const w = world({ level: speech([[1000, 2000]]), settings: { cues: 'soft' } });
     w.start();
     await w.until(() => w.of('turn').length === 1);
-    w.endFn();
+    w.endFn.end();
     await w.finished();
     assert.deepEqual(w.kinds(), [
       'start', 'listening', 'user.start', 'user.end', 'transcript', 'thinking',
@@ -225,7 +226,7 @@ export default (test) => {
     assert.equal(w.asks.length, 0, 'no generation spent');
     assert.deepEqual(w.plays.map((/** @type {any} */ p) => p.text), ['Pardon ?']);
     assert.equal(w.of('turn').length, 0);
-    w.endFn();
+    w.endFn.end();
     await w.finished();
     assert.equal(w.result.bar, true, 'no turn of the person\'s: nothing downstream runs');
   });
@@ -240,7 +241,7 @@ export default (test) => {
     });
     w.start();
     await w.until(() => w.of('turn').length === 2);
-    w.endFn();
+    w.endFn.end();
     await w.finished();
     const k = w.kinds();
     assert.ok(k.indexOf('interrupted') > k.indexOf('bot.start'), k.join(' '));
@@ -259,7 +260,7 @@ export default (test) => {
     await w.until(() => w.of('turn').length === 1);
     const takes = w.mic.takes;
     await w.until(() => w.of('listening').length === 2);
-    w.endFn();
+    w.endFn.end();
     await w.finished();
     assert.equal(w.of('interrupted').length, 0);
     assert.equal(w.plays.length, 3, 'every sentence said');
@@ -272,7 +273,7 @@ export default (test) => {
     const a = world({ level: speech([[1000, 2000]]), answer, chunkMs: 10, sayMs: 40 });
     a.start();
     await a.until(() => a.of('bot.sentence').length === 1);
-    a.endFn();
+    a.endFn.end();
     await a.finished();
     assert.equal(a.of('ended')[0].why, 'end');
     assert.equal(a.playAborted, 0, 'the sentence being said was finished');
@@ -326,7 +327,7 @@ export default (test) => {
     });
     w.start();
     await w.until(() => w.of('turn').length === 1);
-    w.endFn();
+    w.endFn.end();
     await w.finished();
     assert.equal(w.stts.length, 2);
     assert.ok(w.stts[1].at - w.stts[0].at >= 1000, `waited the farm's Retry-After: ${Math.round(w.stts[1].at - w.stts[0].at)} ms`);
@@ -357,7 +358,7 @@ export default (test) => {
     const w = world({ level: speech([[3000, 4000]]), settings: { greeting: true }, answer: (n) => (n === 1 ? ['Bonjour, je suis Margot.'] : ['Très bien.']) });
     w.start();
     await w.until(() => w.of('turn').length === 2);
-    w.endFn();
+    w.endFn.end();
     await w.finished();
     assert.equal(w.asks[0].prompt, t('parts.converseGreetingAsk'));
     const turns = w.result.value.data.turns;
@@ -371,7 +372,7 @@ export default (test) => {
     const w = world({ level: speech([[1000, 2000]]), voice: 'local', settings: { language: 'fr' }, sayMs: 40 });
     w.start();
     await w.until(() => w.of('turn').length === 1);
-    w.endFn();
+    w.endFn.end();
     await w.finished();
     assert.equal(w.synths.length, 0, 'nothing went to the farm\'s voice');
     assert.deepEqual(w.plays.map((/** @type {any} */ p) => [p.local, p.lang]), [[true, 'fr-FR'], [true, 'fr-FR'], [true, 'fr-FR']]);
@@ -395,7 +396,14 @@ export default (test) => {
     const env = { gum: 0, tracks };
     const savedNav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
     const g = /** @type {any} */ (globalThis);
-    const saved = { MediaRecorder: g.MediaRecorder, speechSynthesis: g.speechSynthesis, SpeechSynthesisUtterance: g.SpeechSynthesisUtterance };
+    const saved = { MediaRecorder: g.MediaRecorder, speechSynthesis: g.speechSynthesis, SpeechSynthesisUtterance: g.SpeechSynthesisUtterance, AudioContext: g.AudioContext };
+    // The window's one AudioContext (graph/parts/audio.mjs keeps the first one made, maybe by another test file),
+    // given what the microphone's meter needs for the length of this test.
+    if (!audioContext()) g.AudioContext = class { constructor() { this.state = 'running'; } };
+    const ctx = audioContext();
+    const ctxSaved = { src: ctx.createMediaStreamSource, an: ctx.createAnalyser, state: ctx.state };
+    ctx.createMediaStreamSource = () => ({ connect() {}, disconnect() {} });
+    ctx.createAnalyser = () => ({ fftSize: 2048, getFloatTimeDomainData(/** @type {Float32Array} */ b) { b.fill(0.001); }, disconnect() {} });
     Object.defineProperty(globalThis, 'navigator', {
       configurable: true,
       value: { mediaDevices: { getUserMedia: async () => { env.gum++; return { getTracks: () => tracks }; } } },
@@ -408,6 +416,8 @@ export default (test) => {
     const restore = () => {
       if (savedNav) Object.defineProperty(globalThis, 'navigator', savedNav); else delete g.navigator;
       Object.assign(g, saved);
+      ctx.createMediaStreamSource = ctxSaved.src;
+      ctx.createAnalyser = ctxSaved.an;
     };
     const input = (/** @type {string} */ id) => ({
       part: { id, type: 'converse', settings: { voice: 'local' } },
@@ -425,12 +435,24 @@ export default (test) => {
       await assert.rejects(/** @type {any} */ (conversePart).run(r.input('c1')), (/** @type {any} */ e) => e.message === t('parts.converseNoPress'));
       assert.equal(r.env.gum, 0, 'no microphone without a person\'s press');
       // A press is for the box it was made on, and for one run.
-      notePress('other');
+      pressStart('other');
       await assert.rejects(/** @type {any} */ (conversePart).run(r.input('c1')), /only a person opens the microphone/);
       assert.equal(r.env.gum, 0);
+      pressStart('c1');
+      assert.equal(freshPress('c1'), true, 'the face\'s press is what run() consumes');
+      assert.equal(freshPress('c1'), false, 'once');
+      // A press whose run comes too late (merged behind another conversation) asks to be pressed again.
+      pressStart('c1');
+      const realNow = Date.now;
+      Date.now = () => realNow() + PRESS_TTL_MS + 1000;
+      try {
+        await assert.rejects(/** @type {any} */ (conversePart).run(r.input('c1')), /only a person opens the microphone/);
+      } finally { Date.now = realNow; }
+      assert.equal(r.env.gum, 0, 'a stale press opens nothing');
+      // Button's registry alone (a press noted without the face's time) is not a ● Start.
       notePress('c1');
-      assert.equal(consumePress('c1'), true, 'the face\'s press is what run() consumes');
-      assert.equal(consumePress('c1'), false, 'once');
+      await assert.rejects(/** @type {any} */ (conversePart).run(r.input('c1')), /only a person opens the microphone/);
+      assert.equal(consumePress('c1'), false, 'and that press was spent by the refusal');
     } finally { r.restore(); clearPresses(); }
   });
 
@@ -439,8 +461,9 @@ export default (test) => {
       clearPresses();
       const r = realRun();
       try {
-        notePress('c2');
+        pressStart('c2');
         const run = /** @type {any} */ (conversePart).run(r.input('c2'));
+        run.catch(() => {});   // awaited below; a failure must fail the test, not the runner
         for (let i = 0; i < 200 && !r.env.gum; i++) await new Promise((res) => setTimeout(res, 5));
         assert.equal(r.env.gum, 1, 'the press opened the microphone');
         await new Promise((res) => setTimeout(res, 40));
@@ -452,6 +475,38 @@ export default (test) => {
         assert.equal(r.env.tracks[0].stopped, true, `${leave}: every track stopped, the device let go`);
       } finally { r.restore(); clearPresses(); }
     }
+  });
+
+  test('consent: a box deleted while it talks ends its conversation, and the microphone closes', async () => {
+    clearPresses();
+    const r = realRun();
+    try {
+      /** @type {any[]} */ let parts = [{ id: 'c3', type: 'converse' }];
+      /** @type {any} */ (r.app).host = { session: { doc: () => ({ parts, wires: [] }), sandboxNow: () => null } };
+      const doc = /** @type {any} */ (globalThis).__chatTestDom.createDocument();
+      const savedDoc = /** @type {any} */ (globalThis).document;
+      /** @type {any} */ (globalThis).document = doc;
+      try {
+        const host = doc.createElement('div');
+        const ctx = { app: r.app, part: { id: 'c3', type: 'converse', settings: {} }, update() {}, commit() {} };
+        const face = /** @type {any} */ (conversePart).render(host, ctx.part, ctx);
+        pressStart('c3');
+        const run = /** @type {any} */ (conversePart).run(r.input('c3'));
+        run.catch(() => {});
+        for (let i = 0; i < 200 && !r.env.gum; i++) await new Promise((res) => setTimeout(res, 5));
+        await new Promise((res) => setTimeout(res, 40));
+        assert.equal(/** @type {any} */ (conversationOf('c3')).mic, true, 'talking');
+        face.destroy();                                   // redrawn, the part still there: it goes on
+        await new Promise((res) => setTimeout(res, 40));
+        assert.equal(r.env.tracks[0].stopped, false, 'a redraw does not end it');
+        const face2 = /** @type {any} */ (conversePart).render(host, ctx.part, ctx);
+        parts = [];                                       // the box deleted
+        face2.destroy();
+        const out = await run;
+        assert.equal(out.value.data.why, 'stop');
+        assert.equal(r.env.tracks[0].stopped, true, 'the microphone closed with the box');
+      } finally { /** @type {any} */ (globalThis).document = savedDoc; }
+    } finally { r.restore(); clearPresses(); }
   });
 
   test('consent: a model never starts a conversation — MCP run_graph from a Converse box is refused', async () => {
