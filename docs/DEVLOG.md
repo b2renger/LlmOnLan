@@ -6,6 +6,25 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-12 (17:18) — Release client v0.2.12 and Farm app farm-v0.0.46: Converse, Model storage, the panel by engine
+
+The owner chose (15:04) to ship farm-v0.0.46 together with Converse. Done:
+- **Merged into `multiuser-phase0`:** `model-storage` (`1d67eab`, with both reviews' fixes and the owner's decisions of
+  2026-10-12), a test made independent of what the machine downloaded (`600d65f`), `panel-engines` (`33cdaf2`), the
+  plan with the owner's answers (`27817c1`) and `converse` (`7938f9d`). Gates on the merged tree: farm `test/run.js`
+  268/0; shell build, chat-unit 1921/0, unit 29, lint 0 (287 files); on their branches: Farm app `npm test` 9 + 3,
+  `LOL_VLLM_FAKE=1 vllm-lifecycle.js` 161/0, the chat harness 411/411 (converse).
+- **Client v0.2.12** (tag `v0.2.12`, commit `69d9c6a`, CI run 38264352216, 39 min): success, 27 assets; `latest.yml` says
+  0.2.12. It brings the Converse box, the Voice face preset and the Voice persona template.
+- **Farm app farm-v0.0.46** (tag `farm-v0.0.46`, commit `b8bee37`, CI run 38264357882): a prerelease, 10 assets. It
+  brings Model storage and the panel in one section per engine. farm-v0.0.45 and older refuse a config with
+  `storage`: the release notes say a downgrade removes that line first.
+- **`build-llamacpp-arm64`** (CI run 38264345548) ran again (`llamacpp.js` changed with Model storage): success.
+- **Release notes:** both pages got a "What's new" above CI's own text.
+- **Not done, the owner's:** HUMAN_TESTS session O (the real moves on the PRO 6000: F:, not D: — a hard disk —
+  Ollama's 127 GB through the app, the WSL disk, the farm's own models), P1 (the panel's sections in the Farm app's
+  window), F8–F11 (Converse with a real microphone, French, the mic light, a class).
+
 ## 2026-10-12 (16:20) — Converse: a real voice loop on the Computer, with a face (branch `converse`)
 
 The owner: *"design students working on voice interaction: the identity of the voice bot, what to show, how the
