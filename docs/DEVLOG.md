@@ -6,6 +6,76 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-12 (11:57) — Model storage: one folder for the farm's models, Move here, models used where they are, WSL's disk
+
+The owner: *"I need to be able to move or place the model at a specific place on disk"*; ONE folder for the whole farm;
+*"Move WSL disk to D: as well as the models. But we should be able to manage this on the farm interface. We should be
+able to point to a folder and say everything goes here, or look in this folder to find models."* Branch `model-storage`
+(from `main` at 36a18e0), not merged, not released.
+
+**Built** (`farm/src/storage.js`, new; the panel's **Model storage** card and one part on each engine's card):
+- **`storage.dir`** ("Keep everything here", `config.js` StorageSchema, null = today's places). What the farm downloads
+  goes into `<dir>/gguf` (llama.cpp, document search, drafts, the build's archives: `ollama.draftDir`), `speech-to-text/`
+  (`stt.modelsDir`), `ollama/` (the `OLLAMA_MODELS` of an Ollama the farm starts: `up.js spawnLocalOllama`, `lol
+  install`, the Farm app's wizard `installer.ts ollamaModelsEnv`) and on Linux `vllm/` (a new install's root,
+  `vllm.resolveRoot`). `config.loadConfig` sets the folders for every command.
+- **Move here** (download slot): copy through `<name>.lolmove-part`, fsync, rename; check sizes, and the sha256 the farm
+  knows while copying (Ollama's blobs are named by theirs; document search's model is pinned); a file whose checksum
+  already differs is left where it is and named. Then in `serialize`: stop what holds the files (llama.cpp only when it
+  loads from them, document search, speech to text, the farm's Ollama, vLLM on Linux), copy what changed, check
+  everything, save `storage.dir`, link vLLM's `hf` (Linux, `storage.linkHf`), start again; then delete each old copy
+  whose user reads the new folder, file by file, never the same file under two names. Free space first (10 GB kept),
+  refusals (inside the farm's files, a store inside another, a network share), hard disk / USB said (Windows
+  `Get-PhysicalDisk`, Linux `/sys/dev/block`). A cut leaves `.lol-storage-move.json`: Move here goes on; Finish; Forget.
+- **Ollama run by another program** (this box: the Ollama desktop app). Its source (app/store/store.go, app/server,
+  app/ui/ui.go) says: **Settings ▸ Model location** is kept in the app's own database and **wins over the user's
+  `OLLAMA_MODELS`**, which is read only when that setting is empty, and it is filled with the default by any save of the
+  settings page; changing it restarts the app's Ollama by itself. So the farm does not set it: it copies the models,
+  says what to set in the app, and **Finish** deletes the old copy only once Ollama is seen reading the new folder (a
+  copy of one of its manifests under `lol-where-check:<random>` for a moment: Ollama 0.40.3 reads its manifests at
+  every `/api/tags`, measured on a scratch Ollama). Where it reads now: its own `server.log` ("server config" line,
+  read on this box: `OLLAMA_MODELS:C:\\Users\\ateliernum\\.ollama\\models`), else `OLLAMA_MODELS`, else the default.
+- **Use the models in this folder**: a scan (`.gguf`, split parts grouped, a projector kept with its model; Hugging Face
+  folders; an Ollama model folder); llama.cpp library entries by `path` (`url` or `path`, `llamacpp.model` takes either),
+  vLLM entries by `path` (status.sh `pathmodel=`, `LOL_VLLM_PATHS_B64`; a Windows drive is `/mnt/<x>`, said to load
+  slower), `storage.ollama` for an Ollama folder. Nothing copied; Remove never deletes such a file.
+- **WSL's Linux disk** (the vLLM card, Windows): `wsl --manage <distro> --move <folder>` (WSL 2.6.3 has it; WSL's source
+  LxssUserSession.cpp: MoveFileEx with COPY_ALLOWED, the old file deleted only after the copy, the registry then points
+  at the new folder). vLLM stops first and starts again; progress = the new file growing; not cancellable.
+
+**Measured on this box (scratch data only).**
+- WSL keeps a terminated distribution's disk attached while another one runs: `--move` answered
+  `ERROR_SHARING_VIOLATION` for a scratch Alpine distribution for 4+ minutes after `wsl --terminate`, and even right
+  after a fresh `--import` (Ubuntu was running); WSL's own advice is `wsl --shutdown`, which stops every distribution.
+  So the farm waits 90 s (WSL's machine stops a minute after its last Linux) and then says so; the next Move asks to
+  stop all of WSL, naming what runs. A running distribution is refused (`WSL_E_DISTRO_NOT_STOPPED`).
+- Copies: F:→C: 3.2 GB/s and C:→F: 3.6 GB/s for 4 GB (write cache), C:→D: (the HDD) 56 MB/s. Ubuntu's 421 GB F:-ward:
+  expect about 7–10 min; to D: 1–2 h.
+- Drives: D: `HDD|SATA`, E: `SSD|USB`, F: and C: `SSD|NVMe` (the panel's warnings follow).
+
+**Tested.** `LOL_VLLM_FAKE=1 vllm-lifecycle.js` 161/0. Farm `test/run.js` 221 → 235 (new: the paths with and without a folder, the copy with a cut and a part
+file, checksums and a damaged file, the same file twice, someone else's file, the refusals, disk kinds with stubs, the
+scan, Ollama's manifests/log/canary, path entries for llama.cpp and vLLM, the vLLM `hf` link, the WSL answers and the
+move with and without stopping all of WSL, the panel's card and each card's part, the Farm app's Ollama env).
+`test_scripts.sh status` under WSL: 17/0 (pathmodel=, hf as a link). Farm app `npm test` 8 + 3. A real farm from this
+worktree on scratch ports (4310/4311/41887, its own Ollama on 11544 with a scratch store, llama.cpp from the main
+checkout's build on 8381), scratch folders on C:/D:/E:/F:: a move with a damaged pinned file (left, named, the rest
+moved); the farm's Ollama moved and restarted (its log: `OLLAMA_MODELS:F:\\…\\LLM\\ollama`), old folders gone; the farm
+process killed in the middle of a 3 GB file (2.8 GB part file) → restart → Move here went on, the sha256 of the copy
+equal to the original's, then the old copies deleted; an Ollama "run by another program": Finish refused before the
+step and deleted nothing, after the step it freed the old copy; the panel in a headless Chrome (CDP): the question,
+the bar with bytes and speed, Finish, Forget, Look, Add the ticked ones, Use this folder; llama.cpp served a 105 MB
+SmolLM2 GGUF from its own folder (a path with a space) and answered a chat; the farm's WSL move on the scratch
+distribution: terminate, `--move` kept by WSL, 90 s, a plain message, Ubuntu still running. Scratch data, the scratch
+Ollama and the two scratch distributions removed after.
+
+**Not done.** The independent review of the data-loss paths was started but had not reported when this branch was
+handed back: run it (or read its findings) before merging. The real moves are the owner's: HUMAN_TESTS session O
+(the farm's models and Ollama's 127 GB to `F:\LlmOnLan`, Ubuntu's disk to `F:\WSL\Ubuntu`); the full WSL move was never
+run here (it needs all of WSL stopped while Ubuntu serves). Linux (a DGX Spark): the `hf` link move only unit-tested.
+Note: the Farm app's `supervisor.test.js` polls `127.0.0.1:41997/lol/self` for readiness (read-only), which on this box
+is the live farm. Questions for the owner: HUMAN_TESTS "Questions" 9.
+
 ## 2026-10-10 (19:08) — Release client v0.2.11 and Farm app farm-v0.0.45: the voice mode, Gemma 4 and Qwen3-Omni on vLLM
 
 The owner asked to go back to `main` and release so the work can be tested. Done:
