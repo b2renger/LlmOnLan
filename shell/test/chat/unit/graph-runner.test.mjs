@@ -777,4 +777,51 @@ export default (test) => {
     await runner.run({ only: [g.ask] });
     assert.deepEqual(records, [null], 'the badge starts empty, not at last run\'s 2/3');
   });
+
+  // Converse (docs/COMPUTER_VOICE_PLAN.md K-V5, §15): the options a streaming conversation needs pass
+  // through the runner's metered ask, and the PART's own signal (the person spoke over the answer)
+  // aborts the ask — the runner used to replace it with the run's, so an interrupted answer went on
+  // holding the window's one background lane.
+  test('meteredAsk passes onText, history and thinking through; a part\'s own signal and Stop both abort its ask', async () => {
+    const partAc = new AbortController();
+    const onText = () => {};
+    /** @type {any} */ let seen = null;
+    /** @type {any} */ let release = null;
+    const specs = runnableSpecs({
+      ask: async (/** @type {any} */ input) => {
+        await input.ask.text({ task: 'converse', prompt: 'p', onText, history: [{ role: 'user', content: 'a' }, { role: 'assistant', content: 'b' }], thinking: false, cache: false, signal: partAc.signal });
+        return text('ok');
+      },
+    });
+    const session = fakeSession(specs);
+    session.add('ask');
+    const app = fakeApp({ answer: (/** @type {any} */ given) => new Promise((resolve) => { seen = given; release = () => resolve({ ok: true, value: 'x' }); }) });
+    const runner = createRunner({ session, app });
+    const done = runner.run({});
+    for (let i = 0; i < 50 && !seen; i++) await new Promise((r) => setTimeout(r, 2));
+    assert.equal(seen.onText, onText);
+    assert.deepEqual(seen.history, [{ role: 'user', content: 'a' }, { role: 'assistant', content: 'b' }]);
+    assert.equal(seen.thinking, false);
+    assert.equal(seen.cache, false);
+    assert.equal(seen.priority, 'background', 'still the background lane');
+    assert.equal(seen.signal.aborted, false);
+    partAc.abort();
+    assert.equal(seen.signal.aborted, true, 'the part\'s own signal reaches the ask');
+    release();
+    await done;
+
+    // and the run's Stop still reaches an ask that carries a signal of its own
+    seen = null;
+    const other = new AbortController();
+    const specs2 = runnableSpecs({ ask: async (/** @type {any} */ input) => { await input.ask.text({ task: 't', prompt: 'p', signal: other.signal }); return text('ok'); } });
+    const session2 = fakeSession(specs2);
+    session2.add('ask');
+    const app2 = fakeApp({ answer: (/** @type {any} */ given) => new Promise((resolve) => { seen = given; given.signal.addEventListener('abort', () => resolve({ ok: false, error: { kind: 'aborted', message: 'stopped' } })); }) });
+    const runner2 = createRunner({ session: session2, app: app2 });
+    const done2 = runner2.run({});
+    for (let i = 0; i < 50 && !seen; i++) await new Promise((r) => setTimeout(r, 2));
+    runner2.stop();
+    assert.equal(seen.signal.aborted, true, 'Stop aborts it');
+    await done2;
+  });
 };

@@ -26,6 +26,14 @@ const runnerHtml = () => fs.readFileSync(path.join(SANDBOX_DIR, 'runner.html'), 
 
 const ok = (tok, kind, extra) => ({ v: 1, tok, kind, ...extra });
 
+/** The guest's event bus, exactly as runner.html inlines it (between its VOICE-EVENTS markers). */
+function voiceBus(onError) {
+  const m = /\/\/ VOICE-EVENTS BEGIN([\s\S]*?)\/\/ VOICE-EVENTS END/.exec(runnerHtml());
+  assert.ok(m, 'runner.html has its VOICE-EVENTS block');
+  // eslint-disable-next-line no-new-func
+  return new Function(`${m[1]}\nreturn voiceBus;`)()(onError);
+}
+
 export default (test) => {
   test('the envelope builders refuse an unknown verb instead of sending a message nobody answers', () => {
     assert.deepEqual(command('ping', 'abc', { seq: 3 }), { v: 1, tok: 'abc', cmd: 'ping', seq: 3 });
@@ -167,5 +175,49 @@ export default (test) => {
     const bare = html.replace(/<!--[\s\S]*?-->/g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
     assert.equal(bare.includes('allow-same-origin'), false);
     assert.equal(/<script\s+src=/i.test(html), false, 'the runner loads a script from disk');
+  });
+
+  // Converse (docs/COMPUTER_VOICE_PLAN.md K-V2): the guest's lol.on, exactly as runner.html inlines it.
+  test('event: a conversation event reaches lol.on(type) and lol.on(\'*\'), in registration order', () => {
+    assert.ok(CMDS.includes('event'));
+    assert.deepEqual(command('event', 't', { ev: { type: 'turn', state: 'listening' } }), { v: 1, tok: 't', cmd: 'event', ev: { type: 'turn', state: 'listening' } });
+    const errors = [];
+    const bus = voiceBus((e) => errors.push(e));
+    const order = [];
+    bus.on('*', (e) => order.push(`*:${e.type}`));
+    const off = bus.on('turn', (e) => order.push(`turn:${e.state}`));
+    bus.on('user.level', (e) => order.push(`level:${e.level}`));
+    assert.equal(bus.deliver({ type: 'turn', state: 'listening', t: 5 }), true);
+    assert.equal(bus.deliver({ type: 'user.level', state: 'hearing', level: 0.5 }), true);
+    off();
+    bus.deliver({ type: 'turn', state: 'speaking' });
+    assert.deepEqual(order, ['*:turn', 'turn:listening', '*:user.level', 'level:0.5', '*:turn']);
+    assert.deepEqual(bus.voice, { state: 'speaking', last: { type: 'turn', state: 'speaking' } }, 'lol.voice is the conversation as last heard');
+    assert.equal(errors.length, 0);
+  });
+
+  test('event: a throwing handler is a runtime error, never a dead guest; junk is refused; reset() clears handlers', () => {
+    const errors = [];
+    const bus = voiceBus((e) => errors.push(e));
+    const heard = [];
+    bus.on('*', () => { throw new Error('a sketch bug'); });
+    bus.on('*', (e) => heard.push(e.type));
+    bus.deliver({ type: 'start', state: 'listening' });
+    assert.equal(errors.length, 1, 'reported');
+    assert.equal(errors[0].message, 'a sketch bug');
+    assert.deepEqual(heard, ['start'], 'the next handler still ran');
+    for (const junk of [null, 'start', [1], { state: 'x' }, { type: '' }, { type: 'x'.repeat(65) }]) assert.equal(bus.deliver(junk), false, JSON.stringify(junk));
+    assert.equal(bus.on('', () => {})(), undefined, 'a bad registration is a harmless off()');
+    bus.reset();
+    bus.deliver({ type: 'listening', state: 'listening' });
+    assert.deepEqual(heard, ['start'], 'a re-run forgets the old sketch\'s handlers');
+    assert.equal(bus.voice.state, 'listening', 'but lol.voice keeps following the conversation');
+    // The guest hands lol.on and lol.voice to every sketch, and a live page reaches it as window.lol.
+    const html = runnerHtml();
+    assert.match(html, /on: voiceEvents\.on,/);
+    assert.match(html, /voice: voiceEvents\.voice/);
+    assert.match(html, /if \(cmd === 'event'\) \{ voiceEvents\.deliver\(msg\.ev\); return; \}/);
+    assert.match(html, /if \(liveMode\) window\.lol = api;/);
+    assert.match(html, /voiceEvents\.reset\(\);/);
   });
 };

@@ -945,4 +945,55 @@ export default (test) => {
     await withFarm(farm, () => api.json({ task: 't', schema: SCHEMA, prompt: 'p' }));
     assert.equal(api.mode('gemma4:12b'), 'schema');
   });
+
+  // Converse (docs/COMPUTER_VOICE_PLAN.md K-V5).
+  test('text(): onText sees the answer grow, history becomes messages in order, thinking:false is in the body', async () => {
+    const { app } = stubApp();
+    const { api } = createAsk(app);
+    /** @type {string[]} */ const seen = [];
+    const real = globalThis.fetch;
+    /** @type {any} */ let body = null;
+    globalThis.fetch = async (/** @type {any} */ _url, /** @type {any} */ init) => {
+      body = JSON.parse(init.body);
+      let sse = '';
+      for (const c of ['Bon', 'jour. ', 'Ça va ?']) sse += `data: ${JSON.stringify({ choices: [{ delta: { content: c } }] })}\n\n`;
+      sse += `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { completion_tokens: 3, total_tokens: 9 } })}\n\ndata: [DONE]\n\n`;
+      return new Response(sse, { status: 200 });
+    };
+    try {
+      const res = await api.text({
+        task: 'converse', system: 'S', prompt: 'et toi ?', thinking: false, onText: (/** @type {string} */ c) => seen.push(c),
+        history: [{ role: 'user', content: 'salut' }, { role: 'assistant', content: 'bonjour' }, { role: 'system', content: 'not history' }, { role: 'user', content: '  ' }],
+      });
+      assert.equal(res.ok, true);
+      assert.equal(res.value, 'Bonjour. Ça va ?');
+      assert.ok(seen.length >= 1 && seen[seen.length - 1] === 'Bonjour. Ça va ?', JSON.stringify(seen));
+      for (let i = 1; i < seen.length; i++) assert.ok(seen[i].startsWith(seen[i - 1]) && seen[i].length > seen[i - 1].length, 'growing content, never the same twice');
+      assert.deepEqual(body.messages, [
+        { role: 'system', content: 'S' },
+        { role: 'user', content: 'salut' },
+        { role: 'assistant', content: 'bonjour' },
+        { role: 'user', content: 'et toi ?' },
+      ], 'history first, oldest first; the prompt last; only real person/bot rows');
+      assert.deepEqual(body.chat_template_kwargs, { enable_thinking: false });
+      assert.equal(body.think, false);
+      // onText implies no cache: the same question streams again.
+      seen.length = 0;
+      await api.text({ task: 'converse', system: 'S', prompt: 'et toi ?', thinking: false, onText: (/** @type {string} */ c) => seen.push(c) });
+      assert.ok(seen.length >= 1, 'a streamed answer is never replayed from the cache');
+    } finally { globalThis.fetch = real; }
+  });
+
+  test('text(): a caller that passes none of onText, history and thinking sends exactly what it sent before', async () => {
+    const { app } = stubApp();
+    const { api } = createAsk(app);
+    const farm = fakeFarm(() => 'plain');
+    await withFarm(farm, () => api.text({ task: 't', system: 'S', prompt: 'p' }));
+    const body = farm.posts[0].body;
+    assert.deepEqual(body.messages, [{ role: 'system', content: 'S' }, { role: 'user', content: 'p' }]);
+    assert.equal('chat_template_kwargs' in body, false, 'text() never turns thinking off unless asked');
+    assert.equal('think' in body, false);
+    const again = await withFarm(farm, () => api.text({ task: 't', system: 'S', prompt: 'p' }));
+    assert.equal(again.cached, true, 'and it is still cached');
+  });
 };

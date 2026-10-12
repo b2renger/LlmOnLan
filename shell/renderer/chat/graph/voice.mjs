@@ -377,7 +377,12 @@ export function nextSentences(text, from, final) {
     }
     if (ENDS.includes(c)) {
       let j = i + 1;
-      while (j < src.length && CLOSERS.includes(src[j])) j++;
+      // Closing marks ride along — with French spacing too: « oui. » keeps its guillemet.
+      for (;;) {
+        if (j < src.length && CLOSERS.includes(src[j])) { j++; continue; }
+        if (j + 1 < src.length && /[ \u00a0\u202f]/.test(src[j]) && '»”)]'.includes(src[j + 1])) { j += 2; continue; }
+        break;
+      }
       if (j >= src.length) break;                     // nothing after it yet: "3." may become "3.5"
       if (/\s/.test(src[j])) {
         if (c === '.' && abbreviated(src, start, i)) { i = j; continue; }
@@ -421,7 +426,8 @@ export function speakable(text) {
   s = s.replace(/^[ \t]{0,3}#{1,6}[ \t]+/gm, '');
   s = s.replace(/^[ \t]*(?:[-*+•]|\d{1,3}[.)])[ \t]+/gm, '');
   s = s.replace(/^[ \t]*>[ \t]?/gm, '');
-  s = s.replace(/(\*\*|__)([\s\S]*?)\1/g, '$2').replace(/(^|[^\w*])\*(\S(?:[^*]*?\S)?)\*(?!\w)/g, '$1$2');
+  s = s.replace(/(\*\*|__)([\s\S]*?)\1/g, '$2').replace(/(^|[^\w*])\*(\S(?:[^*]*?\S)?)\*(?!\w)/g, '$1$2')
+    .replace(/(^|[^\w])_(\S(?:[^_]*?\S)?)_(?!\w)/g, '$1$2');
   s = s.replace(/`+/g, '').replace(/[*~]+/g, '');
   s = s.replace(EMOJI, '');
   return s.replace(/\s+/g, ' ').trim();
