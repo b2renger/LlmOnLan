@@ -3578,7 +3578,7 @@ test('panel: the slots-vs-context line says what an edit does before Apply (plan
     };
     // As configured: llama.cpp, 64k shared by 2 → at least 32k each, whole documents, nothing to warn of.
     const now = render(lcState());
-    assert.ok(now.includes('id="trade"'), 'the line sits in the Backend card');
+    assert.ok(engSection(now, 'llamacpp').includes('id="trade"'), 'the line sits in the section of the engine that serves');
     assert.ok(now.includes('Each person gets at least <b>32k</b> of context: 64k shared by 2'), now);
     assert.ok(now.includes('reads attached documents whole') && !now.includes('restarts once'));
     assert.ok(!now.includes('guaranteed with'), 'the Context window row no longer restates the sum the line makes');

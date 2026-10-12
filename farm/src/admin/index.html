@@ -27,12 +27,16 @@
   .health b { color: var(--text); font-weight: 600; }
   .row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
   .row:first-of-type { border-top: none; }
+  /* What the row is keeps room to be read; a long select (vLLM's memory, the context list) is cut to the space left,
+     its options still whole once it opens. */
+  .row > span:nth-child(2) { flex: 1 1 260px; min-width: 0; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--off); flex: 0 0 auto; }
   .dot.served { background: var(--ok); }
   .dot.loaded { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
   .mname { font-weight: 600; }
   .meta { color: var(--muted); font-size: 12px; }
-  .badges { display: flex; gap: 6px; margin-left: auto; align-items: center; }
+  .badges { display: flex; gap: 6px; margin-left: auto; align-items: center; min-width: 0; }
+  .badges select { max-width: 100%; }
   .badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
   .badge.on { color: var(--text); border-color: var(--accent2); }
   .badge.star { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--border)); }
@@ -78,9 +82,9 @@
   @media (prefers-reduced-motion: reduce) { details.eng > summary::before { transition: none; } }
   .hint { color: var(--muted); font-size: 12px; padding: 2px 0 8px; }
   .hint b { color: var(--text); font-weight: 600; }
-  input[type=text] { font: inherit; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); padding: 5px 9px; min-width: 190px; }
-  input[type=text]:focus { outline: none; border-color: var(--accent2); }
-  .badges input[type=text] { min-width: 220px; }
+  input[type=text], input[type=password] { font: inherit; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); padding: 5px 9px; min-width: 190px; }
+  input[type=text]:focus, input[type=password]:focus { outline: none; border-color: var(--accent2); }
+  .badges input[type=text], .badges input[type=password] { min-width: 220px; }
   .badges button { white-space: nowrap; }
   /* Long jobs (a model download is minutes) need to look like progress, not a hang.
      Sticky, because the operator is usually scrolled down at the card whose button
@@ -104,7 +108,13 @@
   .spark i.z { background: var(--surface2); }
   .warnline { color: var(--warn); font-size: 12.5px; padding: 4px 0; }
   .warnline b { color: var(--warn); }
-  @media (max-width: 620px) { .badges { flex-wrap: wrap; } }
+  /* A phone: a row's controls go under its text. */
+  @media (max-width: 620px) {
+    .row { flex-wrap: wrap; }
+    .row > span:nth-child(2) { flex-basis: calc(100% - 20px); }
+    .badges { flex: 1 1 calc(100% - 20px); flex-wrap: wrap; justify-content: flex-start; margin-left: 20px; }
+    .badges input[type=text], .badges input[type=password] { min-width: 0; flex: 1 1 180px; }
+  }
 </style>
 </head>
 <body>
@@ -419,7 +429,7 @@ function render(s) {
     perf && perf.lastDraftAcceptRatio != null ? `Draft tokens accepted <b>${Math.round(perf.lastDraftAcceptRatio * 100)}%</b>` : '',
     (g.vramUsedGb != null && g.vramTotalGb != null) ? `VRAM <b>${g.vramUsedGb}/${g.vramTotalGb} GB</b>` : '',
     g.gpuUtil != null ? `GPU <b>${g.gpuUtil}%</b>` : '',
-  ].filter(Boolean).join('');
+  ].filter(Boolean).map((x) => `<span>${x}</span>`).join('');   // one item each: a label stays with its value
   // In the section of the engine that serves. An external server shows it only once it has proven to be a vLLM; the
   // farm's own vLLM always does.
   const perfBlock = be.engine === 'llama.cpp' || be.engine === 'vllm' || (be.engine === 'external' && perf)
@@ -502,7 +512,7 @@ function render(s) {
     host.gpu ? `GPU <b>${esc(host.gpu)}</b>` : '',
     gpu.gpuUtil != null ? `Util <b>${gpu.gpuUtil}%</b>` : '',
     (gpu.vramUsedGb != null && gpu.vramTotalGb != null) ? `VRAM <b>${gpu.vramUsedGb}/${gpu.vramTotalGb} GB</b>` : '',
-  ].filter(Boolean).join('');
+  ].filter(Boolean).map((x) => `<span>${x}</span>`).join('');   // one item each: a label stays with its value
 
   // Farm plugins — live enable/disable toggles.
   const plugins = s.plugins || {};
@@ -1181,11 +1191,11 @@ function llamacppSection(s, jobRunning, capacity, perfBlock) {
   const serving = be.engine === 'llama.cpp';
   const now = ENGINE_LABEL[be.engine] || 'Ollama';
   const off = jobRunning ? ' disabled' : '';
-  const out = ['<div class="hint">One model, fastest. Quantised KV cache; speculative decoding (MTP) on quants that keep their MTP head.</div>'];
+  const out = ['<div class="hint">One model, fastest. Quantised KV cache; speculative decoding (MTP) on quants that keep their MTP head.'
+    + (serving || s.llamacppAvailable === false ? ''
+      : ` Choose here the model it will serve: <b>Use this</b> downloads it now, and ${esc(now)} keeps serving meanwhile. Nothing changes for the people connected until you press <b>Serve with llama.cpp</b>.`)
+    + '</div>'];
   if (s.llamacppAvailable === false) out.push('<div class="warnline">Not available on this computer: there is no ready-made llama.cpp for it.</div>');
-  else if (!serving) {
-    out.push(`<div class="hint">llama.cpp serves one model, fast, for a few people at once. Choose here the model it will serve: <b>Use this</b> downloads it now, and ${esc(now)} keeps serving meanwhile. Nothing changes for the people connected until you press <b>Serve with llama.cpp</b>.</div>`);
-  }
   out.push((lc.library || []).map((e) => {
     const active = (e.url || e.path) === lc.model;   // a link, or a file used where it is
     const meta = [e.sizeGb ? e.sizeGb + ' GB' : '', e.mtp ? 'has MTP head' : '', e.note].filter(Boolean).join(' · ');

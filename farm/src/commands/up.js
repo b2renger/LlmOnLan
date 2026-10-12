@@ -1633,7 +1633,7 @@ async function run(args) {
         if (!r.ok) {
             // Do NOT exit. A farm that dies because its accelerator failed serves
             // nobody; one that falls back to Ollama serves everyone, slower, and
-            // says why (the panel shows this reason on the Backend card). In-memory
+            // says why (the panel shows this reason at its top, under Serving). In-memory
             // only — the operator's config keeps llamacpp.enabled, so the next boot
             // retries (a transient download failure heals itself).
             llamacppBootError = r.message;
@@ -3893,7 +3893,7 @@ async function run(args) {
                     // Ollama's registry refuses split GGUF repos outright — point the
                     // operator at the path that CAN serve them instead of dead-ending.
                     const hint = /sharded/i.test(failed)
-                        ? ' This repo is a SPLIT .gguf, which Ollama cannot pull. Switch Backend to llama.cpp first, then use Model · llama.cpp ▸ Add a model with the file\'s download URL — the farm fetches all parts.'
+                        ? ' This repo is a SPLIT .gguf, which Ollama cannot pull. Open the llama.cpp section and use Add a model with the file\'s download URL — the farm fetches all parts.'
                         : '';
                     return { ok: false, error: `Could not pull "${want}": ${failed}${hint}` };
                 }
