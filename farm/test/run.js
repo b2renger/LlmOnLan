@@ -949,9 +949,10 @@ test('capacity is advisory: slots + who is on the box right now', () => {
     assert.equal(buildSnapshot(c, {}).capacity.clients, 0);
 });
 
-test('ggufName survives a non-URL model path', () => {
+test('ggufName: a link, or the path of a .gguf on this computer (an entry by path, 2026-10-12)', () => {
     assert.equal(ggufName('https://h.co/r/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf'), 'Qwen3.8-27B-UD-IQ2_S');
-    assert.equal(ggufName('/local/path/model.gguf'), 'llama.cpp');
+    assert.equal(ggufName('/local/path/model.gguf'), 'model');
+    assert.equal(ggufName('F:\\LLM models\\Big-Model-00001-of-00003.gguf'), 'Big-Model', 'a Windows path, a split one');
     assert.equal(ggufName(null), 'llama.cpp');
 });
 
@@ -4972,8 +4973,8 @@ test('panel: the llama.cpp button opens its card before the switch: the list, Us
     // The farm: Use this while another engine serves downloads and chooses (a job), never refused as "switch to it first".
     const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
     assert.ok(!upSrc.includes('The llama.cpp backend is off'), 'no refusal while llama.cpp is off');
-    assert.ok(/if \(!serving\) \{\s+return runJob\('model', `Downloading \$\{label\}`/.test(upSrc), 'a download job, the engine that serves untouched');
-    assert.ok(upSrc.includes('library: (config.llamacpp.library || []).map((e) => ({ ...e, downloaded: llamacpp.onDisk(e.url) })),'), 'the list says what is downloaded');
+    assert.ok(/if \(!serving\) \{\s+return runJob\('model', `\$\{llamacpp\.isUrl\(url\) \? 'Downloading' : 'Choosing'\} \$\{label\}`/.test(upSrc), 'a download job (choosing, for a file already here), the engine that serves untouched');
+    assert.ok(upSrc.includes('library: (config.llamacpp.library || []).map((e) => ({ ...e, downloaded: llamacpp.onDisk(e.url || e.path) })),'), 'the list says what is downloaded (or there, for a file by path)');
 });
 
 test('llamacpp.onDisk: every part of a split .gguf on disk, else false', () => {
