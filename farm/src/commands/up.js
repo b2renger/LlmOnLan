@@ -20,7 +20,7 @@ const {
     writeLitellmConfig, buildLitellmConfig, servedEntries, ollamaServes, defaultModelEntry,
     carryNameAcross, applyNamePlan, engineFallback, engineOf,
 } = require('../litellm');
-const { buildSnapshot, backendInfo } = require('../snapshot');
+const { buildSnapshot, backendInfo, ggufName } = require('../snapshot');
 const { patchSection, patchConfigFile, readRawConfig, takeOverFile, undoTakeOverFile } = require('../configFile');
 const { detectHardware, gpuLiveStats, gpuFreeGb, untilSteady } = require('../systemInfo');
 const perfMod = require('../perf');
@@ -3347,7 +3347,7 @@ async function run(args) {
         const lib = (config.llamacpp.library || []).slice();
         if (lib.some((e) => e.path && storageMod.norm(e.path) === storageMod.norm(first))) return { ok: false, error: 'That model is already in the library.' };
         const proj = mmproj && pathMod.isAbsolute(String(mmproj)) && fsMod.existsSync(String(mmproj)) ? pathMod.resolve(String(mmproj)) : null;
-        const base = pathMod.basename(first).replace(GGUF_EXT_RX, '').replace(/-d{5}-of-d{5}$/, '');
+        const base = ggufName(first);   // the file's name, without .gguf nor a split model's part number
         const slug = base.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || `model-${lib.length + 1}`;
         let id = slug; let n = 2;
         while (lib.some((e) => e.id === id)) id = `${slug}-${n++}`;
@@ -4165,7 +4165,9 @@ async function run(args) {
         const vllmWas = engineOf(config) === 'vllm' && ['ready', 'down'].includes(vllmState.phase);
         if (!switchedAlready) {
             tell('stopping what uses these files');
-            if (store('gguf') && llamacppChild) { await stopLlamacpp(); stopped.push('llamacpp'); setEngineUp(false); }
+            // llama.cpp only when it loads from the folder that moves (a model used where it is, by path, keeps serving).
+            const lcFiles = [lastModelPath, config.llamacpp.mmproj && llamacpp.fileFor(config.llamacpp.mmproj)].filter(Boolean);
+            if (store('gguf') && llamacppChild && lcFiles.some((f) => storageMod.inside(f, store('gguf').from))) { await stopLlamacpp(); stopped.push('llamacpp'); setEngineUp(false); }
             if (store('gguf') && svcById.embed.pid) { await bringDown(svcById.embed); stopped.push('embed'); }
             if (store('stt') && svcById.stt.pid) { await bringDown(svcById.stt); stopped.push('stt'); }
             if (olFarmStore || ollamaEnvChanges) {
@@ -4366,16 +4368,21 @@ async function run(args) {
         }, { onSettled: () => refreshStorage(true) });
         return r.ok ? r : { ok: false, error: `${r.error} Wait for it to finish, then press Finish.` };
     }
-    // Forget a move that did not switch: the copies made stay in the new folder, the farm keeps the old ones.
+    // Forget a move left unfinished, deleting nothing. Before the switch: the farm keeps its models where they were, and
+    // what was copied stays in the new folder. After it (an Ollama another program runs that was never pointed at the
+    // new folder): that Ollama keeps reading its old folder, and its copy stays in the new one.
     function storageForget() {
         const j = storageMod.readJournal(configPath);
         if (!j) return { ok: true, already: true };
-        if (storageMod.norm(config.storage.dir || '') === storageMod.norm(j.to)) return { ok: false, error: 'The farm already runs from the new folder: press Finish to delete the old copies.' };
         const dl = jobs.downloading();
         if (dl && dl.kind === 'move') return { ok: false, error: 'The move is running: press Stop on its bar first.' };
         storageMod.clearJournal(configPath);
         refreshStorage(true);
-        return { ok: true, message: `Forgotten. The farm keeps its models where they were; what was copied stays in ${j.to} (delete it there if you do not want it).` };
+        if (storageMod.norm(config.storage.dir || '') !== storageMod.norm(j.to)) {
+            return { ok: true, message: `Forgotten. The farm keeps its models where they were; what was copied stays in ${j.to} (delete it there if you do not want it).` };
+        }
+        const left = (j.stores || []).filter((s) => !s.done);
+        return { ok: true, message: `Forgotten. Nothing was deleted: ${left.map((s) => `${storageMod.LABEL[s.id]} stay in ${s.from}, and their copy in ${s.to}`).join('; ') || 'nothing was left'}.` };
     }
 
     // "Use the models in this folder": what a folder holds (.gguf files for llama.cpp, Hugging Face model folders for vLLM,

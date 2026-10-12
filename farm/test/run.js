@@ -2143,12 +2143,13 @@ function loadPanel({ fetch: fetchFn = () => new Promise(() => {}), confirm: conf
     const localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
     // eslint-disable-next-line no-new-func
     const fn = new Function('document', 'localStorage', 'setInterval', 'fetch', 'confirm', 'matchMedia',
-        `${m[1]}\n;return { render, switchConfirm: typeof switchConfirm === 'function' ? switchConfirm : () => '', engineClick: typeof engineClick === 'function' ? engineClick : null };`);
+        `${m[1]}\n;return { render, switchConfirm: typeof switchConfirm === 'function' ? switchConfirm : () => '', engineClick: typeof engineClick === 'function' ? engineClick : null, setScan: typeof scanResult !== 'undefined' ? (v) => { scanResult = v; } : null };`);
     const out = fn(document, localStorage, () => 0, fetchFn, confirmFn, () => ({ matches: false }));
     const render = (state) => { out.render(state); return el('#app').innerHTML; };
     render.el = el;   // the stubs, for a test that edits a control after render
     render.switchConfirm = out.switchConfirm;
     render.engineClick = out.engineClick;   // an engine button's press (the stubs wire no clicks)
+    render.setScan = out.setScan;           // what a look in a folder found ("Use the models in this folder")
     render.scrolled = scrolled;
     return render;
 }
@@ -5835,6 +5836,30 @@ test('panel: the Model storage card — where each store is, Move here, an unfin
     for (const r of ['storage/move', 'storage/finish', 'storage/forget', 'storage/scan', 'storage/use', 'storage/check', 'vllm/wsl-move']) {
         assert.ok(panelSrc.includes(`'/lol/admin/${r}'`) && srvSrc.includes(`'/lol/admin/${r}'`), r);
     }
+});
+
+test('panel: what a look in a folder found, on each engine\'s own card; a .gguf by path serving; the card while a move runs', () => {
+    const render = loadPanel();
+    const p = 'F:/models/SmolLM2-135M.gguf';
+    const lc = { enabled: true, running: true, alias: 'assistant', model: p, contextLength: 'auto', contextResolved: 8192, parallel: 1,
+        library: [{ id: 'smol', label: 'SmolLM2-135M', url: null, path: p, sizeGb: 0.1, note: 'On this computer: F:/models', downloaded: true }] };
+    render.setScan({ dir: 'F:/models', found: {
+        gguf: [{ path: p, label: 'SmolLM2-135M', gb: 0.1, parts: 1, complete: true }, { path: 'F:/models/Big-00001-of-00002.gguf', label: 'Big', gb: 30, parts: 2, complete: false }],
+        vllm: [{ path: '/mnt/f/models/Gemma', shown: 'F:/models/Gemma', label: 'Gemma', gb: 9.3, vision: true, slow: true, usable: true }],
+        ollama: [{ path: 'F:/models/ollama', models: ['gemma4:12b'], gb: 8 }] } });
+    const html = render(adminState({ backend: { engine: 'llama.cpp', alias: 'assistant', model: 'SmolLM2-135M', contextLength: 8192, contextPerSlot: 8192, slots: 1 }, llamacpp: lc,
+        storage: { platform: 'win32', stores: [], dir: null, ollamaFolder: 'f:/MODELS/ollama', move: null, moving: false } }));
+    const lcCard = html.slice(html.indexOf('<div class="card" id="lc-card">'), html.indexOf('Models · Ollama'));
+    assert.ok(/SmolLM2-135M<\/div>[\s\S]*?<span class="badge on">serving<\/span>/.test(lcCard), 'the file used where it is is the one serving');
+    assert.ok(lcCard.includes('Found in F:/models') && lcCard.includes('data-stpick="gguf:F:/models/SmolLM2-135M.gguf" disabled') && lcCard.includes('already in the list'), 'already in the list: read from the farm\'s state');
+    assert.ok(/Big<\/label>[\s\S]*?a part of it is missing/.test(lcCard) && lcCard.includes('data-stuse="gguf"'));
+    assert.ok(!lcCard.includes('/mnt/f/models/Gemma'), 'the vLLM folder is not on the llama.cpp card');
+    assert.ok(html.includes('Ollama model folder: F:/models/ollama') && html.includes('<span class="badge on">chosen</span>'), 'the Ollama card: chosen, read from the farm (either case)');
+    const v = render(vllmState({}, { storage: { platform: 'win32', stores: [], move: null } }));
+    assert.ok(v.includes('F:/models/Gemma') && v.includes('on a Windows drive: it loads slower through WSL') && v.includes('data-stuse="vllm"'), 'the vLLM card lists its part');
+    // While the move runs, the card points at the bar and says nothing about an unfinished move.
+    const moving = render(adminState({ storage: { platform: 'win32', stores: [], moving: true, move: { to: 'F:/LLM', switched: false, left: [{ id: 'ollama', label: 'x', from: 'a', to: 'b', by: 'other' }] } } }));
+    assert.ok(moving.includes('Moving: the bar at the top of the page says how far.') && !moving.includes('did not finish') && !moving.includes('set Model location'), 'no stale words during the move');
 });
 
 test('the Farm app starts its Ollama where the farm keeps the models (same rule as storage.js)', () => {

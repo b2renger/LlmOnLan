@@ -71,6 +71,7 @@
   input[type=text] { font: inherit; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); padding: 5px 9px; min-width: 190px; }
   input[type=text]:focus { outline: none; border-color: var(--accent2); }
   .badges input[type=text] { min-width: 220px; }
+  .badges button { white-space: nowrap; }
   /* Long jobs (a model download is minutes) need to look like progress, not a hang.
      Sticky, because the operator is usually scrolled down at the card whose button
      STARTED the job (the model library) — a bar that renders off-screen at the top
@@ -1057,7 +1058,7 @@ function vllmTrade(s, slots, ctx, kv) {
 function lcChosen(s) {
   const lc = s.llamacpp || {};
   if (!lc.model) return null;
-  return (lc.library || []).find((e) => e.url === lc.model) || { label: String(lc.model).split('/').pop(), url: lc.model, downloaded: false };
+  return (lc.library || []).find((e) => (e.url || e.path) === lc.model) || { label: String(lc.model).split(/[\\/]/).pop(), url: lc.model, downloaded: false };
 }
 
 // The llama.cpp card ("Model · llama.cpp"): while llama.cpp serves, and, before a switch, once the operator pressed
@@ -1074,7 +1075,7 @@ function llamacppCard(s, jobRunning) {
     out.push(`<div class="hint">llama.cpp serves one model, fast, for a few people at once. Choose here the model it will serve: <b>Use this</b> downloads it now, and ${esc(now)} keeps serving meanwhile. Nothing changes for the people connected until you press <b>Switch to llama.cpp</b>.</div>`);
   }
   out.push((lc.library || []).map((e) => {
-    const active = e.url === lc.model;
+    const active = (e.url || e.path) === lc.model;   // a link, or a file used where it is
     const meta = [e.sizeGb ? e.sizeGb + ' GB' : '', e.mtp ? 'has MTP head' : '', e.note].filter(Boolean).join(' · ');
     const badges = (active ? `<span class="badge on">${serving ? 'serving' : 'chosen'}</span>` : '')
       + (!serving && e.downloaded ? '<span class="badge">downloaded</span>' : '');
@@ -1090,7 +1091,7 @@ function llamacppCard(s, jobRunning) {
       + (active ? '' : `<button class="stop" data-lcdel="${esc(e.id)}"${off}>Remove</button>`)
       + '</span></div>';
   }).join('') || '<div class="empty">No models in the library.</div>');
-  out.push(scanRows('gguf', jobRunning));
+  out.push(scanRows('gguf', s, jobRunning));
   out.push('<div class="row"><span></span><span><div class="mname">Add a model</div>'
     + '<div class="meta">paste the link to a .gguf file — on HuggingFace, the file\'s <b>download</b> link (…/resolve/main/….gguf). Split models (…-00001-of-00003.gguf) work too: paste any part, all parts are fetched. Or the whole path of a .gguf already on this computer (F:\\models\\….gguf): it is used where it is, nothing is copied.</div></span></span>'
     + '<span class="badges"><input id="lc-url" type="text" placeholder="https://huggingface.co/…/model.gguf" spellcheck="false" />'
@@ -1183,7 +1184,7 @@ function vllmCard(s, jobRunning) {
     out.push(`<div class="row"><span></span><span><div class="meta">Also on this computer: ${esc(f.folder)}${f.gb != null ? ` (${f.gb} GB)` : ''}</div></span>`
       + `<span class="badges"><button data-vfolder="${esc(f.folder)}">Add to the list</button></span></div>`);
   }
-  out.push(scanRows('vllm', jobRunning));
+  out.push(scanRows('vllm', s, jobRunning));
   out.push(`<div class="row"><span></span><span><div class="mname">Add a model</div>`
     + `<div class="meta">the name of a model on Hugging Face (owner/name), made for vLLM. Adding only remembers it: press Download, then Use this.</div></span>`
     + `<span class="badges"><input id="vllm-repo" type="text" placeholder="nvidia/Qwen3.6-35B-A3B-NVFP4" spellcheck="false" /><button id="vllm-add">Add</button></span></div>`);
@@ -1217,7 +1218,7 @@ function vllmCard(s, jobRunning) {
 const STORE_BY = { farm: 'run by the farm', other: 'run by the Ollama app or a service' };
 const canBrowse = () => typeof window !== 'undefined' && !!(window.lolFarmApp && window.lolFarmApp.chooseFolder);   // the Farm app's own folder picker
 const browseBtn = (target) => (canBrowse() ? `<button data-stbrowse="${target}" style="min-width:0">Browse…</button>` : '');
-function gbText(n) { return n == null ? '' : n >= 10 ? `${Math.round(n)} GB` : `${Math.round(n * 10) / 10} GB`; }
+function gbText(n) { return n == null ? '' : n >= 10 ? `${Math.round(n)} GB` : n >= 0.1 ? `${Math.round(n * 10) / 10} GB` : n > 0 ? 'less than 0.1 GB' : 'empty'; }
 
 // The card: where each store is now, "Keep everything here" (Move here), a move left unfinished (Finish, Forget), and
 // "Use the models in this folder" (Look; what it finds is listed on each engine's card).
@@ -1234,16 +1235,19 @@ function storageCard(s, jobRunning) {
     const bits = [x.bytes != null ? gbText(x.bytes / 1e9) : '', x.id === 'ollama' && x.by ? STORE_BY[x.by] : ''].filter(Boolean).join(' · ');
     out.push(`<div class="row"><span></span><span><div class="mname">${esc(x.label)}</div><div class="meta">${where}${bits ? ` · ${esc(bits)}` : ''}</div></span><span></span></div>`);
   }
-  if (mv) {
+  if (st.moving) {
+    out.push('<div class="hint">Moving: the bar at the top of the page says how far. The farm keeps serving until the switch.</div>');
+  } else if (mv) {
     const left = (mv.left || []).map((x) => x.label).join(', ');
     out.push(mv.switched
       ? `<div class="warnline">The farm runs from ${esc(mv.to)}. Old copies are still to delete: ${esc(left || 'none')}.${mv.ollamaStep ? ' Ollama first needs its folder changed (below).' : ''}</div>`
       : `<div class="warnline">A move to ${esc(mv.to)} did not finish: the farm still runs from the old folders. Move here goes on from where it stopped (what was copied is kept, a file half copied is copied again).</div>`);
-    const step = (mv.left || []).find((x) => x.id === 'ollama' && x.by === 'other');
+    const step = mv.switched && (mv.left || []).find((x) => x.id === 'ollama' && x.by === 'other');
     if (step) out.push(`<div class="hint">${esc(ollamaStep(st.platform, step))}</div>`);
     out.push(`<div class="row"><span></span><span></span><span class="badges">`
       + (mv.switched ? `<button class="start" data-stfinish${off(dlBusy)}>Finish</button>`
-        : `<button class="start" data-stmove${off(dlBusy || jobRunning)}>Move here</button><button data-stforget${off(dlBusy)}>Forget it</button>`)
+        : `<button class="start" data-stmove${off(dlBusy || jobRunning)}>Move here</button>`)
+      + `<button data-stforget${off(dlBusy)}>Forget it</button>`
       + '</span></div>');
   }
   const dir = stDir == null ? (st.dir || '') : stDir;
@@ -1275,7 +1279,11 @@ function ollamaStep(platform, x) {
     + ` Then press Finish: the farm checks that Ollama reads the new folder, and only then deletes the old copy in ${x.from}.`;
 }
 // What a look in a folder found for one engine ('gguf' on the llama.cpp card, 'vllm' on the vLLM card), with ticks.
-function scanRows(kind, jobRunning) {
+// What is already in the list is read from the farm's own state, never from the page's memory.
+const samePath = (a, b) => (/^[A-Za-z]:/.test(String(a || ''))   // Windows: a name in either case is the same
+  ? String(a).toLowerCase() === String(b || '').toLowerCase() : !!a && a === b);
+function scanRows(kind, s, jobRunning) {
+  const lib = kind === 'gguf' ? ((s.llamacpp || {}).library || []) : ((s.vllm || {}).library || []);
   const list = scanResult && scanResult.found ? (scanResult.found[kind] || []) : [];
   if (!list.length) return '';
   const rows = list.map((x) => {
@@ -1283,7 +1291,7 @@ function scanRows(kind, jobRunning) {
     const note = kind === 'gguf'
       ? [x.gb ? gbText(x.gb) : '', x.parts > 1 ? `${x.parts} parts` : '', x.mmproj ? 'sees images (its projector is next to it)' : ''].filter(Boolean).join(' · ')
       : [x.gb ? gbText(x.gb) : '', x.vision ? 'sees images' : '', x.slow ? 'on a Windows drive: it loads slower through WSL than from WSL\'s own disk' : ''].filter(Boolean).join(' · ');
-    const why = x.added ? 'already in the list' : kind === 'gguf' && !x.complete ? 'a part of it is missing' : kind === 'vllm' && !x.usable ? 'not reachable from WSL' : '';
+    const why = lib.some((e) => e.path && samePath(e.path, x.path)) ? 'already in the list' : kind === 'gguf' && !x.complete ? 'a part of it is missing' : kind === 'vllm' && !x.usable ? 'not reachable from WSL' : '';
     return `<div class="row"><span></span><span><div class="mname"><label><input type="checkbox" data-stpick="${esc(key)}"${scanPicked.has(key) ? ' checked' : ''}${why ? ' disabled' : ''} /> ${esc(x.label)}</label></div>`
       + `<div class="meta">${esc(x.shown || x.path)}${note ? ` · ${esc(note)}` : ''}${why ? ` · ${esc(why)}` : ''}</div></span><span></span></div>`;
   }).join('');
@@ -1301,7 +1309,7 @@ function ollamaStorageRows(s, jobRunning) {
     const names = (o.models || []).slice(0, 6).join(', ') + ((o.models || []).length > 6 ? ', …' : '');
     out.push(`<div class="row"><span></span><span><div class="mname">Ollama model folder: ${esc(o.path)}</div>`
       + `<div class="meta">${esc(gbText(o.gb))}${names ? ` · ${esc(names)}` : ''}. Ollama would read its models from there; the models of its folder now stay where they are, not deleted.${st.ollamaBy === 'other' ? ' Ollama is run by the Ollama app here: the farm saves it and says what to set in the app.' : ''}</div></span>`
-      + `<span class="badges">${o.inUse ? '<span class="badge on">in use</span>' : `<button class="start" data-stollama="${esc(o.path)}"${jobRunning ? ' disabled' : ''}>Use this folder</button>`}</span></div>`);
+      + `<span class="badges">${samePath(st.ollamaFolder, o.path) ? '<span class="badge on">chosen</span>' : `<button class="start" data-stollama="${esc(o.path)}"${jobRunning ? ' disabled' : ''}>Use this folder</button>`}</span></div>`);
   }
   return out.join('');
 }
@@ -1364,7 +1372,7 @@ function wireStorage(s) {
     post('/lol/admin/storage/move', { dir }, b, 'Moving the models…');
   });
   on('button[data-stfinish]', (b) => post('/lol/admin/storage/finish', {}, b, 'Finishing…'));
-  on('button[data-stforget]', (b) => { if (confirm('Forget this move? The farm keeps its models where they are; what was already copied stays in the new folder.')) post('/lol/admin/storage/forget', {}, b, 'Forgotten.'); });
+  on('button[data-stforget]', (b) => { if (confirm('Forget this move? Nothing is deleted: what was not switched stays where it is, and what was already copied stays in the new folder.')) post('/lol/admin/storage/forget', {}, b, 'Forgotten.'); });
   on('button[data-stscan]', async (b) => {
     const dir = stScanDir.trim();
     if (!dir) { toast('Type a folder, or press Browse.'); return; }
@@ -1388,7 +1396,6 @@ function wireStorage(s) {
     if (!paths.length) { toast('Tick at least one first.'); return; }
     await post('/lol/admin/storage/use', { [kind]: paths }, b, 'Added.');
     for (const k of [...scanPicked]) if (k.startsWith(kind + ':')) scanPicked.delete(k);
-    if (scanResult) for (const x of scanResult.found[kind] || []) if (paths.some((q) => q.path === x.path)) x.added = true;
   });
   on('button[data-stollama]', (b) => {
     if (!confirm(`Let Ollama read its models from ${b.dataset.stollama}? The models of its folder now are not deleted, but Ollama will not list them any more.`)) return;
