@@ -62,7 +62,7 @@ Run it and follow the wizard; leave the window open — that *is* the farm. Full
 
 Then jump to **[§4](#4-a-room-full-of-people-capacity--multiple-gpu-boxes)** if a group will use it —
 the default (gemma4 on Ollama) serves **two people at a time** per box, and that number is a control
-in the panel (*Backend* ▸ **People served at once**).
+in the panel (the Ollama section ▸ **People served at once**).
 
 ### Route B — the `lol` CLI
 
@@ -303,12 +303,12 @@ admin panel; clients that never made an explicit choice then enable it automatic
 
 > ### Serving a group? Check one setting first.
 > Out of the box the farm (gemma4 on Ollama) answers **two requests at a time**; raise it in the panel
-> (*Backend* ▸ **People served at once**; on Ollama it applies after a farm restart). On llama.cpp the
+> (the serving engine's section ▸ **People served at once**; on Ollama it applies after a farm restart). On llama.cpp the
 > default is 1, and the slots share one context pool: a person alone gets the whole window. On a big NVIDIA
-> card (an RTX PRO 6000, a DGX Spark), pick **vLLM** in the panel: it serves many people at once (48 at 64k on a
+> card (an RTX PRO 6000, a DGX Spark), choose **vLLM** in the panel (**Serve with vLLM**): it serves many people at once (48 at 64k on a
 > PRO 6000, 8 on a Spark, measured), and *Automatic* sets how many. See
 > [farm/README.md ▸ vLLM, run by the farm](../farm/README.md#vllm-run-by-the-farm). When every seat is taken, a
-> new question gets a clear "all seats in use" until someone has been idle 15 min (*Backend* ▸ **Free an idle
+> new question gets a clear "all seats in use" until someone has been idle 15 min (*Access* ▸ **Free an idle
 > seat after**; 2 min suits a workshop). **Plan capacity ↗** at the top of the panel says which hardware and
 > model serve how many people.
 
@@ -346,8 +346,8 @@ On the llama.cpp engine, shapes that fit (VRAM totals for the shipped quant):
 
 On llama.cpp the slots **share one context pool** (`kvUnified`, the default): a person alone gets the
 whole window, and under full contention each is guaranteed the context window ÷ people served at once. So
-for a group, set **both** in the panel (*Backend* ▸ **People served at once** and **Context window**, then one
-**Apply changes**): for example 2 people and 32k gives 2 busy people 16k each, which fits 12 GB.
+for a group, set **both** in the panel (the llama.cpp section ▸ **People served at once** and **Context window**,
+then one **Apply changes**, at the end of *Access*): for example 2 people and 32k gives 2 busy people 16k each, which fits 12 GB.
 
 …and check it still fits VRAM — the whole KV cache is allocated at load. Rough budget for the shipped
 quant: ~7.8 GB of weights plus **~1.2 GB per 16k** of total `contextLength`, so 4 × 16k (`parallel: 4,
@@ -360,7 +360,7 @@ lol bench --users 8 --rounds 3     # first-token latency p50/p95 + tokens/s unde
 
 There are **no accounts to manage**: every client is a single-user app that keeps its own chats and
 documents locally, so "multi-user" here is purely a capacity question — how many people the box can
-answer at once, which you set in the panel (*Backend* ▸ **People served at once**).
+answer at once, which you set in the panel (the serving engine's section ▸ **People served at once**).
 
 Both ends show how full a box is. The panel's **Clients** card reads *"N of M seats in use"* and lists
 who is on (hostname, app version, idle time); each farm card in the desktop client shows the free
@@ -385,23 +385,26 @@ All of this lives in **one place**: the farm panel. In the Farm app that is the 
 other machine on the LAN it's `http://<box-ip>:41997/lol/admin` with the token the farm printed. Changes
 apply live *and* are remembered across restarts.
 
-The panel opens on a **Backend** card that answers the two questions that used to need a config file:
-what users' model is called, and which engine is behind it.
+The panel opens on a **Serving** card that answers the two questions that used to need a config file:
+what users' model is called, and which engine is behind it. Under it, **one section per engine** — Ollama,
+llama.cpp, vLLM — each opened and closed by its line, which says its state without opening it (*serving*,
+*standby*, *not installed*, *cannot run on this computer* …); the serving one is open. Then **Access**: what every
+engine shares (the name users see, the idle seat, the farm password) and the one **Apply changes**.
 
-**Rename what users see.** On llama.cpp or vLLM: *Backend* ▸ **Name users see** → type e.g. `Studio Assistant`
+**Rename what users see.** On llama.cpp or vLLM: *Access* ▸ **Name users see** → type e.g. `Studio Assistant`
 → Apply changes. On Ollama: the **Rename** button on the model's row.
 Because the name *is* the model id that clients request, renaming takes a few seconds and chats started
 under the old name will ask their user to re-pick the model; new chats are unaffected.
 
-**Name each model.** Every model in *Models · Ollama* is offered under its **checkpoint name**
+**Name each model.** Every model in the *Ollama* section is offered under its **checkpoint name**
 (e.g. `gemma4:12b`) until you press its **Rename** button — give each one whatever people should see
 (`tutor`, `coder`, …); empty puts the checkpoint name back. Duplicates are refused (the name is the id
 clients request).
 
-**Swap the model everyone gets.** On the default Ollama engine: *Models · Ollama* ▸ **Download a model**
-if it is not there yet, then its **Make default** (the ★ one is what clients auto-select). While
-llama.cpp serves, the *Model · llama.cpp* card (shown only then) ▸ pick an entry and press **Use
-this**. To serve something not in the list, paste a `.gguf` link into **Add a model** first — on
+**Swap the model everyone gets.** On the default Ollama engine: the *Ollama* section ▸ **Download a model**
+if it is not there yet, then its **Make default** (the ★ one is what clients auto-select). On
+llama.cpp, its section ▸ pick an entry and press **Use this** (before a switch it only chooses and downloads it;
+**Serve with llama.cpp** then serves it). To serve something not in the list, paste a `.gguf` link into **Add a model** first — on
 Hugging Face that is the file's *download* link (`…/resolve/main/….gguf`), not the page you were
 reading. The first **Use this** on a new model downloads several GB and shows progress; afterwards it
 is cached and switching back is quick. On llama.cpp the alias stays the same, so existing chats keep
@@ -417,14 +420,13 @@ usual causes:
   needs and llama-server refuses to start. Picking a library entry handles this for you.
   See [the quant rule](../farm/README.md#backends--ollama-default-and-llamacpp).
 
-**Switch engine.** *Backend* ▸ the engine buttons: **Ollama**, **llama.cpp** and **vLLM** (a fourth, *External
-server*, appears only when a developer set one up). **One engine serves at a time**: llama.cpp serves its one
+**Switch engine.** Open the engine's section and press **Serve with …** at its end: **Ollama**, **llama.cpp** or
+**vLLM** (a fourth, *External server*, appears only when a developer set one up). Opening a section never switches. **One engine serves at a time**: llama.cpp serves its one
 model as fast as the hardware can, for a few people; vLLM serves one model to many people at once on a big NVIDIA
-card (Windows with WSL, or Linux such as a DGX Spark; its button checks this computer first, and its card installs
-vLLM and its models, about 45 minutes the first time); Ollama serves the catalog below it, so people can choose
-between several models. The others go **standby** — invisible to clients; in the panel the *Models ·
-Ollama* card carries a *standby* badge while llama.cpp or vLLM serves, and the *Model · llama.cpp* card is
-hidden while Ollama serves. A name you gave the model (**Rename** / **Name users see**) survives the
+card (Windows with WSL, or Linux such as a DGX Spark; opening its section checks this computer first, and the section
+installs vLLM and its models, about 45 minutes the first time); Ollama serves its catalog, so people can choose
+between several models. The others go **standby** — invisible to clients; in the panel their sections' lines say
+*standby*. A name you gave the model (**Rename** / **Name users see**) survives the
 switch, so existing chats keep working; an unnamed default is served under its raw id on Ollama
 (`gemma4:12b`) and under the engine's own name (`assistant`) on llama.cpp and vLLM, so name the model first if
 chats should survive a switch. About a minute for Ollama or llama.cpp, about 2 minutes for vLLM (longer the very
@@ -446,19 +448,19 @@ default, at most what the model reads; a longer one fits fewer people), and ther
 classic top-passages retrieval so a big attachment can never overflow the model and error out.
 More context on the farm = better document answers on every client, automatically.
 
-**Password-protect the farm.** *Backend* ▸ **Farm password** → Apply. Every client then asks for
+**Password-protect the farm.** *Access* ▸ **Farm password** → Apply. Every client then asks for
 it once (with a 🔒 on the farm card) and remembers it. **Remove** (next to the field) takes it off. Details:
 [`farm/README.md` ▸ Password-protecting a farm](../farm/README.md#password-protecting-a-farm).
 
-**Serve more people at once.** *Backend* ▸ **People served at once** (on Ollama: per box, applied after
+**Serve more people at once.** The serving engine's section ▸ **People served at once** (on Ollama: per box, applied after
 a farm restart). On llama.cpp the slots share one context pool; the panel shows the guaranteed share per
 person. On vLLM, *Automatic* takes the number measured on this card, or what its memory holds; Apply asks first
 when a change would restart vLLM (about 2 minutes without chat). Raise the context window alongside it if you need both — and check it still fits VRAM:
 [`farm/README.md` ▸ Multiple users & capacity](../farm/README.md#multiple-users--capacity).
 
-**Manage the Ollama catalog.** *Models · Ollama* ▸ **Download a model** → an Ollama tag such as
+**Manage the Ollama catalog.** The *Ollama* section ▸ **Download a model** → an Ollama tag such as
 `qwen2.5-coder:14b`. These serve (and appear in users’ pickers) **when Ollama is the selected
-engine**; while llama.cpp or vLLM is the engine the card reads *standby*. **Delete** removes one from the box.
+engine**; while llama.cpp or vLLM is the engine its line reads *standby*. **Delete** removes one from the box.
 (Developers: the CLI path is in [`farm/README.md` ▸ Adding or changing models](../farm/README.md#adding-or-changing-models).)
 
 > **Everything above is in the panel; you never need to edit a file.** From another computer, open

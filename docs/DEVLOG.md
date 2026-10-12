@@ -6,6 +6,80 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-12 (14:02) — The farm panel: one section per engine, Serve with … inside it, Access for what they share (branch `panel-engines`)
+
+The owner: *"In the farm we should probably have three collapsible with the options for Ollama, Llama.cpp and vllm."*
+He saw the layout below as a mockup and asked for no changes. `farm/src/admin/index.html` only: no route, job, confirm
+question or farm behaviour changed.
+
+**What moved where.**
+- **Serving** (was *Backend*): the hero (the name users see, the engine and model, people at once, connected) and
+  the warnings about what serves: llama.cpp fell back, the GPU stuck at a low clock, an external server, vLLM's
+  phase line.
+- **One `<details>` section per engine**, always in this order: Ollama, llama.cpp, vLLM, and *External server* only
+  while configured (as before). The summary line says, closed, the state (serving / standby / starting / stopped /
+  not answering / could not start / stopped working / not installed / not set up yet / not for this GPU / cannot run
+  on this computer) with a dot (green / amber / red / grey) and one fact: *4 models · gemma4:12b default*, *Qwen3.8
+  27B · UD-IQ2_S chosen*, *Qwen3.6 35B-A3B · NVFP4 · 48 at 64k*. vLLM's small-GPU sentence moved from its old
+  button to that line, still said before any check.
+  - Ollama: *Models · Ollama* whole (its storage rows, the rows, Download a model).
+  - llama.cpp: the *Model · llama.cpp* card whole (library, a look's results, Add) — now always there, not only after
+    its button; the old engine button's sentence (*One model, fastest …*) heads it.
+  - vLLM: the *Model · vLLM* card whole (checklist, Check again, Install/Update, the list, Add, Start/Stop, WSL's disk,
+    the log), with the take-over block (*vLLM on this computer*, offer or done + Undo) at its top instead of a card
+    above everything.
+  - In the **serving** section only: *People and context* (people at once, the context, on vLLM the GPU memory, the
+    trade line) and **Performance**. Apply writes these to the engine that serves (`applyFarmSettings`), so a standby
+    section has none — the one place the mockup (which showed people and context in a standby Ollama) was not
+    followed: showing them there would have meant Apply writing to an engine that does not serve.
+  - In every **other** section, at its end: **Serve with <engine>**, the switch. Its line says what it costs (the
+    question without its *Switch to …?*) or why it cannot go ahead (*Choose a model above first*, *Not set up on this
+    computer yet*, *Not available on this computer*). It runs `engineClick`: the same question (`switchConfirm`, the
+    take-over's), the same `/lol/admin/backend` (or `/lol/admin/vllm/take-over`). Serve with vLLM is off until vLLM is
+    set up, and absent while the take-over is offered (the offer is the way).
+- **Access**, under the sections: the name users see (llama.cpp, vLLM; on Ollama a line pointing at each row's
+  Rename), *Free an idle seat after*, the farm password (+ Remove), and the ONE **Apply changes**. Apply still reads the
+  same ids (`#name-in`, `#slots-sel`, `#ctx-sel`, `#kv-sel`, `#idle-sel`, `#sec-in`) wherever they sit, so its payload,
+  its vLLM dry run and its one restart are unchanged; the serving section says *They apply with Apply changes, at the
+  end of Access below*.
+- Then Model storage, Plugins, Clients, This box, as before.
+
+**Open and closed.** The serving engine's section is open by default, and opens again when the serving engine changes
+(a switch, a fallback); every other section is as the person left it. Choices live in `engOpen`, saved to
+`localStorage['lolEngineOpen']` (and the last serving engine to `lolServingSeen`), so the 5 s rebuild and the next
+visit keep them. Only a person's click counts: each `<details>` carries `data-open`, and a `toggle` the render itself
+caused (Chrome fires one for a parsed `<details open>`) matches it and is ignored. vLLM's section also opens by itself
+while it has something to say (a take-over offered or done, a failed start while Ollama serves, an install or download
+of its own; not a move of the models). Opening vLLM's section checks this computer once per page — what pressing the
+vLLM button did; a section a page action needs (a look in a folder found models for it, Serve with vLLM pressed while
+it is not set up) opens and scrolls into view. The 5 s rebuild now gives the keyboard focus back (`focusKeyOf`: an
+id, a summary, a button's first `data-` attribute). `lolVllmOpen` / `lolLcOpen` and the Close buttons are gone.
+
+**Fixed while looking at it** (the same Electron screenshots): a long select (vLLM's *Automatic — what the GPU has free,
+less the model, 9 GB …*, the context list) squeezed its row's text to a narrow column and pushed the card past the
+window (sideways scroll at 900 px): the text keeps 260 px and a select is cut to the card; on a phone a row's controls
+go under its text. Performance's and This box's figures ran together (*17 requestsReading*: bare text in a flex row);
+each is one item now. The password field was white (only `type=text` was styled). The split-`.gguf` pull error in
+`up.js` named *Model · llama.cpp*; it names the llama.cpp section.
+
+**Tested.** `node test/run.js` in `farm/`: **268 passed** (256 + 10 that pinned the old layout, rewritten to keep what
+they proved, + 2 new). New: *the serving one opens by itself, and again when the engine changes; the others keep what
+the person chose, through the rebuild*; *Access holds the name, the idle seat and the password, the serving section
+its people and context, and the ONE Apply sends every field* (llama.cpp: one POST with name, slots, seatIdleSec,
+password, context; vLLM: the dry run, then the same six fields). Rewritten: the engine grid → three sections in order,
+External only while configured, each summary's words, Serve with … in its own section with `/lol/admin/backend`, the
+question asked, and off when blocked; the small GPU on the summary; the llama.cpp section before a switch (opening it
+asks and switches nothing; Serve with llama.cpp asks the question naming the model, then switches); vLLM opened by a
+person checks once; the vLLM section's contents; Model storage's and a look's text. `loadPanel` exports the toggle
+handler (`render.toggle(id, open)`).
+**Seen.** The panel in Electron 42 offscreen against a **stub farm** (an in-process server on a random loopback port
+serving `index.html` and a made-up `/lol/admin/state`; every POST answered `{ ok: true }`; no real farm or farm port):
+Ollama, vLLM and llama.cpp serving, and a 16 GB GPU, each at 1280, 900 and 420 px, full page. No sideways scroll at any
+width after the fixes; the summary keeps the focus through a rebuild; a clicked section stays open through a rebuild
+and is saved; Enter on a focused summary toggles it; opening vLLM's section asked for one check.
+**Not done.** The Farm app's own window on a real farm (HUMAN_TESTS P1). No change to the Farm app, the client or the
+farm's routes.
+
 ## 2026-10-12 (11:57) — Model storage: one folder for the farm's models, Move here, models used where they are, WSL's disk
 
 The owner: *"I need to be able to move or place the model at a specific place on disk"*; ONE folder for the whole farm;

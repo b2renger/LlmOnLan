@@ -100,7 +100,7 @@ npm link        # then just `lol <cmd>` anywhere
 | `lol init [--force]` | Scaffold a `lol.config.json` in the current directory. |
 | `lol up` / `lol serve` | Ensure Ollama, **pick the Ollama model(s) to serve** (interactive, from what's installed; Enter = default), pull anything missing, start `llama-server` if enabled (fetching build + weights on first run), generate + run the LiteLLM proxy behind the seat gate, start SearXNG + OCR (if enabled) + the beacon + the admin panel, then (vLLM) start or keep vLLM as a job. Foreground; Ctrl‑C stops (vLLM too). |
 | `lol down` | Stop the proxy + `llama-server` + SearXNG + TTS + OCR + beacon (and any Ollama this CLI started), and the vLLM the farm runs (from the runtime file, or the config when that file is gone). |
-| `lol status` | Health of each Ollama host + the proxy + which models are loaded. Works from any shell. It does not report vLLM or llama.cpp: the panel's Backend card does. |
+| `lol status` | Health of each Ollama host + the proxy + which models are loaded. Works from any shell. It does not report vLLM or llama.cpp: the panel does (its Serving card, and each engine's section). |
 | `lol fleet` | Every farm on the LAN (this box + peers): health, GPU load, VRAM, loaded models, roles, search URL. |
 | `lol bench` | Load‑test before a workshop: N concurrent chats → first‑token latency (p50/p95) + tokens/s, and how many the seat gate turned away. `--users N --rounds R --model id --url … --people --cancel F --out file.json` (see [Multiple users & capacity](#multiple-users--capacity)). |
 | `lol models ls` | List configured models + presence on each host. |
@@ -157,12 +157,12 @@ with *"No reachable Ollama host"* if none answers: Ollama is the fallback engine
 drives its vision model there. With another engine serving, a farm-started Ollama keeps models warm
 for only 5 minutes, and **pressure eviction** unloads Ollama models when VRAM is ≥ 92 % full and the
 GPU ≤ 20 % busy (never mid-extraction) — the farm log says so, and on llama.cpp or vLLM (the farm's own, or an external one)
-so does the panel's Performance card.
+so does the panel's Performance, in the serving engine's section.
 
 **If llama.cpp cannot start, the farm does not die.** No prebuilt exists for this platform (prebuilts
 cover win-x64 and linux-arm64/the Spark today), the download failed, the weights would not load:
-`lol up` logs the reason, **falls back to the Ollama engine for the run**, and the panel shows why on
-the Backend card. The config keeps `llamacpp.enabled`, so a later boot (or a `binDir` pointing at a
+`lol up` logs the reason, **falls back to the Ollama engine for the run**, and the panel shows why at
+its top, on the Serving card. The config keeps `llamacpp.enabled`, so a later boot (or a `binDir` pointing at a
 hand-built llama.cpp) picks the fast engine back up. **A crash mid-run** (OOM, driver reset) gets one
 automatic restart; a second crash within 5 minutes falls back to Ollama the same way (the panel reason
 reads *"llama-server crashed twice in 5 minutes"*). In both windows the beacon flips the farm unhealthy
@@ -178,11 +178,18 @@ stall on it later. On any other platform, install llama.cpp yourself and point `
 folder holding `llama-server`; the farm says so rather than failing obscurely.
 
 **Which one is running, and switching between them.** The admin panel
-(`http://<box>:41997/lol/admin`, and the Farm app's own window) opens on a **Backend** card that
+(`http://<box>:41997/lol/admin`, and the Farm app's own window) opens on a **Serving** card that
 names the model users see, the engine behind it, the actual `.gguf` or Ollama tag, and how many
-people it serves at once. The engines are buttons (Ollama, llama.cpp, vLLM); picking another one stops the
-current engine, loads the model and regenerates the routing, in about a minute (about 2 for vLLM). It is also written to `lol.config.json`, so it
-survives a restart.
+people it serves at once. Under it, **one section per engine** (owner, 2026-10-12), always in this order: Ollama,
+llama.cpp, vLLM (and External server only while the file holds one). Each section's line opens and closes it and
+says, closed, the engine's state (serving, standby, starting, stopped, not installed, cannot run on this computer)
+and its one key fact (the number of models and the default, the model chosen, the model and people at once). The
+serving one opens by itself, and again when the engine changes; the others stay as the person left them (kept in
+the browser). Each section holds everything about its engine: its models, its part of Model storage, while it
+serves its **People and context** and its Performance, and otherwise, at its end, **Serve with <engine>**, which
+stops the current engine, loads the model and regenerates the routing, in about a minute (about 2 for vLLM). It
+is also written to `lol.config.json`, so it survives a restart. Under the sections, **Access** holds what every
+engine shares: the name users see, **Free an idle seat after**, the farm password, and the one **Apply changes**.
 
 Clients see the same thing from the outside: each farm card in the desktop app shows
 `llama.cpp · Qwen3.8-27B-UD-IQ2_S` under the farm name, so a user can tell two boxes apart without
@@ -229,7 +236,7 @@ this computer and says what is missing, in plain words:
   sees comes first, before anything about WSL, and so does a PC with no NVIDIA GPU at all. A card older than
   compute capability 12.0 (Blackwell) gets a warning: the list's NVFP4 checkpoints were measured on Blackwell only.
 
-**Install vLLM** (the vLLM card) runs `install.sh` into the vLLM folder (`vllm.root`, default `~/lol-vllm`; an
+**Install vLLM** (the vLLM section) runs `install.sh` into the vLLM folder (`vllm.root`, default `~/lol-vllm`; an
 existing install in `~/lol-vllm` or `~/lol-spike` is used as it is): `uv` if missing (user-local, no sudo), a
 Python 3.12 environment of uv's own, vLLM 0.30.0 and its GPU libraries (about 8 GB), the CUDA compiler packages
 FlashInfer's kernel build needs, a GPU check, then the chosen model. About 45 minutes on a typical connection. It
@@ -240,7 +247,7 @@ own child left `hf` downloading on Linux). A download's meter is its folder on d
 downloader fills in large pieces, late: the bar says so and shows how long it has run, so a number that sits low
 for minutes and then jumps does not read as stuck. `lol install` does not install vLLM.
 
-**The models** are a list in the vLLM card: the three NVFP4 checkpoints the spike measured, with the flags it ran
+**The models** are a list in the vLLM section: the three NVFP4 checkpoints the spike measured, with the flags it ran
 them with, and two added on 2026-10-09 that hear sound in a chat message (measured the same way on the PRO 6000,
 [RESULTS.md](../docs/spike/RESULTS.md#gemma-4-12b-and-qwen3-omni-rtx-pro-6000-2026-10-09)).
 
@@ -270,17 +277,18 @@ other Qwen3); a model of the list removed earlier, added back by its name, is it
 a model of no known family gets prefix caching only, and the panel says tools and thinking may not show. Folders
 already in `<root>/hf` show as "Also on this computer", with **Add to the list**.
 
-**Switching engines.** The Backend card's buttons are Ollama, llama.cpp and vLLM (and "External server" only while
-the file holds an [`external`](#config--lolconfigjson) block). The llama.cpp button opens its card first, where the
-model it will serve is chosen and downloaded; that card's **Switch to llama.cpp** switches ([Which model everyone
-gets](#which-model-everyone-gets-llamacpp-path)). A switch stops the current engine first, and a stop
+**Switching engines.** Every engine section but the serving one ends with **Serve with …** (Ollama, llama.cpp,
+vLLM, and "External server" only while the file holds an [`external`](#config--lolconfigjson) block), which asks
+first what the switch costs. Opening a section never switches: in the llama.cpp section the model it will serve is
+chosen and downloaded first, then **Serve with llama.cpp** switches ([Which model everyone
+gets](#which-model-everyone-gets-llamacpp-path)); **Serve with vLLM** stays off until vLLM is set up here. A switch stops the current engine first, and a stop
 that fails changes nothing: two engines never share the GPU. Into vLLM it takes about 2 minutes (longer the very
 first time, while it compiles kernels); out of it, about a minute. The name people see moves with the switch
 (`carryNameAcross`), so open chats keep working. A switch to vLLM is refused up front, with the reason, when it is
 not installed, the model is not downloaded, an install runs, or a set memory cannot hold one person's window.
 While the external server is a vLLM the farm can run as it is ([Taking over](#vllm-run-by-the-farm), below), the
-vLLM button is that take-over, with nothing restarted; and the External button never shows while it would point at
-the port of the vLLM the farm runs. Leaving an external server on this computer says that it keeps running and
+vLLM section opens by itself with that take-over (**Let the farm run vLLM**, nothing restarted) in place of Serve with
+vLLM; and the External section never shows while it would point at the port of the vLLM the farm runs. Leaving an external server on this computer says that it keeps running and
 keeps its share of the GPU.
 
 **Its settings**, under the panel's one **Apply changes** (which asks the farm first, and asks the operator only
@@ -352,7 +360,7 @@ log-on task, `lol-vllm.service` or a hand, says so and does nothing).
 
 **Document reading beside it.** Ollama still reads documents (OCR), directly, in the memory kept for it. Beside
 vLLM, the farm prefers `gemma4:12b` for it when that model is installed (beside llama.cpp or an external server it
-keeps its own choice, the Ollama list's vision default); the Performance card
+keeps its own choice, the Ollama list's vision default); Performance, in the vLLM section,
 warns when the reading model does not fit the 9 GB kept (production's `qwen3.8:latest` would not: 17.7 GB).
 Before vLLM or llama.cpp starts, Ollama's loaded models leave the GPU.
 
@@ -766,7 +774,7 @@ for the whole farm, and that folder is the source of truth: what is in it is wha
   its own Hugging Face cache — instead of the machine's shared one), `kokoro/` (the voice's `v1_0/kokoro-v1_0.pth` and
   its `config.json` — instead of Kokoro's own source tree), `ollama/` (the `OLLAMA_MODELS` of an Ollama the farm starts:
   `lol up`, `lol install`, the Farm app's first-run wizard), and on Linux `vllm/` (vLLM's root for a new install; an
-  existing install keeps its root and its `hf/` becomes a link to `vllm/hf`). On Windows the vLLM card offers
+  existing install keeps its root and its `hf/` becomes a link to `vllm/hf`). On Windows the vLLM section offers
   `<folder>\wsl\<distro>` for WSL's Linux disk (vLLM and its weights live in it). Saved as `storage.dir` (null = the
   farm's own folders: nothing changes for a farm that never sets it). A **marker**, `<folder>\.lol-storage`, is written
   at the switch: a farm that finds `storage.dir` set and no marker says *The model folder … is missing (is its drive
@@ -818,16 +826,16 @@ for the whole farm, and that folder is the source of truth: what is in it is wha
   copied first). When the farm cannot set it (Linux, where Ollama is a service; an app it cannot find or change), the
   card says what to set — and **not before the move says it is done**: Ollama deletes, at its start, the blobs no
   manifest names yet. On Linux its user must read and write the new folder.
-- **Use the models in this folder** — **Look** lists what a folder holds, each engine's part on its own card (never the
+- **Use the models in this folder** — **Look** lists what a folder holds, each engine's part in its own section, which opens (never the
   farm's own folder, nor one on another computer): `.gguf` files (split parts grouped, a vision projector next to a
   model kept with it) become llama.cpp entries by `path`; Hugging Face folders (`config.json` + `*.safetensors`) become
   vLLM entries by `path` (a Linux path; a Windows folder is `/mnt/<drive>/…`, which loads slower through WSL's drive
   bridge, and the line says so); an Ollama model folder (`manifests/` + `blobs/`) becomes `storage.ollama` (Ollama
   started on it never prunes it, `OLLAMA_NOPRUNE=1`). Nothing is copied, and **Remove** never deletes such a file. With
   a folder chosen, **Move the ticked ones into the farm's folder** moves `.gguf` models in (copied, checked, the list
-  following, then deleted where they were), and the Ollama card's **Move into the farm's folder** moves a lent Ollama
+  following, then deleted where they were), and the Ollama section's **Move into the farm's folder** moves a lent Ollama
   folder into `ollama/`; a plain Move here never moves a lent folder.
-- **WSL's Linux disk** (Windows, the vLLM card): `wsl --manage <distro> --move <folder>` (WSL 2.3+, checked first by
+- **WSL's Linux disk** (Windows, the vLLM section): `wsl --manage <distro> --move <folder>` (WSL 2.3+, checked first by
   its help naming `--move`; a rename on the same drive, else a copy then the old file's deletion). The question names
   the distribution, its size, and that everything in it moves; vLLM stops first and starts again after; Linux paths do
   not change. Which Linux run is read from `wsl -l --running -q` (names only, the same in every language). WSL keeps a
@@ -851,7 +859,7 @@ only need it for a farm you administer over SSH.
 
 This is the model clients auto-select — the one that matters. It is a single `.gguf`.
 
-**From the panel** — the *Model · llama.cpp* card lists a **library** of `.gguf`s the farm knows about:
+**From the panel** — the *llama.cpp* section lists a **library** of `.gguf`s the farm knows about:
 
 1. **Add a model**: paste the link to a `.gguf` and press **Add**. On Hugging Face that is the file's
    *download* link — the `…/resolve/main/….gguf` one, not the page you were reading it from. Adding only
@@ -864,12 +872,13 @@ This is the model clients auto-select — the one that matters. It is a single `
    and several minutes) and reloads llama-server onto it.
 3. **Remove** drops an entry from the list. The one currently serving can't be removed; switch first.
 
-**Before a switch** (owner, 2026-10-09): while Ollama or vLLM serves, the **llama.cpp** button opens this card
-(brought into view) instead of switching. The list shows which model is **chosen** and which are **downloaded**;
+**Before a switch** (owner, 2026-10-09): while Ollama or vLLM serves, the llama.cpp section opens like any other,
+and opening it switches nothing; its line names the chosen model. The list shows which model is **chosen** and
+which are **downloaded**;
 **Use this** makes another one the chosen model and downloads it now, as the panel's job, while the engine that
 serves keeps serving; **Download** fetches the chosen one when it is not on this computer yet. Nothing changes
-for the people connected until **Switch to llama.cpp** at the bottom of the card, whose question names the model
-it loads. **Close** hides the card again.
+for the people connected until **Serve with llama.cpp** at the bottom of the section, whose question names the
+model it loads. Its line closes it again.
 
 The library ships with four: the three 12 GB-class Qwen3.8-27B quants measured here, plus an NVFP4+MTP
 build for Blackwell cards (16 GB+), so you can switch between them without hunting for URLs.
@@ -908,11 +917,11 @@ Old `.gguf`s stay in `farm/.models/` at several GB each; delete the ones you're 
 ### The name users see
 
 Over an OpenAI connection, the model **id** is what a picker displays — so the name is the served alias,
-not a label bolted on top. Set it in the panel: on llama.cpp and on vLLM, *Backend* ▸ **Name users see**
+not a label bolted on top. Set it in the panel: on llama.cpp and on vLLM, *Access* ▸ **Name users see**
 (`llamacpp.alias`, `vllm.alias`; on vLLM only the proxy restarts, vLLM keeps running); on Ollama, the
 **Rename** button on each model row (`models[].alias`). `modelAlias` is config-file only. While llama.cpp
 or vLLM serves, the Ollama default's row has no Rename: a switch back gives it that engine's name, so it is
-renamed up in *Backend*.
+renamed in *Access*.
 
 Renaming reloads the model and takes a few seconds. **Existing chats will ask to re-select the model**,
 because their bound id no longer exists; new chats are unaffected. That is the cost of the rename being
@@ -922,11 +931,11 @@ real rather than cosmetic.
 
 These are ordinary Ollama tags. When **Ollama is the selected engine** they are what the farm serves —
 several at once, load-balanced across `ollama.hosts`. While llama.cpp is the engine they are
-**standby**: kept installed (the card carries a *standby* badge and a "Not served right now" hint; the
+**standby**: kept installed (the section's line says *standby*, its body "Not served right now"; the
 rows keep **Rename** — except the default's — and **Delete**, but lose Offer/Stop and Make default) so
 an engine switch is instant, and so document OCR has its vision model.
 
-**From the panel** — the *Models · Ollama* card:
+**From the panel** — the *Ollama* section:
 
 - **Download a model**: type an Ollama tag (`gemma4:12b`, `qwen3.8:14b`) and press Download. It is
   pulled onto every local host and offered to clients while Ollama is the engine. With another engine
@@ -984,9 +993,9 @@ survives a restart. The exceptions, all deliberate:
   by Ollama at startup. The panel says so when you change it. On a multi-box farm it is **per box**
   (the panel shows the farm total next to it).
 
-The *Backend* card's settings — the name (llama.cpp, vLLM), people served at once, the context window (on vLLM
-also the GPU memory for conversations) and the farm password — are collected and applied by **one Apply
-changes** button: one restart for all of them, not one per field. On vLLM, Apply asks the farm first and
+The settings — the name (llama.cpp, vLLM) and the farm password in *Access*, people served at once and the context
+window (on vLLM also the GPU memory for conversations) in the serving engine's section — are collected and applied
+by **one Apply changes** button, at the end of *Access*: one restart for all of them, not one per field. On vLLM, Apply asks the farm first and
 restarts vLLM (about 2 minutes, said before) only for a new model, context, memory or request cap; the name,
 the password and people at once inside that cap apply in seconds. **Free an idle seat after** (shown while the seat gate is on) rides the same button but
 restarts nothing: the gate reads `proxy.seatIdleSec` live, so set it to 2 min before a workshop and back
@@ -1019,7 +1028,8 @@ W-token window, set `contextLength ≈ N × W` and check the total still fits VR
 allocated in full at load. `kvUnified: false` restores the hard split
 (`--ctx-size 16384 --parallel 2` → 8192 each).
 
-Both are panel controls — *Backend* → **People served at once** and **Context window**. The line under
+Both are panel controls — the serving engine's section ▸ *People and context* ▸ **People served at once** and
+**Context window**. The line under
 them says, as you change them and before you apply, what each person gets (the `contextPerSlot` the farm
 will advertise) and what the clients then do: below 24576 each, Open WebUI reads the 8 most relevant
 passages of a document instead of all of it, and every connected Open WebUI restarts once when that
@@ -1071,10 +1081,10 @@ confirmation, the applied result spells out the trade, and a persisted over-size
 with a loud warning** rather than clamped (owner call 2026-08-28 — the admin may deliberately trade
 speed for window). The warnings exist because a
 256k window saved onto a 12 GB card "worked" — Windows overcommits GPU memory into system RAM — and
-served a few tokens a second until someone guessed why. The **Performance card** is the other half:
+served a few tokens a second until someone guessed why. **Performance** (in the serving engine's section) is the other half:
 measured tok/s while generating (from llama-server’s own counters), slots busy, requests waiting, KV
 usage, and plain-language warnings for the two silent failure modes (VRAM full at idle; generating far
-below hardware speed). On vLLM (the farm's own, or an [external one](#config--lolconfigjson)) the same card reads vLLM's
+below hardware speed). On vLLM (the farm's own, or an [external one](#config--lolconfigjson)) the same block reads vLLM's
 `/metrics`: requests running / waiting, context memory used (`kv_cache_usage_perc`) and its size in
 tokens, prefix-cache hits, tok/s **per person** while generating (generated tokens over the
 inter-token-latency sum, so it means what llama.cpp's number means), **all together** (the generation
@@ -1141,7 +1151,7 @@ client reads them. A request counts each time, so a client that retries a 429 co
 starts. When Ollama was already running as someone's service, the snapshot reports
 `slotsVerified: false`, and the panel's Clients card says *"Capacity is unverified"* with the exact env
 line to set on that service (the seats still use the configured number). An external server is
-`slotsVerified: false` too — its seats are declared — but that row is Ollama's only; the Backend card
+`slotsVerified: false` too — its seats are declared — but that row is Ollama's only; the Serving card
 says it for an external server.
 
 **What multi-user does *not* mean here.** There are no farm-side accounts and nothing to administer per
@@ -1155,7 +1165,7 @@ for it once per farm and remembers it.
 
 One shared password for everyone (the ComfyQ model — nothing fancy, no accounts):
 
-1. Panel ▸ *Backend* ▸ **Farm password** → type one → Apply changes (a few seconds; the proxy
+1. Panel ▸ *Access* ▸ **Farm password** → type one → Apply changes (a few seconds; the proxy
    restarts). To remove it, press **Remove** next to the field (it asks to confirm). Or set
    `proxy.masterKey` in `lol.config.json`.
 2. Every client then shows the farm with a 🔒 and asks for the password **once**, verifies it
@@ -1345,11 +1355,11 @@ A llama.cpp list entry has a `url` (downloaded into the farm's folder) **or** a 
 computer, used where it is); `llamacpp.model` and `mmproj` take either.
 
 > **Per-model names.** Every downloaded model is advertised under its **checkpoint id** unless you
-> rename it: each served row in the panel's *Models · Ollama* card has a **Rename** button (empty =
+> rename it: each served row in the panel's *Ollama* section has a **Rename** button (empty =
 > back to the checkpoint name), which writes the per-model `"alias"` in `models` and enforces
 > uniqueness — the name IS the id clients request, so a duplicate would silently merge two models
 > into one route. Precedence: a per-model alias > the global `modelAlias` (which only names the
-> default model and is config-file only; the Backend card's **Name users see** shows on llama.cpp and vLLM and
+> default model and is config-file only; *Access* ▸ **Name users see** shows on llama.cpp and vLLM and
 > sets `llamacpp.alias` or `vllm.alias`). A name you gave the model survives an engine switch and a fallback
 > (`carryNameAcross`), so bound chats keep working; an unnamed default is served under its raw id on
 > Ollama, under `llamacpp.alias` on llama.cpp, and under `vllm.alias` on vLLM, so name the model first if chats should survive a
@@ -1482,7 +1492,7 @@ build for Blackwell cards (16 GB+); replace it freely.
   beacon `httpPort`) from any browser on the LAN — or click **"Manage this farm"** in the desktop
   client's fleet popover. The Farm app shows the same page as its own window. It is where the farm is
   run: which **engine** serves (Ollama, llama.cpp or vLLM) and which `.gguf` or vLLM model it loads, vLLM's
-  install, downloads, Start and Stop (the vLLM card), the **name users see**, **how many people**
+  install, downloads, Start and Stop (the vLLM section), the **name users see**, **how many people**
   it serves at once, the **context window** (applied to whichever engine is serving), the **Ollama
   catalog** (download / offer / delete / make default), the **plugins** (web search / voice / OCR) and
   the Blender recommendation, and the **connected clients** (hostname, IP, app version, idle time —
@@ -1577,15 +1587,15 @@ build for Blackwell cards (16 GB+); replace it freely.
   **When the external server is a vLLM** (its `/metrics`, at `baseUrl` without the `/v1`, carries `vllm:`
   series — nothing to configure), the farm reads it on the health tick it already runs: the
   snapshot's `capacity.busy` / `capacity.queued` come from `vllm:num_requests_running` /
-  `vllm:num_requests_waiting`, and the panel shows a **Performance card** for it (below). It also
+  `vllm:num_requests_waiting`, and the panel shows **Performance** for it, in the External server section (below). It also
   reads the KV pool vLLM really allocated (`vllm:cache_config_info`: `kv_cache_size_tokens` on
   vLLM ≥ 0.25, else `num_gpu_blocks × block_size`, which over-counts a hybrid model) and **warns** —
-  at `lol up` and on the card — when `parallel × contextLength` exceeds it: *"the declared seats can't
+  at `lol up` and in Performance — when `parallel × contextLength` exceeds it: *"the declared seats can't
   all hold their full window at once"*. The seats stay `parallel` and `slotsVerified` stays `false`:
   the metrics can prove a declaration does not fit, never that it does (they carry neither
   `max_num_seqs` nor `max_model_len`), and refusing people on a pessimistic guess is worse than the
   queueing it would avoid (owner, 2026-09-07). Any other server (SGLang, a llama-server) is not read:
-  no card, `busy`/`queued` stay `null`. The farm's own vLLM is read the same way (the Performance card,
+  no Performance, `busy`/`queued` stay `null`. The farm's own vLLM is read the same way (Performance,
   `busy` and `queued`), but its seats and window are the ones the farm started it with, so `slotsVerified`
   is `true` there.
 - **`vllm`** — vLLM run by the farm ([vLLM, run by the farm](#vllm-run-by-the-farm)). The panel sets every key:
@@ -1686,7 +1696,7 @@ build for Blackwell cards (16 GB+); replace it freely.
 | *"Farm already running"* / a stale port | A previous run wasn't torn down | `lol down`, then `lol up` |
 | Port already in use (4000 / 4001 / 41997 / 8081 / 8888 / 8890) | Another process (or an orphaned plugin) holds it | `lol down`; if it persists, change the port in `lol.config.json` (the Farm app moves 8888 / 8890 itself) |
 | *"Message bus did not start"* | Another MQTT broker (Mosquitto) or OSC tool holds 1883 / 8893 / 9001 | Stop it, or change `bus.mqttPort` / `wsPort` / `oscPort`; the farm serves chat without the bus meanwhile |
-| The panel says *"vLLM could not start: … The farm serves with Ollama for now."* | Something the vLLM card's checklist lists (no WSL, no C compiler, the model not downloaded, too little disk), another program on vLLM's port, or vLLM's own error | Do what the checklist or vLLM's log (*Show the log*) says, then press **vLLM** on the *Backend* card again. The farm keeps serving with Ollama meanwhile |
+| The panel says *"vLLM could not start: … The farm serves with Ollama for now."* | Something the vLLM section's checklist lists (no WSL, no C compiler, the model not downloaded, too little disk), another program on vLLM's port, or vLLM's own error | Do what the checklist or vLLM's log (*Show the log*) says, then press **Serve with vLLM** in the vLLM section. The farm keeps serving with Ollama meanwhile |
 
 ## Notes / gotchas
 

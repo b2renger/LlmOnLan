@@ -99,7 +99,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     check the disk and leave 10 GB free; the take-over writes llama.cpp off. The leftovers (2026-10-08): a GPU no
     model of the list fits (`vllm.gpuFit`, document reading's 9 GB included: an RTX 4070/4080/4090; without it,
     Gemma 4 12B fits a 16 or 24 GB card since 2026-10-09) is said on the
-    vLLM button before any check, on Windows before anything about WSL, and offered nothing; WSL with no answer at
+    vLLM section's line before any check, on Windows before anything about WSL, and offered nothing; WSL with no answer at
     boot queues the start (which keeps a server running with these settings, `keepRunning`) instead of Ollama all
     day; Automatic memory waits until freed memory stops rising (`systemInfo.untilSteady`); the runtime file `lol
     down` removed is never written back and a vLLM stopping after it is not restarted; an install's time limit stops
@@ -127,17 +127,29 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   - `proxy.masterKey` = the shared **farm password** (LiteLLM `master_key`; panel-settable; clients prompt
     once, verify, remember per farm). Discovery, `/health/liveliness` and the admin token stay separate.
   - **Admin panel** at `http://<box>:41997/lol/admin` (bearer = `admin.token`, or a per-run token printed by
-    `lol up`; the Farm app pins one): the engine switch (Ollama, llama.cpp, vLLM, and External only while configured) and the vLLM card (its checklist, Install, the model list, Start/Stop, the log, the take-over offer); the `.gguf` library (add by
-    URL — split files too — / Use this, with rollback; while another engine serves, the llama.cpp button opens that
-    card first and Use this chooses and downloads what the switch will serve, owner 2026-10-09); the name users see (llama.cpp, vLLM) or per-model
+    `lol up`; the Farm app pins one). **Its layout** (owner 2026-10-12, branch `panel-engines`): the Serving card (what
+    serves, people at once, connected; the engine's warnings), then **one collapsible section per engine** in a fixed
+    order — Ollama, llama.cpp, vLLM, and External only while configured — each holding everything about its engine;
+    its line (a `<summary>`) says the state without opening it (serving / standby / starting / stopped / not installed /
+    cannot run on this computer, `SUMMARY` in `admin/index.html`) and one fact. The serving one opens by itself, and
+    again when the engine changes; the others keep the person's choice (`localStorage` `lolEngineOpen`, kept through
+    the 5 s rebuild, which also gives the keyboard focus back). Every section but the serving one ends with **Serve
+    with <engine>** (`engineClick`: the same question and `/lol/admin/backend` as the old engine buttons; vLLM's off
+    until it is set up, replaced by the take-over offer when there is one); opening a section never switches; opening
+    vLLM's checks this computer once per page. Then **Access** (the name users see, Free an idle seat after, the farm
+    password, the ONE Apply changes), Model storage, Plugins, Clients, This box. In the sections: Ollama's catalog
+    (download/offer/stop/delete/Make default/Rename); the `.gguf` library (add by URL — split files too — / Use this,
+    with rollback; while another engine serves, Use this chooses and downloads what Serve with llama.cpp will serve,
+    owner 2026-10-09); vLLM's checklist, Install, the model list, Start/Stop, the log, WSL's disk and the take-over
+    offer; each engine's part of Model storage; and, in the serving one only (Apply writes to the engine that serves),
+    *People and context* and Performance (llama.cpp, a vLLM). The name users see (llama.cpp, vLLM) or per-model
     **Rename** (Ollama); people served at once, the context window (Automatic on Ollama and llama.cpp; on vLLM the
     context is a number, and people at once and GPU memory for conversations are Automatic) and the farm
     password under ONE **Apply changes** (one restart; on vLLM a dry run first, and vLLM restarts only for a new
     model, context, memory or request cap), and **Free an idle seat after** (`proxy.seatIdleSec`,
     1–60 min, the workshop setting — alone it applies live, no restart); Ollama download/offer/stop/delete/Make default;
-    plugin toggles and the Blender fleet recommendation; a Performance card (llama.cpp, or a vLLM) and the clients with
-    their seats. Long operations run as one job whose progress the panel polls. vLLM's install and model downloads
-    run beside it in a second slot, the download slot, with their own bar and Stop. A Stop of vLLM is not kept: the
+    plugin toggles and the Blender fleet recommendation; and the clients with their seats. Long operations run as one
+    job whose progress the panel polls. vLLM's install and model downloads run beside it in a second slot, the download slot, with their own bar and Stop. A Stop of vLLM is not kept: the
     next farm start starts vLLM again. Everything persists to
     `lol.config.json` (`configFile.js` raw patch — never the schema-parsed config) **except** the plugin
     toggles and the Blender recommendation; Ollama's slot count applies after a farm restart. The header's
@@ -151,7 +163,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     of truth. Everything goes into `<dir>/gguf` (llama.cpp, document search, drafts), `speech-to-text/`, `classify/`
     (Laya, its own HF cache), `kokoro/` (the voice's .pth), `ollama/` (the `OLLAMA_MODELS` of an Ollama the farm starts:
     `lol up`, `lol install`, the Farm app's wizard), on Linux `vllm/` (`<root>/hf` a link to `<dir>/vllm/hf`), and the
-    vLLM card offers `<dir>\wsl\<distro>` for WSL's disk. A `.gguf` dropped into `gguf/` joins the llama.cpp list and one
+    vLLM section offers `<dir>\wsl\<distro>` for WSL's disk. A `.gguf` dropped into `gguf/` joins the llama.cpp list and one
     deleted leaves it; vLLM's `hf/` folders likewise. `<dir>/.lol-storage` (written at the switch) proves the folder is
     there: without it the farm says the folder is missing and downloads or starts nothing from it. **Move here** (download
     slot) copies only each store's own files (Ollama's `blobs/` + `manifests/`, vLLM's list folders, Laya's repo; the
@@ -167,7 +179,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     deletes the old copy only once the app (never the farm's own Ollama) is seen reading the new folder; Linux (a service)
     or an app it cannot change: the panel says what to set, after the move. **Use the models in this folder**: a scan;
     `.gguf` → llama.cpp entries by `path`, HF folders → vLLM entries by `path`, an Ollama folder → `storage.ollama`
-    (`OLLAMA_NOPRUNE=1`); **Move into the farm's folder** for `.gguf` and a lent Ollama folder. Windows: the vLLM card's
+    (`OLLAMA_NOPRUNE=1`); **Move into the farm's folder** for `.gguf` and a lent Ollama folder. Windows: the vLLM section's
     **WSL's Linux disk** row runs `wsl --manage <d> --move` (checked first; vLLM stopped first; `wsl --shutdown` only after
     a second question naming every running Linux, from `wsl -l --running -q`). A hard disk or USB drive is said; network
     folders refused. Two independent reviews of the data-loss paths (2026-10-12) fixed: DEVLOG.
@@ -664,7 +676,7 @@ CLI commands:
 | `lol models ls` / `add <id>` / `rm <id>` / `pull` | Manage the Ollama catalog in `models` (then `lol up --no-pick`). |
 | `lol status` | Health of each Ollama host + the proxy + which models are loaded. |
 | `lol down` / `stop` | Stop the proxy + `llama-server` + SearXNG/TTS/OCR/document search + beacon (and any Ollama it started), and the vLLM the farm runs (from the runtime file, else the config; never an operator's vLLM the farm only downloaded a model for). |
-| `lol install` / `setup` | One-time, idempotent bootstrap: Ollama, the LiteLLM venv, every `models` + `preinstall` entry, the SearXNG + OCR venvs, document search when it is on (the llama.cpp build + EmbeddingGemma 2, ~0.6 GB), and (only when `llamacpp.enabled`) the llama.cpp build + weights. Never vLLM: the panel's vLLM card installs it. |
+| `lol install` / `setup` | One-time, idempotent bootstrap: Ollama, the LiteLLM venv, every `models` + `preinstall` entry, the SearXNG + OCR venvs, document search when it is on (the llama.cpp build + EmbeddingGemma 2, ~0.6 GB), and (only when `llamacpp.enabled`) the llama.cpp build + weights. Never vLLM: the panel's vLLM section installs it. |
 | `lol fleet` / `lol bench` | Every farm on the LAN; load-test N concurrent chats before a workshop. |
 
 Notes:
