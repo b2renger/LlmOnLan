@@ -69,10 +69,11 @@ feedback between bot and user works … no Wizard of Oz, we want to actually do 
 - **What leaves this computer**: each turn's sound to the farm's speech to text, written down and dropped (never kept or
   logged; the Record log has `voice.*` events and timings only); the words to the model; each sentence to the farm's
   voice. Run all, ▶, a Trigger and Open WebUI's tools never open the microphone.
-- Tested: `voice` (26), `converse-part` (19, the consent rules through the box's real `run()` among them), the ask,
+- Tested: `voice` (26), `converse-part` (23, the consent rules through the box's real `run()` among them), the ask,
   runner, sandbox, capture additions (unit; each rule taken out once and its test failed); `k27-converse` (harness: a
   turn reaches the live face in order, the first sentence is heard before the stream ends, an interruption, leaving
-  stops the microphone). **Yours to check:** HUMAN_TESTS F8–F11 — a real microphone, loudspeakers against a headset,
+  stops the microphone). A fresh agent reviewed the consent and privacy rules; its five findings are fixed, each with a
+  test (DEVLOG 12 Oct). **Yours to check:** HUMAN_TESTS F8–F11 — a real microphone, loudspeakers against a headset,
   French with Margot, the microphone light, a class of laptops.
 
 ## NEWEST (5 Oct) — yes/no decisions think, the rest stays fast

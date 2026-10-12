@@ -441,7 +441,8 @@ interaction: who the bot is, how it takes turns, how long it makes you wait, and
    *No face*.
 3. **● Start.** Only this button opens the microphone — Run all, the ▶ in the title bar, a Trigger and
    Open WebUI's tools never do. Allow the microphone, and talk. The box shows **● Microphone on** in red
-   for as long as it is. **■ End** ends the conversation after the sentence being said; the run bar's
+   for as long as it is. **■ End** ends the conversation after the sentence being said (pressed twice, at
+   once; anything you say after it is not heard); the run bar's
    **Stop** cuts it at once; and **leaving the Computer** (or hiding the window) ends it too — it does not
    pause — and the microphone closes.
 4. **The knobs** are the design material. **End of turn after** (ms of silence): short is an impatient bot

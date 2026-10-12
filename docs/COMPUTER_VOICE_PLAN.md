@@ -562,3 +562,11 @@ a reader of §8 is not misled.
     with the microphone open. The *Voice face* preset is a p5 Preview matched on its code; `presetOf` now takes the most
     specific match (a Voice face also matches *p5.js sketch*), and the preset is named *Voice face (p5.js sketch)* so a
     search for "p5" still lists the plain sketch and *Write a p5.js sketch* first.
+12. **The independent review (2026-10-12), fixed.** After ■ End (or a limit) whatever the person says ends the
+    conversation, unheard and unsent, and a second ■ End is "now"; the time limit stops hard 30 s after it asks. A
+    sentence still being made when ■ End is pressed is not said. A press while the box is starting or talking is not a
+    Start (a double click merged into the live run and reopened the microphone after ■ End); a run that follows the
+    box's own end within 3 s (the ▶ pressed during a conversation) hands on the transcript instead of opening the
+    microphone. The stop handle exists before the microphone opens (a box deleted during the permission prompt).
+    The host forgets the presses of a run's seeds that the run never reached (Stop, a failed box upstream), so a
+    Trigger a moment later cannot use one. Kept as decided: a take that cannot be decoded is sent whole (decision 6).
