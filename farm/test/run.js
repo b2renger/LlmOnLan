@@ -2752,6 +2752,9 @@ test('panel: the password row says what it protects — the plugins too — and 
 test('classify + stt start AFTER the farm is public, and their installs never block the event loop (rig, 2026-09-27)', () => {
     const svcs = makeServices();
     const c = defaultConfig();
+    // "Its first download is ahead", whatever this machine downloaded before: an empty llama.cpp folder (a run of
+    // vllm-lifecycle.js leaves document search's model in farm/.models, which made this test fail).
+    c.llamacpp.binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lol-nobin-'));
     assert.deepEqual(svcs.filter((s) => s.desc.late === true).map((s) => s.id), ['bus', 'classify'], 'the heavy first start is late, and the quick bus before it');
     assert.deepEqual(svcs.filter((s) => s.isLate(c)).map((s) => s.id), ['bus', 'embed', 'classify', 'stt'], 'document search too while its first download is ahead');
     const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
