@@ -6,6 +6,26 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-13 (09:24) — The PRO 6000's models and its WSL disk are on F: — C: from 65 to 618 GB free
+
+The owner: *"we need to actually move the models and free up space on C, lets do what we talked about"*. Done from
+the panel's own routes (the Farm app's token), on the installed Farm app:
+- **The models** (farm-v0.0.48, HUMAN_TESTS O1): Laya's weights were the one file v0.0.47 had left behind (judged
+  damaged by the shared file's name). With nothing left to move for the farm, they were finished by hand exactly as
+  v0.0.48 does it — the shared file copied to `<sha256>.lolmove-part`, its sha256 checked against the link's name
+  (`891102…`), renamed into place; then Classify's old folder on C:, holding only that 0-byte link, removed. The
+  shared 843 MB file stays in the Hugging Face cache. All of the farm's models are in `F:\LlmOnLan`: Ollama (10
+  models, the app pointed there by the farm), gguf, speech to text, Classify.
+- **WSL's disk** (HUMAN_TESTS O3): the vLLM section's move of Ubuntu (421 GB file) to `F:\LlmOnLan\wsl\Ubuntu` —
+  dry run first (only Ubuntu ran: all of WSL was not stopped), then 7 min from *stopping Ubuntu* to *vLLM runs again*;
+  the registry's BasePath points at F:, the old folder is gone, and a chat through the gate answered in 0.31 s.
+- **Result: C: 65 → 618 GB free.** F: 1764 → 1211 GB free.
+- **A slip of the lead's:** before the v0.0.48 install, `Stop-Process` ended the Farm app at once instead of the window
+  close that runs `lol down` (a shell check had refused the combined command). vLLM kept running as after a crash and
+  v0.0.48 adopted it at its start (busy cleared at once, no reload): the designed crash path, now seen on the real box.
+- **Not exercised:** a deliberate Stop/Quit in the middle of the move (two real cuts were resumed instead), document
+  reading of a scanned PDF from a laptop, and looking at Ubuntu's other projects by hand after the move.
+
 ## 2026-10-13 (09:09) — The models are on F: (140.1 GB freed on C:); Classify's weights judged damaged by the wrong name
 
 farm-v0.0.47 was installed (the Farm app closed through its own Quit, so `lol down` stopped vLLM first; installer

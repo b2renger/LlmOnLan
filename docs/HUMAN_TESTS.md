@@ -1641,7 +1641,7 @@ how many GB were freed (the 127 GB of Ollama's included), `%APPDATA%\LlmOnLan Fa
 `C:\Users\ateliernum\.ollama\models\blobs` are gone, the card shows `F:\LlmOnLan\gguf`, `F:\LlmOnLan\.lol-storage`
 exists, the Ollama app's Settings ▸ Model location says `F:\LlmOnLan\ollama`, `ollama list` in a terminal lists every
 model, and document reading (gemma4:12b) reads a scanned PDF from the laptop.
-- [ ] Done · Found:
+- [x] Done 2026-10-13 (run by the lead with the panel's own routes, farm-v0.0.46 → v0.0.48) · Found: 140 GB to `F:\LlmOnLan` (Ollama 136, gguf 2.5, speech to text 1.6, Classify 0.85); **140.1 GB freed** on C:; the farm pointed the Ollama app at `F:\LlmOnLan\ollama` itself (closed, set, reopened: 10 models listed from F:); the copy ran at ~1 GB/s (2 min 4 s). Two real cuts instead of the planned Stop/Quit — the first move stopped on Classify's link into Hugging Face's shared blobs (fixed in v0.0.47), then v0.0.47 judged its weights damaged by the wrong name (fixed in v0.0.48; the 843 MB copied by hand the same way, checked by sha256) — and each resumed from its journal, nothing deleted without a checked copy. **Not exercised:** a Stop at ~20 %, a Quit at ~50 %, and document reading of a scanned PDF from a laptop.
 
 ### O2 When the farm cannot set the Ollama app (only if O1 said so)
 *Proves:* the 127 GB are deleted only once the Ollama app reads the new folder. *Was:* new.
@@ -1654,7 +1654,7 @@ If O1 ended with *One step left for Ollama's models …* (the farm could not qui
 *Expect:* step 1: *One step left for Ollama's models …* and `C:\Users\ateliernum\.ollama\models` untouched. Step 3:
 about *127 GB freed*; C: has ~127 GB more free; `ollama list` unchanged. If Finish keeps saying the step is left, write
 down what `%LOCALAPPDATA%\Ollama\server.log` says after `OLLAMA_MODELS:` at its last start.
-- [ ] Done · Found:
+- [x] Not needed 2026-10-13 · Found: O1 set the Ollama app itself; the refusal path stays covered by the unit tests.
 
 ### O3 Ubuntu's Linux disk to F:
 *Proves:* vLLM works the same after its whole Linux moved; nothing else in Ubuntu is lost. *Was:* new. **Never run by
@@ -1672,7 +1672,7 @@ Linux runs, named), that vLLM stops first and starts again. At the end: *Ubuntu'
 now (N min)*, vLLM serves again (its Performance), a chat works; `wsl -d Ubuntu` opens with your files;
 `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss /s` shows that `BasePath`; C: has ~421 GB more free.
 Write down the minutes.
-- [ ] Done · Found:
+- [x] Done 2026-10-13 · Found: Ubuntu (452 GB on disk, 421 GB file) to `F:\LlmOnLan\wsl\Ubuntu` in **7 min** (09:17 → 09:23, stopping Ubuntu included); only Ubuntu ran, so all of WSL was not stopped; vLLM started again by itself and answered a chat through the gate in 0.31 s; the registry's BasePath points at F:; the old folder on C: is gone; **C: free 197 → 618 GB**. Not checked by hand: opening `wsl -d Ubuntu` to look at the other projects.
 
 ### O4 The folder is the list; models elsewhere used where they are, or moved in
 *Proves:* what is in the folder is what the farm has; models already on disk are used where they are, or moved in on
