@@ -6,6 +6,26 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-13 (08:54) — The real move on the PRO 6000 stopped on Classify's model: Hugging Face's shared blobs
+
+The owner asked to move the models off C: (65 GB free) now. farm-v0.0.46 was installed over v0.0.45 (silent per-user
+installer, its sha256 checked against the release; the Farm app started, refreshed its farm code, and came up healthy
+on vLLM). The dry run to `F:\LlmOnLan` (the 990 PRO NVMe, 1895 GB free) planned 140 GB: Ollama's models (136 GB, run by
+the Ollama app, the app switched by the farm), the gguf folder (2.5 GB), speech to text (1.6 GB) and Classify (3.6 MB
+listed).
+- **The move stopped after 4 s, safely:** `models--convaiinnovations--layalobs\891102…` *is a link to something
+  outside* its folder. Nothing was deleted, nothing switched; the journal keeps what was copied (4.1 GB).
+- **Why:** huggingface_hub's **shared blobs** — a file is kept once in `<hub>lobs\<2 chars>\<sha256>` (the folder is
+  marked by `.huggingface-shared-blobs`) and a model's own `blobs\` only links to it. Laya's weights (804 MB) live
+  there; the same cache holds ComfyUI's FLUX/LTX/Wan models, so deleting a shared file could break another program.
+- **The fix (`storage.js` `sharedBlobOf`):** a link that leaves the model's folder and lands on a file in a folder marked
+  as shared blobs is moved as that file: its content is copied into the farm's folder as a real file, checked against
+  its name (its sha256), and afterwards only the model's link is deleted — never the shared file (`deleteMoved`
+  `sharedLeftBytes`; Finish says how many GB stay in the shared cache and does not count them as freed). Any other link
+  out of a folder still stops the move. Test: *a model in Hugging Face's shared blobs moves as its file…* (fails on the
+  old code: the link was listed as a link and refused). Farm `test/run.js` 269/0.
+- Shipped as farm-v0.0.47 (farm only; the client is unchanged); then the move goes on from its journal.
+
 ## 2026-10-12 (17:18) — Release client v0.2.12 and Farm app farm-v0.0.46: Converse, Model storage, the panel by engine
 
 The owner chose (15:04) to ship farm-v0.0.46 together with Converse. Done:

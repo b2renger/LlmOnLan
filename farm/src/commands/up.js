@@ -4735,8 +4735,9 @@ function makeStorage(ctx) {
         const n = (k, x) => `${k} file${k === 1 ? '' : 's'} in ${x}`;
         if (r.kept > 0) words.push(`Kept because their copy differs${s.id === 'ollama' ? ' (or a model they belong to is not whole in the new folder)' : ''}: ${n(r.kept, s.from)}.`);
         if (r.notCopied - damaged.size > 0) words.push(`Kept because they were not copied: ${n(r.notCopied - damaged.size, s.from)}.`);
+        if (r.sharedLeftBytes > 0) words.push(`${GB(r.sharedLeftBytes)} GB stay in Hugging Face's shared cache, where other models may use them: the farm deleted only its links to them.`);
         const note = r.busy ? `${n(r.busy, s.from)} could not be deleted (in use): press Finish later to delete them.` : null;
-        return { done: !r.busy, freed: Math.max(0, before - after), kept: words.join(' ') || null, note };
+        return { done: !r.busy, freed: Math.max(0, before - after - r.sharedLeftBytes), kept: words.join(' ') || null, note };
     }
     async function stopFarmOllama() {
         for (const pid of oll.spawnedPids) {

@@ -318,7 +318,14 @@ async function listFiles(root, { only = null } = {}) {
         for (const e of entries) {
             if (!rel && only && !only.includes(e.name)) continue;
             const r = rel ? path.join(rel, e.name) : e.name;
-            if (e.isSymbolicLink()) { out.push({ rel: r, link: await fsp.readlink(path.join(root, r)) }); continue; }
+            if (e.isSymbolicLink()) {
+                const link = await fsp.readlink(path.join(root, r));
+                const shared = linkEscapes(r, link) ? await sharedBlobOf(path.join(root, r)) : null;
+                // A link into Hugging Face's shared blobs: moved as the file it points to (see sharedBlobOf).
+                if (shared) out.push({ rel: r, size: shared.size, shared: shared.path });
+                else out.push({ rel: r, link });
+                continue;
+            }
             if (e.isDirectory()) { await walk(r); continue; }
             if (!e.isFile() || UNFINISHED.test(e.name) || e.name.endsWith(PART)) continue;
             out.push({ rel: r, size: (await fsp.stat(path.join(root, r))).size });
@@ -337,6 +344,20 @@ function linkEscapes(rel, link) {
     const to = path.normalize(path.join(path.dirname(rel), link));
     return to === '..' || to.startsWith(`..${path.sep}`) || path.isAbsolute(to);
 }
+// huggingface_hub's shared blobs: a model's file is kept ONCE in <hub>/blobs/<2 chars>/<sha256> (that folder marked
+// by a `.huggingface-shared-blobs` file) and each model's own blobs/ only links to it (the PRO 6000's Laya,
+// 2026-10-13: the move stopped on that link). Such a link is moved as the file it points to — its content is copied
+// into the farm's folder, checked against its name (its sha256) — and only the model's link is deleted afterwards,
+// never the shared file, which another model may use. → {path, size} or null for any other link.
+async function sharedBlobOf(linkPath) {
+    let real;
+    try { real = await fsp.realpath(linkPath); } catch { return null; }
+    const marker = path.join(path.dirname(path.dirname(real)), '.huggingface-shared-blobs');
+    const [st, mk] = await Promise.all([statOrNull(real), statOrNull(marker)]);
+    return st && st.isFile() && mk && mk.isFile() ? { path: real, size: st.size } : null;
+}
+// A shared blob is named by its sha256: the checksum its copy must have.
+const sharedDigest = (f) => (f.shared && /^[0-9a-f]{64}$/.test(path.basename(f.shared)) ? path.basename(f.shared) : null);
 // The sha256 a file of a store must have, when the farm knows it: Ollama's blobs are named by theirs, document search's
 // model is pinned (embed.js). `pinned` = {basename: sha256} for the gguf store.
 function digestOf(storeId, rel, pinned = {}) {
@@ -460,7 +481,7 @@ async function copyStore(from, to, files, { onBytes = () => {}, isCancelled = ()
     let copied = 0;
     for (const f of files) {
         if (isCancelled()) throw cancelled();
-        const src = path.join(from, f.rel); const dst = path.join(to, f.rel);
+        const src = f.shared || path.join(from, f.rel); const dst = path.join(to, f.rel);
         const d = await statOrNull(dst);
         if (f.link != null) {
             if (linkEscapes(f.rel, f.link)) throw new Error(`${src} is a link to something outside ${from}: the farm cannot move it. Nothing was moved.`);
@@ -470,7 +491,7 @@ async function copyStore(from, to, files, { onBytes = () => {}, isCancelled = ()
             await fsp.symlink(f.link, dst);
             continue;
         }
-        const digest = digestFor(f.rel);
+        const digest = digestFor(f.rel) || sharedDigest(f);
         if (d) {
             const differs = new Error(`${dst} is already there and differs from ${src}: move it away or delete it, then press Move here again.`);
             if (!d.isFile()) throw differs;
@@ -503,7 +524,7 @@ async function copyStore(from, to, files, { onBytes = () => {}, isCancelled = ()
 async function verifyStore(from, to, files, { digestFor = () => null, hashed = new Set(), isCancelled = () => false, onBytes = () => {} } = {}) {
     const problems = [];
     for (const f of files) {
-        const src = path.join(from, f.rel); const dst = path.join(to, f.rel);
+        const src = f.shared || path.join(from, f.rel); const dst = path.join(to, f.rel);
         const d = await statOrNull(dst);
         if (f.link != null) {
             if (!(d && d.isSymbolicLink() && (await fsp.readlink(dst)) === f.link) || sameEntry(src, dst)) problems.push(`${dst} is missing.`);
@@ -513,7 +534,7 @@ async function verifyStore(from, to, files, { digestFor = () => null, hashed = n
         if (d.size !== f.size) { problems.push(`${dst} is ${d.size} bytes, not ${f.size}.`); continue; }
         if (sameFile(src, dst)) { problems.push(`${dst} is the same file as ${src}: the two folders are one.`); continue; }
         if (f.size < SMALL && !(await sameBytes(src, dst))) { problems.push(`${dst} differs from ${src}.`); continue; }
-        const digest = digestFor(f.rel);
+        const digest = digestFor(f.rel) || sharedDigest(f);
         if (digest && !hashed.has(f.rel)) {
             const got = await sha256File(dst, { isCancelled, onBytes });
             if (got !== digest) problems.push(`${dst} does not match its checksum.`);
@@ -554,9 +575,10 @@ async function ollamaKeep(from, to, files, verified) {
 // same file, and never one of `keep`; `only` = the store's names at the top of `from` (nothing else there is touched).
 // Nothing at all when the two folders are one, or one holds the other, through any link. Then the folders emptied, and
 // `from` itself once empty. → {deleted, kept (a copy that differs, or kept on purpose), notCopied (no copy at all),
-// busy (could not be deleted: in use), keptBytes, refused (why nothing was deleted)}.
+// busy (could not be deleted: in use), keptBytes, sharedLeftBytes (shared Hugging Face blobs left in their cache: only
+// the model's links were deleted), refused (why nothing was deleted)}.
 async function deleteMoved(from, to, { only = null, keep = new Set() } = {}) {
-    const res = { deleted: 0, kept: 0, notCopied: 0, busy: 0, keptBytes: 0, refused: null };
+    const res = { deleted: 0, kept: 0, notCopied: 0, busy: 0, keptBytes: 0, sharedLeftBytes: 0, refused: null };
     const rf = realOf(from); const rt = realOf(to);
     if (inside(rf, rt) || inside(rt, rf)) {
         res.refused = `${from} and ${to} are one folder (or one holds the other), so nothing was deleted.`;
@@ -570,8 +592,10 @@ async function deleteMoved(from, to, { only = null, keep = new Set() } = {}) {
         if (!d) { res.notCopied++; res.keptBytes += bytes; continue; }
         const good = f.link != null
             ? d.isSymbolicLink() && (await fsp.readlink(dst)) === f.link && !sameEntry(src, dst)
-            : d.isFile() && d.size === f.size && !sameFile(src, dst);
+            : d.isFile() && d.size === f.size && !sameFile(f.shared || src, dst);
         if (!good) { res.kept++; res.keptBytes += bytes; continue; }
+        // A shared Hugging Face blob: only the model's link goes (unlink never follows it); the shared file stays.
+        if (f.shared) res.sharedLeftBytes += bytes;
         try { await fsp.unlink(src); res.deleted++; }
         catch (e) { if (e.code === 'ENOENT') res.deleted++; else { res.busy++; res.keptBytes += bytes; } }   // in use (Windows): kept, Finish tries again
     }
