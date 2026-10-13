@@ -13,9 +13,9 @@ installer, its sha256 checked against the release; the Farm app started, refresh
 on vLLM). The dry run to `F:\LlmOnLan` (the 990 PRO NVMe, 1895 GB free) planned 140 GB: Ollama's models (136 GB, run by
 the Ollama app, the app switched by the farm), the gguf folder (2.5 GB), speech to text (1.6 GB) and Classify (3.6 MB
 listed).
-- **The move stopped after 4 s, safely:** `models--convaiinnovations--layalobs\891102…` *is a link to something
+- **The move stopped after 4 s, safely:** `models--convaiinnovations--laya\blobs\891102…` *is a link to something
   outside* its folder. Nothing was deleted, nothing switched; the journal keeps what was copied (4.1 GB).
-- **Why:** huggingface_hub's **shared blobs** — a file is kept once in `<hub>lobs\<2 chars>\<sha256>` (the folder is
+- **Why:** huggingface_hub's **shared blobs** — a file is kept once in `<hub>\blobs\<2 chars>\<sha256>` (the folder is
   marked by `.huggingface-shared-blobs`) and a model's own `blobs\` only links to it. Laya's weights (804 MB) live
   there; the same cache holds ComfyUI's FLUX/LTX/Wan models, so deleting a shared file could break another program.
 - **The fix (`storage.js` `sharedBlobOf`):** a link that leaves the model's folder and lands on a file in a folder marked
