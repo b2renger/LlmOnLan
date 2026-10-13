@@ -356,8 +356,10 @@ async function sharedBlobOf(linkPath) {
     const [st, mk] = await Promise.all([statOrNull(real), statOrNull(marker)]);
     return st && st.isFile() && mk && mk.isFile() ? { path: real, size: st.size } : null;
 }
-// A shared blob is named by its sha256: the checksum its copy must have.
-const sharedDigest = (f) => (f.shared && /^[0-9a-f]{64}$/.test(path.basename(f.shared)) ? path.basename(f.shared) : null);
+// The checksum its copy must have: the MODEL's link is named by the file's sha256 (a large file's blob name in a
+// Hugging Face cache), not the shared file — that one is named by another hash (on the PRO 6000, 2026-10-13, the
+// shared name read as a sha256 judged Laya's weights damaged). No 64-hex name: size and bytes only.
+const sharedDigest = (f) => (f.shared && /^[0-9a-f]{64}$/.test(path.basename(f.rel)) ? path.basename(f.rel) : null);
 // The sha256 a file of a store must have, when the farm knows it: Ollama's blobs are named by theirs, document search's
 // model is pinned (embed.js). `pinned` = {basename: sha256} for the gguf store.
 function digestOf(storeId, rel, pinned = {}) {

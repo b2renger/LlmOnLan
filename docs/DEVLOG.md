@@ -6,6 +6,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-13 (09:09) — The models are on F: (140.1 GB freed on C:); Classify's weights judged damaged by the wrong name
+
+farm-v0.0.47 was installed (the Farm app closed through its own Quit, so `lol down` stopped vLLM first; installer
+sha256 checked) and Move here pressed again: it resumed from its journal and finished in 2 min 4 s (09:04:22 → 09:06:26):
+Ollama's 136 GB copied and checked by checksum, the **Ollama app pointed at `F:\LlmOnLan\ollama` by the farm**
+(closed, its setting written, reopened), the stores switched, **140.1 GB freed in the old folders** on C:.
+- **One file left behind:** Laya's weights were *"damaged already (their checksum differs)"*. They are not: in a Hugging
+  Face cache the sha256 is the **model's link name** (`blobs\891102…`, measured: the shared file's sha256 is exactly
+  that), while the shared file `blobs\dd\dd8562…` is named by another hash. v0.0.47 read the shared name as the
+  checksum. Nothing was lost (a damaged file is never copied or deleted: the original and Classify's link stay on C:),
+  but `F:\LlmOnLan\classify` has no weights.
+- **Fix (`storage.js` `sharedDigest`):** the checksum is the link's name when it is 64 hex digits, else size and bytes.
+  The test now builds the real layout (link named by the sha256, the shared file by another hash) and a really damaged
+  shared file (not copied); it fails on v0.0.47. Farm `test/run.js` 269/0. Shipped as farm-v0.0.48.
+
 ## 2026-10-13 (08:54) — The real move on the PRO 6000 stopped on Classify's model: Hugging Face's shared blobs
 
 The owner asked to move the models off C: (65 GB free) now. farm-v0.0.46 was installed over v0.0.45 (silent per-user

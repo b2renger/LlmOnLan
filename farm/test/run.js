@@ -5694,36 +5694,49 @@ test('storage: Move here copies, checks, then deletes — a cut mid-copy is fini
 });
 
 test('storage: a model in Hugging Face\'s shared blobs moves as its file, checked by its name; the shared file is never deleted (PRO 6000, 2026-10-13)', async () => {
-    // huggingface_hub keeps a file ONCE in <hub>/blobs/<2>/<sha256> (marked .huggingface-shared-blobs) and the model's
-    // own blobs/ links to it: Classify's Laya on the PRO 6000 stopped the move ("a link to something outside").
+    // huggingface_hub keeps a file ONCE in <hub>/blobs/<2>/<its own hash> (marked .huggingface-shared-blobs) and the
+    // model's own blobs/<sha256> links to it: Classify's Laya on the PRO 6000 stopped the move ("a link to something
+    // outside"); then the shared file's name, read as a sha256, judged it damaged — the sha256 is the LINK's name.
     const root = tmpDir('hfshared');
     try {
         const hub = path.join(root, 'hub');
+        const crypto = require('crypto');
         const weights = Buffer.from('laya weights');
-        const sha = require('crypto').createHash('sha256').update(weights).digest('hex');
+        const sha = crypto.createHash('sha256').update(weights).digest('hex');                  // the model's link is named by it
+        const xh = crypto.createHash('sha256').update('another kind of hash').digest('hex');    // the shared file's name
         writeFile(path.join(hub, 'blobs', '.huggingface-shared-blobs'), Buffer.from('1\n'));
-        writeFile(path.join(hub, 'blobs', sha.slice(0, 2), sha), weights);
+        writeFile(path.join(hub, 'blobs', xh.slice(0, 2), xh), weights);
         const repo = path.join(hub, 'models--x--laya');
         writeFile(path.join(repo, 'blobs', 'cfg'), Buffer.from('{}'));
         fs.mkdirSync(path.join(repo, 'snapshots', 's1'), { recursive: true });
         try {
-            fs.symlinkSync(path.join('..', '..', 'blobs', sha.slice(0, 2), sha), path.join(repo, 'blobs', 'w1'), 'file');
-            fs.symlinkSync(path.join('..', '..', 'blobs', 'w1'), path.join(repo, 'snapshots', 's1', 'model.safetensors'), 'file');
+            fs.symlinkSync(path.join('..', '..', 'blobs', xh.slice(0, 2), xh), path.join(repo, 'blobs', sha), 'file');
+            fs.symlinkSync(path.join('..', '..', 'blobs', sha), path.join(repo, 'snapshots', 's1', 'model.safetensors'), 'file');
         } catch (e) { if (e.code === 'EPERM') { console.log('       (no symbolic links on this machine: skipped)'); return; } throw e; }
         const to = path.join(root, 'F', 'classify', 'models--x--laya');
         const files = await ST.listFiles(repo);
-        const w1 = files.find((f) => f.rel === path.join('blobs', 'w1'));
+        const w1 = files.find((f) => f.rel === path.join('blobs', sha));
         assert.equal(w1.size, weights.length, 'listed as the file it points to');
         assert.ok(files.find((f) => f.rel === path.join('snapshots', 's1', 'model.safetensors')).link, 'a link inside the model stays a link');
         const r = await ST.copyStore(repo, to, files);
-        assert.ok(r.hashed.has(path.join('blobs', 'w1')), 'checked against its name, its sha256');
-        assert.ok(!fs.lstatSync(path.join(to, 'blobs', 'w1')).isSymbolicLink() && fs.readFileSync(path.join(to, 'blobs', 'w1')).equals(weights), 'a real file in the farm\'s folder');
+        assert.deepEqual(r.damaged, [], 'not judged damaged by the shared file\'s own name');
+        assert.ok(r.hashed.has(path.join('blobs', sha)), 'checked against the link\'s name, its sha256');
+        assert.ok(!fs.lstatSync(path.join(to, 'blobs', sha)).isSymbolicLink() && fs.readFileSync(path.join(to, 'blobs', sha)).equals(weights), 'a real file in the farm\'s folder');
         assert.ok(fs.readFileSync(path.join(to, 'snapshots', 's1', 'model.safetensors')).equals(weights), 'the model loads from the new folder');
         assert.deepEqual(await ST.verifyStore(repo, to, files), { ok: true, problems: [] });
         const d = await ST.deleteMoved(repo, to);
         assert.equal(d.sharedLeftBytes, weights.length);
-        assert.ok(fs.readFileSync(path.join(hub, 'blobs', sha.slice(0, 2), sha)).equals(weights), 'the shared file stays: another model may use it');
+        assert.ok(fs.readFileSync(path.join(hub, 'blobs', xh.slice(0, 2), xh)).equals(weights), 'the shared file stays: another model may use it');
         assert.ok(!fs.existsSync(repo), 'the model\'s old folder is gone (only its links pointed there)');
+        // A shared file whose content does not match the link's name IS damaged: not copied, its link left in place.
+        const repo3 = path.join(hub, 'models--x--bad');
+        const badName = 'ab' + xh.slice(2);
+        writeFile(path.join(hub, 'blobs', 'ab', badName), Buffer.from('not what the name says'));
+        fs.mkdirSync(path.join(repo3, 'blobs'), { recursive: true });
+        fs.symlinkSync(path.join('..', '..', 'blobs', 'ab', badName), path.join(repo3, 'blobs', sha), 'file');
+        const r3 = await ST.copyStore(repo3, path.join(root, 'F3'), await ST.listFiles(repo3));
+        assert.deepEqual(r3.damaged, [path.join('blobs', sha)]);
+        assert.ok(!fs.existsSync(path.join(root, 'F3', 'blobs', sha)), 'a damaged file is not copied');
         // Any other link out of the folder still stops the move.
         const other = path.join(root, 'other'); writeFile(path.join(other, 'blobs', 'x'), Buffer.from('elsewhere'));
         const repo2 = path.join(hub, 'models--y--z');
