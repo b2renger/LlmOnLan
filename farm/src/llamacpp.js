@@ -25,18 +25,21 @@ const os = require('os');
 const { spawn, execFileSync } = require('child_process');
 const { downloadGguf, ggufPathFor } = require('./ollama');
 
-// Pinned llama.cpp build: an official ggml-org release (2026-10-08), the newest with its
+// Pinned llama.cpp build: an official ggml-org release (2026-10-23), the newest with its
 // win-x64 CUDA zip when pinned. The farm needs >= b11454, the first build that knows
 // EmbeddingGemma 2 ('gemma-embedding2', PR #30054): b10670 refused it with "unknown model
-// architecture". Checked against b10670 before bumping (DEVLOG 2026-10-08): every flag
-// argsFor() passes is still there with the same parsing and defaults, and the /metrics
-// names perf.js reads, /health and the log lines explainEngineFailure() quotes are the
-// same. Removed upstream, so a llamacpp.extraArgs carrying one now stops llama-server
-// (its "invalid argument" line is quoted on the panel): --mlock, --mmap/--no-mmap and
-// --direct-io (now --load-mode), --tensor-read-lazy (now --lazy-mode). ggml-org's Windows
-// CUDA 13 zips moved from 13.3 to 13.4 on 2026-09-15. A bump here must ride with
-// LLAMACPP_BUILD in .github/workflows/build-llamacpp-arm64.yml (the Spark tarball).
-const PINNED_BUILD = 'b11512';
+// architecture". b11769 brought the non-streaming cancel fix (#29707: a call abandoned while
+// someone else streams now stops within ~1 s), and b11803 Recursive's Flint (PR #30928; its
+// chat template needs the hexadecimal escapes of b11798). Checked against b11512 before
+// bumping (DEVLOG 2026-10-23): every flag argsFor() and embed.js pass is still there with the
+// same parsing and defaults, and the /metrics names perf.js reads, /health and the log lines
+// explainEngineFailure() quotes are the same. Removed upstream (b11512), so a
+// llamacpp.extraArgs carrying one stops llama-server (its "invalid argument" line is quoted
+// on the panel): --mlock, --mmap/--no-mmap and --direct-io (now --load-mode),
+// --tensor-read-lazy (now --lazy-mode). ggml-org's Windows CUDA 13 zips are 13.4 since
+// 2026-09-15. A bump here must ride with LLAMACPP_BUILD in
+// .github/workflows/build-llamacpp-arm64.yml (the Spark tarball).
+const PINNED_BUILD = 'b11836';
 const CUDA_TAG = 'cuda-13.4';   // sm_120/Blackwell needs CUDA >= 12.8; 13.4 covers 40-series too
 
 const ROOT = path.join(__dirname, '..', '.llamacpp');

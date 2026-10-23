@@ -171,7 +171,7 @@ at once, so clients fail over instead of chatting into a dead port.
 **What `lol up` bootstraps for it** (automatic on win-x64 with NVIDIA **and on the DGX Spark** —
 for linux-arm64 our own CI builds the official source at the pinned tag and the farm downloads it from
 this repo's `llamacpp-<build>` release; nothing to compile, no Docker): the pinned `llama-server` build
-(**b11512**, an official ggml-org release; the Windows zips use CUDA 13.4) plus the matching CUDA runtime
+(**b11836**, an official ggml-org release; the Windows zips use CUDA 13.4) plus the matching CUDA runtime
 into `farm/.llamacpp/`, then the weights + vision projector into
 `farm/.models/`. That is a **multi-GB first run** — `lol install` pre-fetches it so `lol up` doesn't
 stall on it later. On any other platform, install llama.cpp yourself and point `llamacpp.binDir` at the
@@ -1313,7 +1313,7 @@ nothing. Shape:
                 "library": [ /* … */ ],        // the .gguf choices the panel offers (see below)
                 "host": "127.0.0.1",           // LiteLLM is the only thing that talks to it
                 "port": 8081, "binDir": null,
-                "extraArgs": [] },             // llama-server flags, appended last. b11512 refuses --mlock,
+                "extraArgs": [] },             // llama-server flags, appended last. b11836 refuses --mlock,
                                                //   --mmap/--no-mmap, --direct-io, --tensor-read-lazy
   "preinstall": [ /* … */ ],                   // models DOWNLOADED but never served (staged for the
                                                //   admin panel). Ships non-empty (~8.6 GB) — see below
@@ -1764,9 +1764,10 @@ Measured 2026-10-04:
 
 - **Ollama 0.34** stops on every path within 16–71 ms.
 - **llama.cpp b10670** stops streams within ~10 ms, but a **non-streaming call abandoned while someone else
-  streams runs to its end**. This is an upstream bug: the disconnect check sits on a 1 s wait that every
-  other request's result restarts. It is still there in b11406 (2026-10-05) and in the pinned b11512
-  (2026-10-08: released 19.6 s after the abort, 2071 tokens; the other 7 paths stop). Open PR
-  [#29707](https://github.com/ggml-org/llama.cpp/pull/29707) fixes it. So the llama.cpp mode fails until a
-  pinned build carries that fix. Bump the pin and re-run it. The reproduction is in
+  streams runs to its end**. This was an upstream bug: the disconnect check sat on a 1 s wait that every
+  other request's result restarted. It was still there in b11406 (2026-10-05) and in b11512 (2026-10-08:
+  released 19.6 s after the abort, 2071 tokens; the other 7 paths stop). PR
+  [#29707](https://github.com/ggml-org/llama.cpp/pull/29707) fixed it in b11769. On the pinned **b11836**
+  (2026-10-23, Qwen3.8 UD-IQ2_S) **all 8 paths stop**: streams 17 ms after the abort, non-streaming calls
+  0.95–0.99 s after it, the one beside a stream included. The reproduction is in
   `docs/upstream/LLAMACPP_NONSTREAM_CANCEL.md`.

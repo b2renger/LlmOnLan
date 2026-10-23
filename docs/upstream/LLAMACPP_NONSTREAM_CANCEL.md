@@ -1,5 +1,10 @@
 # llama.cpp: a non-streaming request is not cancelled while another slot streams
 
+> **Fixed upstream (2026-10-23).** PR #29707 was merged on 2026-10-20 and first shipped in b11769. On the farm's new
+> pin b11836, `farm/test/litellm-cancel.js` with Qwen3.8 UD-IQ2_S passes all 8 paths: the non-streaming call beside a
+> stream gets `cancel task` and is released 945 ms after its client left (b11512: 19.6 s, 2071 tokens). Nothing is
+> left to post. The rest of this page is kept as the record.
+
 **For the owner, to post in your own words.** llama.cpp forbids AI-written issues and comments, and forbids
 agents from posting on someone's behalf:
 - CONTRIBUTING.md, AI Usage Policy, item 5: "It is strictly prohibited to use AI to write your posts for you".

@@ -26,7 +26,7 @@ on:
     branches: [main]
 
 env:
-  LLAMACPP_BUILD: b11512        # keep in lockstep with farm/src/llamacpp.js PINNED_BUILD
+  LLAMACPP_BUILD: b11836        # keep in lockstep with farm/src/llamacpp.js PINNED_BUILD
   CUDA_ARCHS: "121"             # GB10 (DGX Spark) is sm_121; single arch keeps the build ~fast
 
 permissions:
