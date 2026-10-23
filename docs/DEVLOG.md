@@ -6,6 +6,25 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-23 (19:04) — Release client v0.2.13 and Farm app farm-v0.0.49: the coding agent's fence on a second drive, llama.cpp b11836
+
+The owner said "yes release" after the Flint evaluation. Done:
+- **Merged:** `flint` into `multiuser-phase0` (`8a05ed1`), then `main` fast-forwarded. Gates on the branch, re-run by the
+  lead before the merge: farm `test/run.js` 269/0; shell build, chat-unit 1922/0, unit 29, lint 0 (287 files).
+- **Client v0.2.13** (tag `v0.2.13`, commit `568a765`, CI run 39986592810, 38 min): success, 27 assets; `latest.yml`
+  says 0.2.13. It brings the coding agent's start check (dsh's own sandbox runner tried first; where it cannot run —
+  a data folder on a second drive on Windows — the agent does not start and says to move the folder) and the fence
+  accepting `sandbox_permissions: "workspace-write"` only.
+- **Farm app farm-v0.0.49** (tag `farm-v0.0.49`, commit `8aad003`, CI run 39986599831): a prerelease, 10 assets. It
+  brings llama.cpp b11836: the upstream non-streaming cancel fix (all 8 paths stop), document search's flash
+  attention (~2.5x faster), the same flags.
+- **`build-llamacpp-arm64`** (CI run 39986585475) published `llamacpp-b11836` for the Spark: success.
+- **Release notes:** both pages got a "What's new" above CI's own text (Flint is not advertised: the IDE gives an
+  unknown model 8192 tokens, too little for it).
+- **Not done, the owner's:** delete `F:\lol-scratch-flint` (64 GB of the evaluation's downloads: a delete the session's
+  safety check refused); install farm-v0.0.49 on the PRO 6000; HUMAN_TESTS G11 (the agent on a second drive) and, for
+  Flint at full speed, J12–J13 (vLLM stopped at a quiet moment).
+
 ## 2026-10-23 (16:55) — Flint for the coding agent: llama.cpp b11512 → b11836, Flint measured beside the live farm, and the project fence found off on a second drive
 
 The owner asked whether Recursive's **Flint** (released 2026-10-21; a 39.8B MoE with ~2.5B active, made for coding
