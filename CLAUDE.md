@@ -239,7 +239,10 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   telemetry off, skills only from `DATA_DIR/skills`; and **the project fence** — a PreToolUse command hook
   (`FENCE_JS`) that refuses any file tool outside the project, and a write or edit to `project.json` or `.git/` (the
   remote a person's Push sends to; 2026-10-09), because dsh itself confines writes only (on Windows
-  dsh runs hooks through PowerShell: the command needs `&` and `; exit $LASTEXITCODE`, else it silently passes); and
+  dsh runs hooks through PowerShell: the command needs `&` and `; exit $LASTEXITCODE`, else it silently passes; and
+  dsh runs a hook only where its sandbox starts — elsewhere it lets every call through, so on Windows `sandboxBlocked`
+  tries dsh's own runner first and the agent does not start on a folder whose permissions a person cannot change, a
+  second drive or a USB stick, 2026-10-23; a `sandbox_permissions` naming the standing `workspace-write` passes); and
   **the syntax check** (2026-09-30) — a PostToolUse hook (`CHECK_JS`) after every write/edit that parses the file's
   JavaScript (a .js/.mjs or each inline `<script>` of an .html) with `node:vm`, never running it, and on a SyntaxError
   exits 2 so the model reads the line and fixes it in the same reply. dsh's hook sandbox forbids writing outside the

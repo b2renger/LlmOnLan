@@ -1,0 +1,1 @@
+computeTax and formatMoney are duplicated in cart.js and invoice.js. Move them into a new file money.js that exports both, and make cart.js and invoice.js use the ones from money.js. The behaviour must not change: `node check.js` must still pass. Do not change check.js.

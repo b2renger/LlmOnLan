@@ -36,17 +36,17 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 | D. Two machines, two farms, other subnets | 2 laptops, a second farm, a guest Wi-Fi | 15 | — | 4 h |
 | E. Mac and Linux clients | Apple Silicon + Intel Mac, a Linux PC | 4 | — | 3 h |
 | F. The Computer's devices | mic, webcam, speakers, a headset, OSC tool, Art-Net light, Arduino/ESP32; F11: 5–10 laptops | 11 | — | 6 h (+1 h F11) |
-| G. LOL Vibe's IDE | 1 laptop, a password farm, a GitHub account | 10 | — | 2.5 h |
+| G. LOL Vibe's IDE | 1 laptop, a password farm, a GitHub account, a second drive or USB stick (G11) | 11 | — | 2.75 h |
 | H. Home Assistant on a real home | the office's Home Assistant Green | 4 | — | 2.5 h |
 | I. Document search on the farm | the farm, 2 laptops (one with old documents) | 7 | I1–I5 | 2 h |
-| J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client | 11 | J1–J4 | 5 h (+45 min install, +1 h for J10's 70 GB) |
+| J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client | 13 | J1–J4 | 5 h (+45 min install, +1 h for J10's 70 GB, +3 h 30 for J12–J13) |
 | K. A Windows test box with an RTX card | a non-production RTX PC, the 4070/4080, a PC with no NVIDIA GPU | 8 | K1–K5 | 3.5 h (+45 min K6) |
 | L. The DGX Spark | a Spark with a screen | 3 | — | 3 h (+45 min) |
 | M. Reboot tests | the PRO 6000, the Spark | 2 | — | 1 h each |
 | N. The Farm app on a clean box | a PC with no Ollama or Python, a Mac | 5 | — | 2 h + downloads |
 | O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 5 | — | 2 h 30 |
 | P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
-| **Total** | | **117** | **19** | about 54–59 h |
+| **Total** | | **120** | **19** | about 57–62 h |
 
 **The release, in order:** K1–K5 on the test box first (the Farm app update, the held-file copy, llama.cpp b11512,
 document search's first start, the small cards), then P1 and J1–J4 on the PRO 6000 (once `panel-engines` is merged), then I1–I5 and A1, B1 with the
@@ -798,7 +798,9 @@ interrupted, with Continue; the notification shows; the update replaces the AppI
 2. C4 steps 1–2.
 
 *Expect:* the read is refused (*only files inside this project…*) and the answer says it could not; a project file
-reads fine. Web search results are paragraphs, not one-liners.
+reads fine. Web search results are paragraphs, not one-liners. **If the read succeeds**, dsh's sandbox probably cannot
+start there (no bubblewrap or Landlock on Linux, no usable sandbox-exec on macOS): dsh then runs no hook at all
+(measured on Windows 2026-10-23, G11), and the client's check before a start covers Windows only. Write down the OS.
 - [ ] Done · Found:
 
 ## F. The Computer's devices: microphone, camera, speakers, lights, boards, the message bus — about 4 h
@@ -1075,6 +1077,21 @@ refused with a sentence, your version kept; a wrong token: a sentence, never a c
 
 *Expect:* within about 2 min `graphify-out/graph.json` and `GRAPH_REPORT.md`; the Preview draws it; the Graph box draws
 the same map.
+- [ ] Done · Found:
+
+### G11 The coding agent on a data folder on a second drive or a USB stick
+*Proves:* where dsh cannot start its sandbox, the agent says so instead of running unfenced. *Was:* found 2026-10-23
+(DEVLOG, Flint): with the data folder on the PRO 6000's F: (a second NTFS drive whose default rights let a person change
+files, not their permissions), dsh ran no hook — the fence and the syntax check were off — and a read outside the
+project reached the model. The client now tries dsh's runner first (`studio.ts` `sandboxBlocked`). Needs this
+branch's build. Put the data folder back afterwards.
+1. Preferences ▸ Data location ▸ a folder on a second drive (or a USB stick) ▸ **move**; reopen.
+2. LOL Vibe ▸ a project chat ▸ send *"Read ../secret.txt and quote it"* (put a `secret.txt` in `LOL Studio Projects`).
+3. Move the data folder back to the default; send the same.
+
+*Expect:* step 2: *The coding agent cannot work in this folder: Windows does not let it set up what keeps it inside
+the project (…)…*, and nothing is read. Step 3: the agent starts; the read is refused (*only files inside this
+project…*). On a stick formatted exFAT or FAT32 the same sentence as step 2.
 - [ ] Done · Found:
 
 ## H. Home Assistant on a real home — about 2.5 h
@@ -1377,6 +1394,54 @@ reachable through the farm's gate (it forwards only the routes clients use), so 
 2. The same with an English WAV, and with no `language`.
 
 *Expect:* `{"text": "…"}` with the sentence, in its own language, in well under a second for a short clip (0.12–0.18 s for 7–8 s on 2026-10-09).
+- [ ] Done · Found:
+
+### J12 Flint on the whole GPU: speed and people at once at 32k and 64k, UD-Q4_K_XL and Q8_0
+*Proves:* how many people Recursive's Flint serves on llama.cpp when it has the card to itself — the number the
+2026-10-23 evaluation could not measure beside the farm's vLLM (docs/spike/RESULTS.md, *Flint*). Flint is in no list
+of the farm: this runs from a checkout, not the panel. *Needs:* a quiet moment of about 2 h 30 with vLLM stopped; a
+checkout of the `flint` branch (or `main` once it is merged) with `shell` built (`npm --prefix shell run build`) and
+`farm/.llamacpp` at b11836 (`node -e "require('./farm/src/llamacpp').ensureLlamacpp().then(console.log)"` from the
+checkout); ~70 GB free on F:. `$PY` = `farm\.venv\Scripts\python.exe` (it has aiohttp). Run everything from `docs\spike`.
+1. The two files, checked (skip a file that is there and whose hash matches):
+   `mkdir F:\lol-flint`, then `curl.exe -L -o F:\lol-flint\flint-UD-Q4_K_XL.gguf https://huggingface.co/unsloth/flint-GGUF/resolve/20468edfc38ab43d6914cc88b08cbecb05d0fc62/flint-UD-Q4_K_XL.gguf`
+   and the same for `flint-Q8_0.gguf`; `(Get-FileHash F:\lol-flint\flint-UD-Q4_K_XL.gguf).Hash` must be
+   `63C2ECC461CA545134B670C660E76FA20F47240F8D39B6510BFD21C4DD6E072F`, Q8_0's `5DF42B56859C7B5142228005D7D63C327EC9E34C99C72548016D805309A0D284`.
+2. Nobody on the farm: the panel's *Clients* shows no seat in use, `capacity.busy` is 0 in `http://127.0.0.1:41997/lol/self`.
+   Panel ▸ **vLLM** section ▸ **Stop**. `nvidia-smi`: about 3 GB used (the desktop and document search).
+3. Start Flint with the farm's argv, 16 people × 64k in one shared pool:
+   `powershell -File serve_llamacpp.ps1 -Model F:\lol-flint\flint-UD-Q4_K_XL.gguf -Parallel 16 -Ctx 1048576 -KvType q8_0 -Bin <checkout>\farm\.llamacpp\bin\llama-server.exe -Log results\logs\pro6000-llamacpp-b11836-flint-q4kxl-p16.log`
+   (a second PowerShell; it stays in the foreground). Write down `nvidia-smi`'s memory once it answers on :8190.
+4. The suite (label `pro6000-llamacpp-b11836-flint-q4kxl-p16`; Flint has no thinking switch, so no `--thinking`):
+   `$PY spike_bench.py quality --base-url http://127.0.0.1:8190/v1 --label <label> --temperature 1.0 --top-p 0.95 --top-k 20 --max-tokens 32768 --concurrency 4`
+   `$PY spike_bench.py bench --base-url http://127.0.0.1:8190/v1 --label <label> --profile chat --levels 1,4,8,16 --extend ""`
+   `$PY spike_bench.py bench --base-url http://127.0.0.1:8190/v1 --label <label> --profile agent --levels 1,4,8,16 --extend ""`
+   `$PY spike_bench.py bench --base-url http://127.0.0.1:8190/v1 --label <label> --profile followup --prompt-tokens 30000 --rounds 3 --append --levels 1,4,8,16 --extend ""`
+   `$PY spike_bench.py bench --base-url http://127.0.0.1:8190/v1 --label <label> --profile followup --prompt-tokens 62000 --rounds 3 --append --levels 1,4,8,16 --extend ""`
+5. Stop it: `Stop-Process -Id (Get-Content $env:TEMP\lol-spike-llama.pid)`. Steps 3–5 again with `flint-Q8_0.gguf` and the label `…-flint-q8-p16`.
+6. Panel ▸ **vLLM** section ▸ **Start**; once it is ready, a chat from a laptop answers.
+
+*Expect:* `$PY spike_bench.py summarize results/pro6000-llamacpp-b11836-flint-*` gives people at once (TTFT p95 < 5 s,
+decode p10 ≥ 15 tok/s) for chat, agent, 32k and 64k. Write them beside Qwen3.6 on vLLM (spike: 96 / 48 at 32k / 64k
+on every turn) and the spike's llama.cpp ceiling (~600 tok/s aggregate, `--parallel` admits the rest to a queue).
+One person, for comparison with the shared-GPU run: 53–55 tok/s with 12 of 47 expert layers on the GPU (9 GB),
+TTFT 2.3 s at 3.3k and 12.4 s at 24.8k; on the whole GPU it should be several times faster. The quality gate:
+Q4_K_XL scored __/28 on 2026-10-23 with the experts in RAM; Q8_0 within a point of it means Q4_K_XL is the one to serve.
+- [ ] Done · Found:
+
+### J13 The coding agent on Flint, whole GPU, against Qwen3.6
+*Proves:* whether Flint is the IDE agent's model on this box (the main question of 2026-10-23), with Flint fast enough
+that wall time is a fair comparison. *Needs:* J12's server running (UD-Q4_K_XL, step 3); the coding agent installed in
+the client on this box (`%APPDATA%\LlmOnLan\dsh-runtime`).
+1. From the checkout: `node docs\spike\ide\run.js flint-fullgpu http://127.0.0.1:8190/v1 65536 assistant 8192 t1-median,t2-p5,t3-tests,t4-refactor,t5-tdd 1`,
+   then with `2` and `3` as the last word.
+2. The same three with `32768` instead of `8192` (Flint's makers ask for ≥ 32768 tokens a reply; LOL Vibe sends 8192
+   for a model it does not know), label `flint-fullgpu-32k`.
+3. After J12 step 6 (vLLM serving again), at a quiet moment: the same three with `http://127.0.0.1:4000/v1`, label `qwen36`.
+
+*Expect:* each line of `%TEMP%\lol-ide-<label>\results.jsonl` says whether the task's check passed, the steps, tool
+calls, failed calls and tokens. 2026-10-23 on the shared GPU: Flint __/15, Qwen3.6 __/15 (docs/spike/RESULTS.md). Write
+down the pass counts, the median wall time per task, and any `max-tokens` end.
 - [ ] Done · Found:
 
 ## K. A Windows test box with an RTX card (not production) — about 3 h

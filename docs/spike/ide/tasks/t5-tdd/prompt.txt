@@ -1,0 +1,1 @@
+Write wordfreq.js so that `node wordfreq.test.js` passes. Read the test file for what countWords and topWords must do. Do not change the test file.

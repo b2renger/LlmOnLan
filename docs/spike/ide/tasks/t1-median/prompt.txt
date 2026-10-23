@@ -1,0 +1,1 @@
+The tests in stats.test.js fail. Find the bug in stats.js and fix it so that `node stats.test.js` passes. Do not change the tests.
