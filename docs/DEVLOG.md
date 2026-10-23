@@ -6,6 +6,170 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-23 (16:55) — Flint for the coding agent: llama.cpp b11512 → b11836, Flint measured beside the live farm, and the project fence found off on a second drive
+
+The owner asked whether Recursive's **Flint** (released 2026-10-21; a 39.8B MoE with ~2.5B active, made for coding
+agents) should be the farm's model for coding, above all for the IDE's coding agent. Branch `flint` (from
+`multiuser-phase0` 2be6186). Not merged, not released; Flint is in no list and no default. The measurements and the
+agent comparison: [spike/RESULTS.md, *Flint for coding*](spike/RESULTS.md#flint-for-coding-rtx-pro-6000-shared-gpu-2026-10-23).
+
+**Recommendation: not now — keep Qwen3.6 on vLLM as the farm's model and the IDE's.** Flint does the agent's job about
+as well as Qwen3.6 on these tasks (8/10 against 11/15, given the room it needs; 27/28 against 26/28 on the gate, with a
+quarter of the thinking), not clearly better; it is text only, always thinks, and runs on the farm's llama.cpp only
+(vLLM: a day-0 Docker image and an open PR), where a farm serves a few people, not 48. Where it fits is a **second, small
+farm for coding**: its experts live happily in system RAM (3.3 GB of GPU, ~44 tok/s). Quant **UD-Q4_K_XL** (Q8_0 scored the same on the gate at 60 % of the speed).
+What is still unknown is in HUMAN_TESTS J12–J13 and below.
+
+### Part 1 — the llama.cpp pin: b11512 → b11836
+
+**The pin: b11836**, an official ggml-org release of 2026-10-23 08:20 UTC, the newest with its Windows x64 CUDA zips
+when pinned (324 commits after b11512). Three things the farm wants came after b11512:
+- **Flint** (`flint`, PR #30928) from **b11803**; its chat template needs the template engine's hexadecimal escapes
+  (#30929, b11798) and a namespace fix (#30941, b11802). b11512 refuses the GGUF (*unknown model architecture: 'flint'*)
+  and the panel's sentence reads right ("…newer than the farm's llama.cpp build…"), checked.
+- **The non-streaming cancel fix** (#29707, merged 2026-10-20, **b11769**): below.
+- **Faster document search:** flash attention now runs for EmbeddingGemma 2 on CUDA (below).
+- `farm/src/llamacpp.js` `PINNED_BUILD` and `.github/workflows/build-llamacpp-arm64.yml` `LLAMACPP_BUILD` are b11836
+  (the workflow runs on the merge to `main`, not before; the push of `flint` ran nothing). The Windows zips are still
+  `cuda-13.4`; `cudart-llama-bin-win-cuda-13.4-x64.zip` is byte for byte b11512's; the llama zip adds `llama-connect.exe`
+  and removes nothing, so extracting over b11512 leaves no stale file. `ensureLlamacpp()` fetched both under the farm's
+  names; their sha256 match the release's digests.
+
+**What changed that touches the farm** (`common/arg.cpp`, the server sources, both binaries' `--help`, both DLLs):
+- **Every flag `argsFor()` and `embed.js` pass is still there, with the same text and defaults**, `--spec-type
+  draft-mtp`, `--spec-draft-n-max`, `--embeddings`, `--no-slots` and `--cache-ram 0` included.
+- New: `--spec-draft-n-ubatch`; `--connect` / `--connect-code` (*experimental*: a peer-to-peer tunnel to the server
+  from outside the LAN; off by default, or `LLAMA_ARG_CONNECT`); `LLAMA_ARG_SLOT_SAVE_PATH`.
+- Defaults the farm overrides anyway: `--port` 8080 → 9931 (the farm always passes it); `--cache-ram` 0 for decision
+  models.
+- **The same:** the 15 `/metrics` names `perf.js` reads, `/health`, the log's level markers, and the *unknown model
+  architecture* and *doesn't contain MTP layers* lines `explainEngineFailure()` quotes (in `llama.dll` on both).
+- **MTP:** the flags parse as before; on the stripped UD-IQ2_S, b11836 says *"model doesn't contain MTP layers"* and the
+  farm's sentence reads *"This quant has no MTP head…"* (checked through `spawnLlamacpp`). MTP's speed on an MTP quant
+  (UD-Q2_K_XL) was not re-measured: no flag or default it uses changed.
+- Not changed, noted: the log calls `--no-webui` deprecated (*use --ui/--no-ui*) on b11512 and b11836 alike; it works.
+- **Found on the way, not changed:** the engine's `spawnLlamacpp` hands llama-server the box's whole environment, so a
+  `LLAMA_ARG_CONNECT` set on the farm box would open that tunnel (`embed.js` already drops every `LLAMA_*` variable).
+  Nobody sets it; the box's environment is the operator's.
+
+**Measured on the PRO 6000** (driver 596.36) beside the owner's farm (Farm app v0.0.48 serving Qwen3.6 on vLLM, ~78 GB of
+the card, ~17 GB free). A watchdog stopped my runs below 6 GB free or if the farm turned busy (it never had to; the
+lowest free figure it saw was 6.6 GB). Scratch loopback ports (18181–18199) only; the owner's farm, vLLM, Ollama and
+Farm app were never touched, `F:\LlmOnLan` only read.
+- **The farm's own path** (config, `argsFor`, `spawnLlamacpp`, `waitForLlamacpp`, `fetchMetrics` + `metricsSample`) on
+  Qwen3.8-27B-UD-IQ2_S (the main checkout's copy, read only), 32k, 2 slots, q4_0 KV, the unified pool, the projector:
+
+| | b11512 | b11836 |
+|---|---|---|
+| healthy after | 6 s | 6 s |
+| GPU memory | +10,407 MiB | +10,407 MiB |
+| a reply, thinking off | "The capital of France is Paris.", 87.0 tok/s | the same answer, 89.6 tok/s |
+| a reply, thinking on | 108.9 tok/s | 111.9 tok/s |
+| a tool call with `--jinja` | `get_weather({"city":"Paris"})`, then an answer from its result | the same |
+| two people at once (400 tokens each) | both at once, TTFT 244 ms, 92.4 tok/s each | both at once, TTFT 256 ms, 95.1 tok/s each |
+| `/slots` | 2 slots, 32768 each | 2 slots, 32768 each |
+| a red picture | "Red" | "Red" |
+| `/metrics` through `perf.js` | 15 series; 96 tok/s; 38 % of prompt tokens from cache | 15 series; 100.7 tok/s; 38 % |
+
+- **EmbeddingGemma 2** (the farm's pinned BF16, read where the owner's farm keeps it) with `embed.js`'s own argv:
+
+| | b11512 | b11836 |
+|---|---|---|
+| the contract check (`waitForEmbed`) | 768 numbers | 768 numbers |
+| French–English pair / an unrelated sentence | 0.893 / 0.590 | 0.893 / 0.590 |
+| the same texts, one build against the other | | cosine ≥ 0.99999 |
+| 400 pieces of ~175 tokens in one request | 1.97 s (twice) | **0.80 s** (three times) |
+| GPU memory loaded / at its peak | 1,153 / 1,157 MiB | 1,039 / 1,159 MiB |
+
+  2.4× faster because b11836 runs flash attention for this architecture on CUDA (b11512's log: *"Flash Attention not
+  supported, set to disabled"*). `RESERVE_GIB` (1.5) still covers the peak.
+- **The cancel test** (`LOL_CANCEL_ENGINE=llamacpp node test/litellm-cancel.js`, Qwen3.8 IQ2_S, LiteLLM 1.90.0): **8 of 8
+  paths stop** — streams 17 ms after the abort, non-streaming calls 0.95–0.99 s after it, **the one abandoned while
+  someone else streams included (945 ms; b11512: 19.6 s, 2071 tokens)**. README, `litellm.js`, the test's header and
+  `docs/upstream/LLAMACPP_NONSTREAM_CANCEL.md` (fixed upstream, nothing left to post) say so.
+
+### Part 2 — Flint beside the live farm (most of its experts in system RAM)
+
+- **The GGUF:** `general.architecture = flint`; 23.05 of UD-Q4_K_XL's 25.05 GB are routed experts; KV 28 KiB a token in
+  f16 (14 full-attention layers), so 64k costs ~1 GB in q8_0; it carries Flint's sampling (`temp 1`, `top_p 0.95`,
+  `top_k 20`), which llama-server takes as its defaults (`/props`), so the agent — which sends none — gets them. Its
+  licence fields say `other` / `flint-preview`, the card says Apache 2.0: **which governs is unknown**.
+- **Template:** GLM-4.x-style tool calls, no thinking switch (`enable_thinking: false` changes nothing), reasoning kept
+  for every earlier turn; llama.cpp b11836 with `--jinja` parses the calls and keeps the reasoning (*"enabled by
+  default"*). `--cache-reuse` is off for it (sliding window); the exact-prefix cache carries an agent's history.
+- **The farm's route keeps what it asks for:** `reasoning_content` on earlier turns reaches the prompt and `top_k`
+  arrives, through the seat gate and LiteLLM's `openai/` route (and the vLLM route keeps the reasoning too). **The coding
+  agent sends its reasoning back** on every step and sends no sampling (a tap between dsh and the farm).
+- **Speed, one person** (UD-Q4_K_XL, the farm's argv + `--n-cpu-moe`, q8_0 KV): every expert in RAM, **3.3 GB of GPU,
+  43–45 tok/s, TTFT 2.9 s at 3.3k and 15.5 s at 24.8k with `-b 2048 -ub 2048`** (7.3 s / 46.6 s with llama.cpp's default
+  batch: the experts cross PCIe once per batch); 12 of 47 expert layers on the GPU, 8.3–9.0 GB: 52–55 tok/s, 2.3 s at
+  3.3k, 15.5 s at 31.4k. Q8_0, every expert in RAM: 4.0 GB, 30–32 tok/s, 5.1 s at 3.3k, 34 s at 31.4k. **The laptop-farm
+  data point:** ~4 GB of GPU and ~25 GB of free RAM run it at ~44 tok/s.
+- **The quality gate (28):** Flint UD-Q4_K_XL **27/28** with 21,260 completion tokens, Q8_0 **27/28** with 22,857 (the
+  same miss); Qwen3.6 through the farm 26/28 thinking on (80,021 tokens), 28/28 off (10,633).
+- **The coding agent** (`docs/spike/ide/run.js`: studio.js as LOL Vibe runs it, five tasks — a bug fix, a p5.js
+  feature, tests that must catch mutants, a two-file refactor, code from a test file — each checked by running what the
+  agent left):
+
+  | Runs (reply room 8192 unless said) | t1 | t2 | t3 | t4 | t5 | **all** | wall a task (median) | steps (median) | tool calls (median) | failed tool calls (all) | output tokens a task (median) | ended on max-tokens |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | Qwen3.6, fence off (F:) | 2/3 | 2/3 | 1/3 | 3/3 | 2/3 | **10/15** | 13 s | 10 | 10 | 14 of 152 (9 %) | 2275 | 0 |
+  | Qwen3.6, fence on | 3/3 | 3/3 | 1/3 | 3/3 | 1/3 | **11/15** | 21 s | 9 | 8 | 21 of 126 (17 %) | 2156 | 0 |
+  | Flint, fence off (F:) | 3/3 | 0/3 | 3/3 | 3/3 | 3/3 | **12/15** | 168 s | 12 | 16 | 78 of 390 (20 %) | 8084 | 3 |
+  | Flint, fence on (as shipped) | 2/3 | 1/3 | 1/3 | 2/3 | 2/3 | **8/15** | 171 s | 15 | 18 | 103 of 274 (38 %) | 8399 | 2 |
+  | Flint, fence on, standing mode allowed | 3/3 | 0/3 | 1/3 | 3/3 | 2/3 | **9/15** | 255 s | 9 | 14 | 50 of 228 (22 %) | 5590 | 4 |
+  | Flint, same, 32768-token replies | 2/2 | 2/2 | 2/2 | 1/2 | 1/2 | **8/10** | 234 s | 13 | 15 | 64 of 287 (22 %) | 10922 | 0 |
+  | Flint Q8_0 (every expert in RAM), same, 32768 | 1/1 | 0/1 | 1/1 | 1/1 | 1/1 | **4/5** | 209 s | 7 | 10 | 13 of 54 (24 %) | 5964 | 0 |
+
+  - **The reply room:** at LOL Vibe's 8192 (any model it does not know; the owner's farm calls every model
+    `assistant`) Flint ran out on the p5 task in 8 of its 9 runs; with 32,768 it passed 2 of 2. Qwen3.6
+    never came near.
+  - **The fence as shipped refused most of Flint's writes:** it names `sandbox_permissions: "workspace-write"` (the
+    mode it already runs in) with a justification on 75 of 130 writes and edits; the fence refused every
+    `sandbox_permissions` → 8/15, 38 % of its calls failed. **Fixed on this branch** (below): 9/15 at 8192, 8/10 at 32,768.
+  - Flint's own misses: no-op edits in loops (one run 145 steps), re-reading files, asking for a shell, editing a file
+    it was told to keep (twice in 40 runs with the fence), one malformed tool call in ~1,100 steps. Qwen3.6's: wrong
+    expectations in the tests it writes, a subtle `deepStrictEqual` miss, `exit_plan_mode` outside plan mode.
+  - **Time:** 2.5–4 min a task for Flint here (experts in RAM, 5–8k output tokens a task with 32k: 11k), 13–21 s for
+    Qwen3.6 on the farm's vLLM.
+- **vLLM:** day-0 support only in the `vllm/vllm-openai:flint` Docker image; mainline is PR #62938. The farm's managed
+  vLLM (a pip install in WSL) cannot serve it until a release carries it.
+- **Recursive's numbers** (Terminal-Bench 2.1 54.9 %, SWE-bench Pro v2 89.7 %, Verified 74.2 %) are its own; no
+  independent rerun found. Pro scoring 15 points above Verified inverts every other model; "Pro v2" is not defined.
+  Verified at 74.2 is level with Qwen3.6's reported 73.4.
+
+### The project fence was off on a second drive — fixed (fail closed)
+
+The first agent batches had their data folder on F:. There, **dsh ran no hook at all**: its Windows sandbox runner
+sets a Low-integrity label and a write grant on the project folder (`SetNamedSecurityInfoW`), and on a second drive's
+default rights (Authenticated Users: Modify, not Full control) Windows refuses (error 5). dsh then reports the hook as
+*"sandbox mode … no sandbox backend is usable on this host"* and **lets the tool call through** (the hook bridge fails
+open). So the fence and the syntax check were off: a real agent asked to read `../secret.txt` quoted it to the model
+(checked on Qwen3.6 through the farm, a planted file). The same project on C: (the user's profile, Full control): the
+read refused, `decision: block`. The owner's client uses the default data folder (C:), so it was safe; a person who moved
+the data folder to another drive, a USB stick or a network folder was not.
+- **Fix (`studio.ts` `sandboxBlocked`):** before dsh starts on Windows, the client runs dsh's own runner once (in the
+  background, ~0.2 s) with the arguments dsh gives it, on a command that does nothing; if it fails, the agent does not start and the person reads
+  *"The coding agent cannot work in this folder: Windows does not let it set up what keeps it inside the project (…).
+  This happens when the data folder is on a second drive, a USB stick or a network folder. Move the data folder into
+  your user folder (Preferences ▸ Data location), then send again."* Checked live: F: refused, C: starts.
+- macOS and Linux need sandbox-exec or bubblewrap/Landlock the same way and are not checked by the client:
+  HUMAN_TESTS E4 now says what a passing read means there; G11 is the Windows test.
+- **The fence also lets a call name the standing mode** (`sandbox_permissions: "workspace-write"`, which dsh grants
+  without a question): Flint's habit, refused until now. Any other value is still refused; the path still decides.
+
+**Tests:** farm `node test/run.js` **269/269** (the pin test also asserts ≥ b11769 and ≥ b11803, and fails with
+b11512: 268 + 1 failed). Shell `node test/chat-unit.js` **1922/0** (the new `sandboxBlocked` test fails without the
+check; the fence test's three new lines fail with the old rule), `chat-lint` 0 violations, `npm run test:unit` 29/29.
+`chat-scope.js` flags the 8 files outside LOL Chat's allowlist, as it does for any farm or main-process change.
+
+**Not done (the owner's):** the merge (it runs `build-llamacpp-arm64`), a farm release and a client release; Flint on
+the whole GPU (HUMAN_TESTS J12) and the agent at full speed against Qwen3.6 (J13); the fence on a second drive by a
+person (G11) and on macOS/Linux (E4). Every process started here was stopped (the owner's farm stayed healthy on vLLM
+throughout), and the worktree's `farm/.llamacpp` and `farm/.models` were removed. **Left for the owner to delete:**
+`F:\lol-scratch-flint` (64 GB: the two Flint GGUFs and a b11512 copy) — Claude Code's own safety check refused a
+recursive delete of a folder at a drive's root.
+
 ## 2026-10-13 (09:24) — The PRO 6000's models and its WSL disk are on F: — C: from 65 to 618 GB free
 
 The owner: *"we need to actually move the models and free up space on C, lets do what we talked about"*. Done from

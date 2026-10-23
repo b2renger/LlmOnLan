@@ -1,0 +1,1 @@
+Write tests for slugify.js in a new file slugify.test.js, using node:test and node:assert/strict. Cover at least six different behaviours of slugify (for example accents, punctuation, spaces at the ends, the separator option, maxLength, empty input). The tests must pass with `node --test slugify.test.js`. Do not change slugify.js.

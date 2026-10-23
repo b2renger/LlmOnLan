@@ -1,0 +1,1 @@
+In this p5.js page, add a slider that sets the ball's speed (from 0 to 10, starting at 3) and a "Reset" button that puts the ball back in the centre of the canvas. Use p5's createSlider and createButton in sketch.js. At speed 0 the ball stands still. Keep everything else as it is.

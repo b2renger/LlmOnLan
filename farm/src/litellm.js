@@ -458,10 +458,11 @@ function buildLitellmConfig(config, peers = []) {
             // Measured by test/litellm-cancel.js (multi-user plan 0.0), real engines
             // 2026-10-04: Ollama stops on every path (16-71 ms). llama.cpp b10670 stops
             // streams (~10 ms) and a lone non-streaming call (~1 s), but NOT a
-            // non-streaming call while someone else streams: llama-server only checks
-            // the client on a 1 s wait that every other request's result restarts
-            // (upstream server-queue.cpp recv_with_timeout) — it runs to its end. Still
-            // so in b11406; open PR ggml-org/llama.cpp#29707 fixes it.
+            // non-streaming call while someone else streams: llama-server only checked
+            // the client on a 1 s wait that every other request's result restarted
+            // (upstream server-queue.cpp recv_with_timeout) — it ran to its end, up to
+            // b11512. ggml-org/llama.cpp#29707 fixed it in b11769: on the pinned b11836
+            // all 8 paths stop (2026-10-23).
             cancel_on_disconnect: true,
         },
     };

@@ -27,6 +27,8 @@ with 32k / 64k / 128k of context each, by vLLM and by llama.cpp, for a short lis
 | `runs/round_stats.py` | Per-turn TTFT and decode statistics from a follow-up result. |
 | `runs/spark_matrix.sh` | DGX Spark: the whole matrix unattended (vLLM ×3 models, then llama.cpp), one engine at a time. `MAX_JOBS=4` for FlashInfer's JIT. |
 | `runs/spark_guard.sh` | DGX Spark: logs temperature/clock/power/memory every 10 s and stops the engine below 8 GB free or at 90 °C (a unified-memory OOM can latch the GB10 at ~700 MHz). |
+| `ide/run.js` | The IDE's coding agent on real tasks, as LOL Vibe runs it (`shell/build/main/studio.js`: the patch, the fence, the syntax check, the installed dsh): `node ide/run.js <label> <farm /v1> <context> <model> <maxTokens> <task,...> [rep]`; one JSON line per task in `<tmp>/lol-ide-<label>/results.jsonl` (Flint, 2026-10-23). |
+| `ide/tasks/<task>/` | Its five tasks: `prompt.txt`, the project's starting files in `seed/`, and `check.js <project dir>`, which runs what the agent left (bug fix, p5.js feature, tests with mutants, a two-file refactor, code from a test file). |
 
 ## The harness
 

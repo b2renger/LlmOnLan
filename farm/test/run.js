@@ -871,10 +871,17 @@ test('llamacpp knobs can be turned off individually', () => {
     assert.ok(!a.includes('--mmproj'));
 });
 
-test('the pinned llama.cpp knows EmbeddingGemma 2, fetches the asset names ggml-org publishes, and the Spark build follows it', () => {
+test('the pinned llama.cpp knows EmbeddingGemma 2 and Flint, stops an abandoned call, fetches the asset names ggml-org publishes, and the Spark build follows it', () => {
+    const build = Number(llamacpp.PINNED_BUILD.slice(1));
     // b11454 is the first official build with the 'gemma-embedding2' architecture (PR #30054):
     // b10670 refused the GGUF with "unknown model architecture" (measured 2026-10-08).
-    assert.ok(Number(llamacpp.PINNED_BUILD.slice(1)) >= 11454, `${llamacpp.PINNED_BUILD} predates EmbeddingGemma 2`);
+    assert.ok(build >= 11454, `${llamacpp.PINNED_BUILD} predates EmbeddingGemma 2`);
+    // b11769 carries #29707: a non-streaming call abandoned while someone else streams stops within ~1 s
+    // (b11512 ran it to its end, 19.6 s; test/litellm-cancel.js, 2026-10-23: 8 of 8 paths stop).
+    assert.ok(build >= 11769, `${llamacpp.PINNED_BUILD} predates the non-streaming cancel fix`);
+    // b11803 is the first with Recursive's Flint ('flint', PR #30928), whose chat template needs the
+    // template engine's hexadecimal escapes (b11798). The spike measured it on b11836 (docs/spike/RESULTS.md).
+    assert.ok(build >= 11803, `${llamacpp.PINNED_BUILD} predates Flint`);
     // The names on ggml-org's release page: since 2026-09-15 its Windows CUDA 13 zips are 13.4 (no 13.3 zip
     // in a build that new), and the runtime zip carries no build number.
     const win = llamacpp.assetsFor('win32', 'x64');

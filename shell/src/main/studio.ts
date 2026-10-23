@@ -10,7 +10,7 @@
 //     shell, jobs, goals, subagents and workflows; the env turns telemetry off and hands dsh no other secret.
 //   - Preview: one static server per project on 127.0.0.1 (a Host check against DNS rebinding), GET only, the
 //     project folder only.
-import { spawn, ChildProcess } from 'node:child_process';
+import { spawn, execFile, ChildProcess } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as os from 'node:os';
@@ -237,6 +237,36 @@ export function projectEvent(ev: any, dir: string): StudioRecord | null {
         default:
             return null;
     }
+}
+
+/**
+ * Can dsh run its hooks in this project folder? The fence (FENCE_JS) and the syntax check are hooks, and dsh runs a hook
+ * through its sandbox. Where that sandbox cannot start, dsh runs no hook and lets the tool call through: the fence is
+ * OFF (measured 2026-10-23, a data folder on a second drive: the agent read a file outside its project and quoted it).
+ * On Windows its runner sets a Low-integrity label and a write grant on the project folder, which Windows refuses where
+ * a person may change files but not their permissions (a second drive's default "Modify", a USB stick, a network
+ * folder: SetNamedSecurityInfoW, error 5). So the same runner is tried once per start, and the agent does not start
+ * where it fails. → null when it can (or there is no runner to try), else the sentence for the person. `run` is for tests.
+ * ponytail: Windows only — macOS and Linux need sandbox-exec or bubblewrap/Landlock the same way (HUMAN_TESTS E4).
+ */
+export type RunFile = (cmd: string, args: string[]) => Promise<{ status: number | null; stderr: string }>;
+const runFile: RunFile = (cmd, args) => new Promise((resolve) => {
+    execFile(cmd, args, { encoding: 'utf8', timeout: 30000, windowsHide: true }, (e, _out, stderr) => {
+        // A non-zero exit carries its code; a program that could not start (or ran out of time) is a failure too.
+        const code = e ? (e as { code?: unknown }).code : 0;
+        resolve({ status: typeof code === 'number' ? code : null, stderr: String(stderr || '') });
+    });
+});
+export async function sandboxBlocked(runtime: StudioRuntime, dir: string, platform: string = process.platform, run: RunFile = runFile): Promise<string | null> {
+    if (platform !== 'win32') return null;
+    const runner = path.join(path.dirname(runtime.bin), '..', '..', 'dsh-sandbox-windows-acl', 'lib', 'runner.js');
+    if (!fs.existsSync(runner)) return null;
+    const r = await run(runtime.node, [runner, '--workspace', dir, '--temp', os.tmpdir(), '--mode', 'workspace-write', '--', runtime.node, '-e', '0']);
+    if (r.status === 0) return null;
+    console.warn('[studio] dsh\'s sandbox cannot start in', dir, '—', lastLine(String(r.stderr || '')) || `exit ${r.status}`);
+    return `The coding agent cannot work in this folder: Windows does not let it set up what keeps it inside the project (${dir}). `
+        + 'This happens when the data folder is on a second drive, a USB stick or a network folder. Move the data folder into your user folder '
+        + '(Preferences ▸ Data location), then send again.';
 }
 
 /** Where the runtime is: LOL_DSH_DIR (dev) or <userData>/dsh-runtime, with its own Node (or LOL_DSH_NODE). */
@@ -470,6 +500,8 @@ export function createStudio(deps: StudioDeps) {
         } catch (e) {
             return err('E_START', `Could not prepare the coding agent's folder: ${(e as Error).message}`);
         }
+        const blocked = await sandboxBlocked(o.runtime, o.dir);
+        if (blocked) return err('E_START', blocked);
         const child = spawn(o.runtime.node, [o.runtime.bin, '--profile', 'sdk'], {
             cwd: o.dir,
             env: runtimeEnv(deps.env || process.env, { home, key: o.farm.key || 'sk-lol-lan', mcpToken: o.computer ? o.computer.token : undefined }),
@@ -721,7 +753,9 @@ process.stdin.on('end', () => {
   let input;
   try { input = JSON.parse(raw); } catch { deny('this tool call could not be checked, so it was refused.'); }
   const args = (input && input.tool_input) || {};
-  if (args.sandbox_permissions) deny('the agent works only inside this project; it gets no wider access.');
+  // The mode it already runs in is no request for more: dsh treats it as the standing policy (no approval), and Flint
+  // names it on most writes (sandbox_permissions "workspace-write", 2026-10-23). Anything else is wider and refused.
+  if (args.sandbox_permissions && args.sandbox_permissions !== 'workspace-write') deny('the agent works only inside this project; it gets no wider access.');
   const root = real(process.env.CLAUDE_PROJECT_DIR || input.cwd || process.cwd());
   const inside = (p) => { const a = fold(real(path.resolve(root, p))); const r = fold(root); return a === r || a.startsWith(r + path.sep); };
   for (const p of [args.file_path, args.path]) {
