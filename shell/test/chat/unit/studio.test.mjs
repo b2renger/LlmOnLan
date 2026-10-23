@@ -511,6 +511,10 @@ export default (test) => {
     assert.equal(call('glob', { pattern: path.join(dir, '*.txt') }).code, 2, 'an absolute glob');
     assert.equal(call('glob', { pattern: 'src/**/*.js' }).code, 0);
     assert.equal(call('write', { file_path: 'a.js', content: 'y', sandbox_permissions: 'danger-full-access' }).code, 2, 'no wider rights');
+    // Flint names the mode it already runs in on most writes (2026-10-23): no wider right, so not refused — the path still is.
+    assert.equal(call('write', { file_path: 'a.js', content: 'y', sandbox_permissions: 'workspace-write', justification: 'Create a.js.' }).code, 0, 'the standing mode named');
+    assert.equal(call('write', { file_path: '../a.js', content: 'y', sandbox_permissions: 'workspace-write', justification: 'x' }).code, 2, 'and still only inside');
+    assert.equal(call('write', { file_path: 'a.js', content: 'y', sandbox_permissions: 'require_escalated' }).code, 2, 'any other value is wider');
     assert.equal(run(null, 'not json').code, 2, 'unsure: refused');
     // .git/config holds the remote a person's Push sends to; project.json the project's settings (2026-10-09).
     const kept = call('edit', { file_path: '.git/config', old_string: 'a', new_string: 'b' });

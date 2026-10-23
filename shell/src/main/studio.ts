@@ -746,7 +746,9 @@ process.stdin.on('end', () => {
   let input;
   try { input = JSON.parse(raw); } catch { deny('this tool call could not be checked, so it was refused.'); }
   const args = (input && input.tool_input) || {};
-  if (args.sandbox_permissions) deny('the agent works only inside this project; it gets no wider access.');
+  // The mode it already runs in is no request for more: dsh treats it as the standing policy (no approval), and Flint
+  // names it on most writes (sandbox_permissions "workspace-write", 2026-10-23). Anything else is wider and refused.
+  if (args.sandbox_permissions && args.sandbox_permissions !== 'workspace-write') deny('the agent works only inside this project; it gets no wider access.');
   const root = real(process.env.CLAUDE_PROJECT_DIR || input.cwd || process.cwd());
   const inside = (p) => { const a = fold(real(path.resolve(root, p))); const r = fold(root); return a === r || a.startsWith(r + path.sep); };
   for (const p of [args.file_path, args.path]) {
