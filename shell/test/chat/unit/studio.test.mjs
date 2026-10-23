@@ -553,7 +553,7 @@ export default (test) => {
     assert.equal(via({ tool_name: 'read', tool_input: { file_path: 'a.txt' }, cwd: project }).status, 0, 'and so does a pass');
   });
 
-  test('studio: on Windows the agent starts only where dsh\'s sandbox can start — elsewhere dsh runs no hook, so the fence would be off', () => {
+  test('studio: on Windows the agent starts only where dsh\'s sandbox can start — elsewhere dsh runs no hook, so the fence would be off', async () => {
     // Measured 2026-10-23: with the data folder on a second drive (the user may change files there, not their
     // permissions), dsh's runner failed (SetNamedSecurityInfoW, error 5), the fence never ran, and a read outside the
     // project reached the model. The same runner is tried before dsh starts.
@@ -564,18 +564,19 @@ export default (test) => {
     fs.writeFileSync(bin, '');
     const rt = { node: 'node.exe', bin };
     /** @type {any[]} */ const calls = [];
-    const fake = (/** @type {number} */ status, stderr = '') => /** @type {any} */ ((/** @type {string} */ cmd, /** @type {string[]} */ args) => { calls.push([cmd, ...args]); return { status, stderr }; });
-    assert.equal(S.sandboxBlocked(rt, 'P', 'win32', fake(127)), null, 'a runtime without that runner: nothing to try');
+    const fake = (/** @type {number | null} */ status, stderr = '') => /** @type {any} */ (async (/** @type {string} */ cmd, /** @type {string[]} */ args) => { calls.push([cmd, ...args]); return { status, stderr }; });
+    assert.equal(await S.sandboxBlocked(rt, 'P', 'win32', fake(127)), null, 'a runtime without that runner: nothing to try');
     assert.equal(calls.length, 0);
     fs.mkdirSync(path.dirname(runner), { recursive: true });
     fs.writeFileSync(runner, '');
-    assert.equal(S.sandboxBlocked(rt, 'P', 'win32', fake(0)), null, 'the runner started: hooks run');
+    assert.equal(await S.sandboxBlocked(rt, 'P', 'win32', fake(0)), null, 'the runner started: hooks run');
     assert.deepEqual(calls[0], ['node.exe', runner, '--workspace', 'P', '--temp', os.tmpdir(), '--mode', 'workspace-write', '--', 'node.exe', '-e', '0'],
       'dsh\'s own runner, with the arguments dsh gives it, on a command that does nothing');
-    const no = S.sandboxBlocked(rt, 'F:\\p', 'win32', fake(127, 'windows-acl-run: SetNamedSecurityInfoW failed (Win32 5): grantWrite(F:\\p)'));
+    const no = await S.sandboxBlocked(rt, 'F:\\p', 'win32', fake(127, 'windows-acl-run: SetNamedSecurityInfoW failed (Win32 5): grantWrite(F:\\p)'));
     assert.match(String(no), /cannot work in this folder/);
     assert.match(String(no), /Data location/, 'says what to do');
-    assert.equal(S.sandboxBlocked(rt, 'P', 'linux', fake(127)), null, 'Windows only');
+    assert.match(String(await S.sandboxBlocked(rt, 'P', 'win32', fake(null))), /cannot work in this folder/, 'a runner that could not start, or ran out of time: refused too');
+    assert.equal(await S.sandboxBlocked(rt, 'P', 'linux', fake(127)), null, 'Windows only');
   });
 
   test('studio: the bundled skills are copied out of app.asar — the installed app\'s case, where fs.cpSync fails', async () => {

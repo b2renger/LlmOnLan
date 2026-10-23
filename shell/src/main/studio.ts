@@ -10,7 +10,7 @@
 //     shell, jobs, goals, subagents and workflows; the env turns telemetry off and hands dsh no other secret.
 //   - Preview: one static server per project on 127.0.0.1 (a Host check against DNS rebinding), GET only, the
 //     project folder only.
-import { spawn, spawnSync, ChildProcess } from 'node:child_process';
+import { spawn, execFile, ChildProcess } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as os from 'node:os';
@@ -249,12 +249,19 @@ export function projectEvent(ev: any, dir: string): StudioRecord | null {
  * where it fails. → null when it can (or there is no runner to try), else the sentence for the person. `run` is for tests.
  * ponytail: Windows only — macOS and Linux need sandbox-exec or bubblewrap/Landlock the same way (HUMAN_TESTS E4).
  */
-export function sandboxBlocked(runtime: StudioRuntime, dir: string, platform: string = process.platform, run: typeof spawnSync = spawnSync): string | null {
+export type RunFile = (cmd: string, args: string[]) => Promise<{ status: number | null; stderr: string }>;
+const runFile: RunFile = (cmd, args) => new Promise((resolve) => {
+    execFile(cmd, args, { encoding: 'utf8', timeout: 30000, windowsHide: true }, (e, _out, stderr) => {
+        // A non-zero exit carries its code; a program that could not start (or ran out of time) is a failure too.
+        const code = e ? (e as { code?: unknown }).code : 0;
+        resolve({ status: typeof code === 'number' ? code : null, stderr: String(stderr || '') });
+    });
+});
+export async function sandboxBlocked(runtime: StudioRuntime, dir: string, platform: string = process.platform, run: RunFile = runFile): Promise<string | null> {
     if (platform !== 'win32') return null;
     const runner = path.join(path.dirname(runtime.bin), '..', '..', 'dsh-sandbox-windows-acl', 'lib', 'runner.js');
     if (!fs.existsSync(runner)) return null;
-    const r = run(runtime.node, [runner, '--workspace', dir, '--temp', os.tmpdir(), '--mode', 'workspace-write', '--', runtime.node, '-e', '0'],
-        { encoding: 'utf8', timeout: 30000, windowsHide: true });
+    const r = await run(runtime.node, [runner, '--workspace', dir, '--temp', os.tmpdir(), '--mode', 'workspace-write', '--', runtime.node, '-e', '0']);
     if (r.status === 0) return null;
     console.warn('[studio] dsh\'s sandbox cannot start in', dir, '—', lastLine(String(r.stderr || '')) || `exit ${r.status}`);
     return `The coding agent cannot work in this folder: Windows does not let it set up what keeps it inside the project (${dir}). `
@@ -493,7 +500,7 @@ export function createStudio(deps: StudioDeps) {
         } catch (e) {
             return err('E_START', `Could not prepare the coding agent's folder: ${(e as Error).message}`);
         }
-        const blocked = sandboxBlocked(o.runtime, o.dir);
+        const blocked = await sandboxBlocked(o.runtime, o.dir);
         if (blocked) return err('E_START', blocked);
         const child = spawn(o.runtime.node, [o.runtime.bin, '--profile', 'sdk'], {
             cwd: o.dir,
