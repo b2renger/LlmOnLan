@@ -549,6 +549,31 @@ export default (test) => {
     assert.equal(via({ tool_name: 'read', tool_input: { file_path: 'a.txt' }, cwd: project }).status, 0, 'and so does a pass');
   });
 
+  test('studio: on Windows the agent starts only where dsh\'s sandbox can start — elsewhere dsh runs no hook, so the fence would be off', () => {
+    // Measured 2026-10-23: with the data folder on a second drive (the user may change files there, not their
+    // permissions), dsh's runner failed (SetNamedSecurityInfoW, error 5), the fence never ran, and a read outside the
+    // project reached the model. The same runner is tried before dsh starts.
+    const dir = tmp('sandbox');
+    const bin = path.join(dir, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
+    const runner = path.join(dir, 'node_modules', '@deepseek-ai', 'dsh-sandbox-windows-acl', 'lib', 'runner.js');
+    fs.mkdirSync(path.dirname(bin), { recursive: true });
+    fs.writeFileSync(bin, '');
+    const rt = { node: 'node.exe', bin };
+    /** @type {any[]} */ const calls = [];
+    const fake = (/** @type {number} */ status, stderr = '') => /** @type {any} */ ((/** @type {string} */ cmd, /** @type {string[]} */ args) => { calls.push([cmd, ...args]); return { status, stderr }; });
+    assert.equal(S.sandboxBlocked(rt, 'P', 'win32', fake(127)), null, 'a runtime without that runner: nothing to try');
+    assert.equal(calls.length, 0);
+    fs.mkdirSync(path.dirname(runner), { recursive: true });
+    fs.writeFileSync(runner, '');
+    assert.equal(S.sandboxBlocked(rt, 'P', 'win32', fake(0)), null, 'the runner started: hooks run');
+    assert.deepEqual(calls[0], ['node.exe', runner, '--workspace', 'P', '--temp', os.tmpdir(), '--mode', 'workspace-write', '--', 'node.exe', '-e', '0'],
+      'dsh\'s own runner, with the arguments dsh gives it, on a command that does nothing');
+    const no = S.sandboxBlocked(rt, 'F:\\p', 'win32', fake(127, 'windows-acl-run: SetNamedSecurityInfoW failed (Win32 5): grantWrite(F:\\p)'));
+    assert.match(String(no), /cannot work in this folder/);
+    assert.match(String(no), /Data location/, 'says what to do');
+    assert.equal(S.sandboxBlocked(rt, 'P', 'linux', fake(127)), null, 'Windows only');
+  });
+
   test('studio: the bundled skills are copied out of app.asar — the installed app\'s case, where fs.cpSync fails', async () => {
     // In an installed client assets/skills/ lives INSIDE app.asar, and fs.cpSync fails there with ENOENT (probed
     // 2026-09-28): seeding threw inside the agent's start-up. This packs a real asar and copies out of it the way the
