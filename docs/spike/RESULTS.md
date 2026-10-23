@@ -5,7 +5,10 @@ Two boxes, the same harness, the same flags:
 - a **DGX Spark** (2026-10-05/06), the section [DGX Spark (GB10)](#dgx-spark-gb10) and
   [PRO 6000 vs Spark](#pro-6000-vs-spark) at the end;
 - two more models on the RTX PRO 6000 (2026-10-09), with the farm's own launch and a reduced suite:
-  [Gemma 4 12B and Qwen3-Omni](#gemma-4-12b-and-qwen3-omni-rtx-pro-6000-2026-10-09), the last section.
+  [Gemma 4 12B and Qwen3-Omni](#gemma-4-12b-and-qwen3-omni-rtx-pro-6000-2026-10-09);
+- Recursive's Flint for coding (2026-10-23), beside the live farm with most of its experts in system RAM, and the IDE's
+  coding agent on five tasks against the farm's Qwen3.6: [Flint](#flint-for-coding-rtx-pro-6000-shared-gpu-2026-10-23),
+  the last section.
 
 **Box:** `AN-A6000PRO`: one NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 96 GB (97,887 MiB), sm_120,
 ~1.8 TB/s, driver 596.36 (CUDA 13.2), Windows 11 + WSL2 Ubuntu 26.04 (16 vCPU and 94 GB RAM given to WSL).
@@ -706,3 +709,201 @@ configured for it, so a client reaches it only through a change there (the voice
 - **Qwen3-Omni** is fast for one person and good on the gate, but its full attention costs 4.8× Qwen3.6's memory a
   token: **memory binds first** (20 at 32k in 30 GiB, ~30 on a PRO 6000 of its own). It is the one model whose vLLM
   writes down speech (`/v1/audio/transcriptions`), which a voice mode could use instead of a separate speech-to-text.
+
+# Flint for coding (RTX PRO 6000, shared GPU, 2026-10-23)
+
+The owner's question (2026-10-23): should Recursive's **Flint** (`RecursiveSI/flint`, released 2026-10-21) be the
+farm's model for coding, above all for the IDE's coding agent? Measured on this box beside the owner's farm, which
+kept serving Qwen3.6 on vLLM (~78 GB of the card) the whole time: **at most ~11 GB of the GPU was mine** (a watchdog
+stopped my runs below 6 GB free or if the farm turned busy; it never had to), so Flint ran with most of its experts in
+system RAM. That makes this the **small-GPU / laptop-farm data point**. The whole-GPU numbers are HUMAN_TESTS J12–J13.
+
+**The model.** A 39.8B MoE, ~2.5B active (256 routed experts, top 6, plus 2 shared; 2 dense layers then 47 MoE layers),
+35 sliding-window (513) and 14 full-attention layers, 262,144 context, text only, a reasoning model trained for coding
+agents. Unsloth's GGUFs (`unsloth/flint-GGUF`, revision `20468edf`): **UD-Q4_K_XL** (25.05 GB, sha256 `63c2ecc4…`) and
+**Q8_0** (42.30 GB, `5df42b56…`), both checked. From the GGUF itself:
+- `general.architecture = flint`: llama.cpp knows it from **b11803** (PR #30928, 2026-10-21); b11512 refuses it with
+  *unknown model architecture: 'flint'*, which the panel turns into "newer than the farm's llama.cpp build". The farm
+  now pins b11836 (DEVLOG 2026-10-23).
+- **23.05 of the 25.05 GB are the routed experts** (0.42–0.65 GB a layer); everything else is ~1.7 GB. The experts are
+  what goes to system RAM (`--n-cpu-moe N` keeps the first N layers' experts there).
+- KV: 28 KiB a token in f16 (only the 14 full-attention layers grow with the context; vLLM's blog gives the same
+  figure), ~15 KiB in q8_0: **64k of context costs ~1 GB**.
+- `general.sampling.temp = 1`, `top_p = 0.95`, `top_k = 20`: llama-server takes these as its defaults
+  (`common_init_sampler_from_model`; `/props` shows them, min_p stays llama.cpp's 0.05). A request that names no
+  sampling — the coding agent's — gets Flint's recommended sampling with no farm change.
+- `general.license = other`, `general.license.name = flint-preview`, `general.name = Flint Preview`, while the Hugging
+  Face card and Recursive's page say Apache 2.0 (the page also links separate "Model Terms"). **Unknown: which one
+  governs** — a question to settle before shipping it.
+
+**The chat template** (the same in the GGUF and the BF16 repo): GLM-4.x-style tool calls
+(`<tool_call>name<arg_key>k</arg_key><arg_value>v</arg_value></tool_call>`, results as `<|observation|>`), **no
+thinking switch** (it always thinks; `chat_template_kwargs.enable_thinking: false` changes nothing), and every earlier
+assistant message's `reasoning_content` is put back as `<think>…</think>`. llama-server b11836 with `--jinja` says
+*"chat template supports preserving reasoning, it is enabled by default"*, returns the reasoning apart from the answer,
+and turns the calls into OpenAI `tool_calls`. Over the ~1,100 agent steps below, **one** tool call was malformed
+(left in the reasoning, see the agent findings); every other one parsed.
+
+**The farm's route keeps what Flint asks for** (seat gate → LiteLLM `openai/` → llama-server, the farm's own
+`buildLitellmConfig`, on scratch ports): an earlier assistant message's `reasoning_content` reaches the prompt (58 vs 24
+prompt tokens with and without it; in a tool loop 175 vs 149), and `top_k` arrives (`top_k: 1` at temperature 1.5 gave
+two identical answers; without it, two different ones). The vLLM route to Qwen3.6 keeps the reasoning too (346 vs 321).
+**The coding agent sends its reasoning back** on every earlier step (pi-ai's openai-completions; a tap between dsh and
+the farm saw `reasoning_content` on every assistant message of every request), sends **no temperature, top_p or
+top_k**, and sends `max_completion_tokens` = the IDE's reply room: 8192 for a model LOL Vibe does not know
+(`renderer/chat/projects/models.mjs`, by model id; on the owner's farm every model is called `assistant`).
+
+**`--cache-reuse` is off for Flint** (*"cache_reuse is not supported by this context"*: the sliding window). An agent's
+history only grows, so the exact-prefix cache does the work: in one task 56,112 prompt tokens came from the cache and
+6,223 were computed.
+
+## Speed, one person, experts in system RAM
+
+UD-Q4_K_XL on b11836 with the farm's own argv (`argsFor`: `--jinja --metrics -fa 1 --kv-unified --cache-ram …`), q8_0
+KV, plus `--n-cpu-moe N` (and `-b/-ub`) through `extraArgs`; a cold, unique prompt, 512 tokens out (`ignore_eos`), two
+runs each (the second shown; the first of a pair is 10–40 % slower). Nothing else of mine on the GPU; the farm's vLLM
+served the office beside it.
+
+| Experts on the GPU | Context, slots | Batch | GPU memory | Decode (tok/s) | Prompt (tok/s) | TTFT 3.3k | TTFT 24.8k | TTFT 31.4k |
+|---|---|---|---|---|---|---|---|---|
+| none (`--n-cpu-moe 49`) | 32k, 1 | `-ub 512` (default) | 3.0 GB | 43–45 | 456–533 | 7.3 s | 46.6 s | |
+| none | 32k, 1 | `-b 2048 -ub 2048` | **3.3 GB** | **43–45** | 1,173–1,612 | **2.9 s** | **15.5 s** | |
+| 10 of 47 layers (`--n-cpu-moe 39`) | 32k, 1 | 2048 | 7.5 GB | 51–53 | 1,404–1,917 | 2.4 s | 13.0 s | |
+| 12 of 47 (`--n-cpu-moe 37`) | 32k, 1 | 512 | 8.0 GB | 54–56 | 578–678 | 5.7 s | 36.6 s | |
+| 12 of 47 | 32k, 1 | 2048 | 8.3 GB | 53–55 | 1,468–2,006 | 2.3 s | 12.4 s | |
+| 12 of 47 (**the agent runs below**) | 64k, 2 | 2048 | 9.0 GB | 52–55 | 1,499–2,035 | 2.3 s | | 15.5 s |
+| **Q8_0**, none | 64k, 2 | 2048 | 4.0 GB | 30–32 | 661–927 | 5.1 s | | 34.0 s |
+
+- **`-ub 2048` is what makes experts-in-RAM usable:** each batch of prompt tokens copies the experts' weights over PCIe,
+  so a 4× bigger batch reads prompts ~3× faster for +0.3 GB of GPU. The farm's argv leaves `-ub` at llama.cpp's 512
+  (right for a model held whole on the GPU).
+- **Decode is the CPU's:** 16 threads reading ~0.5 GB of experts a token from RAM give ~44 tok/s; a quarter of the
+  experts on the GPU adds only ~20 %. Q8_0 reads twice the bytes a token: 30–32 tok/s, and prompts at roughly half the
+  speed (its 39 GB of experts cross PCIe per batch).
+- **The laptop-farm data point:** a card with ~4 GB free runs Flint UD-Q4_K_XL at ~44 tok/s for one person with 32k of
+  context (a 24.8k-token paste answered in ~15 s), given ~25 GB of free system RAM for the experts. A first reading
+  taken while my own quality gate ran on the farm was 17.5 tok/s: on such a box the CPU is shared with everything else.
+- llama.cpp admits only `--parallel` people (the rest wait), and with the experts on the CPU two people share its RAM
+  bandwidth: two agents at once here took each task ~1.5× longer.
+
+## The coding agent: five tasks, Flint vs Qwen3.6
+
+The IDE's agent as LOL Vibe runs it: `shell/build/main/studio.js` `createStudio` (its profile patch, the project fence,
+the syntax check) and the installed dsh runtime (0.1.7-rc.2); one fresh project per task; the reply room LOL Vibe sends
+(8192) unless said; the farm's context per person (65,536). The runner and the tasks: `docs/spike/ide/`. Each task's
+`check.js` runs what the agent left (the agent has no shell: it cannot run the tests itself):
+- **t1-median** — fix the bug so `node stats.test.js` passes, tests unchanged (two bugs: a string sort, the even case).
+- **t2-p5** — a p5.js page: a speed slider (0–10, starts at 3) and a Reset button; checked by running `sketch.js`
+  against a p5 stub (speed 6 moves twice as far as 3, 0 stands still, Reset centres the ball).
+- **t3-tests** — write `node:test` tests for `slugify.js`: they pass, hold ≥ 6 assertions, and fail on at least 4 of 5
+  mutants (no lowercase, accents kept, no trimming, the separator option or maxLength ignored).
+- **t4-refactor** — move two duplicated helpers out of two files into `money.js`; `node check.js` still passes.
+- **t5-tdd** — write `wordfreq.js` from a given test file (Unicode letters, inner apostrophes, ties in order).
+
+Flint: UD-Q4_K_XL on b11836, 12 of 47 expert layers on the GPU, `-ub 2048`, q8_0 KV, 64k, 2 slots, behind the farm's
+own seat gate and LiteLLM route (scratch ports). Qwen3.6: the owner's farm itself (`http://127.0.0.1:4000/v1`: vLLM
+0.30, NVFP4, 48 seats at 64k, `presence_penalty` 1.5 from the route), one request at a time. "Fence off" = the first
+batches, whose data folder was on F: — where, it turned out, dsh runs no hook (DEVLOG 2026-10-23), so the fence and
+the syntax check were off for both models alike.
+
+| Runs (reply room 8192 unless said) | t1 | t2 | t3 | t4 | t5 | **all** | wall a task (median) | steps (median) | tool calls (median) | failed tool calls (all) | output tokens a task (median) | ended on max-tokens |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Qwen3.6, fence off (F:) | 2/3 | 2/3 | 1/3 | 3/3 | 2/3 | **10/15** | 13 s | 10 | 10 | 14 of 152 (9 %) | 2275 | 0 |
+| Qwen3.6, fence on | 3/3 | 3/3 | 1/3 | 3/3 | 1/3 | **11/15** | 21 s | 9 | 8 | 21 of 126 (17 %) | 2156 | 0 |
+| Flint, fence off (F:) | 3/3 | 0/3 | 3/3 | 3/3 | 3/3 | **12/15** | 168 s | 12 | 16 | 78 of 390 (20 %) | 8084 | 3 |
+| Flint, fence on (as shipped) | 2/3 | 1/3 | 1/3 | 2/3 | 2/3 | **8/15** | 171 s | 15 | 18 | 103 of 274 (38 %) | 8399 | 2 |
+| Flint, fence on, standing mode allowed | 3/3 | 0/3 | 1/3 | 3/3 | 2/3 | **9/15** | 255 s | 9 | 14 | 50 of 228 (22 %) | 5590 | 4 |
+| Flint, same, 32768-token replies | 2/2 | 2/2 | 2/2 | 1/2 | 1/2 | **8/10** | 234 s | 13 | 15 | 64 of 287 (22 %) | 10922 | 0 |
+
+The batch "standing mode allowed" ran beside Flint's quality gate, and the first 32,768 round beside it in turn (two
+agents or an agent and the gate on one server): their wall times are ~1.5× what one person sees. Every run's record
+(the check, steps, each tool call's name and target, failed calls, tokens): `results/ide/*.json`.
+
+What the runs show:
+- **The reply room decides the p5 task for Flint.** At LOL Vibe's 8192 tokens Flint ran out on t2 in 8 of its 9 runs
+  (one step thought past 8k tokens and ended on `max-tokens`, the page untouched); with 32,768 it passed
+  2 of 2 (22,345 output tokens in one run). Qwen3.6 never came near the limit (1–5k tokens a task). Flint's makers ask
+  for ≥ 32,768. LOL Vibe picks the room by model id, and on the owner's farm every model is `assistant`.
+- **The fence as shipped refused most of Flint's writes:** it adds `sandbox_permissions: "workspace-write"` with a
+  `justification` to 75 of its 130 writes and edits (a Codex-style habit; it is the mode the agent already runs in,
+  which dsh grants with no question). The fence refused any `sandbox_permissions`; Flint then probed with test files,
+  wrote outside the project, or stopped to ask the person — 8/15, 38 % of its tool calls failed. **Allowing the standing
+  mode** (committed on this branch; any other value is still refused, the path still decides): no such refusal left,
+  9/15 at 8192 (t2's room unchanged), 8/10 at 32,768.
+- **Flint's own failure modes:** edits that change nothing (`old_string and new_string must differ`, 47 in one batch;
+  one t3 run went 145 steps / 14 min before passing), re-reading the same file 4–6 times, an edit whose text is not
+  there, asking for a shell (`read "node --version"`), reading the projects folder above its own, editing a file it was
+  told to keep (2 of the 40 runs with the fence), and **one malformed tool call**
+  (`Let<arg_key>read<arg_key>path</arg_key>…</tool_call>`, no opening tag, left in the reasoning; the turn ended
+  without the fix the syntax check had asked for).
+  **Qwen3.6's:** wrong expectations in the tests it writes (t3: miscounted characters for maxLength, 1/3 in both
+  batches), an `Object.create(null)` result against `deepStrictEqual` (t5), the numeric sort missed once (t1), changed
+  the tests once (t5), and `exit_plan_mode` outside plan mode 11–18 times a batch (refused, harmless).
+- **Time:** Flint took 2.5–4 min a task here (its experts in RAM, ~53 tok/s, 5–8k output tokens a task with its
+  reasoning), Qwen3.6 13–21 s on the farm's vLLM (~2k tokens). Fence on or off moved Qwen3.6 from 10 to 11 and Flint from
+  12 to 9 (8192, standing mode allowed): with temperature 1.0 and three runs a task, ±2 is noise.
+
+## The quality gate (28 items)
+
+| | code | exact | tool | total | completion tokens | wall |
+|---|---|---|---|---|---|---|
+| Qwen3.6, the farm itself, thinking on (16k replies) | 8/10 | 7/7 | 11/11 | **26/28** | 80,021 | 483 s |
+| Qwen3.6, the farm itself, thinking off (8k) | 10/10 | 7/7 | 11/11 | **28/28** | 10,633 | 70 s |
+| Flint UD-Q4_K_XL, its sampling, 32k replies | 10/10 | 7/7 | 10/11 | **27/28** | 21,260 | 720 s |
+| Flint Q8_0 (every expert in RAM), the same, 2 at once | 10/10 | 7/7 | 10/11 | **27/28** | 22,857 | 701 s |
+
+Concurrency 1 on the farm (gentle) and on Flint's server (which ran an agent beside it). Qwen3.6's misses: a wrong
+`parse_duration`, and an `eval_expr` program that did not finish in time (the spike's run straight to vLLM on 2026-10-04:
+27/28 and 28/28). Flint's: `tool_write_file` — after writing the file it read it back four times and gave no answer
+within 5 steps (its re-reading habit; the gate's tool loop also drops `reasoning_content` from the history, against
+Flint's instructions). **Flint thinks a quarter as much as Qwen3.6 with thinking on** for one more point. A 28-item smoke
+gate, not a benchmark: both models are at its ceiling. Raw: `results/pro6000-farm-v0.0.48-vllm-qwen36-nvfp4__quality__*`
+and `results/pro6000-shared-llamacpp-b11836-flint-*`.
+
+## Recursive's claims
+
+On the model card (BF16; temperature 1.0, top-p 0.95, top-k 20; average pass@1 over ≥ 5 attempts): **Terminal-Bench 2.1
+54.9 %** (Terminus 2), **SWE-bench Pro v2 89.7 %** and **SWE-bench Verified 74.2 %** (both mini-swe-agent). Recursive's
+own blog names the benchmarks and the setups but prints no number in its text, does not define "SWE-bench Pro v2", says
+nothing about contamination, and cites no independent run; no third-party rerun was found on 2026-10-23. SWE-bench Pro was
+built to be harder than Verified (longer, multi-file, contamination-resistant tasks), and published models score well
+below their Verified score on it (a public leaderboard snapshot, benchlm.ai, puts its 12th place at 64 %); 89.7 on Pro
+against 74.2 on Verified inverts that. Until someone reruns it, the Pro figure says nothing; the Verified figure
+(Qwen3.6's makers report 73.4) puts Flint level with Qwen3.6, which is what the five tasks above show too. Also
+claimed: >125 tok/s on an M4 Pro, >150 tok/s on a 64 GB "RTX Spark" at short contexts, NVFP4 within 0.7 points of
+BF16; vLLM's day-0 post: ~485 tok/s for one request on a GB200. The llama.cpp PR notes its expert scaling costs 10–30 %
+speed for now (follow-up PRs).
+
+## What this means for the farm
+
+- **Flint does the IDE agent's job about as well as Qwen3.6 on these tasks, not clearly better:** given the room it
+  needs, 8/10 (32,768) against Qwen3.6's 11/15; 12/15 against 10/15 with the fence off; 27/28 against 26/28 on the gate
+  with a quarter of the thinking. Its makers' own SWE-bench Verified (74.2) is level with Qwen3.6's (73.4). It fails
+  differently: Flint loops and over-checks, Qwen3.6 writes wrong expectations quickly.
+- **It is not the farm's model today.** A farm serves one engine at a time, and on the PRO 6000 that is vLLM with Qwen3.6
+  for 48 people at 64k, with vision and document reading. Flint is text only and always thinks (Open WebUI's titles and
+  the Computer's "thinking off" lists would think anyway). It runs on the farm's llama.cpp only — vLLM's support is a
+  day-0 Docker image (`vllm/vllm-openai:flint`) and an open PR (#62938), not a release the farm can install — and on
+  llama.cpp people at once are `--parallel` slots with a shared ceiling (this spike: ~600 tok/s aggregate, 4–8 people).
+- **Where it fits is a second, small farm for coding:** the one strong coding model here that runs well with its experts
+  in system RAM — 3.3 GB of GPU, ~44 tok/s, a 25k-token paste answered in 15 s for one person; a 12–16 GB office card can
+  hold a third of the experts as well (~55 tok/s). A developer's LOL Vibe would connect to it for its projects.
+- **Quant: UD-Q4_K_XL** (25 GB): Q8_0 scored the same on the gate (27/28, the same miss) at 60 % of the speed with the
+  experts in RAM; Q8_0 is worth it only where it fits whole on the GPU, if J12 shows a difference there.
+- **Engine: llama.cpp b11836** (this branch's pin) now; vLLM once a release carries #62938 — then J12 again on vLLM,
+  whose multi-user ceiling on this card is 10–40× llama.cpp's (finding 4).
+- **What the IDE needs before Flint is offered** (none of it is built, except the first):
+  1. the fence's standing-mode rule (`sandbox_permissions: "workspace-write"` allowed; on this branch);
+  2. a reply room of ≥ 32,768 for it — LOL Vibe chooses by model id, and the farm names every model `assistant`, so it
+     needs the snapshot's `underlying` name to tell;
+  3. for a small-GPU farm, MoE offload in the farm's argv: `--n-cpu-moe` sized from the free memory like
+     `contextLength: 'auto'`, and `-b 2048 -ub 2048` when experts are in RAM;
+  4. a `flint` line in `projects/models.mjs` (after J13), and the licence question settled.
+- **Still unknown:** the whole-GPU speed and people at once (J12); the agent at full speed against Qwen3.6 (J13); longer
+  work than five small tasks (a real project, Keep going); Q8_0 in the agent; an independent check of Recursive's numbers,
+  the SWE-bench Pro v2 figure above all; which licence governs the weights.
+
+**Recommendation:** not now as the farm's model or default; keep Qwen3.6 on vLLM for the office and the IDE. Merge the pin
+(document search is 2.4× faster and the abandoned-call bug is gone, whatever the model) and the two fence fixes (the
+second-drive hole matters whatever the model), run J12–J13 at a quiet moment, and if Flint holds up at full speed, offer
+it as an opt-in llama.cpp coding model (UD-Q4_K_XL) with a 32k reply room — on a second, small farm first.

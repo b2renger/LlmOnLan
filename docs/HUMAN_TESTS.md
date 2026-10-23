@@ -1426,7 +1426,7 @@ decode p10 ≥ 15 tok/s) for chat, agent, 32k and 64k. Write them beside Qwen3.6
 on every turn) and the spike's llama.cpp ceiling (~600 tok/s aggregate, `--parallel` admits the rest to a queue).
 One person, for comparison with the shared-GPU run: 53–55 tok/s with 12 of 47 expert layers on the GPU (9 GB),
 TTFT 2.3 s at 3.3k and 12.4 s at 24.8k; on the whole GPU it should be several times faster. The quality gate:
-Q4_K_XL scored __/28 on 2026-10-23 with the experts in RAM; Q8_0 within a point of it means Q4_K_XL is the one to serve.
+UD-Q4_K_XL scored 27/28 on 2026-10-23 with its experts in RAM (Q8_0: see RESULTS.md); Q8_0 within a point of it means UD-Q4_K_XL is the one to serve.
 - [ ] Done · Found:
 
 ### J13 The coding agent on Flint, whole GPU, against Qwen3.6
@@ -1437,10 +1437,12 @@ the client on this box (`%APPDATA%\LlmOnLan\dsh-runtime`).
    then with `2` and `3` as the last word.
 2. The same three with `32768` instead of `8192` (Flint's makers ask for ≥ 32768 tokens a reply; LOL Vibe sends 8192
    for a model it does not know), label `flint-fullgpu-32k`.
-3. After J12 step 6 (vLLM serving again), at a quiet moment: the same three with `http://127.0.0.1:4000/v1`, label `qwen36`.
+3. If time allows, step 2 again with J12's Q8_0 server (label `flint-q8-fullgpu-32k`): the quant in the agent, which
+   the shared-GPU run could not settle (the gate scored both 27/28).
+4. After J12 step 6 (vLLM serving again), at a quiet moment: the same three with `http://127.0.0.1:4000/v1`, label `qwen36`.
 
 *Expect:* each line of `%TEMP%\lol-ide-<label>\results.jsonl` says whether the task's check passed, the steps, tool
-calls, failed calls and tokens. 2026-10-23 on the shared GPU: Flint __/15, Qwen3.6 __/15 (docs/spike/RESULTS.md). Write
+calls, failed calls and tokens. 2026-10-23 on the shared GPU: Flint 9/15 at 8192 and 8/10 at 32768 (with the standing-mode fence rule), Qwen3.6 11/15 (docs/spike/RESULTS.md, *Flint*). Write
 down the pass counts, the median wall time per task, and any `max-tokens` end.
 - [ ] Done · Found:
 
