@@ -6,7 +6,7 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-10-23 (⟨TIME⟩) — Flint for the coding agent: llama.cpp b11512 → b11836, Flint measured beside the live farm, and the project fence found off on a second drive
+## 2026-10-23 (16:55) — Flint for the coding agent: llama.cpp b11512 → b11836, Flint measured beside the live farm, and the project fence found off on a second drive
 
 The owner asked whether Recursive's **Flint** (released 2026-10-21; a 39.8B MoE with ~2.5B active, made for coding
 agents) should be the farm's model for coding, above all for the IDE's coding agent. Branch `flint` (from
@@ -44,6 +44,9 @@ when pinned (324 commits after b11512). Three things the farm wants came after b
   models.
 - **The same:** the 15 `/metrics` names `perf.js` reads, `/health`, the log's level markers, and the *unknown model
   architecture* and *doesn't contain MTP layers* lines `explainEngineFailure()` quotes (in `llama.dll` on both).
+- **MTP:** the flags parse as before; on the stripped UD-IQ2_S, b11836 says *"model doesn't contain MTP layers"* and the
+  farm's sentence reads *"This quant has no MTP head…"* (checked through `spawnLlamacpp`). MTP's speed on an MTP quant
+  (UD-Q2_K_XL) was not re-measured: no flag or default it uses changed.
 - Not changed, noted: the log calls `--no-webui` deprecated (*use --ui/--no-ui*) on b11512 and b11836 alike; it works.
 - **Found on the way, not changed:** the engine's `spawnLlamacpp` hands llama-server the box's whole environment, so a
   `LLAMA_ARG_CONNECT` set on the farm box would open that tunnel (`embed.js` already drops every `LLAMA_*` variable).
@@ -116,6 +119,7 @@ Farm app were never touched, `F:\LlmOnLan` only read.
   | Flint, fence on (as shipped) | 2/3 | 1/3 | 1/3 | 2/3 | 2/3 | **8/15** | 171 s | 15 | 18 | 103 of 274 (38 %) | 8399 | 2 |
   | Flint, fence on, standing mode allowed | 3/3 | 0/3 | 1/3 | 3/3 | 2/3 | **9/15** | 255 s | 9 | 14 | 50 of 228 (22 %) | 5590 | 4 |
   | Flint, same, 32768-token replies | 2/2 | 2/2 | 2/2 | 1/2 | 1/2 | **8/10** | 234 s | 13 | 15 | 64 of 287 (22 %) | 10922 | 0 |
+  | Flint Q8_0 (every expert in RAM), same, 32768 | 1/1 | 0/1 | 1/1 | 1/1 | 1/1 | **4/5** | 209 s | 7 | 10 | 13 of 54 (24 %) | 5964 | 0 |
 
   - **The reply room:** at LOL Vibe's 8192 (any model it does not know; the owner's farm calls every model
     `assistant`) Flint ran out on the p5 task in 8 of its 9 runs; with 32,768 it passed 2 of 2. Qwen3.6
@@ -161,8 +165,10 @@ check; the fence test's three new lines fail with the old rule), `chat-lint` 0 v
 
 **Not done (the owner's):** the merge (it runs `build-llamacpp-arm64`), a farm release and a client release; Flint on
 the whole GPU (HUMAN_TESTS J12) and the agent at full speed against Qwen3.6 (J13); the fence on a second drive by a
-person (G11) and on macOS/Linux (E4). Everything downloaded or started here was removed (the two GGUFs, the b11512 copy,
-the worktree's `farm/.llamacpp` and `farm/.models`, every scratch process).
+person (G11) and on macOS/Linux (E4). Every process started here was stopped (the owner's farm stayed healthy on vLLM
+throughout), and the worktree's `farm/.llamacpp` and `farm/.models` were removed. **Left for the owner to delete:**
+`F:\lol-scratch-flint` (64 GB: the two Flint GGUFs and a b11512 copy) — Claude Code's own safety check refused a
+recursive delete of a folder at a drive's root.
 
 ## 2026-10-13 (09:24) — The PRO 6000's models and its WSL disk are on F: — C: from 65 to 618 GB free
 

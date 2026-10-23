@@ -814,10 +814,12 @@ the syntax check were off for both models alike.
 | Flint, fence on (as shipped) | 2/3 | 1/3 | 1/3 | 2/3 | 2/3 | **8/15** | 171 s | 15 | 18 | 103 of 274 (38 %) | 8399 | 2 |
 | Flint, fence on, standing mode allowed | 3/3 | 0/3 | 1/3 | 3/3 | 2/3 | **9/15** | 255 s | 9 | 14 | 50 of 228 (22 %) | 5590 | 4 |
 | Flint, same, 32768-token replies | 2/2 | 2/2 | 2/2 | 1/2 | 1/2 | **8/10** | 234 s | 13 | 15 | 64 of 287 (22 %) | 10922 | 0 |
+| Flint Q8_0 (every expert in RAM), same, 32768 | 1/1 | 0/1 | 1/1 | 1/1 | 1/1 | **4/5** | 209 s | 7 | 10 | 13 of 54 (24 %) | 5964 | 0 |
 
 The batch "standing mode allowed" ran beside Flint's quality gate, and the first 32,768 round beside it in turn (two
 agents or an agent and the gate on one server): their wall times are ~1.5× what one person sees. Every run's record
-(the check, steps, each tool call's name and target, failed calls, tokens): `results/ide/*.json`.
+(the check, steps, each tool call's name and target, failed calls, tokens): `results/ide/*.json`. The Q8_0 round's miss
+is its own bug (`speedSlider.value` without the call: NaN in a real browser too).
 
 What the runs show:
 - **The reply room decides the p5 task for Flint.** At LOL Vibe's 8192 tokens Flint ran out on t2 in 8 of its 9 runs
@@ -900,8 +902,8 @@ speed for now (follow-up PRs).
      `contextLength: 'auto'`, and `-b 2048 -ub 2048` when experts are in RAM;
   4. a `flint` line in `projects/models.mjs` (after J13), and the licence question settled.
 - **Still unknown:** the whole-GPU speed and people at once (J12); the agent at full speed against Qwen3.6 (J13); longer
-  work than five small tasks (a real project, Keep going); Q8_0 in the agent; an independent check of Recursive's numbers,
-  the SWE-bench Pro v2 figure above all; which licence governs the weights.
+  work than five small tasks (a real project, Keep going); Q8_0 in the agent beyond one round (4/5); an independent
+  check of Recursive's numbers, the SWE-bench Pro v2 figure above all; which licence governs the weights.
 
 **Recommendation:** not now as the farm's model or default; keep Qwen3.6 on vLLM for the office and the IDE. Merge the pin
 (document search is 2.4× faster and the abandoned-call bug is gone, whatever the model) and the two fence fixes (the
