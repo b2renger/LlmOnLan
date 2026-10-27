@@ -159,16 +159,23 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     **Plan capacity ↗** opens `/lol/capacity` (2026-10-07, `farm/src/capacity/`, open like `/lol/self`, offline):
     the capacity explorer with this farm's box and model marked, and usage scenarios (documents for 5, vibe-coding
     for 10, a class of 30, …) whose picks come from the spike's measurements and the calibrated estimator
-    (`scenarios.js`; the GeForce cards count as one-person boxes; the model served now comes first when it covers).
-  - **Presets** (owner 2026-10-27, `src/presets.js` + `up.js` `makePresets`, the panel's Presets card; branch `presets`,
-    not merged): one per session — **Balanced** (the default: the serving engine's shipped defaults and plugins),
-    **Documents** (`rag`: the best model that covers 5 at 64k, document reading on), **LOL Vibe** (`vibe`: the strongest
-    agentic-coding score that covers 10 at 64k, document reading off), **Computer** (the most people at 32k among models
-    that see pictures and do tools well, every plugin on). Picked for THIS box by `scenarios.js` `recommend()` (the
-    capacity page's cards, the spike's measurements, the estimator; never copied), only among what it can run: vLLM's list
-    where vLLM is set up on a GPU the capacity page knows for a group (people at once and memory Automatic: on the PRO 6000
-    Qwen3.6 64k / Qwen3.8 27B 64k / Qwen3.8 27B 64k / Qwen3.6 32k; on a Spark Qwen3.6 for all four), else Ollama's default
-    (Automatic context, 2 at once) and, for LOL Vibe, llama.cpp's model. **Document search is never switched.** Review =
+    (`scenarios.js`; the GeForce cards count as one-person boxes; the model served now comes first when it covers; a card
+    that prefers people counts a lead under 10 % as a tie the better model wins, `morePeople`, 2026-10-27).
+  - **Presets** (owner 2026-10-27, `src/presets.js` + `up.js` `makePresets`, the panel's Presets card; branches `presets`
+    and `presets-users`, not released): one per session — **Balanced** (the default: the serving engine's shipped defaults
+    and plugins), **Documents** (`rag`: the MOST PEOPLE at 64k among models good enough for documents — `GATE_FLOOR`, 25/28
+    or more on every run of the spike's check — document reading on), **LOL Vibe** (`vibe`: the most people at 64k among
+    models PROVEN WITH THE IDE'S CODING AGENT — `AGENT_PROVEN`, today Qwen3.6 alone, 11/15 on the five tasks; Flint joins
+    once a vLLM release serves it and HUMAN_TESTS J12–J13 measured it — document reading off), **Computer** (the most
+    people at 32k among models that see pictures and do tools well, every plugin on). Picked for THIS box by `scenarios.js`
+    `recommend()` (the capacity page's cards, the spike's measurements, the estimator; never copied), only among what it
+    can run: vLLM's list where vLLM is set up on a GPU the capacity page knows for a group (people at once and memory
+    Automatic: on the PRO 6000 Qwen3.6 for all four — 64k / 64k / 64k / 32k: for Documents Nemotron's 64 against Qwen3.6's
+    63 at 64k is a tie, both at the spike's highest level, and 16 against 48 when everyone asks together; Q4 of HUMAN_TESTS
+    measures Nemotron past 64, a real lead flips it; on the Max-Q/5500/5000 the estimate gives Nemotron a real lead; on a
+    Spark Qwen3.6 for all four), else
+    Ollama's default (Automatic context, 2 at once) and, for LOL Vibe, a proven model if llama.cpp or Ollama has one, else
+    llama.cpp's model (said). **Document search is never switched.** Review =
     a dry run (reasons, every change, what restarts and how long, what to download first, offered, never waited for);
     Apply = ONE job through the existing controls (`setBackend`/`applyFarmSettings`/`applyVllmSettings` take an `inJob`
     progress and run inside it): plugins off, the engine with its settings (another engine's written first so the switch

@@ -3,8 +3,10 @@
 // panel and the farm switches to it through its own controls (up.js makePresets). Pure: no I/O.
 //
 //   balanced  the farm as it ships (the default): the serving engine's own defaults and the shipped plugins
-//   rag       Documents: the best model that covers the head count at 64k each, document reading on
-//   vibe      LOL Vibe and its coding agent: a model with a strong agentic-coding score at 64k, document reading off
+//   rag       Documents: the most people at 64k each among models good enough for documents (GATE_FLOOR), document
+//             reading on (owner 2026-10-27: "more users")
+//   vibe      LOL Vibe and its coding agent: the most people at 64k among models proven with the agent (AGENT_PROVEN),
+//             document reading off
 //   computer  the Computer: the most people at 32k with a model that sees pictures and does tools well, every plugin on
 //
 // The picks are worked out for THIS box (its GPU: systemInfo's detectHardware, the snapshot's host) from the capacity
@@ -46,8 +48,31 @@ const RESTART = {
 const SHIPPED = defaultConfig();
 const all = (on) => Object.fromEntries(PLUGINS.map((k) => [k, on]));
 
+// Documents' quality floor: this score or more on EVERY run of the spike's 28-item check (10 code, 7 exact answers, 11
+// tool round-trips; thinking on and off, on each box it ran on: catalog.json spike_quality). Qwen3.6 (26–28), Nemotron 3.5
+// Lightning (25–27) and Qwen3.8 27B (26–28) pass; Gemma 4 12B (22 with thinking on, which ran away) and a model never run
+// on it do not. So a weak model is never picked for its head count alone.
+const GATE_FLOOR = 25;
+function gateWorst(m) {
+    const sq = m.spike_quality; if (!sq) return null;
+    const runs = [sq.pro6000_think_on_off, sq.spark_think_on_off].join(' ').match(/\d+(?=\/28)/g) || [];
+    return runs.length ? Math.min(...runs.map(Number)) : null;
+}
+// LOL Vibe's models: proven with the IDE's own coding agent (dsh as LOL Vibe runs it: the profile patch, the fence, the
+// syntax check) on the five tasks of docs/spike/ide. The estimator has no agent data, so this list is the proof, by
+// catalog id. Qwen3.6: 11/15 (docs/spike/RESULTS.md, "The coding agent: five tasks, Flint vs Qwen3.6", 2026-10-23, on
+// the farm's vLLM). Qwen3.8 and Nemotron passed only the P5-0 spike's single edit task (docs/research/p5-spike, 3/3 each on
+// Ollama), never the five. Flint (8/10 given 32k replies, 9/15 at 8k) is not here: the farm serves it on llama.cpp only, a
+// few people at once, and vLLM's support is in no release yet; it joins once one serves it and HUMAN_TESTS J12–J13
+// measured it on the whole GPU.
+const AGENT_PROVEN = { 'qwen3.6-35b-a3b': '11/15 on its five tasks, on vLLM' };
+const PROVEN_NAMES = Object.keys(AGENT_PROVEN).map((id) => S.modelName(CATALOG.models.find((m) => m.id === id))).join(', ');
+const provenOf = (served) => { const c = S.matchModel(CATALOG, served || ''); return (c && AGENT_PROVEN[c.id]) || null; };
+
 // The four presets. `card` = the capacity page's scenario card whose use and head count it is picked for
-// (scenarios.js SCENARIOS); `context` overrides that use's own where the preset needs more; `need` adds to its needs.
+// (scenarios.js SCENARIOS); `context` overrides that use's own where the preset needs more; `need` adds to its needs;
+// `prefer: 'people'` ranks the pairs that cover the head count by people first (scenarios.js byModel); `pool` keeps
+// only the catalog models it accepts.
 const PRESETS = [
     {
         id: 'balanced', label: 'Balanced', card: 'class',
@@ -55,13 +80,13 @@ const PRESETS = [
         plugins: Object.fromEntries(PLUGINS.map((k) => [k, !!SHIPPED[k].enabled])),
     },
     {
-        id: 'rag', label: 'Documents', card: 'rag', context: 65536,
-        what: 'Questions about documents in Open WebUI (RAG): whole documents in the prompt, scanned pages read, documents searched.',
+        id: 'rag', label: 'Documents', card: 'rag', context: 65536, prefer: 'people', pool: (m) => gateWorst(m) >= GATE_FLOOR,
+        what: 'Questions about documents in Open WebUI (RAG) for the most people: whole documents in the prompt, scanned pages read, documents searched.',
         plugins: { ...all(false), websearch: true, ocr: true },
     },
     {
-        id: 'vibe', label: 'LOL Vibe', card: 'xr', context: 65536, budget: 'farm_no_ocr',
-        what: 'Chat and the IDE\'s coding agent in LOL Vibe: a strong coding model, 64k each, long replies.',
+        id: 'vibe', label: 'LOL Vibe', card: 'xr', context: 65536, budget: 'farm_no_ocr', prefer: 'people', pool: (m) => !!AGENT_PROVEN[m.id],
+        what: 'Chat and the IDE\'s coding agent in LOL Vibe for the most people: a model proven with the agent, 64k each, long replies.',
         plugins: { ...all(false), websearch: true },
     },
     {
@@ -85,6 +110,7 @@ function scenarioOf(p) {
     if (p.context) { sc.est = { ...sc.est, context: p.context }; sc.need = { ...sc.need, minContext: p.context }; }
     if (p.budget) sc.est = { ...sc.est, budget: p.budget };
     if (p.need) sc.need = { ...sc.need, ...p.need };
+    if (p.prefer) sc.prefer = p.prefer;
     sc.title = c.title;
     return sc;
 }
@@ -104,12 +130,13 @@ function entryFor(library, catalogId, current) {
     return of.find((e) => e.downloaded && e.id === current) || of.find((e) => e.downloaded) || of.find((e) => e.repo) || null;
 }
 
-// The best vLLM pair on this box for one scenario, restricted to the models of the list (`only` = one catalog id).
-// → {entry, pair} | {why}. A pair the estimator would put on llama.cpp (a GGUF) or a card for one person is no vLLM pick.
-function vllmPair(sc, hw, box, only = null) {
+// The best vLLM pair on this box for one scenario, restricted to the models of the list that `keep` accepts (a catalog
+// model → true). → {entry, pair} | {why}. A pair the estimator would put on llama.cpp (a GGUF) or a card for one person
+// is no vLLM pick.
+function vllmPair(sc, hw, box, keep = () => true) {
     const lib = box.vllm.library || [];
-    const ids = new Set(lib.map((e) => e.catalog).filter(Boolean).filter((id) => !only || id === only));
-    const models = CATALOG.models.filter((m) => ids.has(m.id) && entryFor(lib, m.id, box.vllm.current));
+    const ids = new Set(lib.map((e) => e.catalog).filter(Boolean));
+    const models = CATALOG.models.filter((m) => ids.has(m.id) && keep(m) && entryFor(lib, m.id, box.vllm.current));
     if (!models.length) return { why: 'no model of the vLLM list meets what it needs' };
     const rec = S.recommend(E, { ...CATALOG, hardware: [hw], models }, sc, { hwId: hw.id });
     const p = rec.thisFarm;
@@ -142,10 +169,10 @@ function pickFor(id, box) {
             // The shipped vLLM: its default model and context, when the list has it and it fits this GPU.
             const def = SHIPPED.vllm.model;
             const cat = ((box.vllm.library || []).find((e) => e.id === def) || {}).catalog;
-            v = cat ? vllmPair(scenarioOf({ ...p, context: SHIPPED.vllm.contextLength }), hw, box, cat) : { why: 'its default model is not in the vLLM list' };
+            v = cat ? vllmPair(scenarioOf({ ...p, context: SHIPPED.vllm.contextLength }), hw, box, (m) => m.id === cat) : { why: 'its default model is not in the vLLM list' };
             if (v.entry) v.context = SHIPPED.vllm.contextLength;
         }
-        if (!v || !v.entry) v = vllmPair(sc, hw, box);
+        if (!v || !v.entry) v = vllmPair(sc, hw, box, p.pool);
         if (v.entry && !v.context) v.context = sc.est.context;
     }
     if (v && v.entry) {
@@ -153,14 +180,16 @@ function pickFor(id, box) {
         Object.assign(out, { engine: 'vllm', model: e.id, modelLabel: e.label, context: v.context, people: 'auto', memory: 'auto' });
         out.estimate = { mid: r.people.mid, low: r.people.low, high: r.people.high, confidence: r.confidence, covers: !!v.pair.covers };
         out.reasons.push(`${e.label} on vLLM, for ${sc.people} people at once (the capacity page's "${sc.title}"): ${v.pair.reason}`);
+        out.reasons.push(...poolReasons(p, v.pair, sc));
         out.reasons.push(contextReason(p, v.context, 'vllm'));
         out.reasons.push('People at once and GPU memory for conversations: Automatic (what was measured on this card, never more than its memory holds).');
         if (!e.downloaded) out.needs.push({ kind: 'vllm', id: e.id, label: e.label, gb: e.sizeGb ?? null, text: `Download ${e.label}${e.sizeGb ? ` (${Math.round(e.sizeGb)} GB)` : ''} in the vLLM list first.` });
     } else {
         // Ollama and llama.cpp. People at once stay each engine's default (no group was measured on these cards), the
-        // context Automatic (the most the card holds).
+        // context Automatic (the most the card holds). LOL Vibe: a model proven with the coding agent first (llama.cpp's,
+        // then Ollama's); with neither, llama.cpp's model where llama.cpp runs, as before the agent rule, and it says so.
         const lc = box.llamacpp || {}; const ol = box.ollama || {};
-        const llama = p.id === 'vibe' && lc.available;
+        const llama = p.id === 'vibe' && !!lc.available && (!!provenOf(lc.label) || !provenOf(ol.model));
         const engine = llama ? 'llamacpp' : 'ollama';
         const ctx = SHIPPED[engine].contextLength;
         Object.assign(out, {
@@ -168,19 +197,22 @@ function pickFor(id, box) {
             context: ctx, people: llama ? SHIPPED.llamacpp.parallel : SHIPPED.ollama.numParallel, memory: null,
         });
         const cat = S.matchModel(CATALOG, out.modelLabel || '');
-        if (llama) {
+        const proof = p.id === 'vibe' ? provenOf(out.modelLabel) : null;
+        if (proof) out.reasons.push(`${out.modelLabel} on ${ENGINE[engine]}: proven with the IDE's coding agent (${proof}).`);
+        else if (llama) {
             const unmet = cat ? S.unmet(cat, sc.need) : null;
             out.reasons.push(`${lc.label} on llama.cpp, the speed pick on one card${!cat ? '' : unmet ? ` (${unmet})` : ': the model has a strong agentic-coding score (measured at full size; a small quant loses some)'}.`);
         } else {
             out.reasons.push(`${ol.model} on Ollama: ${p.id === 'vibe' ? 'llama.cpp cannot run on this computer, so the coding model is Ollama\'s' : 'one model for chat and for reading scanned pages and pictures'}.`);
             if ((p.id === 'computer' || p.id === 'rag') && cat && !cat.vision) out.reasons.push(`${ol.model} does not read images: make a model that does the default in the Ollama section.`);
         }
+        if (p.id === 'vibe' && !proof) out.reasons.push(`No model proven with the IDE's coding agent is available here: so far only ${PROVEN_NAMES} is (${Object.values(AGENT_PROVEN).join('; ')}).`);
         out.reasons.push(`Context: Automatic, the most this card holds${p.context ? ` (the aim is ${fmtK(p.context)} each)` : ''}.`);
         out.reasons.push(`People at once: ${out.people}, ${ENGINE[engine]}'s default.`);
         if (vllmUp && !hw) out.reasons.push('vLLM is set up, but the capacity page does not know this GPU, so the presets keep to Ollama and llama.cpp. vLLM stays one click away in its section.');
         else if (vllmUp && v && v.why) out.reasons.push(`Not vLLM: ${v.why}.`);
         else if (!vllmUp && hw && box.vllm && box.vllm.supported) {
-            const could = vllmPair(sc, hw, { ...box, vllm: { ...box.vllm, library: (box.vllm.library || []).map((e) => ({ ...e, downloaded: true })) } });
+            const could = vllmPair(sc, hw, { ...box, vllm: { ...box.vllm, library: (box.vllm.library || []).map((e) => ({ ...e, downloaded: true })) } }, p.pool);
             if (could.entry) out.reasons.push(`${box.vllm.checked ? 'vLLM is not set up on this computer' : 'vLLM has not been checked on this computer yet'}: with it, this GPU would serve about ${peopleOf(could.pair.r)} people with ${could.entry.label} (the vLLM section ${box.vllm.checked ? 'installs it' : 'checks it'}).`);
         }
         if (llama && !lc.downloaded) out.needs.push({ kind: 'llamacpp', id: lc.id || null, url: lc.id ? null : lc.model, label: lc.label, gb: lc.sizeGb ?? null, text: `Download ${lc.label}${lc.sizeGb ? ` (${Math.round(lc.sizeGb)} GB)` : ''} for llama.cpp first.` });
@@ -188,6 +220,22 @@ function pickFor(id, box) {
     }
     out.reasons.push(pluginReason(p, out.engine));
     return out;
+}
+
+// Why this model among the others, for the presets that pick the most people from a pool.
+function poolReasons(p, pair, sc) {
+    if (p.id === 'rag') {
+        // Documents are asked out of step (the scenario's mode); a class that starts together gets fewer: said.
+        const ev = E.estimate(pair.hw.id, pair.model.id, { ...sc.est, mode: 'every' });
+        const together = ev.fits && ev.people.mid < pair.r.people.mid ? `; when everyone asks at the same moment, about ${peopleOf(ev)}, ${ev.confidence}` : '';
+        return [`Picked for the most people at ${fmtK(sc.est.context)} among the models that scored ${GATE_FLOOR}/28 or more on every run of the spike's quality check (a lead of under 10 % is a tie, which the better model wins)${together}.`,
+            ...(pair.model.vision ? [] : ['It does not read images: documents reach it as text, and scanned pages go through document reading (OCR), a model of its own.'])];
+    }
+    if (p.id === 'vibe') {
+        return [`Picked for the most people among the models proven with the IDE's coding agent: ${AGENT_PROVEN[pair.model.id]}. `
+            + 'Flint is not one yet: the farm serves it on llama.cpp only, a few people at once; it joins once a vLLM release serves it and it is measured here.'];
+    }
+    return [];
 }
 
 function contextReason(p, ctx, engine) {
