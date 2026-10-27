@@ -46,8 +46,8 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 | N. The Farm app on a clean box | a PC with no Ollama or Python, a Mac | 5 | — | 2 h + downloads |
 | O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 5 | — | 2 h 30 |
 | P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
-| Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q4) | 6 | — | 2 h 30 (+ a 22 GB download) |
-| **Total** | | **126** | **19** | about 60–65 h |
+| Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q5) | 7 | — | 3 h 30 (+ a 22 GB download) |
+| **Total** | | **127** | **19** | about 60–65 h |
 
 **The release, in order:** K1–K5 on the test box first (the Farm app update, the held-file copy, llama.cpp b11512,
 document search's first start, the small cards), then P1 and J1–J4 on the PRO 6000 (once `panel-engines` is merged), then I1–I5 and A1, B1 with the
@@ -1789,22 +1789,25 @@ the refreshes; opening vLLM checks this computer once (*Checked at …*); the ke
 5: the llama.cpp section still open after the reload. After a real switch (J2), the new engine's section opens by itself.
 - [ ] Done · Found:
 
-## Q. Presets on the PRO 6000 (branch `presets`) — about 2 h 30 (+ the 22 GB of Qwen3.8 27B), the PRO 6000 at a quiet moment, a laptop
+## Q. Presets on the PRO 6000 (branches `presets`, `presets-users`) — about 3 h 30 (+ the 22 GB of Nemotron 3.5 Lightning), the PRO 6000 at a quiet moment, a laptop
 
-The farm and client builds of branch `presets` (the client part, the coding agent's reply room, is client v0.2.14+).
-Each Apply restarts vLLM (about 2 minutes nobody can chat): never while people use the farm. Write down the farm's
-settings first (engine, model, context, people at once, each plugin) so Q6 can put them back.
+The farm and client builds of branch `presets-users` (the client part, the coding agent's reply room, is client
+v0.2.14+). Each Apply restarts vLLM (about 2 minutes nobody can chat): never while people use the farm. Write down the
+farm's settings first (engine, model, context, people at once, each plugin) so Q7 can put them back.
 
 ### Q1 Review each preset: the picks for this box, in plain words
-*Proves:* the four picks are the capacity page's for an RTX PRO 6000 with vLLM, and Review changes nothing (owner
-2026-10-27). *Was:* new (stub farm + offscreen screenshots, DEVLOG 2026-10-27).
+*Proves:* the four picks are the capacity page's for an RTX PRO 6000 with vLLM, Documents and LOL Vibe for the most
+people (owner 2026-10-27: "more users"), and Review changes nothing. *Was:* new (stub farm + offscreen screenshots,
+DEVLOG 2026-10-27).
 1. Open the panel. Read the Presets card at the top: which preset it says is in use.
 2. Press **Review…** on each of the four, read *Why these*, *What Apply changes* and *Restarts*, then **Close**.
 
-*Expect:* Balanced = vLLM · Qwen3.6 35B-A3B · 64k · people at once Automatic (about 48, measured); Documents and LOL Vibe
-= Qwen3.8 27B · NVFP4 · 64k (about 20 and 23), each with *Download Qwen3.8 27B · NVFP4 (22 GB) in the vLLM list first*
-unless it is downloaded; Computer = Qwen3.6 · 32k (about 104). The engine, model and plugins in the sections did not
-move; vLLM kept running.
+*Expect:* Balanced = vLLM · Qwen3.6 35B-A3B · 64k · people at once Automatic (about 48, measured); Documents =
+Nemotron 3.5 Lightning 30B-A3B · NVFP4 · 64k (about 64, measured; *when everyone asks at the same moment, about 16*; *It
+does not read images*), with *Download Nemotron 3.5 Lightning 30B-A3B · NVFP4 (22 GB) in the vLLM list first* unless it
+is downloaded; LOL Vibe = Qwen3.6 · 64k (about 64; *proven with the IDE's coding agent: 11/15*, and why not Flint),
+nothing to download; Computer = Qwen3.6 · 32k (about 104). The engine, model and plugins in the sections did not move;
+vLLM kept running.
 - [ ] Done · Found:
 
 ### Q2 Computer: every box that needs the farm works for several people
@@ -1819,28 +1822,54 @@ move; vLLM kept running.
 32k each, people at once about 100 (Automatic); every plugin on, document search as before; the card: *Computer · in use*.
 - [ ] Done · Found:
 
-### Q3 Documents: whole documents, scanned pages
+### Q3 Documents: whole documents, scanned pages, on Nemotron
+*Proves:* Nemotron 3.5 Lightning answers documents well enough for the preset that picks it for its head count (25–27/28
+on the spike's check against Qwen3.6's 26–28; no images: documents reach it as text).
 1. If the card says so, press **Download** in Documents' review (22 GB, the download bar), then **Review…** again ▸
    **Apply Documents**.
 2. On the laptop (Open WebUI): attach a 30-page text PDF and ask about its last page; attach a scanned PDF and ask
-   about it.
+   about it. Ask the same two questions in a new chat once Balanced serves again (Q6), and compare.
 
-*Expect:* Qwen3.8 27B at 64k, about 20 at once; both answers use the whole documents; voice, Classify, speech to text
-and the bus off.
+*Expect:* Nemotron at 64k, about 64 at once; both answers use the whole documents (the scanned one read by document
+reading); answers about as good as Qwen3.6's on the same documents (write down any that is clearly worse); voice,
+Classify, speech to text and the bus off.
 - [ ] Done · Found:
 
-### Q4 LOL Vibe: the coding agent, long replies
-1. **Apply LOL Vibe** (document reading goes off: vLLM restarts with its 9 GB).
+### Q4 Nemotron at 64k as Documents serves it: people at once, measured on the farm
+*Proves:* the head count the Documents preset says. The spike measured Nemotron at 64k with a 58 GiB pool and the
+question replaced each turn: 16 when everyone starts together (at 32 the first turn after the documents loaded missed
+the 5 s line by 0.15 s) and ≥ 64 out of step, 64 being the highest level it tried (docs/spike/RESULTS.md, headline
+table, footnote ²). Here: the farm's own Automatic memory with document reading beside it, documents appended turn by
+turn as Open WebUI sends them, and more than 64 tried. *Needs:* Q3 applied (Nemotron serving); nobody on the farm (the
+panel's *Clients* shows no seat in use); `$PY` = `farm\.venv\Scripts\python.exe` (it has aiohttp); run from
+`docs\spike` of a checkout.
+1. Write down the vLLM section's people at once and GPU memory for conversations (what Automatic chose), and from its
+   log the line that says how many 64k conversations the pool holds.
+2. `$PY spike_bench.py bench --base-url http://127.0.0.1:8100/v1 --label pro6000-farm-nemotron-docs64k --profile followup --prompt-tokens 62000 --rounds 3 --append --levels 8,16,24,32,48,64 --extend 96,128`
+3. `$PY spike_bench.py summarize results/pro6000-farm-nemotron-docs64k*`
+
+*Expect:* every turn ≥ 16 (the spike: 16–31); out of step ≥ 64, and where it stops between 64 and 128. Under 64 out of
+step, the preset's "about 64" is too high: write both numbers down (they go into `farm/src/capacity/measured.json`,
+which the presets and the capacity page read). Then a chat from the laptop answers.
+- [ ] Done · Found:
+
+### Q5 LOL Vibe: the coding agent on Qwen3.6, long replies
+*Proves:* the model the preset picks as proven with the coding agent does the IDE's tasks as it did on 2026-10-23
+(11/15), now with document reading off and its 64 seats.
+1. **Apply LOL Vibe** (document reading goes off: vLLM restarts with its 9 GB; the model is Qwen3.6).
 2. On the laptop (client v0.2.14+): LOL Vibe ▸ a project ▸ ask the coding agent for a p5.js sketch with three features.
-3. In the vLLM list, Download and **Use this** on Gemma 4 12B (a model the IDE has no profile of), ask the agent again;
-   then Use this on Qwen3.8 27B again.
+3. From a checkout on the PRO 6000, at a quiet moment: `node docs\spike\ide\run.js qwen36-vibe http://127.0.0.1:4000/v1 65536 assistant 8192 t1-median,t2-p5,t3-tests,t4-refactor,t5-tdd 1`
+   (the farm password, if any, in `LOL_FARM_KEY`), then with `2` and `3` as the last word.
+4. In the vLLM list, Download and **Use this** on Gemma 4 12B (a model the IDE has no profile of), ask the agent again;
+   then Use this on Qwen3.6 again.
 
-*Expect:* the agent finishes; with Gemma 4 no reply ends cut at 8,192 tokens (the client asks the farm's 32,768); the
-vLLM section shows the conversations' memory larger than under Computer; the card: *LOL Vibe · in use · changed:
-Model: … → …* after step 3, and back to *in use* once Qwen3.8 serves again.
+*Expect:* the agent finishes; step 3: about 11 of 15 tasks pass (`%TEMP%\lol-ide-qwen36-vibe\results.jsonl`), no
+`max-tokens` end; with Gemma 4 no reply ends cut at 8,192 tokens (the client asks the farm's 32,768); the vLLM section
+shows the conversations' memory larger than under Computer; the card: *LOL Vibe · in use · changed: Model: … → …* after
+step 4, and back to *in use* once Qwen3.6 serves again.
 - [ ] Done · Found:
 
-### Q5 Kept across a farm restart; a change by hand marks it
+### Q6 Kept across a farm restart; a change by hand marks it
 1. **Apply Balanced**. In the Farm app: Stop the farm, Start it.
 2. In the Plugins card, Disable web search. Stop and Start the farm again.
 3. Enable web search again.
@@ -1850,7 +1879,7 @@ search still off after the restart (kept), the card *Balanced · in use · chang
 *in use* again, without *changed*.
 - [ ] Done · Found:
 
-### Q6 Back as it was
+### Q7 Back as it was
 1. Put back the settings written down before Q1 (a preset, or by hand in each section).
 
 *Expect:* the farm serves as before the session; the card says which preset matches, or *No preset applied yet*.

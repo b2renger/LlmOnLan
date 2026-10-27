@@ -1023,17 +1023,29 @@ can run:
 | Preset | Picked for (the capacity page's card) | Engine and model | Context each | Plugins on |
 |---|---|---|---|---|
 | **Balanced** (the default) | a class chatting, 30 | the serving engine's own defaults (vLLM: Qwen3.6 at 64k; Ollama: `gemma4:12b`) | 64k on vLLM, else Automatic | web search, document reading |
-| **Documents** | documents (RAG), 5 | the best-quality model that covers the head count | 64k (Open WebUI reads whole documents from 24k) | web search, document reading |
-| **LOL Vibe** | vibe-coding, 10 | the strongest agentic-coding score that covers it | 64k | web search (document reading off: its 9 GB go to vLLM) |
+| **Documents** | documents (RAG), 5 | the most people, among models good enough for documents (25/28 or more on every run of the spike's quality check) | 64k (Open WebUI reads whole documents from 24k) | web search, document reading |
+| **LOL Vibe** | vibe-coding, 10 | the most people, among models proven with the IDE's coding agent | 64k | web search (document reading off: its 9 GB go to vLLM) |
 | **Computer** | a Computer workshop, 20 | the most people, among models that see pictures and do tools well | 32k | all: web search, document reading, voice, Classify, speech to text, the message bus |
 
 - **vLLM** is picked where it is set up (installed, per the last check) on a GPU the capacity page knows for a group
   (an RTX PRO 6000 / 5500 / 5000, a DGX Spark): people at once and GPU memory **Automatic**. On the RTX PRO 6000:
-  Balanced = Qwen3.6 64k (~48), Documents and LOL Vibe = Qwen3.8 27B 64k (~20–23, a 22 GB download first), Computer
-  = Qwen3.6 32k (~100). On a DGX Spark: Qwen3.6 for all four (8 at 64k; Qwen3.8 serves fewer than 8 there).
+  Balanced = Qwen3.6 64k (~48), Documents = Nemotron 3.5 Lightning 64k (~64 out of step, 16 when everyone asks at the
+  same moment, both measured; a 22 GB download first), LOL Vibe = Qwen3.6 64k (~64), Computer = Qwen3.6 32k (~100). On
+  a DGX Spark: Qwen3.6 for all four (8 at 64k; Nemotron ties it for Documents and the stronger model wins the tie;
+  Qwen3.8 serves fewer than 8 there).
+- **Documents' quality floor** (`GATE_FLOOR`): 25/28 or more on every run of the spike's 28-item check, thinking on
+  and off, so a weak model is never picked for its head count alone. Qwen3.6 (26–28), Nemotron 3.5 Lightning (25–27)
+  and Qwen3.8 27B (26–28) pass; Gemma 4 12B (22 with thinking on) and Qwen3-Omni (never run on it) do not. Nemotron does
+  not read images: documents reach it as text, and scanned pages go through document reading (OCR), a model of its own.
+- **LOL Vibe's list** (`AGENT_PROVEN`): models proven with the IDE's own coding agent on its five tasks
+  (`docs/spike/ide`); the estimator has no agent data. Today Qwen3.6 alone (11/15, `docs/spike/RESULTS.md`, *The coding
+  agent: five tasks*). Qwen3.8 27B and Nemotron passed only the P5-0 spike's single edit task. **Flint** joins once a
+  vLLM release serves it and HUMAN_TESTS J12–J13 measured it: today the farm serves it on llama.cpp only, a few people
+  at once, and its agent results were not better than Qwen3.6's.
 - **Elsewhere** (a GeForce card, which the capacity page counts as one person's; a GPU it does not know; no vLLM):
-  Ollama's default model with Automatic context and its 2 at once, except **LOL Vibe**, which serves llama.cpp's model
-  (Qwen3.8 27B UD-IQ2_S by default) when llama.cpp can run here. A box that could run vLLM says what it would give.
+  Ollama's default model with Automatic context and its 2 at once, except **LOL Vibe**, which serves a proven model when
+  llama.cpp's or Ollama's is one, else llama.cpp's model (Qwen3.8 27B UD-IQ2_S by default) when llama.cpp can run here,
+  and says that no proven model is available. A box that could run vLLM says what it would give.
 - **Document search is never switched** by a preset: a laptop whose data folder uses it would fail every upload.
 - **Review…** is a dry run: why each pick, exactly what changes (engine, model, context, people at once, memory, each
   plugin, with what a first start installs), what restarts and for how long, and what must be downloaded first

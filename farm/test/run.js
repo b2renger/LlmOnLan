@@ -6897,19 +6897,31 @@ test('presets: the picks for an RTX PRO 6000 with vLLM — the capacity page\'s 
     const box = PR_BOX.pro6000();
     assert.deepEqual(prShort(box), {
         balanced: 'vllm qwen3.6-35b-a3b 65536 auto',       // the shipped vLLM: Qwen3.6 at 64k
-        rag: 'vllm qwen3.8-27b-nvfp4 65536 auto',          // the best answers that cover 5 at 64k
-        vibe: 'vllm qwen3.8-27b-nvfp4 65536 auto',         // the strongest agentic-coding score that covers 10 at 64k
+        rag: 'vllm nemotron-3.5-lightning 65536 auto',     // the most people at 64k among models at 25/28+ on every gate run (owner 2026-10-27: "more users")
+        vibe: 'vllm qwen3.6-35b-a3b 65536 auto',           // the most people at 64k among models proven with the IDE's coding agent
         computer: 'vllm qwen3.6-35b-a3b 32768 auto',       // the most people at 32k among models that see pictures and do tools well
     });
     const picks = Object.fromEntries(PR.picksFor(box).map((p) => [p.id, p]));
     assert.equal(picks.computer.estimate.confidence, 'measured');
     assert.ok(picks.computer.estimate.mid >= 90, 'about 100 people at 32k, measured');
     assert.equal(picks.vibe.memory, 'auto');
-    assert.deepEqual(picks.vibe.needs.map((n) => [n.kind, n.id]), [['vllm', 'qwen3.8-27b-nvfp4']], 'a model to download first is said, with its size');
-    assert.match(picks.vibe.needs[0].text, /Download Qwen3\.8 27B · NVFP4 \(22 GB\)/);
+    assert.deepEqual(picks.rag.needs.map((n) => [n.kind, n.id]), [['vllm', 'nemotron-3.5-lightning']], 'a model to download first is said, with its size');
+    assert.match(picks.rag.needs[0].text, /Download Nemotron 3\.5 Lightning 30B-A3B · NVFP4 \(22 GB\)/);
     assert.deepEqual(picks.balanced.needs, [], 'Qwen3.6 is downloaded');
+    assert.deepEqual(picks.vibe.needs, [], 'Qwen3.6 is downloaded');
     // Every pick says why, in plain words, from the capacity page's own reason.
-    assert.match(picks.rag.reasons[0], /^Qwen3\.8 27B · NVFP4 on vLLM, for 5 people at once \(the capacity page's "Ask questions about documents \(RAG\)"\): Covers your 5 with \d+/);
+    assert.match(picks.rag.reasons[0], /^Nemotron 3\.5 Lightning 30B-A3B · NVFP4 on vLLM, for 5 people at once \(the capacity page's "Ask questions about documents \(RAG\)"\): Covers your 5 with 64 \(64–\d+\) at 64k, measured;/);
+    // Documents: why Nemotron, its quality floor, the measured head count when everyone starts together (16 at 64k on
+    // the spike's PRO 6000, RESULTS.md headline table), and that it does not read images.
+    assert.equal(picks.rag.estimate.confidence, 'measured', 'Nemotron at 64k was measured on this card (16 / ≥ 64)');
+    assert.ok(picks.rag.estimate.mid >= 64, `at least Qwen3.6's 63 at 64k: ${picks.rag.estimate.mid}`);
+    assert.match(picks.rag.reasons[1], /^Picked for the most people at 64k among the models that scored 25\/28 or more on every run of the spike's quality check; when everyone asks at the same moment, about 16 \(16–\d+\), measured\.$/);
+    assert.equal(picks.rag.reasons[2], 'It does not read images: documents reach it as text, and scanned pages go through document reading (OCR), a model of its own.');
+    assert.deepEqual(picks.rag.plugins, { websearch: true, ocr: true, tts: false, classify: false, stt: false, bus: false }, 'document reading stays on for scanned pages');
+    // LOL Vibe: the model proven with the coding agent, and why not Flint.
+    assert.match(picks.vibe.reasons[0], /^Qwen3\.6 35B-A3B · NVFP4 on vLLM, for 10 people at once .*: Covers your 10 with \d+/);
+    assert.ok(picks.vibe.estimate.mid >= 48, `about 48–64 coders at 64k: ${picks.vibe.estimate.mid}`);
+    assert.match(picks.vibe.reasons[1], /^Picked for the most people among the models proven with the IDE's coding agent: 11\/15 on its five tasks, on vLLM\. Flint is not one yet: .* it joins once a vLLM release serves it and it is measured here\.$/);
     assert.match(picks.computer.reasons[0], /tool calling, reads images/);
     // Plugins: Vibe gives document reading's memory back; the Computer turns every one on; Balanced = as shipped.
     assert.deepEqual(picks.vibe.plugins, { websearch: true, ocr: false, tts: false, classify: false, stt: false, bus: false });
@@ -6924,13 +6936,25 @@ test('presets: the picks for a DGX Spark, a 24 GB and a 12 GB card, and a box wi
     });
     const vibeSpark = PR.pickFor('vibe', PR_BOX.spark());
     assert.match(vibeSpark.reasons[0], /not your 10/, 'a Spark serves 8 coders at 64k: said, not hidden');
+    // Documents on a Spark: Nemotron ties Qwen3.6 at 64k (8 each, measured), and the stronger model wins the tie.
+    const ragSpark = PR.pickFor('rag', { ...PR_BOX.spark(), vllm: { ...PR_BOX.spark().vllm, library: prLib(PR_LIB.map((e) => e.id)) } });
+    assert.equal(ragSpark.model, 'qwen3.6-35b-a3b');
+    assert.equal(ragSpark.estimate.mid, 8);
     const gguf = PR_LC.model;
     // A GeForce card is a one-person box for the capacity page: Ollama and llama.cpp, even with vLLM set up.
     for (const name of ['g24', 'g12']) {
         assert.deepEqual(prShort(PR_BOX[name]()), {
             balanced: 'ollama gemma4:12b auto 2', rag: 'ollama gemma4:12b auto 2', vibe: `llamacpp ${gguf} auto 1`, computer: 'ollama gemma4:12b auto 2',
         }, name);
+        // No model proven with the coding agent serves here: LOL Vibe keeps llama.cpp's model, and says so.
+        assert.ok(PR.pickFor('vibe', PR_BOX[name]()).reasons.includes('No model proven with the IDE\'s coding agent is available here: so far only Qwen3.6-35B-A3B is (11/15 on its five tasks, on vLLM).'), name);
     }
+    // A proven model as Ollama's default: LOL Vibe serves it there rather than llama.cpp's unproven one.
+    const olProven = PR_BOX.g12(); olProven.ollama.model = 'qwen3.6:35b';
+    const vibeOl = PR.pickFor('vibe', olProven);
+    assert.deepEqual([vibeOl.engine, vibeOl.model, vibeOl.people], ['ollama', 'qwen3.6:35b', 2]);
+    assert.equal(vibeOl.reasons[0], 'qwen3.6:35b on Ollama: proven with the IDE\'s coding agent (11/15 on its five tasks, on vLLM).');
+    assert.ok(!vibeOl.reasons.some((r) => /No model proven/.test(r)));
     assert.ok(PR.pickFor('rag', PR_BOX.g24()).reasons.some((r) => /capacity page does not know this GPU/.test(r)));
     // A card the capacity page knows, but for one person (an RTX 5090, 32 GB): Ollama too, and why.
     const g32 = prBox('NVIDIA GeForce RTX 5090', 32, { current: 'gemma-4-12b', library: prLib(['gemma-4-12b']) });
@@ -6940,6 +6964,9 @@ test('presets: the picks for a DGX Spark, a 24 GB and a 12 GB card, and a box wi
     const nv = PR_BOX.noVllm();
     assert.deepEqual(prShort(nv), { balanced: 'ollama gemma4:12b auto 2', rag: 'ollama gemma4:12b auto 2', vibe: `llamacpp ${gguf} auto 1`, computer: 'ollama gemma4:12b auto 2' });
     assert.ok(PR.pickFor('computer', nv).reasons.some((r) => /vLLM is not set up on this computer: with it, this GPU would serve about \d+/.test(r)));
+    // … with each preset's own rule: Nemotron for Documents, Qwen3.6 for LOL Vibe.
+    assert.ok(PR.pickFor('rag', nv).reasons.some((r) => /would serve about \d+ .*people with Nemotron 3\.5 Lightning/.test(r)));
+    assert.ok(PR.pickFor('vibe', nv).reasons.some((r) => /would serve about \d+ .*people with Qwen3\.6 35B-A3B/.test(r)));
     // No llama.cpp here: LOL Vibe stays on Ollama and says why.
     const noLc = PR_BOX.g12(); noLc.llamacpp.available = false;
     assert.equal(PR.pickFor('vibe', noLc).engine, 'ollama');
@@ -6971,7 +6998,7 @@ test('presets: document search is never switched — not a preset plugin, never 
 });
 
 test('presets: the dry run lists exactly what changes, what restarts and how long', () => {
-    const label = (m) => ({ 'qwen3.6-35b-a3b': 'Qwen3.6 35B-A3B · NVFP4', 'qwen3.8-27b-nvfp4': 'Qwen3.8 27B · NVFP4' }[m] || m);
+    const label = (m) => ({ 'qwen3.6-35b-a3b': 'Qwen3.6 35B-A3B · NVFP4', 'nemotron-3.5-lightning': 'Nemotron 3.5 Lightning 30B-A3B · NVFP4' }[m] || m);
     const shipped = { engine: 'ollama', model: 'gemma4:12b', context: 'auto', people: 2, memory: null, plugins: { websearch: true, ocr: true, tts: false, classify: false, stt: false, bus: false } };
     // Ollama → vLLM: the switch says how long, then what vLLM starts with; Kokoro's first start installs it.
     const box = PR_BOX.pro6000(); box.plugins.tts.installed = false;
@@ -6984,9 +7011,11 @@ test('presets: the dry run lists exactly what changes, what restarts and how lon
     ]);
     // vLLM staying vLLM: field by field.
     const running = { engine: 'vllm', model: 'qwen3.6-35b-a3b', context: 65536, people: 48, memory: 60, plugins: { ...shipped.plugins } };
+    assert.deepEqual(PR.changesFor(running, PR.pickFor('rag', PR_BOX.pro6000()), { label }).map((c) => c.text), [
+        'Model: Qwen3.6 35B-A3B · NVFP4 → Nemotron 3.5 Lightning 30B-A3B · NVFP4', 'People at once: 48 → Automatic', 'GPU memory for conversations: 60 GB → Automatic',
+    ]);
     assert.deepEqual(PR.changesFor(running, PR.pickFor('vibe', PR_BOX.pro6000()), { label }).map((c) => c.text), [
-        'Model: Qwen3.6 35B-A3B · NVFP4 → Qwen3.8 27B · NVFP4', 'People at once: 48 → Automatic', 'GPU memory for conversations: 60 GB → Automatic',
-        'Document reading (OCR): on → off',
+        'People at once: 48 → Automatic', 'GPU memory for conversations: 60 GB → Automatic', 'Document reading (OCR): on → off',
     ]);
     // Ollama's people at once take a farm restart: said.
     const four = { ...shipped, people: 4 };
@@ -7056,17 +7085,17 @@ test('presets: Apply goes through the farm\'s own controls in one job — plugin
     assert.match(j.message, /^The Computer preset is applied: vLLM serves · Voice \(Kokoro\) on · Classify \(Laya\) on · Speech to text on · Message bus on\.$/);
     // vLLM staying vLLM, document reading turned off: the one Apply, with vLLM restarted so its memory follows.
     const cur = { engine: 'vllm', model: 'qwen3.6-35b-a3b', context: 65536, people: 'auto', memory: 'auto', plugins: { websearch: true, ocr: true, tts: false, classify: false, stt: false, bus: false } };
-    const box = PR_BOX.pro6000(); box.vllm.library = prLib(['qwen3.6-35b-a3b', 'qwen3.8-27b-nvfp4']);
+    const box = PR_BOX.pro6000(); box.vllm.library = prLib(['qwen3.6-35b-a3b', 'nemotron-3.5-lightning']);
     const v = presetRig({ engine: 'vllm', cur, box });
     const dry = await v.ops.dryRun('vibe');
     assert.ok(dry.ok && dry.dryRun);
     assert.equal(dry.restart, 'vLLM restarts once: about 2 minutes during which nobody can chat.');
-    assert.deepEqual(dry.changes, ['Model: qwen3.6-35b-a3b → qwen3.8-27b-nvfp4', 'Document reading (OCR): on → off']);
+    assert.deepEqual(dry.changes, ['Document reading (OCR): on → off'], 'the same model and context: only the plugin, and the restart its memory needs');
     await v.ops.apply('vibe');
     await v.done();
     assert.deepEqual(v.calls.filter((c) => c[0] !== 'dry'), [
         ['plugin', 'ocr', false],
-        ['apply', { model: 'qwen3.8-27b-nvfp4', context: 65536, slots: 'auto', kvCacheGib: 'auto', forceRestart: true }, true],
+        ['apply', { model: 'qwen3.6-35b-a3b', context: 65536, slots: 'auto', kvCacheGib: 'auto', forceRestart: true }, true],
         ['record', 'vibe'],
     ]);
 });
@@ -7082,17 +7111,17 @@ test('presets: a switch that fails puts its settings back and records nothing; a
     for (const k of ['tts', 'classify', 'stt', 'bus']) assert.equal(rig.config[k].enabled, false, `${k} back off in memory`);
     // Nothing downloaded: refused before any job, with what to download and where.
     const n = presetRig({ needs: true });
-    const r = await n.ops.apply('vibe');
+    const r = await n.ops.apply('rag');
     assert.equal(r.ok, false);
-    assert.match(r.error, /^First: Download Qwen3\.8 27B · NVFP4 \(22 GB\) in the vLLM list first\.$/);
+    assert.match(r.error, /^First: Download Nemotron 3\.5 Lightning 30B-A3B · NVFP4 \(22 GB\) in the vLLM list first\.$/);
     assert.deepEqual(r.needs.map((x) => x.kind), ['vllm']);
     assert.equal(n.jobs.jobView(), null, 'no job');
-    const d = await n.ops.dryRun('vibe');
-    assert.deepEqual(d.needs.map((x) => x.id), ['qwen3.8-27b-nvfp4']);
+    const d = await n.ops.dryRun('rag');
+    assert.deepEqual(d.needs.map((x) => x.id), ['nemotron-3.5-lightning']);
     // vLLM staying vLLM with a model still to download: its own dry run would refuse it, the restart is still said.
     const cur = { engine: 'vllm', model: 'qwen3.6-35b-a3b', context: 65536, people: 'auto', memory: 'auto', plugins: { websearch: true, ocr: false, tts: false, classify: false, stt: false, bus: false } };
     const vn = presetRig({ engine: 'vllm', cur, needs: true });
-    const vd = await vn.ops.dryRun('vibe');
+    const vd = await vn.ops.dryRun('rag');
     assert.equal(vd.restart, 'vLLM restarts once: about 2 minutes during which nobody can chat.');
     assert.ok(!vn.calls.some((c) => c[0] === 'dry'), 'its own dry run is not asked');
     // An unknown preset.
@@ -7111,7 +7140,7 @@ test('panel: the Presets card — at the top, the one in use marked (a change by
     for (const p of picks) assert.ok(card.includes(`data-preview="${p.id}"`), p.id);
     assert.equal((card.match(/in use · changed/g) || []).length, 1, 'one preset in use');
     assert.ok(card.includes('vLLM · Qwen3.6 35B-A3B · NVFP4 · 32k each · people at once Automatic (about 104, measured)'), 'the Computer\'s pick on one line');
-    assert.ok(card.includes('<div class="needline">Download Qwen3.8 27B · NVFP4 (22 GB) in the vLLM list first.</div>'));
+    assert.ok(card.includes('<div class="needline">Download Nemotron 3.5 Lightning 30B-A3B · NVFP4 (22 GB) in the vLLM list first.</div>'));
     assert.ok(!render(adminState()).includes('id="presets"'), 'a farm before presets: no card');
     // Never applied, settings of its own: nothing marked.
     const own = render(adminState({ presets: { ...presets, status: { id: 'balanced', label: 'Balanced', recorded: false, changed: ['Engine: vLLM → Ollama'] } } }));

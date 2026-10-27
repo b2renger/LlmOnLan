@@ -6,6 +6,51 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-27 (10:55) — Presets for more users: Documents = the most people among models good enough for documents (Nemotron on the PRO 6000), LOL Vibe = the most people among models proven with the coding agent (Qwen3.6)
+
+The owner: *"I am thinking more users: so probably Nemotron for Documents, LOL Vibe Flint, but correct me if I am
+wrong."* Branch `presets-users` (from `multiuser-phase0` 79b51cf). Not merged, not released.
+
+**The rules** (`farm/src/presets.js`): both presets now rank the pairs that cover their head count by people first
+(`prefer: 'people'`, the Computer's own ranking in `scenarios.js`), among a pool of models:
+- **Documents** — models good enough for documents: **25/28 or more on every run of the spike's 28-item check**
+  (`GATE_FLOOR`, thinking on and off, each box). Qwen3.6 (26–28), Nemotron 3.5 Lightning (25–27) and Qwen3.8 27B
+  (26–28) pass; Gemma 4 12B (22 with thinking on) and Qwen3-Omni (never run on it) do not. 64k kept: Nemotron covers 5
+  there. Nemotron does not read images, which documents in Open WebUI do not need (they arrive as text; scanned pages go
+  through document reading, a model of its own): its reason says so.
+- **LOL Vibe** — models **proven with the IDE's own coding agent** on its five tasks (`AGENT_PROVEN`; the estimator has
+  no agent data): Qwen3.6 alone (11/15, docs/spike/RESULTS.md *The coding agent: five tasks*). **Flint is not picked**:
+  the farm serves it on llama.cpp only (a few people at once), vLLM's support is in no release, and its agent results
+  were not better than Qwen3.6's; its reason line says it joins once a vLLM release serves it and it is measured
+  (HUMAN_TESTS J12–J13). Where vLLM does not serve (a GeForce card, no vLLM): a proven model if llama.cpp's or Ollama's
+  is one, else llama.cpp's model as before, and the reasons say no proven model is available.
+
+| Box | Balanced | Documents | LOL Vibe | Computer |
+|---|---|---|---|---|
+| RTX PRO 6000, vLLM set up | Qwen3.6 64k (~48) | **Nemotron 64k (~64, measured; 16 when everyone asks at the same moment)**, 22 GB to download | **Qwen3.6 64k (~64, measured)** | Qwen3.6 32k (~104) |
+| RTX PRO 6000 Max-Q / 5500 / 5000 72 / 5000 48 | Qwen3.6 64k | Nemotron 64k (124 / 101 / 77 / 37, calibrated) | Qwen3.6 64k (70 / 57 / 45 / 20) | Qwen3.6 32k |
+| DGX Spark | Qwen3.6 64k (8) | Qwen3.6 64k (8: Nemotron ties at 8, the stronger model wins the tie) | Qwen3.6 64k (8: *not your 10*) | Qwen3.6 32k (8) |
+| 24 / 12 GB GeForce, PRO 6000 without vLLM | Ollama `gemma4:12b` | the same | llama.cpp Qwen3.8 27B UD-IQ2_S, *no proven model available here* (without vLLM: *with it, ~64 with Qwen3.6*) | Ollama `gemma4:12b` |
+
+**Where the brief's facts differed from the repo, and what I did:**
+- **Nemotron at 64k IS measured** on the PRO 6000 (RESULTS.md headline table: 16 every turn / ≥ 64 out of step,
+  replace profile, 58 GiB pool; `measured.json` `followup_64k`). The reason line therefore says *measured*, not
+  *estimated*, and adds the number when everyone asks at the same moment (16), the one figure where Qwen3.6 is ahead at
+  64k (48): out of step both passed the highest level tried (64), and Nemotron's pool holds ~3× more. HUMAN_TESTS **Q4**
+  measures it on the farm itself (its Automatic memory beside document reading, documents appended, up to 128).
+- **Qwen3.8 and Nemotron were run with the agent**, but only on the P5-0 spike's single edit task (3/3 each on
+  Ollama, docs/research/p5-spike), never the five tasks: not "proven" by the rule, said in the code's comment.
+
+**Tests:** farm `node test/run.js` **279/0** (the presets tests rewritten: the PRO 6000's picks and reason lines —
+Nemotron *measured*, 16 together, no images; Qwen3.6 proven, why not Flint —, the Spark's tie, the GeForce cards'
+"no proven model", a proven Ollama default winning LOL Vibe, the no-vLLM box's "with it" per preset, the dry runs and
+Apply with the new picks; five of the eight presets tests fail against the old `presets.js`). `LOL_VLLM_FAKE=1
+node test/vllm-lifecycle.js 24` **13/0** (the preset step through the real Apply path; the owner's vLLM, pgid 576, left
+alone). Docs: CLAUDE.md, farm/README.md *Presets*, HUMAN_TESTS session Q (Q1/Q3 the new picks, **Q4** Nemotron at 64k
+measured on the farm, **Q5** the five agent tasks on Qwen3.6 through the preset; 7 steps).
+
+**Not done (the owner's):** session Q on the PRO 6000; the merge and the releases.
+
 ## 2026-10-27 (10:08) — Presets: Balanced, Documents, LOL Vibe, Computer, picked for this box; plugin switches kept; the coding agent's reply room
 
 The owner: *"pre-configurations of models for the farm: a configuration for RAG, a configuration for LOL Vibe and a
