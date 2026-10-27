@@ -6932,6 +6932,10 @@ test('presets: the picks for a DGX Spark, a 24 GB and a 12 GB card, and a box wi
         }, name);
     }
     assert.ok(PR.pickFor('rag', PR_BOX.g24()).reasons.some((r) => /capacity page does not know this GPU/.test(r)));
+    // A card the capacity page knows, but for one person (an RTX 5090, 32 GB): Ollama too, and why.
+    const g32 = prBox('NVIDIA GeForce RTX 5090', 32, { current: 'gemma-4-12b', library: prLib(['gemma-4-12b']) });
+    assert.equal(PR.pickFor('computer', g32).engine, 'ollama');
+    assert.ok(PR.pickFor('computer', g32).reasons.includes('Not vLLM: the capacity page counts this card for one person at a time.'));
     // An RTX PRO 6000 without vLLM: Ollama and llama.cpp, and what vLLM would give, so the operator knows.
     const nv = PR_BOX.noVllm();
     assert.deepEqual(prShort(nv), { balanced: 'ollama gemma4:12b auto 2', rag: 'ollama gemma4:12b auto 2', vibe: `llamacpp ${gguf} auto 1`, computer: 'ollama gemma4:12b auto 2' });

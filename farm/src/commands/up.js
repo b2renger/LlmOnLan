@@ -4315,9 +4315,10 @@ function makePresets(ctx) {
         if (!pick) return { error: 'Pick Balanced, Documents, LOL Vibe or Computer.' };
         const { cur, ollamaPeople } = ctx.now();
         const changes = P.changesFor(cur, pick, { label: ctx.label, plugins: box.plugins, ollamaPeople });
-        // Document reading and speech to text keep GPU memory beside vLLM: turning either on or off changes what its
-        // Automatic memory should be, so a running vLLM restarts to work it out again.
-        const reserves = cur.plugins.ocr !== pick.plugins.ocr || cur.plugins.stt !== pick.plugins.stt;
+        // Document reading and speech to text on the GPU keep memory beside vLLM: turning either on or off changes what
+        // its Automatic memory should be, so a running vLLM restarts to work it out again.
+        const sttGpu = !!(config.stt && config.stt.device === 'cuda');
+        const reserves = cur.plugins.ocr !== pick.plugins.ocr || (sttGpu && cur.plugins.stt !== pick.plugins.stt);
         const now = ctx.engineNow();
         let restart = 'Nothing restarts.';
         let refusal = ctx.refusal(pick);

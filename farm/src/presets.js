@@ -114,7 +114,7 @@ function vllmPair(sc, hw, box, only = null) {
     const rec = S.recommend(E, { ...CATALOG, hardware: [hw], models }, sc, { hwId: hw.id });
     const p = rec.thisFarm;
     if (!p || p.none || !p.r || !p.r.fits) return { why: 'no model of the vLLM list fits this GPU for it' };
-    if (p.llama || p.one) return { why: 'this GPU serves one person at a time on it' };
+    if (p.llama || p.one) return { why: 'the capacity page counts this card for one person at a time' };
     return { entry: entryFor(lib, p.model.id, box.vllm.current), pair: p };
 }
 
@@ -170,13 +170,13 @@ function pickFor(id, box) {
         const cat = S.matchModel(CATALOG, out.modelLabel || '');
         if (llama) {
             const unmet = cat ? S.unmet(cat, sc.need) : null;
-            out.reasons.push(`${lc.label} on llama.cpp: the speed pick on one card${!cat ? '' : unmet ? ` (${unmet})` : ', with a strong agentic-coding score'}.`);
+            out.reasons.push(`${lc.label} on llama.cpp, the speed pick on one card${!cat ? '' : unmet ? ` (${unmet})` : ': the model has a strong agentic-coding score (measured at full size; a small quant loses some)'}.`);
         } else {
             out.reasons.push(`${ol.model} on Ollama: ${p.id === 'vibe' ? 'llama.cpp cannot run on this computer, so the coding model is Ollama\'s' : 'one model for chat and for reading scanned pages and pictures'}.`);
             if ((p.id === 'computer' || p.id === 'rag') && cat && !cat.vision) out.reasons.push(`${ol.model} does not read images: make a model that does the default in the Ollama section.`);
         }
         out.reasons.push(`Context: Automatic, the most this card holds${p.context ? ` (the aim is ${fmtK(p.context)} each)` : ''}.`);
-        out.reasons.push(`People at once: ${out.people}, ${ENGINE[engine]}'s default (the spike measured no more on a card like this).`);
+        out.reasons.push(`People at once: ${out.people}, ${ENGINE[engine]}'s default.`);
         if (vllmUp && !hw) out.reasons.push('vLLM is set up, but the capacity page does not know this GPU, so the presets keep to Ollama and llama.cpp. vLLM stays one click away in its section.');
         else if (vllmUp && v && v.why) out.reasons.push(`Not vLLM: ${v.why}.`);
         else if (!vllmUp && hw && box.vllm && box.vllm.supported) {

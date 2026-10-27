@@ -42,7 +42,10 @@ controller.generate()  ── project thread? ──┐
 - **Models** (`projects/models.mjs`, pure): a per-model profile {maxTokens, edits: good | weak | unknown}. qwen3.8 and
   nemotron **good** (3/3 on the spike's edit task), ornith unknown-ish (2/3), gemma4 **weak** (1/3; it thinks itself
   out of budget) → the panel says so and suggests a good one. A new model is `unknown` until someone runs
-  `docs/research/p5-spike/run.mjs --task edit` on it.
+  `docs/research/p5-spike/run.mjs --task edit` on it. Its reply room (2026-10-27): the farm's reply limit when the farm
+  says one (`backend.replyTokens`, 32768 by default), else 8192; main shrinks a room above 8192 on a small window as it
+  does Keep going's (`studio.ts` `agentMaxTokens`). Qwen3.6 keeps 8192: 15 agent tasks never came near it (DEVLOG
+  2026-10-23).
 
 ## 3. Slices (each lands with its tests)
 
