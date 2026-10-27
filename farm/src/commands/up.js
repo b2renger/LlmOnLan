@@ -4054,8 +4054,16 @@ async function run(args) {
         const f = fileConfig() || config;
         return { cur: presetsMod.settingsOf(f), ollamaPeople: f.ollama.numParallel, stored: f.preset || null };
     }
-    // The Presets card, on every poll: the picks for this box and the preset to mark (getAdminState).
+    // The Presets card, on every poll: the picks for this box and the preset to mark (getAdminState). A card that cannot
+    // be worked out is left out (logged once), never the whole panel.
+    let presetViewError = null;
     function presetView(ollamaNames) {
+        try { return presetViewOf(ollamaNames); } catch (e) {
+            if (presetViewError !== e.message) { presetViewError = e.message; log.warn(`The Presets card could not be worked out: ${e.message}`); }
+            return null;
+        }
+    }
+    function presetViewOf(ollamaNames) {
         const box = presetBox(ollamaNames);
         const picks = presetsMod.picksFor(box);
         const { cur, stored } = presetNow();
@@ -4314,7 +4322,10 @@ function makePresets(ctx) {
         let restart = 'Nothing restarts.';
         let refusal = ctx.refusal(pick);
         if (now !== pick.engine) restart = `${P.ENGINE[now]} stops and ${P.ENGINE[pick.engine]} starts: ${P.RESTART[pick.engine]}.`;
-        else if (pick.engine === 'vllm' && !pick.needs.length) {
+        else if (pick.engine === 'vllm' && pick.needs.length) {
+            // Its own dry run refuses a model not downloaded yet; a new model or context restarts it whatever the rest.
+            if (changes.some((c) => c.field === 'model' || c.field === 'context')) restart = `vLLM restarts once: ${P.RESTART.vllm}.`;
+        } else if (pick.engine === 'vllm') {
             const d = ctx.vllmDryRun({ model: pick.model, context: pick.context, slots: pick.people, kvCacheGib: pick.memory, forceRestart: reserves });
             if (d && d.ok === false) refusal = refusal || d.error;
             else if (d && d.restart) restart = `vLLM restarts once: ${P.RESTART.vllm}.`;

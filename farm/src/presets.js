@@ -31,9 +31,9 @@ const PLUGIN_LABEL = {
 // What a first start of each costs (the plugin installs itself then: registry.js ensure*). ponytail: rough figures from
 // the plugins' own headers; the bar's own progress is the truth.
 const FIRST_START = {
-    websearch: 'a first start installs it, about a minute', ocr: 'a first start installs it, a few minutes',
-    tts: 'a first start installs it (several GB), about 10 minutes', classify: 'a first start installs it (about 1.7 GB), a few minutes',
-    stt: 'a first start installs it and downloads its model, a few minutes',
+    websearch: 'a first start installs it: about a minute', ocr: 'a first start installs it: a few minutes',
+    tts: 'a first start installs it: several GB, about 10 minutes', classify: 'a first start installs it: about 1.7 GB, a few minutes',
+    stt: 'a first start installs it and downloads its model: a few minutes',
 };
 const ENGINE = { ollama: 'Ollama', llamacpp: 'llama.cpp', vllm: 'vLLM', external: 'the external server' };
 // How long nobody can chat while each engine (re)starts. vLLM's is the panel's own figure (Access: "about 2 minutes").

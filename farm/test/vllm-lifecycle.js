@@ -46,6 +46,12 @@
 //  22 a start found in progress at boot is waited for, and Ollama's loaded model still leaves the GPU first
 //  23 `lol down` racing the farm: its runtime file gone during a proxy bounce is not written back, and the vLLM it
 //     stops is not restarted: the farm stops as it was asked
+// Presets (owner, 2026-10-27):
+//  24 a preset through the real Apply path: its dry run lists what changes and that vLLM restarts; Apply turns the
+//     message bus off and restarts vLLM with the preset's context, people and memory (Automatic memory from what this
+//     GPU has free, the margin set to 0); everything kept in the file, the preset recorded; a plugin turned on by hand
+//     is kept too and marks the preset changed. From a copy of the farm with a fake SearXNG in it (web search is on in
+//     every preset): ports 4303 (web search) and 4304-4306 (the bus).
 
 const fs = require('fs');
 const os = require('os');
@@ -114,7 +120,7 @@ const LIB = [
     { id: 'fake-a', label: 'Fake A', folder: 'fake-a', sizeGb: 0.1, weightsGib: 0.1, vision: false, args: ['--enable-prefix-caching'] },
     { id: 'fake-b', label: 'Fake B', repo: 'fake/fake-b', sizeGb: 0.1, weightsGib: 0.1, vision: false, args: ['--enable-prefix-caching'] },
 ];
-function writeConfig(vllm = {}) {
+function writeConfig(vllm = {}, top = {}) {
     fs.writeFileSync(path.join(scratch, 'lol.config.json'), JSON.stringify({
         name: 'Fake vLLM farm',
         beacon: { enabled: false, httpPort: PORTS.panel },
@@ -129,6 +135,7 @@ function writeConfig(vllm = {}) {
             enabled: true, root: ROOT, ...(distro ? { distro } : {}), port: PORTS.vllm, model: 'fake-a', contextLength: 8192,
             parallel: 4, kvCacheGib: 2, ocrReserveGib: 0, minFreeGb: 0, library: LIB, ...vllm,
         },
+        ...top,
     }, null, 2));
 }
 const readConfig = () => JSON.parse(fs.readFileSync(path.join(scratch, 'lol.config.json'), 'utf8'));
@@ -700,7 +707,84 @@ const STEPS = {
         if (gone2) farm = null; else await stopFarm();
         lolDown();
     },
+    async 24() {
+        const copy = path.join(scratch, 'presets-farm', 'farm');
+        for (const x of ['bin', 'src', 'vllm', 'package.json']) fs.cpSync(path.join(FARM, x), path.join(copy, x), { recursive: true });
+        fs.symlinkSync(fs.realpathSync(path.join(FARM, 'node_modules')), path.join(copy, 'node_modules'), WIN ? 'junction' : 'dir');
+        fakeSearxng(path.join(copy, '.searxng'));
+        FARM_DIR = copy;
+        try {
+            // Two models the capacity page knows: fake-a stands for Qwen3.6 (on disk), fake-b for Gemma 4 12B (not
+            // downloaded); the built-ins stay out of the list. On this computer's GPU, LOL Vibe picks fake-a at 64k.
+            const lib = [{ ...LIB[0], catalog: 'qwen3.6-35b-a3b' }, { ...LIB[1], catalog: 'gemma-4-12b' }];
+            const { VLLM_LIBRARY } = require('../src/config');
+            writeConfig({ library: lib, removed: VLLM_LIBRARY.map((e) => e.id), marginPct: 0 }, {
+                websearch: { enabled: true, port: 4303 }, ocr: { enabled: false }, embed: { enabled: false },
+                bus: { enabled: true, mqttPort: 4304, wsPort: 4305, oscPort: 4306 },
+            });
+            fakeEnv(['FAKE_DELAY=3']);
+            await bootReady();
+            const before = await pgid();
+            const s0 = await state();
+            const vibe = s0.presets && s0.presets.presets.find((p) => p.id === 'vibe');
+            check('the Presets card: LOL Vibe picks the model on disk at 64k, Automatic people', vibe && vibe.engine === 'vllm' && vibe.model === 'Fake A' && vibe.context === 65536 && vibe.people === 'auto' && !vibe.needs.length,
+                JSON.stringify(s0.presets && s0.presets.presets));
+            const dry = await admin('preset', { id: 'vibe', dryRun: true });
+            check('the dry run: what changes, and that vLLM restarts', dry && dry.ok && dry.dryRun
+                && JSON.stringify(dry.changes) === JSON.stringify(['Context per person: 8k → 64k', 'People at once: 4 → Automatic', 'GPU memory for conversations: 2 GB → Automatic', 'Message bus: on → off'])
+                && /^vLLM restarts once/.test(dry.restart), JSON.stringify(dry));
+            check('…and changed nothing', (await pgid()) === before && readConfig().vllm.contextLength === 8192 && readConfig().bus.enabled === true);
+            const r = await admin('preset', { id: 'vibe' });
+            check('Apply: one job', r && r.ok && r.started && r.job.label === 'Applying the LOL Vibe preset', JSON.stringify(r));
+            const j = await jobDone('Applying the LOL Vibe preset');
+            const after = await pgid();
+            check('…done: vLLM restarted once with the preset\'s settings (a new process group)', j.job.ok && after && after !== before && j.vllm.phase === 'ready', `${j.job.error || j.job.message} ${before} → ${after}`);
+            const cfg = readConfig();
+            check('…kept in the file: 64k, people and memory Automatic, the bus off, the preset recorded', cfg.vllm.contextLength === 65536 && cfg.vllm.parallel === 'auto' && cfg.vllm.kvCacheGib === 'auto'
+                && cfg.bus.enabled === false && cfg.websearch.enabled === true && cfg.preset && cfg.preset.id === 'vibe',
+            JSON.stringify({ vllm: { ctx: cfg.vllm.contextLength, p: cfg.vllm.parallel, kv: cfg.vllm.kvCacheGib }, bus: cfg.bus, preset: cfg.preset }));
+            check('…the bus stopped (its WebSocket port closed), web search still up', !(await req('GET', 4305, '/', null, { timeoutMs: 1500 })).status && (await req('GET', 4303, '/healthz', null, { timeoutMs: 1500 })).status === 200);
+            const s1 = await state();
+            check('…the card: LOL Vibe in use, nothing changed by hand', s1.presets.status.id === 'vibe' && s1.presets.status.recorded && !s1.presets.status.changed.length, JSON.stringify(s1.presets.status));
+            check('…a chat goes through', replyOf(await chat()) === 'fake reply');
+            // A plugin turned on by hand: kept for the next start, and the preset says it was changed.
+            const on = await admin('plugin/bus/enable');
+            const s2 = await state();
+            check('a plugin turned on by hand is kept in the file', on && on.ok && readConfig().bus.enabled === true, JSON.stringify(on));
+            check('…and marks the preset changed, saying what', s2.presets.status.id === 'vibe' && JSON.stringify(s2.presets.status.changed) === JSON.stringify(['Message bus: off → on']), JSON.stringify(s2.presets.status));
+            await stopFarm();
+        } finally {
+            FARM_DIR = FARM;
+            if (WIN) execFileSync('cmd', ['/c', 'rmdir', path.join(copy, 'node_modules')], { windowsHide: true });   // the link only, never what it points to
+            else fs.unlinkSync(path.join(copy, 'node_modules'));
+        }
+    },
 };
+
+// A SearXNG that answers like one (its health and a JSON search) and installs nothing: `dir` = a farm copy's .searxng.
+// searxng.js finds it installed (its venv's python, its source, the pinned commit) and runs `python -m searx.webapp`.
+function fakeSearxng(dir) {
+    const { PINNED_SHA } = require('../src/searxng');
+    fs.mkdirSync(path.join(dir, 'src', 'searx'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.installed-sha'), `${PINNED_SHA}\n`);
+    fs.writeFileSync(path.join(dir, '.tzdata-ok'), 'ok\n');
+    fs.writeFileSync(path.join(dir, 'settings.yml'), 'engines: []\n');   // not one the farm generated: left as it is
+    fs.writeFileSync(path.join(dir, 'src', 'searx', '__init__.py'), '');
+    fs.writeFileSync(path.join(dir, 'src', 'searx', 'webapp.py'), [
+        'import json, os',
+        'from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer',
+        'class H(BaseHTTPRequestHandler):',
+        '    def do_GET(self):',
+        "        body = b'OK' if self.path.startswith('/healthz') else json.dumps({'results': []}).encode()",
+        '        self.send_response(200); self.end_headers(); self.wfile.write(body)',
+        '    def log_message(self, *a): pass',
+        "ThreadingHTTPServer((os.environ['SEARXNG_BIND_ADDRESS'], int(os.environ['SEARXNG_PORT'])), H).serve_forever()",
+        '',
+    ].join('\n'));
+    const [py, args] = WIN ? ['py', ['-3', '-m', 'venv', '--without-pip', path.join(dir, 'venv')]] : ['python3', ['-m', 'venv', '--without-pip', path.join(dir, 'venv')]];
+    execFileSync(py, args, { windowsHide: true, stdio: 'ignore', timeout: 120000 });
+}
+
 
 // A vLLM started the operator's way (serve.sh with none of the farm's argv, as the old log-on task does), on the fake
 // root's port; the farm's file routes to it as an external server, with no vllm block (production's file).

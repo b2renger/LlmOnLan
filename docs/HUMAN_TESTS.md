@@ -46,7 +46,8 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 | N. The Farm app on a clean box | a PC with no Ollama or Python, a Mac | 5 | — | 2 h + downloads |
 | O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 5 | — | 2 h 30 |
 | P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
-| **Total** | | **120** | **19** | about 57–62 h |
+| Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q4) | 6 | — | 2 h 30 (+ a 22 GB download) |
+| **Total** | | **126** | **19** | about 60–65 h |
 
 **The release, in order:** K1–K5 on the test box first (the Farm app update, the held-file copy, llama.cpp b11512,
 document search's first start, the small cards), then P1 and J1–J4 on the PRO 6000 (once `panel-engines` is merged), then I1–I5 and A1, B1 with the
@@ -1786,6 +1787,73 @@ state (*standby · <model> chosen*, *not for this GPU …*, *cannot run on this 
 the refreshes; opening vLLM checks this computer once (*Checked at …*); the keyboard focus stays on the line. Step 3:
 *Applied at once, no restart*. Step 4: the same question as the old engine buttons asked; Cancel changes nothing. Step
 5: the llama.cpp section still open after the reload. After a real switch (J2), the new engine's section opens by itself.
+- [ ] Done · Found:
+
+## Q. Presets on the PRO 6000 (branch `presets`) — about 2 h 30 (+ the 22 GB of Qwen3.8 27B), the PRO 6000 at a quiet moment, a laptop
+
+The farm and client builds of branch `presets` (the client part, the coding agent's reply room, is client v0.2.14+).
+Each Apply restarts vLLM (about 2 minutes nobody can chat): never while people use the farm. Write down the farm's
+settings first (engine, model, context, people at once, each plugin) so Q6 can put them back.
+
+### Q1 Review each preset: the picks for this box, in plain words
+*Proves:* the four picks are the capacity page's for an RTX PRO 6000 with vLLM, and Review changes nothing (owner
+2026-10-27). *Was:* new (stub farm + offscreen screenshots, DEVLOG 2026-10-27).
+1. Open the panel. Read the Presets card at the top: which preset it says is in use.
+2. Press **Review…** on each of the four, read *Why these*, *What Apply changes* and *Restarts*, then **Close**.
+
+*Expect:* Balanced = vLLM · Qwen3.6 35B-A3B · 64k · people at once Automatic (about 48, measured); Documents and LOL Vibe
+= Qwen3.8 27B · NVFP4 · 64k (about 20 and 23), each with *Download Qwen3.8 27B · NVFP4 (22 GB) in the vLLM list first*
+unless it is downloaded; Computer = Qwen3.6 · 32k (about 104). The engine, model and plugins in the sections did not
+move; vLLM kept running.
+- [ ] Done · Found:
+
+### Q2 Computer: every box that needs the farm works for several people
+*Proves:* Apply runs as one job (plugins off, vLLM with its settings, plugins on) and the Computer finds everything on.
+1. **Review…** Computer ▸ **Apply Computer**; watch the job bar to the end (a first start of Kokoro and Classify
+   installs them: up to 10 minutes).
+2. On the laptop (the Computer): an Image box → Describe a picture; a Document box with a scanned PDF; a Sound box with
+   Listen; a Speak box with the farm voice; a Classify box; a Receive box on a bus topic another laptop Sends to.
+3. Read the panel: the Serving card's people at once, vLLM's context, the Plugins card, the Presets card.
+
+*Expect:* the job says *The Computer preset is applied: …* (or says which plugin did not start); every box works;
+32k each, people at once about 100 (Automatic); every plugin on, document search as before; the card: *Computer · in use*.
+- [ ] Done · Found:
+
+### Q3 Documents: whole documents, scanned pages
+1. If the card says so, press **Download** in Documents' review (22 GB, the download bar), then **Review…** again ▸
+   **Apply Documents**.
+2. On the laptop (Open WebUI): attach a 30-page text PDF and ask about its last page; attach a scanned PDF and ask
+   about it.
+
+*Expect:* Qwen3.8 27B at 64k, about 20 at once; both answers use the whole documents; voice, Classify, speech to text
+and the bus off.
+- [ ] Done · Found:
+
+### Q4 LOL Vibe: the coding agent, long replies
+1. **Apply LOL Vibe** (document reading goes off: vLLM restarts with its 9 GB).
+2. On the laptop (client v0.2.14+): LOL Vibe ▸ a project ▸ ask the coding agent for a p5.js sketch with three features.
+3. In the vLLM list, Download and **Use this** on Gemma 4 12B (a model the IDE has no profile of), ask the agent again;
+   then Use this on Qwen3.8 27B again.
+
+*Expect:* the agent finishes; with Gemma 4 no reply ends cut at 8,192 tokens (the client asks the farm's 32,768); the
+vLLM section shows the conversations' memory larger than under Computer; the card: *LOL Vibe · in use · changed:
+Model: … → …* after step 3, and back to *in use* once Qwen3.8 serves again.
+- [ ] Done · Found:
+
+### Q5 Kept across a farm restart; a change by hand marks it
+1. **Apply Balanced**. In the Farm app: Stop the farm, Start it.
+2. In the Plugins card, Disable web search. Stop and Start the farm again.
+3. Enable web search again.
+
+*Expect:* step 1: after the restart the card still says *Balanced · in use*, the plugins as they were. Step 2: web
+search still off after the restart (kept), the card *Balanced · in use · changed* with *Web search: on → off*. Step 3:
+*in use* again, without *changed*.
+- [ ] Done · Found:
+
+### Q6 Back as it was
+1. Put back the settings written down before Q1 (a preset, or by hand in each section).
+
+*Expect:* the farm serves as before the session; the card says which preset matches, or *No preset applied yet*.
 - [ ] Done · Found:
 
 ---

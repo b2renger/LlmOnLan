@@ -6975,7 +6975,7 @@ test('presets: the dry run lists exactly what changes, what restarts and how lon
     assert.deepEqual(toComputer, [
         'Engine: Ollama → vLLM (about 2 minutes during which nobody can chat)',
         'Model: Qwen3.6 35B-A3B · NVFP4', 'Context per person: 32k', 'People at once: Automatic', 'GPU memory for conversations: Automatic',
-        'Voice (Kokoro): off → on (a first start installs it (several GB), about 10 minutes)',
+        'Voice (Kokoro): off → on (a first start installs it: several GB, about 10 minutes)',
         'Classify (Laya): off → on', 'Speech to text: off → on', 'Message bus: off → on',
     ]);
     // vLLM staying vLLM: field by field.
@@ -7085,6 +7085,12 @@ test('presets: a switch that fails puts its settings back and records nothing; a
     assert.equal(n.jobs.jobView(), null, 'no job');
     const d = await n.ops.dryRun('vibe');
     assert.deepEqual(d.needs.map((x) => x.id), ['qwen3.8-27b-nvfp4']);
+    // vLLM staying vLLM with a model still to download: its own dry run would refuse it, the restart is still said.
+    const cur = { engine: 'vllm', model: 'qwen3.6-35b-a3b', context: 65536, people: 'auto', memory: 'auto', plugins: { websearch: true, ocr: false, tts: false, classify: false, stt: false, bus: false } };
+    const vn = presetRig({ engine: 'vllm', cur, needs: true });
+    const vd = await vn.ops.dryRun('vibe');
+    assert.equal(vd.restart, 'vLLM restarts once: about 2 minutes during which nobody can chat.');
+    assert.ok(!vn.calls.some((c) => c[0] === 'dry'), 'its own dry run is not asked');
     // An unknown preset.
     assert.equal((await n.ops.apply('nope')).ok, false);
 });
