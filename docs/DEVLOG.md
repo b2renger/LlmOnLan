@@ -6,6 +6,30 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-27 (11:45) — Release client v0.2.14 and Farm app farm-v0.0.50: presets for the most people, plugin switches kept
+
+The owner asked for presets (RAG, LOL Vibe, Computer) and approved the release; then, *"more users: probably Nemotron
+for Documents, LOL Vibe Flint, correct me if I am wrong"*. The lead's answer, built and checked:
+- **Flint for LOL Vibe: not for more users today** — the farm serves it on llama.cpp only (a few people at once) and
+  it was not better than Qwen3.6 on the agent's five tasks; it joins the agent-proven list once a vLLM release serves it
+  and HUMAN_TESTS J12–J13 measured it.
+- **Nemotron for Documents: not at 64k on the PRO 6000** — measured 64 vs Qwen3.6's 63 out of step (both at the spike's
+  ceiling) and 16 vs 48 when everyone asks together. In a "most people" pick a lead under 10 % is now a tie the better
+  model wins (`scenarios.js` `morePeople`, also the capacity page's rule; its six cards unchanged on every box). So on
+  the PRO 6000 all four presets serve Qwen3.6 (nothing to download); Nemotron stays the Documents pick where its lead is
+  real (the RTX PRO 5000/5500/Max-Q, estimated), and Q4 measures it past 64 people at 64k, which could flip it.
+- **Merged:** `presets` (`79b51cf`) and `presets-users` (`4537dd4`). Gates on the merged tree: farm `test/run.js` 279/0;
+  shell build, chat-unit 1925/0, unit 29, lint 0; Farm app `npm test` 9 + 3; on the branch, `vllm-lifecycle.js` 172/0
+  (24 steps) and step 24 again 13/0.
+- **Client v0.2.14** (tag `v0.2.14`, commit `9c15f95`, CI run 40486229713, 34 min): success, 27 assets; `latest.yml` says
+  0.2.14. LOL Vibe's agent reads the farm's `backend.replyTokens` for a model it has no profile of.
+- **Farm app farm-v0.0.50** (tag `farm-v0.0.50`, commit `71d2bdd`, CI run 40486234940): a prerelease, 10 assets. The
+  Presets card, plugin switches kept, `backend.replyTokens` in the snapshot. A farm-v0.0.49 or older refuses a config
+  with `preset`: the release notes say so. No arm64 llama.cpp build (the pin did not move).
+- **Release notes:** both pages got a "What's new" above CI's own text.
+- **Not done, the owner's:** install farm-v0.0.50 on the PRO 6000 and run HUMAN_TESTS session Q (each preset with a
+  laptop; Q4 Nemotron at 64k past 64 people; Q5 the agent's five tasks on Qwen3.6 through the preset).
+
 ## 2026-10-27 (10:55, the tie rule 11:04) — Presets for more users: Documents = the most people among models good enough for documents, a lead under 10 % a tie (Qwen3.6 on the PRO 6000 until Nemotron is measured past 64), LOL Vibe = the most people among models proven with the coding agent (Qwen3.6)
 
 The owner: *"I am thinking more users: so probably Nemotron for Documents, LOL Vibe Flint, but correct me if I am
