@@ -70,6 +70,8 @@ export function capsFromBridge(bridge) {
     models,
     engine: (backend && backend.engine) || null,
     budget: { tokens, advertised, source: advertised == null ? 'default' : 'advertised' },
+    // The most one reply may write on this farm (farm-v0.0.50+): the coding agent's room on a model it has no profile of.
+    replyTokens: backend ? num(backend.replyTokens) : null,
     seats: capacity
       ? {
         used: num(capacity.seatsUsed) ?? 0,

@@ -593,8 +593,9 @@ export function createController(app) {
             projectId, threadId, model: model || '',
             text: String((asked && asked.role === 'user' && asked.content) || ''),
             recap: agentMod.buildRecap(path.slice(0, -1)),
-            // The model behind a farm alias ("assistant" on llama.cpp) is what the profile knows.
-            maxTokens: modelsMod.profileFor((info && info.underlying) || model).maxTokens,
+            // The model behind a farm alias ("assistant" on llama.cpp) is what the profile knows; one it does not know
+            // gets the farm's own reply limit.
+            maxTokens: modelsMod.profileFor((info && info.underlying) || model, c.replyTokens).maxTokens,
             // "Keep going until done": a person's switch in the Project panel (off by default, forgotten at restart).
             goal: agentMod.keepGoing(projectId),
             // "Use the Computer": the same kind of switch, for the Computer's MCP tools.

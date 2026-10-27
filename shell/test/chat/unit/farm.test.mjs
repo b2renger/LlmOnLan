@@ -99,6 +99,13 @@ export default (test) => {
     assert.equal(c.budget.source, 'advertised');
   });
 
+  test('the farm\'s reply limit (backend.replyTokens, owner 2026-10-27) reaches the caps; a farm that does not say gives null', () => {
+    assert.equal(capsFromBridge(fullBridge({ backend: { engine: 'vllm', alias: 'assistant', contextLength: 65536, contextPerSlot: 65536, slots: 48, replyTokens: 32768 } })).replyTokens, 32768);
+    assert.equal(capsFromBridge(fullBridge()).replyTokens, null);
+    assert.equal(capsFromBridge(fullBridge({ backend: null })).replyTokens, null);
+    assert.equal(capsFromBridge(fullBridge({ backend: { engine: 'ollama', replyTokens: 'lots' } })).replyTokens, null, 'only a number');
+  });
+
   test('a farm that advertises no backend gets the 32,768 default', () => {
     const c = capsFromBridge(fullBridge({ backend: null }));
     assert.deepEqual(c.budget, { tokens: 32768, advertised: null, source: 'default' });

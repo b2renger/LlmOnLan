@@ -12,7 +12,7 @@
  * @typedef {{ name, openaiBaseUrl, defaultModel, busy, apiKey,
  *   id?, requiresKey?, healthy?, stale?, lastSeen?, host?, httpPort?,
  *   models?: {id, underlying, default}[],
- *   backend?: {engine, alias, contextLength, contextPerSlot, slots} | null,
+ *   backend?: {engine, alias, contextLength, contextPerSlot, slots, replyTokens?} | null,
  *   capacity?: {slots, clients, seatsUsed, seatIdleSec, busy?, queued?, mine?} | null,
  *   perf?: object|null, usage?: {gpuUtil}|null, searxngUrl?, ttsUrl?, ttsVoice?, ttsModel?,
  *   extract?: {url, key}|null }} FarmBridge
@@ -21,7 +21,7 @@
 /** Normalised farm capabilities (net/farm.mjs capsFromBridge). `present:false` = no farm.
  * @typedef {{ present, id, name, baseUrl, proxyRoot, apiKey, requiresKey, keyMissing, healthy, stale, lastSeen,
  *   defaultModel, models: {id, underlying, default}[], engine: 'ollama'|'llama.cpp'|'vllm'|'external'|null,
- *   budget: {tokens, advertised, source: 'advertised'|'default'},
+ *   budget: {tokens, advertised, source: 'advertised'|'default'}, replyTokens?: number|null,
  *   seats: {used, slots, clients, idleSec, mine}|null, busy: {label, percent}|null, perf, gpuUtil,
  *   search: {url}|null, tts: {url, voice, model}|null, ocr: {url, key}|null,
  *   classify?: {url: string, key: string|null}|null, stt?: {url: string, key: string|null}|null,

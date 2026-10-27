@@ -411,8 +411,16 @@ export default (test) => {
     assert.equal(S.agentMaxTokens(8192, 32768, true), 16384, 'the P5-L room where it fits (a 32k window compacts at 12288)');
     assert.equal(S.agentMaxTokens(8192, 24576, true), 14336);
     assert.equal(S.agentMaxTokens(8192, 8192, true), 8192, 'never below a plain turn\'s room');
-    assert.deepEqual([S.agentMaxTokens(8192, 4096, false), S.agentMaxTokens(100, 32768, false), S.agentMaxTokens(undefined, 32768, false), S.agentMaxTokens(1e6, 32768, true)],
-      [8192, 512, 8192, 65536], 'a plain turn is unchanged: what was asked, 512–65536');
+    assert.deepEqual([S.agentMaxTokens(8192, 4096, false), S.agentMaxTokens(100, 32768, false), S.agentMaxTokens(undefined, 32768, false), S.agentMaxTokens(4096, 262144, true)],
+      [8192, 512, 8192, 16384], 'a profile\'s room of 8192 or less is unchanged: what was asked, ≥ 512');
+    // More than 8192 (the farm's reply limit, for a model with no profile, owner 2026-10-27): it shrinks as Keep going's
+    // does, never below 8192, so dsh can still compact; at most 65536.
+    assert.deepEqual([65536, 32768, 24576, 16384, 8192].map((w) => S.agentMaxTokens(32768, w, false)), [32768, 20480, 14336, 8192, 8192]);
+    for (const w of [24576, 32768, 65536, 131072]) {
+      const out = S.agentMaxTokens(32768, w, true);
+      assert.ok(trigger(w, out) >= w / 4, `${w}: the farm's room still compacts at a quarter of the window or later (${trigger(w, out)})`);
+    }
+    assert.equal(S.agentMaxTokens(1e6, 262144, false), 65536, 'at most 65536');
   });
 
   test('studio: one turn at a time; Stop ends it at once and the next prompt starts a fresh session', async () => {
