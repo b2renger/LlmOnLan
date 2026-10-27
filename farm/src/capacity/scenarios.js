@@ -97,8 +97,15 @@
   const q = (p) => (score(p.model) == null ? -1 : score(p.model));
   const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
   // The best model on one box: good enough, then measured before estimated, then quality, then people. A 'quality'
-  // scenario puts quality first; one that prefers 'people' (the Computer: short asks, speed over polish) people first.
-  const byModel = (sc) => (a, b) => (sc.rank === 'quality' ? q(b) - q(a) : 0) || (sc.prefer === 'people' ? b.r.people.mid - a.r.people.mid : 0)
+  // scenario puts quality first; one that prefers 'people' (the Computer: short asks, speed over polish) people first —
+  // but a lead under 10 % is a tie the better model wins (Nemotron's 64 against Qwen3.6's 63 at 64k on the PRO 6000,
+  // both at the spike's highest level, picked the weaker model: 2026-10-27).
+  const PEOPLE_TIE = 0.1;
+  const morePeople = (a, b) => {
+    const x = a.r.people.mid, y = b.r.people.mid;
+    return Math.abs(y - x) < PEOPLE_TIE * Math.max(x, y) ? 0 : y - x;
+  };
+  const byModel = (sc) => (a, b) => (sc.rank === 'quality' ? q(b) - q(a) : 0) || (sc.prefer === 'people' ? morePeople(a, b) : 0)
     || good(b.model) - good(a.model) || CONF[a.r.confidence] - CONF[b.r.confidence] || q(b) - q(a) || b.r.people.mid - a.r.people.mid
     || cmp(a.model.id, b.model.id);
   // Boxes: the cheapest that covers the head count ('price'), or the best model that does ('quality').

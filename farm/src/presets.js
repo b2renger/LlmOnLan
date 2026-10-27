@@ -228,7 +228,7 @@ function poolReasons(p, pair, sc) {
         // Documents are asked out of step (the scenario's mode); a class that starts together gets fewer: said.
         const ev = E.estimate(pair.hw.id, pair.model.id, { ...sc.est, mode: 'every' });
         const together = ev.fits && ev.people.mid < pair.r.people.mid ? `; when everyone asks at the same moment, about ${peopleOf(ev)}, ${ev.confidence}` : '';
-        return [`Picked for the most people at ${fmtK(sc.est.context)} among the models that scored ${GATE_FLOOR}/28 or more on every run of the spike's quality check${together}.`,
+        return [`Picked for the most people at ${fmtK(sc.est.context)} among the models that scored ${GATE_FLOOR}/28 or more on every run of the spike's quality check (a lead of under 10 % is a tie, which the better model wins)${together}.`,
             ...(pair.model.vision ? [] : ['It does not read images: documents reach it as text, and scanned pages go through document reading (OCR), a model of its own.'])];
     }
     if (p.id === 'vibe') {

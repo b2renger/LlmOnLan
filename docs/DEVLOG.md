@@ -6,13 +6,14 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-10-27 (10:55) — Presets for more users: Documents = the most people among models good enough for documents (Nemotron on the PRO 6000), LOL Vibe = the most people among models proven with the coding agent (Qwen3.6)
+## 2026-10-27 (10:55, the tie rule 11:04) — Presets for more users: Documents = the most people among models good enough for documents, a lead under 10 % a tie (Qwen3.6 on the PRO 6000 until Nemotron is measured past 64), LOL Vibe = the most people among models proven with the coding agent (Qwen3.6)
 
 The owner: *"I am thinking more users: so probably Nemotron for Documents, LOL Vibe Flint, but correct me if I am
 wrong."* Branch `presets-users` (from `multiuser-phase0` 79b51cf). Not merged, not released.
 
 **The rules** (`farm/src/presets.js`): both presets now rank the pairs that cover their head count by people first
-(`prefer: 'people'`, the Computer's own ranking in `scenarios.js`), among a pool of models:
+(`prefer: 'people'`, the Computer's own ranking in `scenarios.js`) — **a lead under 10 % being a tie the better model
+wins** (`scenarios.js` `morePeople`, `PEOPLE_TIE` 0.1, the lead's change at 11:04, below) — among a pool of models:
 - **Documents** — models good enough for documents: **25/28 or more on every run of the spike's 28-item check**
   (`GATE_FLOOR`, thinking on and off, each box). Qwen3.6 (26–28), Nemotron 3.5 Lightning (25–27) and Qwen3.8 27B
   (26–28) pass; Gemma 4 12B (22 with thinking on) and Qwen3-Omni (never run on it) do not. 64k kept: Nemotron covers 5
@@ -27,8 +28,8 @@ wrong."* Branch `presets-users` (from `multiuser-phase0` 79b51cf). Not merged, n
 
 | Box | Balanced | Documents | LOL Vibe | Computer |
 |---|---|---|---|---|
-| RTX PRO 6000, vLLM set up | Qwen3.6 64k (~48) | **Nemotron 64k (~64, measured; 16 when everyone asks at the same moment)**, 22 GB to download | **Qwen3.6 64k (~64, measured)** | Qwen3.6 32k (~104) |
-| RTX PRO 6000 Max-Q / 5500 / 5000 72 / 5000 48 | Qwen3.6 64k | Nemotron 64k (124 / 101 / 77 / 37, calibrated) | Qwen3.6 64k (70 / 57 / 45 / 20) | Qwen3.6 32k |
+| RTX PRO 6000, vLLM set up | Qwen3.6 64k (~48) | **Qwen3.6 64k (~63, measured; 48 when everyone asks at the same moment)**: Nemotron's 64 is a tie | **Qwen3.6 64k (~64, measured)** | Qwen3.6 32k (~104) |
+| RTX PRO 6000 Max-Q / 5500 / 5000 72 / 5000 48 | Qwen3.6 64k | Nemotron 64k (124 / 101 / 77 / 37, calibrated: a real lead) | Qwen3.6 64k (70 / 57 / 45 / 20) | Qwen3.6 32k |
 | DGX Spark | Qwen3.6 64k (8) | Qwen3.6 64k (8: Nemotron ties at 8, the stronger model wins the tie) | Qwen3.6 64k (8: *not your 10*) | Qwen3.6 32k (8) |
 | 24 / 12 GB GeForce, PRO 6000 without vLLM | Ollama `gemma4:12b` | the same | llama.cpp Qwen3.8 27B UD-IQ2_S, *no proven model available here* (without vLLM: *with it, ~64 with Qwen3.6*) | Ollama `gemma4:12b` |
 
@@ -41,13 +42,28 @@ wrong."* Branch `presets-users` (from `multiuser-phase0` 79b51cf). Not merged, n
 - **Qwen3.8 and Nemotron were run with the agent**, but only on the P5-0 spike's single edit task (3/3 each on
   Ollama, docs/research/p5-spike), never the five tasks: not "proven" by the rule, said in the code's comment.
 
-**Tests:** farm `node test/run.js` **279/0** (the presets tests rewritten: the PRO 6000's picks and reason lines —
-Nemotron *measured*, 16 together, no images; Qwen3.6 proven, why not Flint —, the Spark's tie, the GeForce cards'
-"no proven model", a proven Ollama default winning LOL Vibe, the no-vLLM box's "with it" per preset, the dry runs and
-Apply with the new picks; five of the eight presets tests fail against the old `presets.js`). `LOL_VLLM_FAKE=1
-node test/vllm-lifecycle.js 24` **13/0** (the preset step through the real Apply path; the owner's vLLM, pgid 576, left
-alone). Docs: CLAUDE.md, farm/README.md *Presets*, HUMAN_TESTS session Q (Q1/Q3 the new picks, **Q4** Nemotron at 64k
-measured on the farm, **Q5** the five agent tasks on Qwen3.6 through the preset; 7 steps).
+**The tie rule (11:04, the lead's change after the finding above):** at 64k on the PRO 6000 Nemotron does not serve
+"more users". Out of step it is **64 against Qwen3.6's 63**, both having passed 64, the spike's highest level (Qwen3.6's
+63 is its pool on this farm's memory with document reading beside it), and when everyone asks at the same moment it is
+**16 against 48**. A 1-person lead picked the weaker model (25–27/28 against 26–28, no images). So in `scenarios.js`
+`byModel`, preferring people, a lead under 10 % is a tie and the order the capacity page already uses decides (good
+enough, measured before estimated, then quality): **Documents = Qwen3.6 64k on the PRO 6000 again**. A real lead still
+wins: at 32k Nemotron's 192 against Qwen3.6's 109 (160 / 96 when everyone asks together) picks Nemotron; on the Max-Q,
+5500 and 5000 the estimate gives it one at 64k too. The capacity page's six cards are unchanged on every box of the
+catalog (compared before and after). HUMAN_TESTS **Q4** is now the measurement that could flip Documents: Nemotron at
+64k on the farm past 64 people (up to 128; Qwen3.6 too if time allows); 10 % or more ahead, once in `measured.json`, and
+Nemotron is the pick by itself.
+
+**Tests:** farm `node test/run.js` **279/0**: the presets tests on the final picks (the PRO 6000 with every model on
+disk: Qwen3.6 for all four, the reason with the tie and *48* together; Nemotron alone in the list: picked, *does not read
+images*; a box whose Qwen3.6 is not on disk: *Download Qwen3.6 35B-A3B · NVFP4 (23 GB)*, Apply refused before any job;
+a model change Nemotron → Qwen3.6 in the dry run; Qwen3.6 proven, why not Flint; the Spark's tie; the GeForce cards' "no
+proven model"; a proven Ollama default winning LOL Vibe; the no-vLLM box's "with it" per preset), and in *capacity
+scenarios* the tie (documents at 64k on the PRO 6000: Nemotron ahead by under 10 % → Qwen3.6) and a real lead (32k →
+Nemotron). Without `morePeople` the scenarios test and four presets tests fail. `LOL_VLLM_FAKE=1 node
+test/vllm-lifecycle.js 24` **13/0** (the preset step through the real Apply path; the owner's vLLM, pgid 576, left
+alone). Docs: CLAUDE.md, farm/README.md *Presets*, HUMAN_TESTS session Q (Q1/Q3 the picks, **Q4** Nemotron at 64k
+measured on the farm past 64, **Q5** the five agent tasks on Qwen3.6 through the preset; 7 steps).
 
 **Not done (the owner's):** session Q on the PRO 6000; the merge and the releases.
 

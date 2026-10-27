@@ -1023,15 +1023,18 @@ can run:
 | Preset | Picked for (the capacity page's card) | Engine and model | Context each | Plugins on |
 |---|---|---|---|---|
 | **Balanced** (the default) | a class chatting, 30 | the serving engine's own defaults (vLLM: Qwen3.6 at 64k; Ollama: `gemma4:12b`) | 64k on vLLM, else Automatic | web search, document reading |
-| **Documents** | documents (RAG), 5 | the most people, among models good enough for documents (25/28 or more on every run of the spike's quality check) | 64k (Open WebUI reads whole documents from 24k) | web search, document reading |
+| **Documents** | documents (RAG), 5 | the most people, among models good enough for documents (25/28 or more on every run of the spike's quality check); a lead under 10 % is a tie the better model wins | 64k (Open WebUI reads whole documents from 24k) | web search, document reading |
 | **LOL Vibe** | vibe-coding, 10 | the most people, among models proven with the IDE's coding agent | 64k | web search (document reading off: its 9 GB go to vLLM) |
 | **Computer** | a Computer workshop, 20 | the most people, among models that see pictures and do tools well | 32k | all: web search, document reading, voice, Classify, speech to text, the message bus |
 
 - **vLLM** is picked where it is set up (installed, per the last check) on a GPU the capacity page knows for a group
   (an RTX PRO 6000 / 5500 / 5000, a DGX Spark): people at once and GPU memory **Automatic**. On the RTX PRO 6000:
-  Balanced = Qwen3.6 64k (~48), Documents = Nemotron 3.5 Lightning 64k (~64 out of step, 16 when everyone asks at the
-  same moment, both measured; a 22 GB download first), LOL Vibe = Qwen3.6 64k (~64), Computer = Qwen3.6 32k (~100). On
-  a DGX Spark: Qwen3.6 for all four (8 at 64k; Nemotron ties it for Documents and the stronger model wins the tie;
+  Balanced = Qwen3.6 64k (~48), Documents = Qwen3.6 64k (~63 out of step, 48 when everyone asks at the same moment,
+  measured), LOL Vibe = Qwen3.6 64k (~64), Computer = Qwen3.6 32k (~100). For Documents, Nemotron 3.5 Lightning's 64
+  against Qwen3.6's 63 at 64k is a tie (both passed 64, the spike's highest level; when everyone asks together Nemotron
+  passes 16 against 48), and a tie goes to the better model; HUMAN_TESTS Q4 measures Nemotron past 64 on the farm, and a
+  lead of 10 % or more there makes it the pick by itself. On a Max-Q, 5500 or 5000 (estimated, not measured) Nemotron's
+  lead at 64k is real and it is the Documents pick. On a DGX Spark: Qwen3.6 for all four (8 at 64k; Nemotron ties it;
   Qwen3.8 serves fewer than 8 there).
 - **Documents' quality floor** (`GATE_FLOOR`): 25/28 or more on every run of the spike's 28-item check, thinking on
   and off, so a weak model is never picked for its head count alone. Qwen3.6 (26–28), Nemotron 3.5 Lightning (25–27)

@@ -46,7 +46,7 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 | N. The Farm app on a clean box | a PC with no Ollama or Python, a Mac | 5 | — | 2 h + downloads |
 | O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 5 | — | 2 h 30 |
 | P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
-| Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q5) | 7 | — | 3 h 30 (+ a 22 GB download) |
+| Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q5) | 7 | — | 3 h 30 (+ a 22 GB download for Q4) |
 | **Total** | | **127** | **19** | about 60–65 h |
 
 **The release, in order:** K1–K5 on the test box first (the Farm app update, the held-file copy, llama.cpp b11512,
@@ -1789,7 +1789,7 @@ the refreshes; opening vLLM checks this computer once (*Checked at …*); the ke
 5: the llama.cpp section still open after the reload. After a real switch (J2), the new engine's section opens by itself.
 - [ ] Done · Found:
 
-## Q. Presets on the PRO 6000 (branches `presets`, `presets-users`) — about 3 h 30 (+ the 22 GB of Nemotron 3.5 Lightning), the PRO 6000 at a quiet moment, a laptop
+## Q. Presets on the PRO 6000 (branches `presets`, `presets-users`) — about 3 h 30 (+ the 22 GB of Nemotron 3.5 Lightning for Q4), the PRO 6000 at a quiet moment, a laptop
 
 The farm and client builds of branch `presets-users` (the client part, the coding agent's reply room, is client
 v0.2.14+). Each Apply restarts vLLM (about 2 minutes nobody can chat): never while people use the farm. Write down the
@@ -1802,11 +1802,10 @@ DEVLOG 2026-10-27).
 1. Open the panel. Read the Presets card at the top: which preset it says is in use.
 2. Press **Review…** on each of the four, read *Why these*, *What Apply changes* and *Restarts*, then **Close**.
 
-*Expect:* Balanced = vLLM · Qwen3.6 35B-A3B · 64k · people at once Automatic (about 48, measured); Documents =
-Nemotron 3.5 Lightning 30B-A3B · NVFP4 · 64k (about 64, measured; *when everyone asks at the same moment, about 16*; *It
-does not read images*), with *Download Nemotron 3.5 Lightning 30B-A3B · NVFP4 (22 GB) in the vLLM list first* unless it
-is downloaded; LOL Vibe = Qwen3.6 · 64k (about 64; *proven with the IDE's coding agent: 11/15*, and why not Flint),
-nothing to download; Computer = Qwen3.6 · 32k (about 104). The engine, model and plugins in the sections did not move;
+*Expect:* Balanced = vLLM · Qwen3.6 35B-A3B · 64k · people at once Automatic (about 48, measured); Documents = Qwen3.6
+· 64k (about 63, measured; *a lead of under 10 % is a tie, which the better model wins*; *when everyone asks at the same
+moment, about 48*); LOL Vibe = Qwen3.6 · 64k (about 64; *proven with the IDE's coding agent: 11/15*, and why not Flint);
+Computer = Qwen3.6 · 32k (about 104); nothing to download. The engine, model and plugins in the sections did not move;
 vLLM kept running.
 - [ ] Done · Found:
 
@@ -1822,35 +1821,40 @@ vLLM kept running.
 32k each, people at once about 100 (Automatic); every plugin on, document search as before; the card: *Computer · in use*.
 - [ ] Done · Found:
 
-### Q3 Documents: whole documents, scanned pages, on Nemotron
-*Proves:* Nemotron 3.5 Lightning answers documents well enough for the preset that picks it for its head count (25–27/28
-on the spike's check against Qwen3.6's 26–28; no images: documents reach it as text).
-1. If the card says so, press **Download** in Documents' review (22 GB, the download bar), then **Review…** again ▸
-   **Apply Documents**.
+### Q3 Documents: whole documents, scanned pages
+1. **Review…** Documents ▸ **Apply Documents** (from Q2's Computer: back to 64k, vLLM restarts; voice, Classify, speech
+   to text and the bus off).
 2. On the laptop (Open WebUI): attach a 30-page text PDF and ask about its last page; attach a scanned PDF and ask
-   about it. Ask the same two questions in a new chat once Balanced serves again (Q6), and compare.
+   about it. Keep the two questions and the PDFs for Q4.
 
-*Expect:* Nemotron at 64k, about 64 at once; both answers use the whole documents (the scanned one read by document
-reading); answers about as good as Qwen3.6's on the same documents (write down any that is clearly worse); voice,
-Classify, speech to text and the bus off.
+*Expect:* Qwen3.6 at 64k, about 63 at once; both answers use the whole documents (the scanned one read by document
+reading); voice, Classify, speech to text and the bus off.
 - [ ] Done · Found:
 
-### Q4 Nemotron at 64k as Documents serves it: people at once, measured on the farm
-*Proves:* the head count the Documents preset says. The spike measured Nemotron at 64k with a 58 GiB pool and the
-question replaced each turn: 16 when everyone starts together (at 32 the first turn after the documents loaded missed
-the 5 s line by 0.15 s) and ≥ 64 out of step, 64 being the highest level it tried (docs/spike/RESULTS.md, headline
-table, footnote ²). Here: the farm's own Automatic memory with document reading beside it, documents appended turn by
-turn as Open WebUI sends them, and more than 64 tried. *Needs:* Q3 applied (Nemotron serving); nobody on the farm (the
-panel's *Clients* shows no seat in use); `$PY` = `farm\.venv\Scripts\python.exe` (it has aiohttp); run from
-`docs\spike` of a checkout.
-1. Write down the vLLM section's people at once and GPU memory for conversations (what Automatic chose), and from its
-   log the line that says how many 64k conversations the pool holds.
+### Q4 Nemotron at 64k, past 64 people: the measurement that could make it the Documents pick
+*Proves:* whether Nemotron 3.5 Lightning serves clearly more people than Qwen3.6 at 64k on this farm. The spike stopped
+at 64 for both (docs/spike/RESULTS.md, headline table): out of step Nemotron and Qwen3.6 both passed 64, so the presets
+count Nemotron's 64 against Qwen3.6's 63 as a tie and Documents serves the better model; when everyone starts together
+Nemotron passed 16 (at 32 the first turn after the documents loaded missed the 5 s line by 0.15 s, footnote ²) against
+Qwen3.6's 48. Nemotron's pool holds about 3× more 64k conversations, so it may well pass far more than 64. A lead of 10 %
+or more, once in `farm/src/capacity/measured.json`, makes Nemotron the Documents pick by itself. Here: the farm's own
+Automatic memory with document reading beside it, documents appended turn by turn as Open WebUI sends them, up to 128.
+*Needs:* Q3 done; nobody on the farm (the panel's *Clients* shows no seat in use); 22 GB free for Nemotron; `$PY` =
+`farm\.venv\Scripts\python.exe` (it has aiohttp); run from `docs\spike` of a checkout.
+1. vLLM section ▸ the list: **Download** Nemotron 3.5 Lightning 30B-A3B · NVFP4, then **Use this** (64k stays). Write
+   down people at once and GPU memory for conversations (what Automatic chose), and from vLLM's log the line that says
+   how many 64k conversations the pool holds.
 2. `$PY spike_bench.py bench --base-url http://127.0.0.1:8100/v1 --label pro6000-farm-nemotron-docs64k --profile followup --prompt-tokens 62000 --rounds 3 --append --levels 8,16,24,32,48,64 --extend 96,128`
-3. `$PY spike_bench.py summarize results/pro6000-farm-nemotron-docs64k*`
+3. On the laptop: Q3's two questions, in a new chat, on Nemotron; compare the answers with Qwen3.6's.
+4. If time allows: **Use this** on Qwen3.6, step 2 again with the label `pro6000-farm-qwen36-docs64k` (where Qwen3.6
+   stops past 64 on the same memory).
+5. **Use this** on Qwen3.6 (Documents' pick again); `$PY spike_bench.py summarize results/pro6000-farm-*-docs64k*`.
 
-*Expect:* every turn ≥ 16 (the spike: 16–31); out of step ≥ 64, and where it stops between 64 and 128. Under 64 out of
-step, the preset's "about 64" is too high: write both numbers down (they go into `farm/src/capacity/measured.json`,
-which the presets and the capacity page read). Then a chat from the laptop answers.
+*Expect:* Nemotron every turn ≥ 16 (the spike: 16–31), out of step ≥ 64, and where it stops between 64 and 128; its
+answers about as good as Qwen3.6's (write down any clearly worse: 25–27/28 on the spike's check against 26–28). Write
+the numbers down: out of step well past Qwen3.6's (10 % or more) is the case for Nemotron, to weigh against 16 against 48
+when everyone asks together; they go into `measured.json` (the presets and the capacity page read it). The card says
+*Documents · in use* again after step 5, and a chat answers.
 - [ ] Done · Found:
 
 ### Q5 LOL Vibe: the coding agent on Qwen3.6, long replies
