@@ -69,10 +69,12 @@ export function agentWindow(ctxPerSlot: number | null | undefined): number {
  * The reply room a turn asks for. A plain turn: what the page asked (the model's profile), ≥ 512. "Keep going": at least
  * GOAL_MAX_TOKENS, but dsh compacts at min(0.8·W, W − out − headroom) and at 16384 a 24k window compacted at 4k and a
  * ≤ 20k one never — so on a small window the loop's room shrinks until the trigger stays at a quarter of the window,
- * never below a plain turn's.
+ * never below a plain turn's. A room above 8192 (the farm's reply limit, for a model with no profile: projects/models.mjs)
+ * shrinks the same way, never below 8192: 32768 on a 64k window, 20480 on a 32k one, 8192 on 16k.
  */
 export function agentMaxTokens(asked: unknown, window: number, goals: boolean): number {
-    const plain = Math.floor(Number(asked) || 8192);
+    const asked0 = Math.floor(Number(asked) || 8192);
+    const plain = asked0 > 8192 ? Math.min(asked0, Math.max(8192, Math.floor(window * 3 / 4) - COMPACT_HEADROOM)) : asked0;
     const loop = goals ? Math.min(GOAL_MAX_TOKENS, Math.floor(window * 3 / 4) - COMPACT_HEADROOM) : 0;
     return Math.min(65536, Math.max(512, plain, loop));
 }

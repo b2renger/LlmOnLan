@@ -87,7 +87,7 @@ const expectedBridge = (patch = {}) => ({
         { id: 'assistant', underlying: 'Qwen3.8-27B-UD-Q2_K_XL', default: true },
         { id: 'gemma4:12b', underlying: null, default: false },
     ],
-    backend: { engine: 'llama.cpp', alias: 'assistant', contextLength: 32768, contextPerSlot: 16384, slots: 2 },
+    backend: { engine: 'llama.cpp', alias: 'assistant', contextLength: 32768, contextPerSlot: 16384, slots: 2, replyTokens: null },
     capacity: { slots: 2, clients: 1, seatsUsed: 1, seatIdleSec: 900 },
     perf: { lastGenTokSec: 48 },
     usage: { gpuUtil: 3 },                 // ONLY gpuUtil: the chat has no use for the rest
@@ -126,6 +126,12 @@ export default (test) => {
             ttsModel: 'kokoro-v1',
             extract: { url: 'http://127.0.0.1:4011/ocr', key: 'mock-extract-key' },
         }));
+    });
+
+    test('the farm\'s reply limit rides along (backend.replyTokens, owner 2026-10-27): the coding agent\'s room on a model it has no profile of', () => {
+        const backend = { engine: 'vllm', alias: 'assistant', contextLength: 65536, contextPerSlot: 65536, slots: 48, replyTokens: 32768 };
+        const w = publish({ farms: [mainShaped({ backend })], sidecar: { endpoint: 'http://127.0.0.1:4009/v1' } });
+        assert.deepEqual(w.lolFarm.backend, backend);
     });
 
     test('P1 fields: a half-configured extract is dropped, not half-published', () => {

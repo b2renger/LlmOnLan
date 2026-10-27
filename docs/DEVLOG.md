@@ -6,6 +6,88 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-10-27 (10:08) — Presets: Balanced, Documents, LOL Vibe, Computer, picked for this box; plugin switches kept; the coding agent's reply room
+
+The owner: *"pre-configurations of models for the farm: a configuration for RAG, a configuration for LOL Vibe and a
+configuration for the LOL Computer"* — one preset at a time per session, picked in the panel; a **Balanced** one = today's
+defaults, the default; a preset switches plugins too, **except document search, never turned off**; the picks automatic
+for THIS box from the spike's measurements and the capacity estimator, among what it can run, shown with the reason
+before Apply, every field still changeable after. Branch `presets` (from `multiuser-phase0` ed41207). Not merged, not
+released.
+
+**The picks** (`farm/src/presets.js`, pure; no measured figure copied: `capacity/scenarios.js` `recommend()` over
+`catalog.json`, `measured.json` and the estimator, restricted to this box's catalog entry and to the models of the vLLM
+list, each through its `catalog` id). Each preset is picked for one of the capacity page's own cards (its use and head
+count): Balanced for *A class chatting* (30), Documents for *documents (RAG)* (5), LOL Vibe for *vibe-coding* (10),
+Computer for *a Computer workshop* (20).
+
+| Box | Balanced | Documents | LOL Vibe | Computer |
+|---|---|---|---|---|
+| RTX PRO 6000, vLLM set up | vLLM Qwen3.6 64k (~48, measured) | vLLM Qwen3.8 27B 64k (~20, measured; 22 GB to download) | vLLM Qwen3.8 27B 64k (~23) | vLLM Qwen3.6 32k (~104, measured) |
+| DGX Spark, vLLM set up | Qwen3.6 64k (8: *not your 30*, said) | Qwen3.6 64k (8; Qwen3.8 serves < 8 there) | Qwen3.6 64k (8: *not your 10*) | Qwen3.6 32k (8) |
+| 24 GB GeForce (RTX 4090) | Ollama `gemma4:12b`, Automatic, 2 | the same | llama.cpp Qwen3.8 27B UD-IQ2_S, Automatic, 1 | Ollama `gemma4:12b` |
+| 12 GB GeForce (RTX 4070) | the same as 24 GB | | | |
+| RTX PRO 6000 without vLLM | the same, and *"with vLLM this GPU would serve about N people with …"* | | | |
+
+People at once and GPU memory are **Automatic** on vLLM (the measured seats, capped by the pool). Plugins: Balanced =
+as shipped (web search, document reading); Documents = web search + document reading; LOL Vibe = web search only
+(document reading off: its 9 GB go to vLLM); Computer = all six. Document search is not one of them.
+
+**Where I changed the proposal, and why:**
+- **Documents at 64k**, not scenarios.js's 32k for documents: the owner's 64k (Open WebUI goes whole-document from 24k;
+  64k holds twice as much). The capacity card's head count (5) stays.
+- **Computer** adds *sees pictures, tool calling, BenchLM ≥ 40* to the capacity page's Computer use (which needs only
+  32k): without it the most-people pick on the PRO 6000 was Nemotron, which cannot read the Image box. With it, Qwen3.6.
+- **Balanced on vLLM** = vLLM's shipped defaults (Qwen3.6, 64k, Automatic), not the farm's default engine (Ollama):
+  "today's default setup" on the PRO 6000 is what it serves now; switching it to Ollama's 2 seats would be no default.
+- **vLLM only on a GPU the capacity page knows for a group** (an exact match: PRO 6000/5500/5000, Spark). A GeForce card
+  (a one-person box there) or an unknown GPU keeps to Ollama and llama.cpp, even with vLLM set up; the reason says so.
+- **People at once on Ollama and llama.cpp** stay their defaults (2 and 1): nothing measured supports more.
+- **"Long replies" for LOL Vibe** is not a farm setting (the reply limit is already 32768 everywhere): it is the client
+  change below, which uses it.
+
+**Apply** (`up.js` `makePresets`, module level like `makeStorage`, tested with stubs): Review is a dry run (why each pick,
+exactly what changes field by field, what a plugin's first start installs, what restarts and for how long, what to
+download first — offered with a Download button on the existing routes, never waited for). Apply is ONE job through the
+existing controls: `setBackend`, `applyFarmSettings` and `applyVllmSettings` take an `inJob` progress and run their body
+inside the preset's job (`jobOr`) instead of starting their own — no second implementation. Order: the plugins it turns
+off; the engine and its settings (another engine: its settings written first, checked by vLLM's own `applyChange`, so
+the switch starts it once with them, and put back if the switch fails; the same engine: the one Apply, and a running vLLM
+restarts when document reading or speech to text on the GPU flips — `forceRestart` — so Automatic memory follows); the
+plugins it turns on (counted as on while the engine sizes its memory); then `preset: {id, applied}` in the file. The
+card marks that preset, and **changed** with what differs when a setting was changed by hand since (compared with the
+config FILE, never a fallback's memory). A farm that never applied one shows Balanced while its settings are Balanced's.
+
+**Plugin switches persist** (the panel said "this session only"): Enable/Disable writes `<plugin>.enabled`, once the
+plugin came up or stopped. The panel's sub line, the README and CLAUDE.md say so.
+
+**The coding agent's reply room** (client): the farm calls every model `assistant`, so the IDE gave a model it has no
+profile of 8192 tokens a reply, which cut Flint (DEVLOG 2026-10-23). The snapshot now advertises the farm's reply limit,
+`backend.replyTokens` (`proxy.maxReplyTokens`, 32768; absent on an external server; contract updated); LOL Vibe's caps
+carry it, `projects/models.mjs` `profileFor(model, farmReply)` gives it to a model with no profile, and main's
+`agentMaxTokens` shrinks a room above 8192 on a small window as it does Keep going's (32768 on 64k, 20480 on 32k, 8192 on
+16k), so dsh can still compact. A measured model keeps its own: **Qwen3.6 gets a profile at 8192** (15 agent tasks never
+came near it), so the owner's default does not start compacting at 28k instead of 52k. A farm that does not say: 8192 as
+before. Ships with the next client release.
+
+**Tests:** farm `node test/run.js` **279/0** (10 new: the picks for the PRO 6000, a Spark, 24 GB, 12 GB, an RTX 5090 and
+a box without vLLM; document search never switched; the dry-run list; a change by hand marks *changed*; Apply's order
+and its failure path; the config key and plugin persistence; the panel card; `backend.replyTokens`. Two source-shape
+tests follow the `inJob` paths). Shell: build, `chat-unit` **1925/0** (3 new), `chat-lint` 0, `test:unit` 29/29;
+`chat-scope` flags the farm and main files, as for any such change. `LOL_VLLM_FAKE=1 node test/vllm-lifecycle.js`
+**172/0, all 24 steps**, with a new step 24: a preset through the real Apply path on this box's GPU (the dry run's exact
+list and "vLLM restarts once"; Apply restarted the fake vLLM once at 64k with Automatic people and memory, turned the message bus
+off, kept everything in the file, recorded the preset; the bus enabled by hand afterwards stays in the file and marks
+*LOL Vibe · changed*), run from a copy of the farm with a fake SearXNG (web search is on in every preset; nothing
+installed). The owner's vLLM (`~/lol-vllm`, pgid 576) was read before and after, never touched.
+
+**Seen on screen:** the panel against a stub of `/lol/admin/state` whose Presets card and dry runs come from the real
+`presets.js` and `makePresets` (PRO 6000, Qwen3.6 serving), in an offscreen Electron: the card on top, Review of Computer
+and LOL Vibe (Download offered, Apply waiting), a preset changed by hand, and a phone's width (no sideways scroll).
+
+**Not done (the owner's):** HUMAN_TESTS session Q (each preset on the PRO 6000, a laptop in each use); the merge and the
+releases (a farm-v0.0.49 refuses a file with `preset`).
+
 ## 2026-10-23 (19:04) — Release client v0.2.13 and Farm app farm-v0.0.49: the coding agent's fence on a second drive, llama.cpp b11836
 
 The owner said "yes release" after the Flint evaluation. Done:

@@ -1107,7 +1107,7 @@ function publishFarm() {
       backend: f.backend ? {
         engine: f.backend.engine || null, alias: f.backend.alias || null,
         contextLength: f.backend.contextLength ?? null, contextPerSlot: f.backend.contextPerSlot ?? null,
-        slots: f.backend.slots ?? null,
+        slots: f.backend.slots ?? null, replyTokens: f.backend.replyTokens ?? null,
       } : null,
       capacity: f.capacity || null, perf: f.perf || null,
       usage: f.usage ? { gpuUtil: f.usage.gpuUtil ?? null } : null,

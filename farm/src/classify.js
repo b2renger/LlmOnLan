@@ -156,4 +156,4 @@ async function classifyAlive(port, host = '127.0.0.1') {
     return !!(r && r.status === 200);
 }
 
-module.exports = { loadError, ensureClassify, spawnClassify, waitForClassify, classifyAlive, depsSignature, LAYA_VERSION };
+module.exports = { loadError, ensureClassify, spawnClassify, waitForClassify, classifyAlive, depsSignature, installed, LAYA_VERSION };

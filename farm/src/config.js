@@ -575,6 +575,19 @@ const AdminSchema = z.object({
     token: z.string().nullable().default(null),
 }).strict();
 
+// The preset the farm was last set up with from the panel (owner, 2026-10-27; src/presets.js): its id and what it
+// applied (engine, model, context, people at once, GPU memory, each plugin), so the panel can say when a setting was
+// changed by hand since. null = none applied: the panel marks Balanced when the settings are its picks. Written by the
+// panel only. A farm before this key (farm-v0.0.49 and older) refuses a file that has it.
+const Setting = z.union([z.literal('auto'), z.number()]).nullable();
+const PresetSchema = z.object({
+    id: z.enum(['balanced', 'rag', 'vibe', 'computer']),
+    applied: z.object({
+        engine: z.string(), model: z.string().nullable(), context: Setting, people: Setting, memory: Setting,
+        plugins: z.record(z.boolean()),
+    }).strict().nullable().default(null),
+}).strict();
+
 const LiteLLMSchema = z.object({
     // How to invoke LiteLLM. Default assumes `litellm` is on PATH; operators who
     // installed it into a venv point this at that venv's litellm[.exe].
@@ -680,6 +693,7 @@ const ConfigSchema = z.object({
     // the farm can't run a per-client plugin, only advertise it; each client auto-applies
     // what it can. Set live via the admin panel (control.recommendClientPlugin).
     recommendedClientPlugins: z.array(z.string()).default([]),
+    preset: PresetSchema.nullable().default(null),
 }).strict();
 
 // ---- defaults --------------------------------------------------------------

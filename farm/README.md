@@ -988,7 +988,8 @@ first bootstrap is large; empty it (`"preinstall": []`) if you don't want it on 
 Everything in the panel applies to the **running** farm and is written back to `lol.config.json`, so it
 survives a restart. The exceptions, all deliberate:
 
-- **Plugin toggles** and the **Blender recommendation** are for this session only.
+- The **Blender recommendation** is for this session only. (The plugin switches are kept since 2026-10-27: Enable
+  and Disable write `<plugin>.enabled`, once the plugin came up or stopped; one that did not come up stays off.)
 - **Ollama's own slot count** needs a farm restart to take effect, because `OLLAMA_NUM_PARALLEL` is read
   by Ollama at startup. The panel says so when you change it. On a multi-box farm it is **per box**
   (the panel shows the farm total next to it).
@@ -1011,6 +1012,41 @@ Ollama catalog is standby, exactly as under llama.cpp.
 Only **one** long operation runs at a time — a download, a backend switch, a reload. Everything else is
 refused with *"the farm is busy"* rather than queued, because two model reloads racing is how a farm ends
 up with no backend at all.
+
+## Presets
+
+The panel's **Presets** card (at the top, owner 2026-10-27) sets the farm up for a session in one go. One preset at a
+time; each is picked **for this box** from the capacity page's own data and code (`src/presets.js` over
+`src/capacity/scenarios.js` `recommend()`, the spike's measurements and the estimator), and only among what this farm
+can run:
+
+| Preset | Picked for (the capacity page's card) | Engine and model | Context each | Plugins on |
+|---|---|---|---|---|
+| **Balanced** (the default) | a class chatting, 30 | the serving engine's own defaults (vLLM: Qwen3.6 at 64k; Ollama: `gemma4:12b`) | 64k on vLLM, else Automatic | web search, document reading |
+| **Documents** | documents (RAG), 5 | the best-quality model that covers the head count | 64k (Open WebUI reads whole documents from 24k) | web search, document reading |
+| **LOL Vibe** | vibe-coding, 10 | the strongest agentic-coding score that covers it | 64k | web search (document reading off: its 9 GB go to vLLM) |
+| **Computer** | a Computer workshop, 20 | the most people, among models that see pictures and do tools well | 32k | all: web search, document reading, voice, Classify, speech to text, the message bus |
+
+- **vLLM** is picked where it is set up (installed, per the last check) on a GPU the capacity page knows for a group
+  (an RTX PRO 6000 / 5500 / 5000, a DGX Spark): people at once and GPU memory **Automatic**. On the RTX PRO 6000:
+  Balanced = Qwen3.6 64k (~48), Documents and LOL Vibe = Qwen3.8 27B 64k (~20–23, a 22 GB download first), Computer
+  = Qwen3.6 32k (~100). On a DGX Spark: Qwen3.6 for all four (8 at 64k; Qwen3.8 serves fewer than 8 there).
+- **Elsewhere** (a GeForce card, which the capacity page counts as one person's; a GPU it does not know; no vLLM):
+  Ollama's default model with Automatic context and its 2 at once, except **LOL Vibe**, which serves llama.cpp's model
+  (Qwen3.8 27B UD-IQ2_S by default) when llama.cpp can run here. A box that could run vLLM says what it would give.
+- **Document search is never switched** by a preset: a laptop whose data folder uses it would fail every upload.
+- **Review…** is a dry run: why each pick, exactly what changes (engine, model, context, people at once, memory, each
+  plugin, with what a first start installs), what restarts and for how long, and what must be downloaded first
+  (offered with a **Download** button; Apply waits for it). It may check this computer for vLLM once (as opening the
+  vLLM section does). **Apply** runs ONE job through the farm's own controls: the plugins it turns off, the engine and
+  its settings (another engine: its settings written first, so the switch starts it with them, and put back if the
+  switch fails; the same engine: the one Apply, with vLLM's restart rules, and a restart of a running vLLM when document
+  reading or speech to text is turned on or off, so its Automatic memory follows), the plugins it turns on, then
+  `preset` is written.
+- **`preset`** in `lol.config.json` = `{ id, applied }`: what was applied. A setting changed by hand afterwards (in
+  any section) marks the card **changed** and says what; a farm that never applied one shows Balanced while its settings
+  are Balanced's picks. A farm before this key (farm-v0.0.49 and older) refuses a file that has it.
+- Ollama's people at once still apply at the next farm start (the dry run says so).
 
 ## Multiple users & capacity
 
@@ -1273,7 +1309,8 @@ get *"the farm is busy"*).
 | `POST /lol/admin/llamacpp/model` · `/llamacpp/library/add` · `/llamacpp/library/remove` | Load a library entry or URL; edit the `.gguf` library. |
 | `POST /lol/admin/model/start` · `/model/stop` · `/model/default` · `/model/alias` | Offer / stop / make default / rename an Ollama model (`{ id }`, `{ id, alias }`). |
 | `POST /lol/admin/ollama/pull` · `/ollama/remove` | Download / delete an Ollama model. |
-| `POST /lol/admin/plugin/<id>/enable` · `/disable` | Toggle web search / OCR / voice (session only). |
+| `POST /lol/admin/preset` | `{ id: "balanced" | "rag" | "vibe" | "computer", dryRun? }` — a [preset](#presets): `dryRun` answers `{ reasons, changes, restart, needs, refusal }` and changes nothing (it may check this computer for vLLM); without it, Apply as one job. |
+| `POST /lol/admin/plugin/<id>/enable` · `/disable` | Turn a farm plugin on or off, kept in `<id>.enabled` for the next start. |
 | `POST /lol/admin/plugin/recommend` | `{ id, on }` — recommend a client plugin (Blender) to the fleet (session only). |
 
 ## Config — `lol.config.json`
@@ -1348,6 +1385,7 @@ nothing. Shape:
                "ollama": null },               //   (null = farm/.models, farm/.stt/models, Ollama's own place);
                                                //   "ollama" = an Ollama model folder used where it is, or the one the
                                                //   farm's Ollama kept reading when a move left its models (never pruned)
+  "preset": null,                              // the panel's preset: { "id": "vibe", "applied": {…} } (Presets, below)
   "coordinator": false                          // aggregate LAN peers into one balanced endpoint
 }
 ```
@@ -1491,14 +1529,14 @@ build for Blackwell cards (16 GB+); replace it freely.
 - **Admin panel (running the farm):** while `lol up` runs, open `http://<box>:41997/lol/admin` (the
   beacon `httpPort`) from any browser on the LAN — or click **"Manage this farm"** in the desktop
   client's fleet popover. The Farm app shows the same page as its own window. It is where the farm is
-  run: which **engine** serves (Ollama, llama.cpp or vLLM) and which `.gguf` or vLLM model it loads, vLLM's
+  run: its **[presets](#presets)** (Balanced, Documents, LOL Vibe, Computer), which **engine** serves (Ollama, llama.cpp or vLLM) and which `.gguf` or vLLM model it loads, vLLM's
   install, downloads, Start and Stop (the vLLM section), the **name users see**, **how many people**
   it serves at once, the **context window** (applied to whichever engine is serving), the **Ollama
   catalog** (download / offer / delete / make default), the **plugins** (web search / voice / OCR) and
   the Blender recommendation, and the **connected clients** (hostname, IP, app version, idle time —
   clients report presence every ~10 s and drop off ~30 s after closing), against the slot count.
-  Clients pick every change up within ~5 s. Everything except the plugin toggles and the Blender
-  recommendation is **written back to** `lol.config.json`, so it survives a restart; see
+  Clients pick every change up within ~5 s. Everything except the Blender recommendation is **written back
+  to** `lol.config.json`, so it survives a restart; see
   [What the panel changes, and what it does not](#what-the-panel-changes-and-what-it-does-not).
   Auth: the **admin token printed in the `lol up` banner** (regenerated each run; set
   `"admin": { "token": "…" }` in `lol.config.json` for a fixed one). The Farm app pins one and
@@ -1516,7 +1554,9 @@ build for Blackwell cards (16 GB+); replace it freely.
 - **`proxy.maxReplyTokens`** (default `32768`; `null` = no limit) — the most a reply may write, thinking
   included. Open WebUI's chats and LOL Vibe's name no limit of their own. The Computer names one (16,384 at most
   for code or an agent step, 8,192 for a text answer or a verdict), so does the coding agent (16,384 at most,
-  with Keep going on), and an agent page asks 2,048 unless its code asks more. On Ollama and llama.cpp the
+  with Keep going on; on a model it has no profile of, it asks for this limit, which the snapshot advertises as
+  `backend.replyTokens`, kept inside what its window can compact around), and an agent page asks 2,048 unless its
+  code asks more. On Ollama and llama.cpp the
   farm's limit is a default for a request that names none; on vLLM it is a ceiling for every request (below).
   - **Why.** A model sometimes falls into a loop and never ends its reply. Replaying Open WebUI's real
     follow-ups on vLLM + Qwen3.6 (2026-10-05), 8 of 500 replies (1.6 %) did. On vLLM such a reply runs until

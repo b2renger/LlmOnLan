@@ -34,6 +34,7 @@ const { makeServices, pluginsSummary } = require('../plugins/registry');
 const embedMod = require('../embed');
 const sttMod = require('../stt');
 const storageMod = require('../storage');
+const presetsMod = require('../presets');
 const { sendKey: sendBusKey } = require('../bus');
 const { farmId, pluginKey } = require('../identity');
 const { startSelfServer } = require('../selfServer');
@@ -2406,6 +2407,8 @@ async function run(args) {
             vllm: vllmAdminState(),
             // Where the farm keeps its models (the Model storage card).
             storage: storageAdminState(),
+            // The Presets card (presets.js): the four, picked for this box, and the one to mark.
+            presets: presetView([...installed.keys()]),
             externalConfigured: externalConfigured(),
             download: downloadView(),
             // Whether the llama.cpp engine is even possible here, and why it fell
@@ -2658,16 +2661,20 @@ async function run(args) {
         });
     }
 
-    // Toggle a FARM plugin (web search / voice / OCR) live: spawn or kill its service child,
-    // reflect into liveHealth, kick the beacon so clients pick up the change. Ephemeral (the
-    // config.<plugin>.enabled flip isn't persisted — matches the model-change philosophy).
+    // Toggle a FARM plugin (web search / voice / OCR / …) live: spawn or kill its service child,
+    // reflect into liveHealth, kick the beacon so clients pick up the change. Kept for the next
+    // start (owner, 2026-10-27: by a preset or by hand, like every other setting), written once
+    // the change took: a plugin that did not come up stays off in the file too.
     async function setPlugin(id, on) {
         const svc = svcById[id];
         if (!svc) return { ok: false, error: `Unknown plugin "${id}".` };
         on = !!on;
         config[svc.configKey].enabled = on;
         if (on) {
-            if (svc.pid) return { ok: true, already: true, enabled: true, healthy: svc.up };
+            if (svc.pid) {
+                const warn = persist(svc.configKey, { enabled: true });
+                return { ok: true, already: true, enabled: true, healthy: svc.up, warning: warn || null };
+            }
             await bringUp(svc);
             if (!svc.up) {
                 // Came up unhealthy (e.g. SearXNG's JSON API off / Kokoro synth failed) but the
@@ -2681,9 +2688,10 @@ async function run(args) {
         } else {
             await bringDown(svc);
         }
+        const warn = persist(svc.configKey, { enabled: on });
         writeRuntimeState();       // service pids changed → keep `lol down` accurate
         if (beacon) beacon.kick();
-        return { ok: true, enabled: on, healthy: svc.up };
+        return { ok: true, enabled: on, healthy: svc.up, warning: warn || null };
     }
     // Recommend (or un-recommend) a CLIENT-side plugin (e.g. "blender") to the fleet — the
     // farm can't run it, only advertise the intent; clients auto-apply what they can.
@@ -2726,6 +2734,9 @@ async function run(args) {
     // and the download slot are makeJobs' (module level, tested on their own).
     const { runJob, runDownload, busy, busyErr, jobView, downloadView } = jobs;
     jobBox.view = jobView;   // from here on, the snapshot can report `busy`
+    // A control's job, or, with `inJob` (the progress of a job already running: a preset's Apply), its body run inside
+    // that job and awaited: one job and one restart chain, never a job inside a job.
+    const jobOr = (inJob, kind, label, fn) => (inJob ? fn(inJob, { cancelled: () => false }) : runJob(kind, label, fn));
 
     // --- backend control ---------------------------------------------------------
     // Reload llama-server for whatever the in-memory config now says, then regenerate
@@ -2834,23 +2845,27 @@ async function run(args) {
         await resolveOllamaContext(progress);
         return { ok: true };
     }
-    async function setBackend(engine) {
+    // `inJob` = the progress of a job already running (a preset's Apply): the switch runs inside it, awaited, instead of
+    // starting a job of its own.
+    async function setBackend(engine, inJob = null) {
         const want = String(engine || '').toLowerCase().replace('llama.cpp', 'llamacpp');
         if (!['ollama', 'llamacpp', 'vllm', ...(externalConfigured() ? ['external'] : [])].includes(want)) {
             return { ok: false, error: 'Pick Ollama, llama.cpp or vLLM.' };
         }
         const from = engineOf(config);
         if (from === want) return { ok: true, already: true, engine: want };
-        if (busy()) return busyErr();
+        if (!inJob && busy()) return busyErr();
         // The external server is a vLLM on this computer the farm can run as it is (§9): switching to vLLM then means
         // keeping it, with nothing restarted, not stopping it to start the same thing again.
-        if (want === 'vllm' && from === 'external' && takeOverOffer) return serialize(() => vllmTakeOverRun());
+        if (want === 'vllm' && from === 'external' && takeOverOffer) {
+            return inJob ? { ok: false, error: 'Press Let the farm run vLLM in the vLLM section first.' } : serialize(() => vllmTakeOverRun());
+        }
         if (want === 'llamacpp' && !(llamacpp.installed(config.llamacpp.binDir) || llamacpp.supported())) {
             return { ok: false, error: 'Not available on this computer: there is no ready-made llama.cpp for it.' };
         }
         if (want === 'vllm') { const why = await vllmRefusal(); if (why) return { ok: false, error: why }; }
-        if (busy()) return busyErr();   // the check above can take a while
-        return runJob('backend', `Switching to ${ENGINE_NAMES[want]}`, async (progress) => {
+        if (!inJob && busy()) return busyErr();   // the check above can take a while
+        return jobOr(inJob, 'backend', `Switching to ${ENGINE_NAMES[want]}`, async (progress) => {
             const restore = snapshotEngineState();
             const stopped = await stopEngine(from, progress);
             if (!stopped.ok) return { ok: false, error: `${stopped.error} Nothing changed: ${ENGINE_NAMES[from]} keeps serving.` };
@@ -3599,9 +3614,9 @@ async function run(args) {
     // controls exactly (which stay, for API compatibility and the password-clear
     // flow). `password` here only SETS — clearing keeps its own confirmed control.
     // `seatIdleSec` (the seat hold) is the one field that never needs a restart.
-    function applyFarmSettings(body = {}) {
-        if (busy()) return busyErr();
-        if (engineOf(config) === 'vllm') return applyVllmSettings(body);
+    function applyFarmSettings(body = {}, inJob = null) {
+        if (!inJob && busy()) return busyErr();
+        if (engineOf(config) === 'vllm') return applyVllmSettings(body, inJob);
         if (body.model != null) return chooseVllmModel(body.model);   // the vLLM list's Use this, while another engine serves
         // Under an external server only the password applies (it gates the farm's own
         // proxy); name, slots and context are that server's, declared in the file.
@@ -3655,7 +3670,7 @@ async function run(args) {
         }
         // With other changes it lands only once their restart succeeded, so a rollback
         // ("nothing changed") stays true.
-        return runJob('settings', 'Applying the farm settings', async (progress) => {
+        return jobOr(inJob, 'settings', 'Applying the farm settings', async (progress) => {
             const applied = [];
             if (lcMode) {
                 const beforeLc = { alias: config.llamacpp.alias, parallel: config.llamacpp.parallel, contextLength: config.llamacpp.contextLength };
@@ -3770,7 +3785,10 @@ async function run(args) {
     // cap, the name and the password apply in seconds. `dryRun` answers {restart, changes} and changes nothing (the
     // panel confirms a restart first). A restart that fails goes back to the previous settings; if those fail too,
     // Ollama serves.
-    function applyVllmSettings(body = {}) {
+    // `body.forceRestart` (a preset's Apply): restart a running vLLM even when its settings alone would not, so Automatic
+    // memory is worked out again after the plugins that keep GPU memory beside it (document reading, speech to text)
+    // were turned on or off.
+    function applyVllmSettings(body = {}, inJob = null) {
         const v = config.vllm;
         const st = vllmProbe && vllmProbe.st;
         let name = null;
@@ -3782,9 +3800,12 @@ async function run(args) {
         const running = vllmState.phase === 'ready' && !!L;
         const c = vllmMod.applyChange(config, { ...body, name }, { st, launch: running ? L : null, root: vllmTarget && vllmTarget.root });
         if (c.error) return { ok: false, error: c.error };
-        const { patch, restart } = c;
+        const { patch } = c;
+        const forced = body.forceRestart === true && running && !c.restart;
+        const restart = c.restart || forced;
         const seatsEff = c.seats;
         const changes = c.changes.slice();
+        if (forced) changes.push('GPU memory for conversations worked out again');
         let password;   // undefined = untouched
         if (typeof body.password === 'string' && body.password.trim() !== '') {
             password = body.password.trim().slice(0, 128);
@@ -3801,7 +3822,7 @@ async function run(args) {
             return { ok: true, message: `Applied at once, no restart: ${idle.label}.${warn || ''}` };
         }
         if (body.dryRun) return { ok: true, dryRun: true, restart, changes: changes.concat(idle ? [idle.label] : []) };
-        return runJob('settings', 'Applying the farm settings', async (progress) => {
+        return jobOr(inJob, 'settings', 'Applying the farm settings', async (progress) => {
             const before = Object.fromEntries(Object.keys(patch).map((k) => [k, v[k]]));
             const rawV = (readRawConfig(configPath) || {}).vllm || {};
             const beforePw = config.proxy.masterKey || null;
@@ -3985,6 +4006,140 @@ async function run(args) {
     });
     const { storageAdminState, storageCheck, storageMove, storageFinish, storageForget, storageScan, storageUse, storageMoveIn } = storageOps;
 
+    // --- Presets (makePresets, below; src/presets.js) ---------------------------------------------------------------
+    // The config FILE as the schema reads it: what an operator set, never a fallback's in-memory engine.
+    function fileConfig() {
+        const raw = readRawConfig(configPath);
+        const r = raw ? ConfigSchema.safeParse(raw) : null;
+        return r && r.success ? r.data : null;
+    }
+    // A model as the panel names it: vLLM's list label, llama.cpp's library label or the .gguf's name, else its id.
+    function modelLabelOf(model) {
+        if (model == null) return '—';
+        const v = (config.vllm.library || []).find((e) => e.id === model);
+        if (v) return v.label;
+        const l = (config.llamacpp.library || []).find((e) => (e.url || e.path) === model);
+        if (l) return l.label;
+        return GGUF_EXT_RX.test(String(model).split('?')[0]) ? ggufName(model) : String(model);
+    }
+    // presets.js's `box`: this GPU, what vLLM's last check found (never a check here: the panel's poll calls it), the
+    // llama.cpp model, Ollama's default and whether it is downloaded (`ollamaNames`: null = unknown), and which plugins a
+    // first start would install.
+    function presetBox(ollamaNames = null) {
+        const st = vllmProbe && vllmProbe.st;
+        const inst = !!(st && vllmTarget && st.installs.some((i) => i.root === vllmTarget.root));
+        const tooSmall = !!(vllmProbe && vllmMod.problemsFrom(vllmProbe, config).gpuTooSmall);
+        const lcModel = config.llamacpp.model;
+        const lcEntry = (config.llamacpp.library || []).find((e) => (e.url || e.path) === lcModel);
+        const def = defaultModelEntry(config);
+        return {
+            host: { gpu: hw.gpu, vramGb: hw.vramGb },
+            vllm: {
+                supported: vllmSup.ok && !!hostGpu.name, checked: !!st, installed: inst && !tooSmall, current: config.vllm.model,
+                library: (config.vllm.library || []).map((e) => {
+                    const m = st ? vllmMod.diskOf(st, e) : null;
+                    return { id: e.id, label: e.label, catalog: e.catalog, repo: e.repo, sizeGb: e.sizeGb, downloaded: !!(m && !m.partial) };
+                }),
+            },
+            llamacpp: {
+                available: !!lcModel && (llamacpp.installed(config.llamacpp.binDir) || llamacpp.supported()),
+                model: lcModel, id: lcEntry ? lcEntry.id : null, label: lcEntry ? lcEntry.label : ggufName(lcModel),
+                sizeGb: lcEntry ? lcEntry.sizeGb : null, downloaded: !!lcModel && llamacpp.onDisk(lcModel),
+            },
+            ollama: { model: def ? def.id : null, installed: ollamaNames && def ? ollamaNames.some((n) => norm(n) === norm(def.id)) : null },
+            plugins: Object.fromEntries(presetsMod.PLUGINS.map((k) => [k, { installed: svcById[k].installed(config) }])),
+        };
+    }
+    function presetNow() {
+        const f = fileConfig() || config;
+        return { cur: presetsMod.settingsOf(f), ollamaPeople: f.ollama.numParallel, stored: f.preset || null };
+    }
+    // The Presets card, on every poll: the picks for this box and the preset to mark (getAdminState). A card that cannot
+    // be worked out is left out (logged once), never the whole panel.
+    let presetViewError = null;
+    function presetView(ollamaNames) {
+        try { return presetViewOf(ollamaNames); } catch (e) {
+            if (presetViewError !== e.message) { presetViewError = e.message; log.warn(`The Presets card could not be worked out: ${e.message}`); }
+            return null;
+        }
+    }
+    function presetViewOf(ollamaNames) {
+        const box = presetBox(ollamaNames);
+        const picks = presetsMod.picksFor(box);
+        const { cur, stored } = presetNow();
+        return {
+            status: presetsMod.statusOf(stored, cur, picks, modelLabelOf),
+            gpu: hw.gpu,
+            // A GPU the capacity page knows, with vLLM possible here but never checked: a Review checks it first.
+            vllmUnchecked: box.vllm.supported && !box.vllm.checked && !!presetsMod.boxOf(box.host),
+            presets: picks.map((p) => ({
+                id: p.id, label: p.label, what: p.what, engine: p.engine, model: p.modelLabel, context: p.context, people: p.people,
+                estimate: p.estimate, needs: p.needs.map((n) => n.text),
+            })),
+        };
+    }
+    async function ollamaNamesNow() {
+        const lists = await Promise.all(hosts.map((h) => ollama.listModelsDetailed(h).catch(() => null)));
+        return lists.every(Array.isArray) ? lists.flat().map((m) => m.name) : null;
+    }
+    // Another engine's settings, written before the switch so it starts with them (one start): vLLM's checked by its
+    // own Apply's rules (applyChange), with the last check of this computer. → {ok, undo} | {ok: false, error}.
+    function prepareEngine(pick) {
+        const raw = readRawConfig(configPath) || {};
+        const stage = (section, want) => {
+            const patch = Object.fromEntries(Object.entries(want).filter(([k, val]) => config[section][k] !== val));
+            const keys = Object.keys(patch);
+            const before = Object.fromEntries(keys.map((k) => [k, config[section][k]]));
+            const rawS = raw[section] || {};
+            const resolved = section === 'ollama' ? config.ollama.contextResolved : null;
+            Object.assign(config[section], patch);
+            // An Ollama context: measured again by the switch when Automatic, else the number.
+            if (section === 'ollama' && 'contextLength' in patch) config.ollama.contextResolved = patch.contextLength === 'auto' ? null : patch.contextLength;
+            if (keys.length) persist(section, patch);
+            return {
+                ok: true,
+                undo: () => {
+                    Object.assign(config[section], before);
+                    if (section === 'ollama' && 'contextLength' in patch) config.ollama.contextResolved = resolved;
+                    if (keys.length) persist(section, Object.fromEntries(keys.map((k) => [k, k in rawS ? rawS[k] : undefined])));
+                },
+            };
+        };
+        if (pick.engine === 'vllm') {
+            const c = vllmMod.applyChange(config, { model: pick.model, context: pick.context, slots: pick.people, kvCacheGib: pick.memory },
+                { st: vllmProbe && vllmProbe.st, launch: null, root: vllmTarget && vllmTarget.root });
+            if (c.error) return { ok: false, error: c.error };
+            return stage('vllm', c.patch);
+        }
+        if (pick.engine === 'llamacpp') return stage('llamacpp', { contextLength: pick.context, parallel: pick.people });
+        return stage('ollama', { contextLength: pick.context, numParallel: pick.people });
+    }
+    const presetOps = makePresets({
+        config, jobs,
+        gather: async () => {
+            // vLLM may serve this GPU (one the capacity page knows): check this computer once, as opening its section does.
+            if (vllmSup.ok && hostGpu.name && !vllmProbe && !wslMoving && presetsMod.boxOf({ gpu: hw.gpu, vramGb: hw.vramGb })) await checkVllm().catch(() => null);
+            return presetBox(await ollamaNamesNow());
+        },
+        now: presetNow, label: modelLabelOf, engineNow: () => engineOf(config),
+        refusal: (pick) => {
+            if (engineOf(config) === 'external' || (fileConfig() || config).external.enabled) return externalRefusal().error;
+            if (pick.engine === 'vllm') {
+                if (wslMoving) return 'WSL\'s Linux disk is moving: wait for it to finish.';
+                const d = jobs.downloading();
+                if (d && d.kind === 'install') return 'vLLM is being installed: wait for it, or stop it.';
+            }
+            return null;
+        },
+        setBackend, applyFarmSettings, setPlugin, prepareEngine,
+        vllmDryRun: (body) => applyVllmSettings({ ...body, dryRun: true }),
+        writeFlags: (engine) => setEngineFlags(engine),
+        record: (rec) => {
+            config.preset = rec;
+            return notSaved(patchConfigFile(configPath, (raw) => { raw.preset = rec; return raw; }));
+        },
+    });
+
     // ---- WSL's Linux disk (Windows; the vLLM card) -----------------------------------------------------------------------
     async function wslMove(body = {}) {
         if (process.platform !== 'win32') return { ok: false, error: 'Only on Windows: on Linux, vLLM\'s models move with Move here.' };
@@ -4116,6 +4271,9 @@ async function run(args) {
         storageUse: (b) => (busy() ? busyErr() : storageUse(b)),
         storageMoveIn,
         wslMove,
+        // Presets (makePresets): the dry run (a check of this computer at most, nothing changed) and Apply, one job.
+        presetDryRun: (id) => presetOps.dryRun(id),
+        presetApply: (id) => presetOps.apply(id),
     });
     engineDownBox.fn = onEngineDown;   // serialize + liveHealth exist now — arm supervision
     // vLLM: watched from now on, and the start the boot queued runs as the job everyone sees (D5).
@@ -4132,6 +4290,122 @@ async function run(args) {
 
     // Keep the event loop alive.
     return new Promise(() => {});
+}
+
+// --- Presets (owner, 2026-10-27; src/presets.js) ---------------------------------------------------------------------
+// One click before a session: Balanced, Documents, LOL Vibe or Computer, picked for this box by presets.js. Apply goes
+// through the farm's own controls in ONE job, never a second implementation of any of them: the plugins it turns off
+// first (what they free counts for the engine), the engine and its settings (a switch that starts the engine with them,
+// or the one Apply with its restart rules), the plugins it turns on, then the preset is recorded. A model to download
+// first is offered by the dry run, not waited for. `run` makes it with the farm's controls (ctx); the tests with stubs.
+// ctx: config, jobs, gather() → presets.js's box, now() → {cur (the file's settings), ollamaPeople}, label(model),
+// engineNow(), refusal(pick) → a sentence or null, setBackend(engine, inJob), applyFarmSettings(body, inJob),
+// vllmDryRun(body), setPlugin(id, on), prepareEngine(pick) → {ok, undo} | {ok: false, error}, writeFlags(engine),
+// record({id, applied}) → a not-saved warning or null.
+function makePresets(ctx) {
+    const P = require('../presets');
+    const { config, jobs } = ctx;
+    const L = P.PLUGIN_LABEL;
+
+    // The dry run's whole answer: the picks with their reasons, what changes, what restarts and for how long, and what
+    // must be downloaded first.
+    async function plan(id) {
+        const box = await ctx.gather();
+        const pick = P.pickFor(id, box);
+        if (!pick) return { error: 'Pick Balanced, Documents, LOL Vibe or Computer.' };
+        const { cur, ollamaPeople } = ctx.now();
+        const changes = P.changesFor(cur, pick, { label: ctx.label, plugins: box.plugins, ollamaPeople });
+        // Document reading and speech to text on the GPU keep memory beside vLLM: turning either on or off changes what
+        // its Automatic memory should be, so a running vLLM restarts to work it out again.
+        const sttGpu = !!(config.stt && config.stt.device === 'cuda');
+        const reserves = cur.plugins.ocr !== pick.plugins.ocr || (sttGpu && cur.plugins.stt !== pick.plugins.stt);
+        const now = ctx.engineNow();
+        let restart = 'Nothing restarts.';
+        let refusal = ctx.refusal(pick);
+        if (now !== pick.engine) restart = `${P.ENGINE[now]} stops and ${P.ENGINE[pick.engine]} starts: ${P.RESTART[pick.engine]}.`;
+        else if (pick.engine === 'vllm' && pick.needs.length) {
+            // Its own dry run refuses a model not downloaded yet; a new model or context restarts it whatever the rest.
+            if (changes.some((c) => c.field === 'model' || c.field === 'context')) restart = `vLLM restarts once: ${P.RESTART.vllm}.`;
+        } else if (pick.engine === 'vllm') {
+            const d = ctx.vllmDryRun({ model: pick.model, context: pick.context, slots: pick.people, kvCacheGib: pick.memory, forceRestart: reserves });
+            if (d && d.ok === false) refusal = refusal || d.error;
+            else if (d && d.restart) restart = `vLLM restarts once: ${P.RESTART.vllm}.`;
+            else if (changes.some((c) => ['model', 'context', 'people', 'memory'].includes(c.field))) restart = 'vLLM keeps running: applies in a few seconds.';
+        } else if (pick.engine === 'llamacpp' && changes.some((c) => c.field === 'context' || c.field === 'people')) restart = `llama.cpp loads its model again: ${P.RESTART.llamacpp}.`;
+        else if (pick.engine === 'ollama' && changes.some((c) => c.field === 'context')) restart = `${P.RESTART.ollama}.`;
+        return { box, pick, cur, changes, reserves, restart, refusal };
+    }
+
+    async function dryRun(id) {
+        const p = await plan(id);
+        if (p.error) return { ok: false, error: p.error };
+        return {
+            ok: true, dryRun: true, id: p.pick.id, label: p.pick.label, what: p.pick.what, reasons: p.pick.reasons,
+            changes: p.changes.map((c) => c.text), restart: p.changes.length ? p.restart : 'Nothing to change: the farm is already set up this way.',
+            needs: p.pick.needs, refusal: p.refusal || null, estimate: p.pick.estimate,
+        };
+    }
+
+    // The engine and its settings. Another engine: its settings are written first, so the switch starts it with them
+    // (one start); a switch that fails puts them back. The same engine: the one Apply, with its own restart rules.
+    async function engineStep(p, progress) {
+        const { pick, cur, reserves } = p;
+        if (ctx.engineNow() !== pick.engine) {
+            const prep = ctx.prepareEngine(pick);
+            if (!prep.ok) return prep;
+            const r = await ctx.setBackend(pick.engine, progress);
+            if (!r || r.ok === false) { prep.undo(); return { ok: false, error: (r && r.error) || 'The switch did not finish.' }; }
+            return { ok: true, said: `${P.ENGINE[pick.engine]} serves` };
+        }
+        if (cur.engine !== pick.engine) ctx.writeFlags(pick.engine);   // a run that fell back: the file named another engine
+        const body = pick.engine === 'vllm'
+            ? { model: pick.model, context: pick.context, slots: pick.people, kvCacheGib: pick.memory, forceRestart: reserves }
+            : { context: pick.context, slots: pick.people };
+        const r = await ctx.applyFarmSettings(body, progress);
+        if (r && r.ok === false) return { ok: false, error: r.error || 'The settings did not apply.' };
+        return { ok: true, said: r && !r.already && r.message ? String(r.message).replace(/\.$/, '') : null };
+    }
+
+    async function apply(id) {
+        if (jobs.busy()) return jobs.busyErr();
+        const p = await plan(id);
+        if (p.error) return { ok: false, error: p.error };
+        if (p.refusal) return { ok: false, error: p.refusal };
+        if (p.pick.needs.length) return { ok: false, error: `First: ${p.pick.needs.map((n) => n.text).join(' ')}`, needs: p.pick.needs };
+        if (jobs.busy()) return jobs.busyErr();   // the check of this computer can take a while
+        const { pick, cur } = p;
+        return jobs.runJob('preset', `Applying the ${pick.label} preset`, async (progress) => {
+            const said = []; const failed = [];
+            for (const k of P.PLUGINS) {
+                if (!cur.plugins[k] || pick.plugins[k]) continue;
+                progress(`turning ${L[k]} off`, null);
+                const r = await ctx.setPlugin(k, false);
+                if (r && r.ok) said.push(`${L[k]} off`); else failed.push(`${L[k]} did not stop`);
+            }
+            // The plugins to turn on count as on while the engine sizes its memory (vllm.js poolGib's reserves): they
+            // start once it serves, as at a farm start.
+            const turnOn = P.PLUGINS.filter((k) => pick.plugins[k] && !cur.plugins[k]);
+            for (const k of turnOn) config[k].enabled = true;
+            const e = await engineStep(p, progress);
+            if (!e.ok) {
+                for (const k of turnOn) config[k].enabled = false;
+                return { ok: false, error: `${e.error}${said.length ? ` Already done: ${said.join(', ')}.` : ''}` };
+            }
+            if (e.said) said.push(e.said);
+            for (const k of turnOn) {
+                progress(`starting ${L[k]}${p.box.plugins[k] && p.box.plugins[k].installed === false ? ' (a first start installs it)' : ''}`, null);
+                const r = await ctx.setPlugin(k, true);
+                if (r && r.ok) said.push(`${L[k]} on`); else failed.push(`${L[k]} did not start (see the farm log)`);
+            }
+            const warn = ctx.record({ id: pick.id, applied: P.pickSettings(pick) });
+            return {
+                ok: true,
+                message: `The ${pick.label} preset is applied${said.length ? `: ${said.join(' · ')}` : ''}.${failed.length ? ` Not done: ${failed.join(' · ')}.` : ''}${warn || ''}`,
+            };
+        });
+    }
+
+    return { plan, dryRun, apply };
 }
 
 // --- Model storage (owner, 2026-10-12: "I need to be able to move or place the model at a specific place on disk";
@@ -5019,4 +5293,4 @@ function makeStorage(ctx) {
 // the tests: each encodes judgements that are easy to break silently (a negative rate after a
 // restart, a raw digest leaking into the UI, a non-vLLM read as one, a seat hold out
 // of range, a "nothing fits" read as "unknown") and none is reachable through `run`.
-module.exports = { run, resolveOcrModel, makeRateMeter, makeJobs, makeStorage, pullPhase, makePerfSampler, seatIdleChange, autoLlamacppContext };
+module.exports = { run, resolveOcrModel, makeRateMeter, makeJobs, makeStorage, makePresets, pullPhase, makePerfSampler, seatIdleChange, autoLlamacppContext };

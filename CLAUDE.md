@@ -128,7 +128,8 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   - `proxy.masterKey` = the shared **farm password** (LiteLLM `master_key`; panel-settable; clients prompt
     once, verify, remember per farm). Discovery, `/health/liveliness` and the admin token stay separate.
   - **Admin panel** at `http://<box>:41997/lol/admin` (bearer = `admin.token`, or a per-run token printed by
-    `lol up`; the Farm app pins one). **Its layout** (owner 2026-10-12, branch `panel-engines`): the Serving card (what
+    `lol up`; the Farm app pins one). **Its layout** (owner 2026-10-12, branch `panel-engines`): the **Presets** card on
+    top (2026-10-27, below), the Serving card (what
     serves, people at once, connected; the engine's warnings), then **one collapsible section per engine** in a fixed
     order — Ollama, llama.cpp, vLLM, and External only while configured — each holding everything about its engine;
     its line (a `<summary>`) says the state without opening it (serving / standby / starting / stopped / not installed /
@@ -149,15 +150,32 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     password under ONE **Apply changes** (one restart; on vLLM a dry run first, and vLLM restarts only for a new
     model, context, memory or request cap), and **Free an idle seat after** (`proxy.seatIdleSec`,
     1–60 min, the workshop setting — alone it applies live, no restart); Ollama download/offer/stop/delete/Make default;
-    plugin toggles and the Blender fleet recommendation; and the clients with their seats. Long operations run as one
+    the plugin switches and the Blender fleet recommendation; and the clients with their seats. Long operations run as one
     job whose progress the panel polls. vLLM's install and model downloads run beside it in a second slot, the download slot, with their own bar and Stop. A Stop of vLLM is not kept: the
     next farm start starts vLLM again. Everything persists to
-    `lol.config.json` (`configFile.js` raw patch — never the schema-parsed config) **except** the plugin
-    toggles and the Blender recommendation; Ollama's slot count applies after a farm restart. The header's
+    `lol.config.json` (`configFile.js` raw patch — never the schema-parsed config) **except** the Blender
+    recommendation (the plugin switches persist since 2026-10-27, `<plugin>.enabled`, written once the plugin came up or
+    stopped); Ollama's slot count applies after a farm restart. The header's
     **Plan capacity ↗** opens `/lol/capacity` (2026-10-07, `farm/src/capacity/`, open like `/lol/self`, offline):
     the capacity explorer with this farm's box and model marked, and usage scenarios (documents for 5, vibe-coding
     for 10, a class of 30, …) whose picks come from the spike's measurements and the calibrated estimator
     (`scenarios.js`; the GeForce cards count as one-person boxes; the model served now comes first when it covers).
+  - **Presets** (owner 2026-10-27, `src/presets.js` + `up.js` `makePresets`, the panel's Presets card; branch `presets`,
+    not merged): one per session — **Balanced** (the default: the serving engine's shipped defaults and plugins),
+    **Documents** (`rag`: the best model that covers 5 at 64k, document reading on), **LOL Vibe** (`vibe`: the strongest
+    agentic-coding score that covers 10 at 64k, document reading off), **Computer** (the most people at 32k among models
+    that see pictures and do tools well, every plugin on). Picked for THIS box by `scenarios.js` `recommend()` (the
+    capacity page's cards, the spike's measurements, the estimator; never copied), only among what it can run: vLLM's list
+    where vLLM is set up on a GPU the capacity page knows for a group (people at once and memory Automatic: on the PRO 6000
+    Qwen3.6 64k / Qwen3.8 27B 64k / Qwen3.8 27B 64k / Qwen3.6 32k; on a Spark Qwen3.6 for all four), else Ollama's default
+    (Automatic context, 2 at once) and, for LOL Vibe, llama.cpp's model. **Document search is never switched.** Review =
+    a dry run (reasons, every change, what restarts and how long, what to download first, offered, never waited for);
+    Apply = ONE job through the existing controls (`setBackend`/`applyFarmSettings`/`applyVllmSettings` take an `inJob`
+    progress and run inside it): plugins off, the engine with its settings (another engine's written first so the switch
+    starts it with them, put back if it fails; on vLLM a running one restarts when document reading or speech to text flips,
+    `forceRestart`, so Automatic memory follows), plugins on, then `preset: {id, applied}`. A setting changed by hand
+    afterwards marks the card *changed* and says what (`statusOf`, against the config FILE). A farm-v0.0.49 refuses a file
+    with `preset` (strict zod).
   - **Model storage** (owner 2026-10-12, `src/storage.js` + `up.js` `makeStorage`, the panel's Model storage card; branch
     `model-storage`): ONE folder for the farm's models, `storage.dir` (null = today's places: `farm/.models`,
     `farm/.stt/models`, Ollama's own, the shared Hugging Face cache, Kokoro's source tree), and the folder is the source
@@ -254,7 +272,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   **Keep going until done** (2026-09-29, [IDE_PLAN §6](docs/IDE_PLAN.md)): a person's per-project switch (off by
   default, forgotten at restart) that turns on dsh's own goal loop — the model sets a goal, dsh starts round after round
   until the model marks it complete — as ONE reply (`◎ Round n of 10`), ≤ 10 rounds (`GOAL_ROUNDS`), maxTokens 16384,
-  lowered on small windows so dsh can still compact (`studio.ts` `agentMaxTokens`);
+  lowered on small windows so dsh can still compact (`studio.ts` `agentMaxTokens`); a model `projects/models.mjs` has no
+  profile of asks for the farm's reply limit (`backend.replyTokens`, 32768 by default; branch `presets`, 2026-10-27:
+  every model is called `assistant`, so a heavy thinker like Flint was cut at 8192), shrunk the same way on a small window;
   the goal plugins stay OFF otherwise. **On a schedule** (same day, `renderer/chat/projects/schedule.mjs`): a person's per-project
   form — every N ≥ 5 min or each day at HH:MM, and a message — sent by the app itself (marked ⏰) into the chat it was set
   from, only while the app is open, forgotten at restart, skipped while a reply runs (dsh's own scheduler needs its web host). **Use the Computer** (same
@@ -685,6 +705,7 @@ declarative config; the CLI orchestrates everything from it.
   "websearch": { "enabled": true }, "ocr": { "enabled": true }, "tts": { "enabled": false },
   "embed": { "enabled": "auto", "port": 8894 },  // document search: 'auto' = on with an NVIDIA GPU
   "storage": { "dir": null, "ollama": null },   // one folder for the farm's models (the panel's Model storage)
+  "preset": null,                                // the panel's preset, { id, applied } (Presets)
   "admin": { "token": null }                     // null = a fresh token per `lol up`, printed in the banner
 }
 ```
@@ -770,7 +791,7 @@ mDNS because ComfyQ proved multicast alone is flaky across consumer APs, and thi
   a small JSON snapshot (`farm/src/snapshot.js` — the same object `GET /lol/self` serves: id/name/proxyPort/
   httpPort/ips/endpoint/openaiBaseUrl/requiresKey/models[{id,underlying,default}]/healthy/version/coordinator,
   searxngUrl/ttsUrl/extract, plugins, recommendedClientPlugins, host/usage, backend {engine, model,
-  contextLength, contextPerSlot, slots, slotsVerified}, capacity {slots, clients, seatsUsed, seatIdleSec,
+  contextLength, contextPerSlot, slots, slotsVerified, replyTokens}, capacity {slots, clients, seatsUsed, seatIdleSec,
   busy, queued}, busy (the admin job in flight) and perf) to **(a)** a multicast group, **(b)** each
   interface's **directed broadcast** (e.g. `10.10.16.255`), and **(c)** the limited broadcast
   `255.255.255.255`, deduped. `setBroadcast(true)`, `setMulticastTTL(4)`. Directed broadcast is what

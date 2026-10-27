@@ -375,4 +375,4 @@ async function searxngAlive(port, host = '127.0.0.1') {
     return (await get(`http://${host}:${port}/healthz`)) === 200;
 }
 
-module.exports = { ensureSearxng, spawnSearxng, waitForSearxng, searxngAlive, buildSettingsYaml, writeSettingsIfMissing, PINNED_SHA };
+module.exports = { ensureSearxng, spawnSearxng, waitForSearxng, searxngAlive, buildSettingsYaml, writeSettingsIfMissing, installed, PINNED_SHA };

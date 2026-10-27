@@ -182,6 +182,18 @@ export default (test) => {
     assert.equal(profileFor(null).edits, 'unknown');
   });
 
+  // Owner 2026-10-27: the farm calls every model "assistant", so the IDE could not tell a heavy thinker and gave it 8192.
+  test('models: a model with no profile gets the farm\'s own reply limit; a measured one keeps its own', () => {
+    assert.deepEqual(profileFor('Flint-UD-Q4_K_XL', 32768), { edits: 'unknown', maxTokens: 32768, measured: '' }, 'unknown, on a farm that says 32768');
+    assert.equal(profileFor('Gemma 4 12B · NVFP4', 32768).maxTokens, 32768, 'vLLM\'s label for a model with no profile');
+    assert.equal(profileFor('brand-new:7b', null).maxTokens, 8192, 'a farm that does not say (farm-v0.0.49 and older)');
+    assert.equal(profileFor('brand-new:7b', 4096).maxTokens, 8192, 'never less than the default');
+    assert.equal(profileFor('Qwen3.8 27B · NVFP4', 32768).maxTokens, 8192, 'measured: its own');
+    assert.equal(profileFor('Qwen3.6 35B-A3B · NVFP4', 32768).maxTokens, 8192, 'the vLLM default, measured never near 8192');
+    assert.equal(profileFor('Qwen3.6 35B-A3B · NVFP4').edits, 'unknown', 'not measured on edits');
+    assert.equal(profileFor('gemma4:12b', 32768).maxTokens, 4096);
+  });
+
   test('models: a project chat moves off a weak default to a good model the farm serves — never off a person\'s pick', () => {
     const farm = [{ id: 'gemma4:12b' }, { id: 'Qwen3.8-latest', underlying: 'qwen3.8:latest' }, { id: 'nemotron-3.5-lightning:30b' }];
     assert.equal(pickEditor('gemma4:12b', farm, false), 'Qwen3.8-latest', 'the first good one, judged behind its alias');

@@ -6,13 +6,17 @@
 
 /** @typedef {{edits: 'good'|'weak'|'unknown', maxTokens: number, measured: string}} ModelProfile */
 
-/** First match wins; ids are matched on the name the farm serves (an alias hides the model, so it is `unknown`). */
+/** First match wins; ids are matched on the name the farm serves, or the model behind its alias (`underlying`). */
 const KNOWN = [
   { re: /^qwen3\.8/i, edits: 'good', maxTokens: 8192, measured: '3/3 edits, 2026-09-28' },
   { re: /^nemotron/i, edits: 'good', maxTokens: 8192, measured: '3/3 edits, 2026-09-28' },
   { re: /^ornith/i, edits: 'unknown', maxTokens: 8192, measured: '2/3 edits, 2026-09-28' },
   { re: /^gemma4/i, edits: 'weak', maxTokens: 4096, measured: '1/3 edits: it thinks itself out of budget, 2026-09-28' },
+  // The farm's vLLM default, as its list names it ("Qwen3.6 35B-A3B · NVFP4"): never near 8192 a reply (DEVLOG 2026-10-23).
+  { re: /^qwen3\.6/i, edits: 'unknown', maxTokens: 8192, measured: '15 agent tasks, none cut at 8192, 2026-10-23' },
 ];
+/** A model no one has measured, on a farm that does not say how long a reply may be. */
+const UNKNOWN = { edits: 'unknown', maxTokens: 8192, measured: '' };
 
 /**
  * The model a project chat should start on: the current one when a person chose it on this thread or it is good at
@@ -31,11 +35,17 @@ export function pickEditor(current, catalog, chosen) {
   return alt ? alt.id : current;
 }
 
-/** @param {string|null|undefined} model @returns {ModelProfile} */
-export function profileFor(model) {
+/**
+ * A model it has no profile of gets the farm's own reply limit (`farmReply`, the snapshot's backend.replyTokens, farms
+ * after farm-v0.0.49) when that is more than the default: a heavy thinker cut at 8192 lost the task (Flint ran out on
+ * 8 of 9 p5 tasks there, 2026-10-23), and main's agentMaxTokens keeps the room inside what the window can compact
+ * around. A measured model keeps its own.
+ * @param {string|null|undefined} model @param {number|null} [farmReply] @returns {ModelProfile}
+ */
+export function profileFor(model, farmReply = null) {
   const id = String(model || '');
   const hit = KNOWN.find((k) => k.re.test(id));
-  return hit
-    ? { edits: /** @type {any} */ (hit.edits), maxTokens: hit.maxTokens, measured: hit.measured }
-    : { edits: 'unknown', maxTokens: 8192, measured: '' };
+  if (hit) return { edits: /** @type {any} */ (hit.edits), maxTokens: hit.maxTokens, measured: hit.measured };
+  const room = Math.floor(Number(farmReply));
+  return { ...UNKNOWN, maxTokens: Number.isFinite(room) && room > UNKNOWN.maxTokens ? room : UNKNOWN.maxTokens };
 }

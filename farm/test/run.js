@@ -2150,7 +2150,7 @@ function loadPanel({ fetch: fetchFn = () => new Promise(() => {}), confirm: conf
     const localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
     // eslint-disable-next-line no-new-func
     const fn = new Function('document', 'localStorage', 'setInterval', 'fetch', 'confirm', 'matchMedia',
-        `${m[1]}\n;return { render, switchConfirm: typeof switchConfirm === 'function' ? switchConfirm : () => '', engineClick: typeof engineClick === 'function' ? engineClick : null, setScan: typeof scanResult !== 'undefined' ? (v) => { scanResult = v; } : null, sectionToggled: typeof sectionToggled === 'function' ? sectionToggled : null };`);
+        `${m[1]}\n;return { render, switchConfirm: typeof switchConfirm === 'function' ? switchConfirm : () => '', engineClick: typeof engineClick === 'function' ? engineClick : null, setScan: typeof scanResult !== 'undefined' ? (v) => { scanResult = v; } : null, sectionToggled: typeof sectionToggled === 'function' ? sectionToggled : null, presetAsk: typeof presetAsk === 'function' ? presetAsk : null };`);
     const out = fn(document, localStorage, () => 0, fetchFn, confirmFn, () => ({ matches: false }));
     const render = (state) => { out.render(state); return el('#app').innerHTML; };
     render.el = el;   // the stubs, for a test that edits a control after render
@@ -2159,6 +2159,7 @@ function loadPanel({ fetch: fetchFn = () => new Promise(() => {}), confirm: conf
     render.setScan = out.setScan;           // what a look in a folder found ("Use the models in this folder")
     render.toggle = out.sectionToggled;     // a person's click on an engine section's summary: (id, open)
     render.scrolled = scrolled;
+    render.presetAsk = out.presetAsk;      // a press on a preset's Review…: the dry run asked, the review drawn
     return render;
 }
 // One engine section of the rendered panel (its summary and body), whether it is open, and its summary as read.
@@ -3993,7 +3994,7 @@ test('vLLM in the snapshot: the engine, its seats and window, its one name; heal
     const c = defaultConfig();
     Object.assign(c.vllm, { enabled: true, alias: 'Qwen3.6', parallelResolved: 48 });
     const be = backendInfo(c, {});
-    assert.deepEqual(be, { engine: 'vllm', alias: 'Qwen3.6', model: 'Qwen3.6 35B-A3B · NVFP4', contextLength: 65536, contextAuto: false, contextPerSlot: 65536, slots: 48, slotsVerified: true, mtp: false, kvCacheType: 'fp8', audio: false });
+    assert.deepEqual(be, { engine: 'vllm', alias: 'Qwen3.6', model: 'Qwen3.6 35B-A3B · NVFP4', contextLength: 65536, contextAuto: false, contextPerSlot: 65536, slots: 48, slotsVerified: true, mtp: false, kvCacheType: 'fp8', audio: false, replyTokens: 32768 });
     delete c.vllm.parallelResolved;
     assert.equal(backendInfo(c, {}).slots, 4, 'Automatic, before it is worked out');
     c.vllm.parallel = 12;
@@ -4607,7 +4608,7 @@ test('the download slot: outside serialize and busy(), a restart and a switch ru
     assert.ok(V.problemsFrom({ ...probe, installKind: 'install' }, c).problems.includes(blocking));
     assert.ok(V.problemsFrom(probe, c).problems.includes(blocking), 'one nobody here started blocks too');
     const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
-    assert.equal((upSrc.match(/d && d\.kind === 'install'\) return/g) || []).length, 2, 'Start and the switch to vLLM refuse while an install runs');
+    assert.equal((upSrc.match(/d && d\.kind === 'install'\) return/g) || []).length, 3, 'Start, the switch to vLLM and a preset that picks vLLM refuse while an install runs');
     assert.ok(upSrc.includes("if (dl && dl.kind === 'install') return { ok: false, message: 'vLLM is being installed: wait for it, or stop it.' }"), 'and so does every start');
 });
 
@@ -4960,7 +4961,7 @@ test('panel: one section per engine — Ollama, llama.cpp, vLLM in that order, E
     assert.deepEqual(asked, ['Let the farm run the vLLM already on this computer? It keeps the same model, name and settings and keeps running: nobody is interrupted.']);
     assert.deepEqual(posts.filter(([u]) => u !== '/lol/admin/state').map(([u]) => u), ['/lol/admin/vllm/take-over'], 'not a switch: the take-over');
     const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
-    assert.ok(/if \(want === 'vllm' && from === 'external' && takeOverOffer\) return serialize\(\(\) => vllmTakeOverRun\(\)\);/.test(upSrc), 'the farm does the same for a switch asked any other way');
+    assert.ok(/if \(want === 'vllm' && from === 'external' && takeOverOffer\) \{\s*return inJob \? \{ ok: false, error: '[^']+' \} : serialize\(\(\) => vllmTakeOverRun\(\)\);/.test(upSrc), 'the farm does the same for a switch asked any other way (inside a preset\'s Apply: the take-over is asked for first)');
     assert.ok(/return !\(engineOf\(config\) === 'vllm' && loopbackPort\(config\.external\.baseUrl\) === config\.vllm\.port\);/.test(upSrc), 'no External section pointing at the vLLM the farm runs');
 });
 
@@ -6869,6 +6870,298 @@ test('storage move (review m11): a vLLM move is refused while an install or a do
     assert.equal(r.ok, false);
     assert.match(r.error, /being installed, or a model downloaded/);
 }));
+
+// ---- presets (owner, 2026-10-27; src/presets.js, up.js makePresets) ----------------------------------------------------
+const PR = require('../src/presets');
+const { VLLM_LIBRARY: PR_LIB } = require('../src/config');
+const prLib = (downloaded) => PR_LIB.map((e) => ({ id: e.id, label: e.label, catalog: e.catalog, repo: e.repo, sizeGb: e.sizeGb, downloaded: downloaded.includes(e.id) }));
+const PR_LC = { available: true, model: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf', id: 'qwen3.8-27b-ud-iq2_s', label: 'Qwen3.8 27B · UD-IQ2_S', sizeGb: 7.8, downloaded: true };
+function prBox(gpu, vramGb, vllm = {}, extra = {}) {
+    return {
+        host: { gpu, vramGb },
+        vllm: { supported: true, checked: true, installed: true, current: 'qwen3.6-35b-a3b', library: prLib(['qwen3.6-35b-a3b']), ...vllm },
+        llamacpp: { ...PR_LC }, ollama: { model: 'gemma4:12b', installed: true },
+        plugins: Object.fromEntries(PR.PLUGINS.map((k) => [k, { installed: true }])), ...extra,
+    };
+}
+const PR_BOX = {
+    pro6000: () => prBox('NVIDIA RTX PRO 6000 Blackwell Workstation Edition', 96),
+    spark: () => prBox('NVIDIA GB10', 120),
+    g24: () => prBox('NVIDIA GeForce RTX 4090', 24, { current: 'gemma-4-12b', library: prLib(['gemma-4-12b']) }),
+    g12: () => prBox('NVIDIA GeForce RTX 4070', 12, { installed: false, library: prLib([]) }),
+    noVllm: () => prBox('NVIDIA RTX PRO 6000 Blackwell Workstation Edition', 96, { installed: false, library: prLib([]) }),
+};
+const prShort = (box) => Object.fromEntries(PR.picksFor(box).map((p) => [p.id, `${p.engine} ${p.model} ${p.context} ${p.people}`]));
+
+test('presets: the picks for an RTX PRO 6000 with vLLM — the capacity page\'s own choice per use, Automatic people and memory', () => {
+    const box = PR_BOX.pro6000();
+    assert.deepEqual(prShort(box), {
+        balanced: 'vllm qwen3.6-35b-a3b 65536 auto',       // the shipped vLLM: Qwen3.6 at 64k
+        rag: 'vllm qwen3.8-27b-nvfp4 65536 auto',          // the best answers that cover 5 at 64k
+        vibe: 'vllm qwen3.8-27b-nvfp4 65536 auto',         // the strongest agentic-coding score that covers 10 at 64k
+        computer: 'vllm qwen3.6-35b-a3b 32768 auto',       // the most people at 32k among models that see pictures and do tools well
+    });
+    const picks = Object.fromEntries(PR.picksFor(box).map((p) => [p.id, p]));
+    assert.equal(picks.computer.estimate.confidence, 'measured');
+    assert.ok(picks.computer.estimate.mid >= 90, 'about 100 people at 32k, measured');
+    assert.equal(picks.vibe.memory, 'auto');
+    assert.deepEqual(picks.vibe.needs.map((n) => [n.kind, n.id]), [['vllm', 'qwen3.8-27b-nvfp4']], 'a model to download first is said, with its size');
+    assert.match(picks.vibe.needs[0].text, /Download Qwen3\.8 27B · NVFP4 \(22 GB\)/);
+    assert.deepEqual(picks.balanced.needs, [], 'Qwen3.6 is downloaded');
+    // Every pick says why, in plain words, from the capacity page's own reason.
+    assert.match(picks.rag.reasons[0], /^Qwen3\.8 27B · NVFP4 on vLLM, for 5 people at once \(the capacity page's "Ask questions about documents \(RAG\)"\): Covers your 5 with \d+/);
+    assert.match(picks.computer.reasons[0], /tool calling, reads images/);
+    // Plugins: Vibe gives document reading's memory back; the Computer turns every one on; Balanced = as shipped.
+    assert.deepEqual(picks.vibe.plugins, { websearch: true, ocr: false, tts: false, classify: false, stt: false, bus: false });
+    assert.deepEqual(picks.computer.plugins, { websearch: true, ocr: true, tts: true, classify: true, stt: true, bus: true });
+    assert.deepEqual(picks.balanced.plugins, { websearch: true, ocr: true, tts: false, classify: false, stt: false, bus: false });
+});
+
+test('presets: the picks for a DGX Spark, a 24 GB and a 12 GB card, and a box without vLLM', () => {
+    assert.deepEqual(prShort(PR_BOX.spark()), {
+        balanced: 'vllm qwen3.6-35b-a3b 65536 auto', rag: 'vllm qwen3.6-35b-a3b 65536 auto',   // Qwen3.8 serves < 8 at 64k on a Spark
+        vibe: 'vllm qwen3.6-35b-a3b 65536 auto', computer: 'vllm qwen3.6-35b-a3b 32768 auto',
+    });
+    const vibeSpark = PR.pickFor('vibe', PR_BOX.spark());
+    assert.match(vibeSpark.reasons[0], /not your 10/, 'a Spark serves 8 coders at 64k: said, not hidden');
+    const gguf = PR_LC.model;
+    // A GeForce card is a one-person box for the capacity page: Ollama and llama.cpp, even with vLLM set up.
+    for (const name of ['g24', 'g12']) {
+        assert.deepEqual(prShort(PR_BOX[name]()), {
+            balanced: 'ollama gemma4:12b auto 2', rag: 'ollama gemma4:12b auto 2', vibe: `llamacpp ${gguf} auto 1`, computer: 'ollama gemma4:12b auto 2',
+        }, name);
+    }
+    assert.ok(PR.pickFor('rag', PR_BOX.g24()).reasons.some((r) => /capacity page does not know this GPU/.test(r)));
+    // A card the capacity page knows, but for one person (an RTX 5090, 32 GB): Ollama too, and why.
+    const g32 = prBox('NVIDIA GeForce RTX 5090', 32, { current: 'gemma-4-12b', library: prLib(['gemma-4-12b']) });
+    assert.equal(PR.pickFor('computer', g32).engine, 'ollama');
+    assert.ok(PR.pickFor('computer', g32).reasons.includes('Not vLLM: the capacity page counts this card for one person at a time.'));
+    // An RTX PRO 6000 without vLLM: Ollama and llama.cpp, and what vLLM would give, so the operator knows.
+    const nv = PR_BOX.noVllm();
+    assert.deepEqual(prShort(nv), { balanced: 'ollama gemma4:12b auto 2', rag: 'ollama gemma4:12b auto 2', vibe: `llamacpp ${gguf} auto 1`, computer: 'ollama gemma4:12b auto 2' });
+    assert.ok(PR.pickFor('computer', nv).reasons.some((r) => /vLLM is not set up on this computer: with it, this GPU would serve about \d+/.test(r)));
+    // No llama.cpp here: LOL Vibe stays on Ollama and says why.
+    const noLc = PR_BOX.g12(); noLc.llamacpp.available = false;
+    assert.equal(PR.pickFor('vibe', noLc).engine, 'ollama');
+    // What must be downloaded first: llama.cpp's model, Ollama's default.
+    const missing = PR_BOX.g12(); missing.llamacpp.downloaded = false; missing.ollama.installed = false;
+    assert.deepEqual(PR.pickFor('vibe', missing).needs.map((n) => n.kind), ['llamacpp']);
+    assert.deepEqual(PR.pickFor('rag', missing).needs.map((n) => [n.kind, n.id]), [['ollama', 'gemma4:12b']]);
+});
+
+test('presets: document search is never switched — not a preset plugin, never in a change list, never toggled by Apply', async () => {
+    assert.ok(!PR.PLUGINS.includes('embed'));
+    for (const p of PR.picksFor(PR_BOX.pro6000())) {
+        assert.ok(!('embed' in p.plugins), p.id);
+        assert.ok(p.reasons.some((r) => /Document search stays as it is/.test(r)), p.id);
+    }
+    const cur = { engine: 'ollama', model: 'gemma4:12b', context: 'auto', people: 2, memory: null, plugins: { ...Object.fromEntries(PR.PLUGINS.map((k) => [k, true])), embed: false } };
+    const list = PR.changesFor(cur, PR.pickFor('vibe', PR_BOX.g12()));
+    assert.ok(!list.some((c) => /search/i.test(c.text) && !/Web search/.test(c.text)), JSON.stringify(list));
+    for (const id of PR.IDS) {
+        const box = PR_BOX.pro6000(); box.vllm.library = prLib(PR_LIB.map((e) => e.id));
+        const all = Object.fromEntries(PR.PLUGINS.map((k) => [k, true]));
+        const rig = presetRig({ box, cur: { engine: 'ollama', model: 'gemma4:12b', context: 'auto', people: 2, memory: null, plugins: all } });
+        await rig.ops.apply(id);
+        assert.ok((await rig.done()).ok, id);
+        assert.ok(rig.calls.some((c) => c[0] === 'record'), id);
+        assert.ok(!rig.calls.some((c) => c[0] === 'plugin' && c[1] === 'embed'), JSON.stringify(rig.calls));
+        assert.equal(rig.config.embed.enabled, 'auto', id);
+    }
+});
+
+test('presets: the dry run lists exactly what changes, what restarts and how long', () => {
+    const label = (m) => ({ 'qwen3.6-35b-a3b': 'Qwen3.6 35B-A3B · NVFP4', 'qwen3.8-27b-nvfp4': 'Qwen3.8 27B · NVFP4' }[m] || m);
+    const shipped = { engine: 'ollama', model: 'gemma4:12b', context: 'auto', people: 2, memory: null, plugins: { websearch: true, ocr: true, tts: false, classify: false, stt: false, bus: false } };
+    // Ollama → vLLM: the switch says how long, then what vLLM starts with; Kokoro's first start installs it.
+    const box = PR_BOX.pro6000(); box.plugins.tts.installed = false;
+    const toComputer = PR.changesFor(shipped, PR.pickFor('computer', box), { label, plugins: box.plugins, ollamaPeople: 2 }).map((c) => c.text);
+    assert.deepEqual(toComputer, [
+        'Engine: Ollama → vLLM (about 2 minutes during which nobody can chat)',
+        'Model: Qwen3.6 35B-A3B · NVFP4', 'Context per person: 32k', 'People at once: Automatic', 'GPU memory for conversations: Automatic',
+        'Voice (Kokoro): off → on (a first start installs it: several GB, about 10 minutes)',
+        'Classify (Laya): off → on', 'Speech to text: off → on', 'Message bus: off → on',
+    ]);
+    // vLLM staying vLLM: field by field.
+    const running = { engine: 'vllm', model: 'qwen3.6-35b-a3b', context: 65536, people: 48, memory: 60, plugins: { ...shipped.plugins } };
+    assert.deepEqual(PR.changesFor(running, PR.pickFor('vibe', PR_BOX.pro6000()), { label }).map((c) => c.text), [
+        'Model: Qwen3.6 35B-A3B · NVFP4 → Qwen3.8 27B · NVFP4', 'People at once: 48 → Automatic', 'GPU memory for conversations: 60 GB → Automatic',
+        'Document reading (OCR): on → off',
+    ]);
+    // Ollama's people at once take a farm restart: said.
+    const four = { ...shipped, people: 4 };
+    assert.deepEqual(PR.changesFor(four, PR.pickFor('balanced', PR_BOX.g12())).map((c) => c.text), ['People at once: 4 → 2 (applies when the farm restarts)']);
+    // Nothing to change: an empty list.
+    assert.deepEqual(PR.changesFor(shipped, PR.pickFor('balanced', PR_BOX.g12())), []);
+});
+
+test('presets: a setting changed by hand after Apply marks the preset changed, and says what', () => {
+    const picks = PR.picksFor(PR_BOX.pro6000());
+    const vibe = picks.find((p) => p.id === 'vibe');
+    const stored = { id: 'vibe', applied: PR.pickSettings(vibe) };
+    const asApplied = PR.pickSettings(vibe);
+    assert.deepEqual(PR.statusOf(stored, asApplied, picks).changed, [], 'as applied');
+    assert.equal(PR.statusOf(stored, asApplied, picks).label, 'LOL Vibe');
+    const byHand = { ...asApplied, context: 32768, plugins: { ...asApplied.plugins, bus: true } };
+    assert.deepEqual(PR.statusOf(stored, byHand, picks).changed, ['Context per person: 64k → 32k', 'Message bus: off → on']);
+    // A farm that never applied one: Balanced, unchanged while its settings are Balanced's picks.
+    const bal = picks.find((p) => p.id === 'balanced');
+    const none = PR.statusOf(null, PR.pickSettings(bal), picks);
+    assert.equal(none.id, 'balanced'); assert.equal(none.recorded, false); assert.deepEqual(none.changed, []);
+    assert.deepEqual(PR.statusOf(null, { ...PR.pickSettings(bal), engine: 'ollama', model: 'gemma4:12b' }, picks).changed, ['Engine: vLLM → Ollama']);
+    // The file's settings: what the engine flags say, never a fallback's memory.
+    const c = defaultConfig();
+    assert.deepEqual(PR.settingsOf(c), { engine: 'ollama', model: 'gemma4:12b', context: 'auto', people: 2, memory: null, plugins: { websearch: true, ocr: true, tts: false, classify: false, stt: false, bus: false } });
+    c.vllm.enabled = true;
+    assert.deepEqual([PR.settingsOf(c).engine, PR.settingsOf(c).context, PR.settingsOf(c).people, PR.settingsOf(c).memory], ['vllm', 65536, 'auto', 'auto']);
+});
+
+// makePresets with the farm's controls as stubs: what Apply calls, in which order, inside one job.
+function presetRig({ engine = 'ollama', cur = null, box = PR_BOX.pro6000(), failSwitch = false, needs = false } = {}) {
+    const calls = []; const config = defaultConfig();
+    if (engine === 'vllm') config.vllm.enabled = true;
+    const jobs = makeJobs({ logger: quietLog });
+    if (needs) box.vllm.library = prLib([]);
+    const curNow = cur || PR.settingsOf(config);
+    const ops = upMod.makePresets({
+        config, jobs,
+        gather: async () => box,
+        now: () => ({ cur: curNow, ollamaPeople: 2 }), label: (m) => m, engineNow: () => (config.vllm.enabled ? 'vllm' : 'ollama'),
+        refusal: () => null,
+        setBackend: async (e, inJob) => { calls.push(['switch', e, typeof inJob === 'function', ['ocr', 'stt'].map((k) => config[k].enabled)]); return failSwitch ? { ok: false, error: 'It did not start.' } : { ok: true, message: 'ok' }; },
+        applyFarmSettings: async (body, inJob) => { calls.push(['apply', body, typeof inJob === 'function']); return { ok: true, message: 'Applied.' }; },
+        vllmDryRun: (body) => { calls.push(['dry', body]); return { ok: true, dryRun: true, restart: !!body.forceRestart, changes: [] }; },
+        setPlugin: async (id, on) => { calls.push(['plugin', id, on]); config[id].enabled = on; return { ok: true }; },
+        prepareEngine: (pick) => { calls.push(['prepare', pick.engine, pick.model, pick.context]); return { ok: true, undo: () => calls.push(['undo']) }; },
+        writeFlags: (e) => calls.push(['flags', e]),
+        record: (rec) => { calls.push(['record', rec.id]); return null; },
+    });
+    const done = async () => { for (let i = 0; i < 200 && jobs.busy(); i++) await new Promise((r) => setTimeout(r, 5)); return jobs.jobView(); };
+    return { ops, calls, config, jobs, done };
+}
+
+test('presets: Apply goes through the farm\'s own controls in one job — plugins off, the engine with its settings, plugins on, recorded', async () => {
+    // Balanced Ollama farm → Computer on a PRO 6000 with vLLM.
+    const rig = presetRig();
+    const r = await rig.ops.apply('computer');
+    assert.ok(r.ok && r.started && r.job.label === 'Applying the Computer preset', JSON.stringify(r));
+    const j = await rig.done();
+    assert.ok(j.ok, j.error);
+    assert.deepEqual(rig.calls, [
+        ['prepare', 'vllm', 'qwen3.6-35b-a3b', 32768],                       // vLLM's settings written first …
+        ['switch', 'vllm', true, [true, true]],                              // … so the switch starts it with them, inside this job; speech to text counted on
+        ['plugin', 'tts', true], ['plugin', 'classify', true], ['plugin', 'stt', true], ['plugin', 'bus', true],
+        ['record', 'computer'],
+    ]);
+    assert.match(j.message, /^The Computer preset is applied: vLLM serves · Voice \(Kokoro\) on · Classify \(Laya\) on · Speech to text on · Message bus on\.$/);
+    // vLLM staying vLLM, document reading turned off: the one Apply, with vLLM restarted so its memory follows.
+    const cur = { engine: 'vllm', model: 'qwen3.6-35b-a3b', context: 65536, people: 'auto', memory: 'auto', plugins: { websearch: true, ocr: true, tts: false, classify: false, stt: false, bus: false } };
+    const box = PR_BOX.pro6000(); box.vllm.library = prLib(['qwen3.6-35b-a3b', 'qwen3.8-27b-nvfp4']);
+    const v = presetRig({ engine: 'vllm', cur, box });
+    const dry = await v.ops.dryRun('vibe');
+    assert.ok(dry.ok && dry.dryRun);
+    assert.equal(dry.restart, 'vLLM restarts once: about 2 minutes during which nobody can chat.');
+    assert.deepEqual(dry.changes, ['Model: qwen3.6-35b-a3b → qwen3.8-27b-nvfp4', 'Document reading (OCR): on → off']);
+    await v.ops.apply('vibe');
+    await v.done();
+    assert.deepEqual(v.calls.filter((c) => c[0] !== 'dry'), [
+        ['plugin', 'ocr', false],
+        ['apply', { model: 'qwen3.8-27b-nvfp4', context: 65536, slots: 'auto', kvCacheGib: 'auto', forceRestart: true }, true],
+        ['record', 'vibe'],
+    ]);
+});
+
+test('presets: a switch that fails puts its settings back and records nothing; a model to download first is offered, never waited for', async () => {
+    const rig = presetRig({ failSwitch: true });
+    await rig.ops.apply('computer');
+    const j = await rig.done();
+    assert.equal(j.ok, false);
+    assert.match(j.error, /^It did not start\./);
+    assert.ok(rig.calls.some((c) => c[0] === 'undo'), 'the prepared settings go back');
+    assert.ok(!rig.calls.some((c) => c[0] === 'record' || (c[0] === 'plugin' && c[2] === true)), JSON.stringify(rig.calls));
+    for (const k of ['tts', 'classify', 'stt', 'bus']) assert.equal(rig.config[k].enabled, false, `${k} back off in memory`);
+    // Nothing downloaded: refused before any job, with what to download and where.
+    const n = presetRig({ needs: true });
+    const r = await n.ops.apply('vibe');
+    assert.equal(r.ok, false);
+    assert.match(r.error, /^First: Download Qwen3\.8 27B · NVFP4 \(22 GB\) in the vLLM list first\.$/);
+    assert.deepEqual(r.needs.map((x) => x.kind), ['vllm']);
+    assert.equal(n.jobs.jobView(), null, 'no job');
+    const d = await n.ops.dryRun('vibe');
+    assert.deepEqual(d.needs.map((x) => x.id), ['qwen3.8-27b-nvfp4']);
+    // vLLM staying vLLM with a model still to download: its own dry run would refuse it, the restart is still said.
+    const cur = { engine: 'vllm', model: 'qwen3.6-35b-a3b', context: 65536, people: 'auto', memory: 'auto', plugins: { websearch: true, ocr: false, tts: false, classify: false, stt: false, bus: false } };
+    const vn = presetRig({ engine: 'vllm', cur, needs: true });
+    const vd = await vn.ops.dryRun('vibe');
+    assert.equal(vd.restart, 'vLLM restarts once: about 2 minutes during which nobody can chat.');
+    assert.ok(!vn.calls.some((c) => c[0] === 'dry'), 'its own dry run is not asked');
+    // An unknown preset.
+    assert.equal((await n.ops.apply('nope')).ok, false);
+});
+
+test('panel: the Presets card — at the top, the one in use marked (a change by hand said), each pick on a line, Review shows the dry run, Apply waits for a download', async () => {
+    const picks = PR.picksFor(PR_BOX.pro6000()).map((p) => ({ id: p.id, label: p.label, what: p.what, engine: p.engine, model: p.modelLabel, context: p.context, people: p.people, estimate: p.estimate, needs: p.needs.map((n) => n.text) }));
+    const presets = { status: { id: 'vibe', label: 'LOL Vibe', recorded: true, changed: ['Context per person: 64k → 32k'] }, gpu: 'NVIDIA RTX PRO 6000 Blackwell Workstation Edition', vllmUnchecked: false, presets: picks };
+    const state = adminState({ presets });
+    const render = loadPanel();
+    const html = render(state);
+    assert.ok(html.indexOf('id="presets"') > -1 && html.indexOf('id="presets"') < html.indexOf('<h2>Serving</h2>'), 'at the top, above Serving');
+    const card = html.slice(html.indexOf('<div class="card" id="presets">'), html.indexOf('<h2>Serving</h2>'));
+    assert.ok(card.includes('Set up as <b>LOL Vibe</b>, changed by hand since: Context per person: 64k → 32k.'), card);
+    for (const p of picks) assert.ok(card.includes(`data-preview="${p.id}"`), p.id);
+    assert.equal((card.match(/in use · changed/g) || []).length, 1, 'one preset in use');
+    assert.ok(card.includes('vLLM · Qwen3.6 35B-A3B · NVFP4 · 32k each · people at once Automatic (about 104, measured)'), 'the Computer\'s pick on one line');
+    assert.ok(card.includes('<div class="needline">Download Qwen3.8 27B · NVFP4 (22 GB) in the vLLM list first.</div>'));
+    assert.ok(!render(adminState()).includes('id="presets"'), 'a farm before presets: no card');
+    // Never applied, settings of its own: nothing marked.
+    const own = render(adminState({ presets: { ...presets, status: { id: 'balanced', label: 'Balanced', recorded: false, changed: ['Engine: vLLM → Ollama'] } } }));
+    assert.ok(own.includes('No preset applied yet: the farm runs with settings of its own.') && !/class="badge (on|star)">in use/.test(own));
+    // Review…: the dry run, drawn under its row, with Apply.
+    const dry = { ok: true, dryRun: true, id: 'computer', label: 'Computer', reasons: ['Qwen3.6 on vLLM: why.'], changes: ['Speech to text: off → on'], restart: 'Nothing restarts.', needs: [], refusal: null };
+    const calls = [];
+    const fetchFn = async (url, o) => { calls.push([url, o && o.body ? JSON.parse(o.body) : null]); return { status: 200, json: async () => (url === '/lol/admin/state' ? state : dry) }; };
+    const p = loadPanel({ fetch: fetchFn });
+    p(state);
+    await p.presetAsk('computer');
+    const after = p.el('#app').innerHTML;
+    assert.deepEqual(calls[0], ['/lol/admin/preset', { id: 'computer', dryRun: true }]);
+    for (const needle of ['<h2>Why these</h2>', '<li>Qwen3.6 on vLLM: why.</li>', '<h2>What Apply changes</h2>', '<li>Speech to text: off → on</li>', '<b>Restarts:</b> Nothing restarts.', 'data-papply="computer"', 'aria-expanded="true"']) assert.ok(after.includes(needle), needle);
+    assert.ok(!/data-papply="computer" disabled/.test(after), 'Apply offered');
+    // A model to download first: offered, Apply waits.
+    const p2 = loadPanel({ fetch: async (url) => ({ status: 200, json: async () => (url === '/lol/admin/state' ? state : { ...dry, needs: [{ kind: 'vllm', id: 'qwen3.8-27b-nvfp4', text: 'Download Qwen3.8 27B · NVFP4 (22 GB) in the vLLM list first.' }] }) }) });
+    p2(state);
+    await p2.presetAsk('vibe');
+    const blocked = p2.el('#app').innerHTML;
+    assert.ok(blocked.includes('data-pneed="0"') && /data-papply="vibe" disabled/.test(blocked) && blocked.includes('Apply waits for what is above.'));
+});
+
+test('snapshot: backend.replyTokens — the farm\'s reply limit, for the coding agent on a model it has no profile of (owner 2026-10-27)', () => {
+    const c = defaultConfig();
+    assert.equal(backendInfo(c, {}).replyTokens, 32768, 'Ollama');
+    c.llamacpp.enabled = true;
+    assert.equal(backendInfo(c, {}).replyTokens, 32768, 'llama.cpp');
+    c.llamacpp.enabled = false; c.vllm.enabled = true;
+    assert.equal(backendInfo(c, {}).replyTokens, 32768, 'vLLM');
+    c.proxy.maxReplyTokens = null;
+    assert.equal(backendInfo(c, {}).replyTokens, null, 'no limit');
+    c.external.enabled = true;
+    assert.ok(!('replyTokens' in backendInfo(c, {})), 'an external server keeps its own: not said');
+});
+
+test('presets: the config keeps the preset (its ids are presets.js\'s), the plugin switches persist, and the panel says so', () => {
+    const ok = ConfigSchema.safeParse({ preset: { id: 'vibe', applied: { engine: 'vllm', model: 'x', context: 65536, people: 'auto', memory: 'auto', plugins: { ocr: false } } } });
+    assert.ok(ok.success, JSON.stringify(ok.error && ok.error.issues));
+    assert.equal(ConfigSchema.safeParse({ preset: { id: 'other' } }).success, false);
+    for (const id of PR.IDS) assert.ok(ConfigSchema.safeParse({ preset: { id } }).success, id);
+    assert.equal(defaultConfig().preset, null);
+    const up = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    const setPlugin = up.slice(up.indexOf('    async function setPlugin(id, on) {'), up.indexOf('    // Recommend (or un-recommend) a CLIENT-side plugin'));
+    assert.ok(/const warn = persist\(svc\.configKey, \{ enabled: on \}\);/.test(setPlugin), 'a plugin switch is written to the file');
+    assert.ok(setPlugin.indexOf('persist(svc.configKey, { enabled: on })') > setPlugin.indexOf('if (!svc.up) {'), 'only once the change took');
+    const panel = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
+    assert.ok(!/plugin toggles and the Blender recommendation \(this session only\)/.test(panel), 'the panel no longer says plugins are this session only');
+    assert.ok(panel.includes('except the Blender recommendation (this session only)'));
+});
 
 (async () => {
     for (const { name, fn } of tests) {

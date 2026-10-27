@@ -159,4 +159,4 @@ async function extractAlive(port, host = '127.0.0.1') {
     return (await get(`http://${host}:${port}/health`)) === 200;
 }
 
-module.exports = { ensureExtract, spawnExtract, waitForExtract, extractAlive, depsSignature };
+module.exports = { ensureExtract, spawnExtract, waitForExtract, extractAlive, depsSignature, installed };
