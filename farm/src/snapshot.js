@@ -76,6 +76,10 @@ function backendInfo(config, health = {}) {
     // block_size over-counts the pool.
     const engine = engineOf(config);
     const ex = config.external || {};
+    // The most one reply may write on this farm, thinking included (proxy.maxReplyTokens: a default on Ollama and
+    // llama.cpp, a ceiling on the vLLM the farm runs). LOL Vibe's coding agent asks for that much on a model it has no
+    // profile of (owner, 2026-10-27: every model is called "assistant", so it cannot tell a heavy thinker).
+    const replyTokens = (config.proxy && config.proxy.maxReplyTokens) ?? null;
     if (engine === 'external') {
         const slots = Math.max(1, ex.parallel || 1);
         return {
@@ -112,6 +116,7 @@ function backendInfo(config, health = {}) {
             kvCacheType: e && /^fp8/.test(String(flagMap(e.args || [])['--kv-cache-dtype'] || '')) ? 'fp8' : 'auto',
             // The model hears sound in a chat message (Gemma 4 12B, Qwen3-Omni): for a client that would send it.
             audio: !!(e && e.audio),
+            replyTokens,
         };
     }
     const lc = config.llamacpp || {};
@@ -140,6 +145,7 @@ function backendInfo(config, health = {}) {
             slotsVerified: true,
             mtp: !!lc.mtp,
             kvCacheType: lc.kvCacheType || 'f16',
+            replyTokens,
         };
     }
     const entries = servedEntries(config);
@@ -174,6 +180,7 @@ function backendInfo(config, health = {}) {
         slotsVerified: managed,
         mtp: false,
         kvCacheType: managed ? (config.ollama.kvCacheType || 'f16') : null,
+        replyTokens,
     };
 }
 

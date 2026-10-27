@@ -289,4 +289,4 @@ async function kokoroAlive(port, host = '127.0.0.1') {
     return (await get(`http://${host}:${port}/health`)) === 200;
 }
 
-module.exports = { ensureKokoro, spawnKokoro, waitForKokoro, kokoroAlive, PINNED_TAG };
+module.exports = { ensureKokoro, spawnKokoro, waitForKokoro, kokoroAlive, installed, PINNED_TAG };

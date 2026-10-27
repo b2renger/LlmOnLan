@@ -37,8 +37,9 @@
 //   POST /lol/admin/storage/use   → use some of it where it is, {gguf: [{path}], vllm: [{path}], ollama: path} (token)
 //   POST /lol/admin/storage/move-in → move .gguf models found elsewhere into the farm's folder, {gguf: [{path}]} (token)
 //   POST /lol/admin/vllm/wsl-move → Windows: move WSL's Linux disk, {folder, dryRun?} (token)
+//   POST /lol/admin/preset        → a preset (presets.js): {id, dryRun?} — what it would change, or Apply it as one job (token)
 //   (vLLM's model, context, memory and people at once go through /lol/admin/apply, with dryRun.)
-//   POST /lol/admin/plugin/<id>/enable|disable → toggle a farm plugin (token)
+//   POST /lol/admin/plugin/<id>/enable|disable → turn a farm plugin on or off, kept for the next start (token)
 //   POST /lol/admin/plugin/recommend → recommend a client plugin, {id,on} (token)
 //
 // `GET /lol/self` is the unicast discovery path (mirrors ComfyQ's /federation/self):
@@ -240,6 +241,8 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
                     '/lol/admin/storage/use': (b) => control.storageUse(b),
                     '/lol/admin/storage/move-in': (b) => control.storageMoveIn(b),
                     '/lol/admin/vllm/wsl-move': (b) => control.wslMove(b),
+                    // A preset: its dry run (what changes, what restarts, what to download first), or Apply.
+                    '/lol/admin/preset': (b) => (b.dryRun ? control.presetDryRun(b.id) : control.presetApply(b.id)),
                 };
                 if (method === 'POST' && POSTS[pathOnly]) {
                     const body = await readJson(req);

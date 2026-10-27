@@ -46,6 +46,7 @@ const DESCRIPTORS = [
         id: 'websearch', label: 'Web search', logPrefix: 'searxng', configKey: 'websearch', healthKey: 'searxngUp', runsOn: 'farm',
         enabled: (c) => !!(c.websearch && c.websearch.enabled),
         port: (c) => c.websearch.port,
+        installed: () => searxng.installed(),
         ensure: () => searxng.ensureSearxng(),
         spawn: (c) => searxng.spawnSearxng(c),
         stepMessage: (c) => `Web search: preparing SearXNG (port ${c.websearch.port}) …`,
@@ -61,6 +62,7 @@ const DESCRIPTORS = [
         id: 'tts', label: 'Voice (TTS)', logPrefix: 'kokoro', configKey: 'tts', healthKey: 'ttsUp', runsOn: 'farm',
         enabled: (c) => !!(c.tts && c.tts.enabled),
         port: (c) => c.tts.port,
+        installed: () => kokoro.installed(),
         ensure: () => kokoro.ensureKokoro(),
         spawn: (c) => kokoro.spawnKokoro(c),
         stepMessage: (c) => `Voice: preparing Kokoro TTS (port ${c.tts.port}) — first run installs it (multi-GB) …`,
@@ -82,6 +84,7 @@ const DESCRIPTORS = [
             const localOllama = hosts.find(rt.isLocalHost) || hosts[0];
             return { key: rt.pluginKey('ocr', farmPassword(c)), model: rt.resolveOcrModel(c), ollamaUrl: localOllama.replace(/\/+$/, '') + '/api/generate' };
         },
+        installed: (c) => extract.installed(c),
         ensure: (c) => extract.ensureExtract(c),
         spawn: (c, ctx) => extract.spawnExtract(c, ctx),
         stepMessage: (c, ctx) => `OCR: preparing document extraction (port ${c.ocr.port}, model ${ctx.model}) — first run installs it …`,
@@ -147,6 +150,7 @@ const DESCRIPTORS = [
         enabled: (c) => !!(c.classify && c.classify.enabled),
         port: (c) => c.classify.port,
         makeCtx: (c, rt) => ({ key: rt.pluginKey('classify', farmPassword(c)) }),
+        installed: () => classify.installed(),
         ensure: () => classify.ensureClassify(),
         spawn: (c, ctx) => classify.spawnClassify(c, ctx),
         stepMessage: (c) => `Classify: preparing Laya on the CPU (port ${c.classify.port}) — first run installs torch + downloads its weights …`,
@@ -168,6 +172,7 @@ const DESCRIPTORS = [
         enabled: (c) => !!(c.stt && c.stt.enabled),
         port: (c) => c.stt.port,
         makeCtx: (c, rt) => ({ key: rt.pluginKey('stt', farmPassword(c)) }),
+        installed: (c) => stt.ready(c),
         ensure: (c) => stt.ensureStt(c),
         spawn: (c, ctx) => stt.spawnStt(c, ctx),
         stepMessage: (c) => `Speech to text: preparing faster-whisper "${c.stt.model}" on the ${c.stt.device === 'cuda' ? 'GPU' : 'CPU'} (port ${c.stt.port}) — first run installs it and downloads the model …`,
@@ -205,6 +210,8 @@ class FarmService {
     isEarly(config) { const e = this.desc.early; return typeof e === 'function' ? !!e(config) : !!e; }
     isLate(config) { const l = this.desc.late; return typeof l === 'function' ? !!l(config) : !!l; }
     port(config) { return this.desc.port(config); }
+    // Whether a start would install it first (its venv, its model): the presets' dry run says so. No check = nothing to install.
+    installed(config) { try { return this.desc.installed ? !!this.desc.installed(config) : true; } catch { return false; } }
 
     // ensure install → spawn → health-wait. Returns { ok, level, message } for the caller
     // to log (or { ok:false } with no message when ensure declined — it logs its own).

@@ -108,6 +108,13 @@
   .spark i.z { background: var(--surface2); }
   .warnline { color: var(--warn); font-size: 12.5px; padding: 4px 0; }
   .warnline b { color: var(--warn); }
+  /* Presets: one row each, the one in use marked; the review (the dry run) opens under the row looked at. */
+  .needline { color: var(--warn); font-size: 12px; }
+  .preview { margin: 0 0 4px 20px; }
+  .preview h2 { margin: 6px 0 2px; }
+  .preview ul { margin: 2px 0 8px; padding-left: 18px; font-size: 12.5px; color: var(--muted); }
+  .preview li { margin: 2px 0; }
+  .preview li b, .preview .hint b { color: var(--text); }
   /* A phone: a row's controls go under its text. */
   @media (max-width: 620px) {
     .row { flex-wrap: wrap; }
@@ -604,8 +611,9 @@ function render(s) {
   app.innerHTML =
     `<header class="top"><h1>lol <span class="lol">${esc(s.name || 'farm')}</span></h1>`
     + `<a class="plan" href="/lol/capacity" target="_blank" rel="noopener" title="Which hardware and model serve how many people, with ready-made scenarios and this farm marked">Plan capacity ↗</a></header>`
-    + `<p class="sub">Changes apply to the running farm and are kept for the next start, except the plugin toggles and the Blender recommendation (this session only) and Ollama's people served at once (after a farm restart).</p>`
+    + `<p class="sub">Changes apply to the running farm and are kept for the next start, except the Blender recommendation (this session only) and Ollama's people served at once (after a farm restart).</p>`
     + jobBar
+    + presetsCard(s, jobRunning)
     + heroCard
     + sections
     + accessCard
@@ -620,6 +628,7 @@ function render(s) {
   app.querySelectorAll('button[data-pact]').forEach((b) => { b.onclick = () => pluginAct(b.dataset.pact, b.dataset.id, b); });
   app.querySelectorAll('button[data-ract]').forEach((b) => { b.onclick = () => recommendAct(b.dataset.ract, b.dataset.id, b); });
   app.querySelectorAll('button[data-serve]').forEach((b) => { b.onclick = () => engineClick(s, b.dataset.serve, b); });
+  wirePresets(s);
   // A person's click on a section's summary (a toggle the render itself caused matches data-open and is not one).
   app.querySelectorAll('details[data-eng]').forEach((d) => d.addEventListener('toggle', () => {
     if (d.open === (d.dataset.open === '1')) return;
@@ -854,8 +863,102 @@ function clientSay(each) {
   return { whole, docs, agent };
 }
 
+// ---- Presets (owner, 2026-10-27; src/presets.js) ----------------------------------------------------------------------
+// Four set-ups for a session, picked by the farm for this box: Review asks it what Apply would change (a dry run that
+// changes nothing), Apply runs the change as one job through the farm's own controls. The review stays open across the
+// 5 s rebuild.
+let presetReview = null;   // { id, d: the dry run's answer | null while it is asked }
+function presetLine(p) {
+  const ctx = p.context === 'auto' ? 'context Automatic' : `${fmtK(p.context)} each`;
+  const people = p.people === 'auto'
+    ? `people at once Automatic${p.estimate ? ` (about ${p.estimate.mid}, ${p.estimate.confidence})` : ''}`
+    : `${p.people} at once`;
+  return [ENGINE_LABEL[p.engine] || p.engine, p.model, ctx, people].filter(Boolean).join(' · ');
+}
+function presetsCard(s, jobRunning) {
+  const ps = s.presets;
+  if (!ps || !Array.isArray(ps.presets)) return '';
+  const st = ps.status || {};
+  const changed = (st.changed || []).length > 0;
+  // What the farm is set up as: the preset applied (changed by hand or not), or Balanced while the settings are its.
+  const head = st.recorded
+    ? `Set up as <b>${esc(st.label)}</b>${changed ? `, changed by hand since: ${(st.changed || []).map(esc).join(' · ')}.` : '.'}`
+    : changed ? 'No preset applied yet: the farm runs with settings of its own.'
+    : `Set up as <b>${esc(st.label || 'Balanced')}</b>, the farm's defaults.`;
+  const rows = ps.presets.map((p) => {
+    const cur = p.id === st.id && (st.recorded || !changed);
+    const open = presetReview && presetReview.id === p.id;
+    const badge = cur ? `<span class="badge ${changed ? 'star' : 'on'}">${changed ? 'in use · changed' : 'in use'}</span>` : '';
+    return `<div class="row"><span class="dot${cur ? ' served' : ''}"></span>`
+      + `<span><div class="mname">${esc(p.label)} ${badge}</div>`
+      + `<div class="meta">${esc(p.what)}</div>`
+      + `<div class="meta">${esc(presetLine(p))}</div>`
+      + (p.needs || []).map((n) => `<div class="needline">${esc(n)}</div>`).join('') + '</span>'
+      + `<span class="badges"><button data-preview="${esc(p.id)}"${jobRunning && !open ? ' disabled' : ''} aria-expanded="${open ? 'true' : 'false'}">${open ? 'Close' : 'Review…'}</button></span></div>`
+      + (open ? presetReviewBlock(p, jobRunning) : '');
+  }).join('');
+  return `<div class="card" id="presets"><h2>Presets</h2>`
+    + `<div class="hint">Set the farm up for a session in one go, picked for this box${ps.gpu && !/unknown/i.test(ps.gpu) ? ` (${esc(ps.gpu)})` : ''}. ${head} Anything stays yours to change by hand afterwards.</div>`
+    + (ps.vllmUnchecked ? '<div class="hint">vLLM has not been checked on this computer yet: <b>Review…</b> checks it first (a few seconds).</div>' : '')
+    + rows + `</div>`;
+}
+function presetReviewBlock(p, jobRunning) {
+  const d = presetReview.d;
+  if (!d) return '<div class="preview"><div class="hint">Asking the farm what this would change…</div></div>';
+  if (d.ok === false) return `<div class="preview"><div class="warnline">${esc(d.error || 'The farm could not say.')}</div></div>`;
+  const list = (xs) => `<ul>${xs.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`;
+  const blocked = !!(d.refusal || (d.needs && d.needs.length));
+  return `<div class="preview">`
+    + `<h2>Why these</h2>${list(d.reasons || [])}`
+    + `<h2>What Apply changes</h2>${d.changes && d.changes.length ? list(d.changes) : '<div class="hint">Nothing: the farm is already set up this way. Apply marks it in use.</div>'}`
+    + (d.changes && d.changes.length ? `<div class="hint"><b>Restarts:</b> ${esc(d.restart)}</div>` : '')
+    + (d.needs || []).map((n, i) => `<div class="row"><span></span><span><div class="needline">${esc(n.text)}</div></span>`
+      + `<span class="badges"><button data-pneed="${i}"${jobRunning ? ' disabled' : ''}>Download</button></span></div>`).join('')
+    + (d.refusal ? `<div class="warnline">${esc(d.refusal)}</div>` : '')
+    + `<div class="row"><span></span><span><div class="meta">${blocked ? 'Apply waits for what is above.' : 'One job: the plugins it turns off, the engine and its settings, then the plugins it turns on. The job bar shows each step.'}</div></span>`
+    + `<span class="badges"><button class="start" data-papply="${esc(p.id)}"${blocked || jobRunning ? ' disabled' : ''}>Apply ${esc(p.label)}</button></span></div>`
+    + `</div>`;
+}
+async function presetAsk(id) {
+  presetReview = { id, d: null };
+  if (lastState) render(lastState);
+  let d;
+  try { d = await api('/lol/admin/preset', { method: 'POST', body: JSON.stringify({ id, dryRun: true }) }); }
+  catch (e) { if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; } d = { ok: false, error: 'Error: ' + (e.message || e) }; }
+  if (presetReview && presetReview.id === id) presetReview.d = d;
+  if (lastState) render(lastState);   // a check of vLLM the dry run made reaches the picks at the next poll
+}
+function wirePresets(s) {
+  app.querySelectorAll('button[data-preview]').forEach((b) => {
+    b.onclick = () => {
+      if (presetReview && presetReview.id === b.dataset.preview) { presetReview = null; render(s); return; }
+      presetAsk(b.dataset.preview);
+    };
+  });
+  const d = presetReview && presetReview.d;
+  app.querySelectorAll('button[data-pneed]').forEach((b) => {
+    const n = d && d.needs && d.needs[Number(b.dataset.pneed)];
+    if (!n) return;
+    b.onclick = () => {
+      if (n.kind === 'vllm') post('/lol/admin/vllm/download', { id: n.id }, b, 'Downloading… (the bar below the job bar)');
+      else if (n.kind === 'llamacpp') post('/lol/admin/llamacpp/model', n.id ? { id: n.id } : { url: n.url }, b, 'Downloading…');
+      else if (n.kind === 'ollama') post('/lol/admin/ollama/pull', { id: n.id }, b, 'Downloading…');
+      presetReview = null;   // asked again once it is downloaded
+    };
+  });
+  app.querySelectorAll('button[data-papply]').forEach((b) => {
+    b.onclick = () => {
+      const label = (s.presets.presets.find((p) => p.id === b.dataset.papply) || {}).label || b.dataset.papply;
+      const restart = d && d.changes && d.changes.length ? ` ${d.restart}` : '';
+      if (!confirm(`Apply the ${label} preset now?${restart}`)) return;
+      presetReview = null;
+      post('/lol/admin/preset', { id: b.dataset.papply }, b, `Applying the ${label} preset…`);
+    };
+  });
+}
+
 // ---- vLLM, run by the farm (docs/VLLM_MANAGED_PLAN.md §7) -------------------------------------------------------
-const ENGINE_LABEL = { ollama: 'Ollama', 'llama.cpp': 'llama.cpp', llamacpp: 'llama.cpp', vllm: 'vLLM', external: 'External server' };
+const ENGINE_LABEL ={ ollama: 'Ollama', 'llama.cpp': 'llama.cpp', llamacpp: 'llama.cpp', vllm: 'vLLM', external: 'External server' };
 const GIB = 2 ** 30;
 
 // One bar: the job (slot 'job') or the download (slot 'download'). The numbers line under it says how far, how

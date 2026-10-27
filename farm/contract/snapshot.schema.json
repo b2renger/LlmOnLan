@@ -133,7 +133,8 @@
         "slotsVerified": { "type": "boolean", "description": "false when slots is what the config asked for, not what the engine does." },
         "mtp": { "type": "boolean", "description": "llama.cpp multi-token prediction." },
         "kvCacheType": { "type": ["string", "null"], "description": "Context-memory precision; null when unknown." },
-        "audio": { "type": "boolean", "description": "vLLM only (farm-v0.0.45+): the served model hears sound in a chat message (an input_audio part). No client sends one yet." }
+        "audio": { "type": "boolean", "description": "vLLM only (farm-v0.0.45+): the served model hears sound in a chat message (an input_audio part). No client sends one yet." },
+        "replyTokens": { "type": ["integer", "null"], "description": "Not on an external server (farm-v0.0.50+): the most one reply may write, thinking included (proxy.maxReplyTokens); null = no limit. LOL Vibe's coding agent asks for this much on a model it has no profile of (client v0.2.14+)." }
       }
     },
     "capacity": {
