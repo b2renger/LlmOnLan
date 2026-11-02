@@ -6,6 +6,66 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-02 (11:45) — Prompts for ComfyQ: two tools of the Computer's MCP server write a prompt for a ComfyQ workflow
+
+The owner: *"I would like OWUI to have a skill or a tool to help write prompts directly for the models supported by
+ComfyQ."* His answers: prompts per workflow only (no storyboards, no jobs), and it must **not** connect to ComfyQ or
+look for any machine — the students paste the prompt into ComfyQ's discovery app. Branch `comfyq-prompts` (from
+`multiuser-phase0` 1728a9c). Not merged, not released. The older plan that books jobs (docs/COMFYQ_MEDIA_PLAN.md) stays
+unbuilt.
+
+**The data** — `shell/scripts/gen-comfyq-prompts.cjs <ComfyQ checkout>` reads `workflows/*/*.meta.json` (schema:
+ComfyQ's `server/config/schemas.js`) and `git rev-parse HEAD`, and writes `shell/src/main/comfyqPrompts.json` (170 KB,
+UTF-8, read back before it is written). From ComfyQ `5d19e35` (2026-10-16): **68 bundles; 54 take a text prompt** (36 of
+them with a prompt guide), **14 do not** (the five 3D ones, the SeedVR2/PiD upscalers, frame interpolation, LivePortrait,
+Krea's auto-prompt character sheet, Qwen's camera reshoot — kept by name, so a question about one says there is
+nothing to write). Per workflow: id, name, ComfyQ's category and its user-facing kind (the taxonomy of ComfyQ's
+`WorkflowSelector.jsx`: "i2v" is *Video generation*, text-to-video included), description, the pictures/video/sound
+it needs, its prompt guides (label, https link, tip — only what the bundle carries; none added where it has none), the
+text fields (label, required, a negative prompt, a JSON format, *used only when X is on*, the shipped text as an
+example), the switches that change the prompt (*Enhance prompt with AI*…), the choices (aspect ratios, a category, a
+LoRA list) and the size/length/steps fields with their min/max/step/default. **Not used:** the batch skill's
+`reference/workflows.md`, whose measured grids (FLUX.2 Klein renders 1080 as 1072, a multiple of 16, though its meta
+says step 8) are about storyboards on five workflows: the tool says what the form accepts.
+
+**The tools** (`shell/src/main/comfyqPrompts.ts`, composed by `withComfyq()` around `withHome()` in `index.ts`, answered
+in main, always listed): `comfyq_models` (an optional kind; one line per workflow: id · name · what it needs · prompt
+guide or not, grouped as ComfyQ groups them) and `comfyq_prompt_guide` (`model` = an id or a name: an exact id or name
+first, else every word of the name that names something must be in the workflow's id, name or tags — a version glued
+back, "FLUX.2"/"flux 2" → flux2 — and filler words are left out; several matches → the candidates with what each needs,
+never a guess; none → a plain sentence). The guide ends with what to do: follow the tips to the letter, English unless
+the guide says otherwise, one block per field under its name, the size and duration to choose, and that nothing is sent
+to ComfyQ. Pure data: no network, nothing about the person. The tool server's line in Open WebUI now reads *"Build and
+run graphs on the LlmOnLan Computer, and write prompts for ComfyQ's image, video and audio models (this computer
+only)."* (`configBridge.ts`; the env changes once, at the first start after the update — no extra restart, as it is set
+before the first spawn). Open WebUI 0.11.4 shows each MCP tool to the model as `lol-computer_<name>` with our
+description (`utils/mcp/client.py`), and the server's `info.description` in its tools menu (`routers/tools.py`).
+
+**The real check** — the farm was down on the PRO 6000 (nothing on 4000/41997), so a scratch llama-server b11836 on
+127.0.0.1:18094 with the farm's own model (Qwen3.8-27B NVFP4, 32k), the client's MCP server compiled from the branch on
+:41975, and the bundled Open WebUI 0.11.4 on :18093 with the env `buildSidecarEnv` makes and a scratch DATA_DIR; one chat
+sent as Open WebUI's page sends it (`parent_id: null`, a `session_id`: without one 0.11.4 does not run its tool loop),
+the tool on. *"Write me a prompt for FLUX.2 Klein: a lighthouse at night in a storm"*: the model called
+`comfyq_prompt_guide("FLUX.2 Klein")`, got the six FLUX.2 Klein workflows, called it again with
+`image_flux2_klein_9b_t2i` itself, and answered in 16 s. First run: one long sentence ending in keywords — it had copied
+the shipped example's style, which the guide said was "an example of the style"; now *"as an example (where it differs
+from the guide, follow the guide)"* and *"following the guide's tips to the letter"*. Second run: *"A lighthouse on a
+rocky cliff at night in the middle of a violent storm. Its powerful beam sweeps through the dark, huge waves crash
+against the rocks sending spray into the air, lightning flashes split the storm clouds, thick rain falls sideways,
+cinematic lighting, moody and dramatic atmosphere, highly detailed."* — subject first, two sentences, 51 words, a short
+keyword tail left; negative prompt left empty; 1216×832 or 832×1216 (inside 256–2048). A third: *"…animate it with LTX
+2.5, about 5 seconds"* → one call (`"LTX 2.5 image to video"`, one match), a present-tense paragraph with camera and
+sound, Duration 5, 1280×704 (on the form's 64 grid), Enhance off.
+
+**Tests:** `comfyq-prompts.test.mjs` (7: tools/list has both and the page never answers them; the listing's groups,
+order and counts, a kind by id/label/category, an unknown kind; FLUX.2 Klein's guide by id, name and a loose name with
+its tip, fields, example and sizes; a workflow without a guide gets none and no link; *used only when*, switches,
+choices, Ideogram's JSON; "FLUX.2 Klein" → 6 candidates, never FLUX.3; a long list cut; Midjourney → a sentence; a
+no-prompt workflow; the data's shape, https guides; the generator re-run on E:/ComfyQ byte for byte — skipped, saying
+why, when the checkout is absent or at another commit). Gates: shell build; chat-unit 1932/0 (+7); unit 29; lint 0.
+**Not done, the owner's:** HUMAN_TESTS A20 (a real ComfyQ box, the pasted prompts); re-run the generator whenever
+ComfyQ's workflows change (the test then says the file is due).
+
 ## 2026-10-27 (11:45) — Release client v0.2.14 and Farm app farm-v0.0.50: presets for the most people, plugin switches kept
 
 The owner asked for presets (RAG, LOL Vibe, Computer) and approved the release; then, *"more users: probably Nemotron

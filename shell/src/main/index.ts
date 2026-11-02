@@ -27,6 +27,7 @@ import { send as sendOutput, arm as armOutputs, isArmed as outputsArmed, panic a
 import { configureSerial, registerSerialIpc, grantRequest } from './serial';
 import { startMcpServer, pageCaller, TOOLS as MCP_TOOLS, MCP_PORT, MCP_PATH } from './mcp';
 import { createHome, withHome, armingText } from './homeAssistant';
+import { withComfyq } from './comfyqPrompts';
 import { setComputerMcp } from './configBridge';
 import {
     ensureSidecar, applyPendingSidecar, isSidecarInstalled,
@@ -1212,9 +1213,10 @@ app.whenReady().then(async () => {
         // OWUI learns the address (and the bearer) only once THIS process holds the port (critic N6): a
         // loopback listen settles in milliseconds, long before the first sidecar spawn.
         // Home Assistant's tools join the list while a home is linked, and are answered HERE, in main — they need no
-        // Computer on screen. So is Open WebUI's web search (webSearch.ts), against the active farm's SearXNG.
+        // Computer on screen. So are ComfyQ's two prompt-writing tools (comfyqPrompts.ts: bundled data, no network), and
+        // Open WebUI's web search (webSearch.ts), against the active farm's SearXNG.
         const srv = await startMcpServer({
-            token, version: app.getVersion(), ...withHome(home, () => MCP_TOOLS, caller.call),
+            token, version: app.getVersion(), ...withComfyq(withHome(home, () => MCP_TOOLS, caller.call)),
             webSearch: (query, count) => searchAndRead(query, count, { searxngUrl: currentSearxng }),
         });
         if (srv) {

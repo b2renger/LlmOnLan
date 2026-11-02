@@ -49,7 +49,7 @@ export async function handleRpc(msg: Rpc, deps: McpDeps): Promise<object | null>
                 protocolVersion: typeof msg.params?.protocolVersion === 'string' ? msg.params.protocolVersion : PROTOCOL,
                 capabilities: { tools: { listChanged: false } },
                 serverInfo: { name: 'llmonlan-computer', title: 'LlmOnLan Computer', version: deps.version },
-                instructions: 'Build and run graphs on the LlmOnLan Computer. list_box_types says what each box does; read_graph shows the open graph. When a home is linked, home_devices, home_state and home_command reach its Home Assistant.',
+                instructions: 'Build and run graphs on the LlmOnLan Computer. list_box_types says what each box does; read_graph shows the open graph. When a home is linked, home_devices, home_state and home_command reach its Home Assistant. comfyq_models and comfyq_prompt_guide help write a prompt for one of ComfyQ\'s image, video and audio workflows.',
             });
         case 'ping':
             return reply(msg.id, {});
