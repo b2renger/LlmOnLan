@@ -456,9 +456,9 @@ const VLLM_LIBRARY = [
     },
     {
         id: 'flint', label: 'Flint 40B-A2.5B · NVFP4', repo: 'RecursiveSI/flint-nvfp4-gguf', gguf: 'flint-nvfp4.gguf', configRepo: 'RecursiveSI/flint',
-        openThink: true, minVllm: '0.33.0', sizeGb: 22.9, weightsGib: null, vision: false, alwaysThinks: true, presencePenalty: null, args: FLINT_ARGS,
-        catalog: null, measured: null,
-        note: 'Recursive’s model for coding agents. Text only, always thinks.',
+        openThink: true, minVllm: '0.33.0', sizeGb: 22.9, weightsGib: 21.86, vision: false, alwaysThinks: true, presencePenalty: null, args: FLINT_ARGS,
+        catalog: null, measured: 'flint',
+        note: 'Recursive’s model for coding agents. Text only, always thinks. Measured: 40 people at 32k, 20 at 64k on an RTX PRO 6000 (its memory is the limit). Needs vLLM 0.33.0.',
     },
 ];
 
