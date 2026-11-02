@@ -1,0 +1,78 @@
+{
+ "model": "assistant",
+ "base": "http://127.0.0.1:4400/v1",
+ "at": "2026-11-02T16:59:41.926Z",
+ "checks": [
+  {
+   "label": "warm-up",
+   "ok": true,
+   "ttft_s": 0.157,
+   "decode_tps": 130.9,
+   "prompt_tokens": 21,
+   "completion_tokens": 22,
+   "text": "The waves crash against the shore.\nDeep blue water stretches forever.\nSalt spray fills the air.",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "one stream (512 tokens)",
+   "ok": true,
+   "ttft_s": 0.039,
+   "decode_tps": 114.4,
+   "prompt_tokens": 28,
+   "completion_tokens": 368,
+   "text": "A bicycle gear system is a mechanism designed to manipulate the mechanical advantage of the rider, allowing you to maintain a consistent effort (cadence) while managing different speeds and inclines. The system works by changing the size of the gears and the length of the chain, effectively altering the ratio between how much force you apply and how much distance the bicycle travels.\n\nThe core components are the **chainrings** (the gears attached to the pedals) and the **cassette or freewheel** (the gears on the rear wheel). When you shift gears, you are changing which teeth of the chainring are connected to which teeth of the cassette.\n\nThe physics of this system is based on **leverage**:\n1.  **Low Gears (Small chainring, Large rear cog):** These are used for climbing hills. Because the g",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "picture",
+   "ok": true,
+   "ttft_s": 0.736,
+   "decode_tps": 120.4,
+   "prompt_tokens": 304,
+   "completion_tokens": 21,
+   "text": "The picture contains a red circle, a blue square, and the text \"LOL 42\".",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "tool call",
+   "ok": true,
+   "ttft_s": 0.139,
+   "decode_tps": 272.3,
+   "prompt_tokens": 73,
+   "completion_tokens": 15,
+   "text": "",
+   "reasoning_chars": 0,
+   "tool_calls": [
+    {
+     "name": "get_weather",
+     "args": "{\"city\": \"Lyon\"}"
+    }
+   ]
+  },
+  {
+   "label": "sound in a message fr.wav",
+   "ok": true,
+   "ttft_s": 0.048,
+   "decode_tps": 116.8,
+   "prompt_tokens": 231,
+   "completion_tokens": 46,
+   "text": "Bonjour, je voudrais réserver la salle de réunion pour jeudi à 15h pour six personnes.\nHello, I would like to reserve the meeting room for Thursday at 3 p.m. for six people.",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "sound in a message en.wav",
+   "ok": true,
+   "ttft_s": 0.066,
+   "decode_tps": 118.1,
+   "prompt_tokens": 206,
+   "completion_tokens": 36,
+   "text": "Hello, please order three boxes of blue markers and send the invoice to the design school.\nPlease order three boxes of blue markers and send the invoice to the design school.",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  }
+ ]
+}

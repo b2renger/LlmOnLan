@@ -1,0 +1,78 @@
+{
+ "model": "assistant",
+ "base": "http://127.0.0.1:4400/v1",
+ "at": "2026-11-02T16:19:45.489Z",
+ "checks": [
+  {
+   "label": "warm-up",
+   "ok": true,
+   "ttft_s": 0.141,
+   "decode_tps": 128.7,
+   "prompt_tokens": 21,
+   "completion_tokens": 23,
+   "text": "The waves crash against the shore.\nThe ocean is deep and blue.\nSalt spray fills the air.",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "one stream (512 tokens)",
+   "ok": true,
+   "ttft_s": 0.023,
+   "decode_tps": 122.2,
+   "prompt_tokens": 28,
+   "completion_tokens": 409,
+   "text": "A bicycle gear system is a mechanical method of manipulating **torque** and **cadence** to make pedaling efficient across different terrains. At its core, the system works by changing the size of the gear (sprocket or chainring) that the rider’s legs move, which determines how much effort is required to turn the rear wheel.\n\nThe system consists of three primary components: the **chainrings** (front gears), the **cassette/freewheel** (rear gears), and the **chain**. When you shift gears, you are changing the ratio between the front and rear wheels.\n\n### High Gear (Harder, Faster)\nWhen you use a large chainring in the front and a small sprocket in the rear, you create a **high gear ratio**. In this setup, one full rotation of the pedals results in many rotations of the rear wheel. This requi",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "picture",
+   "ok": true,
+   "ttft_s": 0.043,
+   "decode_tps": 127.7,
+   "prompt_tokens": 304,
+   "completion_tokens": 21,
+   "text": "The picture contains a red circle, a blue square, and the text \"LOL 42\".",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "tool call",
+   "ok": true,
+   "ttft_s": 0.1,
+   "decode_tps": 282.3,
+   "prompt_tokens": 73,
+   "completion_tokens": 15,
+   "text": "",
+   "reasoning_chars": 0,
+   "tool_calls": [
+    {
+     "name": "get_weather",
+     "args": "{\"city\": \"Lyon\"}"
+    }
+   ]
+  },
+  {
+   "label": "sound in a message fr.wav",
+   "ok": true,
+   "ttft_s": 0.062,
+   "decode_tps": 126.4,
+   "prompt_tokens": 231,
+   "completion_tokens": 24,
+   "text": "French\nI would like to reserve the meeting room for Thursday at 3 p.m. for six people.",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  },
+  {
+   "label": "sound in a message en.wav",
+   "ok": true,
+   "ttft_s": 0.048,
+   "decode_tps": 124.6,
+   "prompt_tokens": 206,
+   "completion_tokens": 40,
+   "text": "Hello. Please order three boxes of blue markers and send the invoice to the design school.\nThe speaker wants to order three boxes of blue markers and have the invoice sent to the design school.",
+   "reasoning_chars": 0,
+   "tool_calls": []
+  }
+ ]
+}

@@ -1,0 +1,68 @@
+{
+ "model": "assistant",
+ "base": "http://127.0.0.1:4400/v1",
+ "at": "2026-11-02T14:27:08.641Z",
+ "checks": [
+  {
+   "label": "warm-up",
+   "ok": true,
+   "ttft_s": 0.234,
+   "decode_tps": 268.8,
+   "prompt_tokens": 18,
+   "completion_tokens": 64,
+   "text": "",
+   "reasoning_chars": 227,
+   "tool_calls": []
+  },
+  {
+   "label": "one stream (512 tokens)",
+   "ok": true,
+   "ttft_s": 0.034,
+   "decode_tps": 249.8,
+   "prompt_tokens": 26,
+   "completion_tokens": 512,
+   "text": "",
+   "reasoning_chars": 2283,
+   "tool_calls": []
+  },
+  {
+   "label": "picture",
+   "ok": true,
+   "ttft_s": 0.19,
+   "decode_tps": 251.5,
+   "prompt_tokens": 268,
+   "completion_tokens": 200,
+   "text": "The image contains a red circle on the left, a blue square on the right, and the black",
+   "reasoning_chars": 588,
+   "tool_calls": []
+  },
+  {
+   "label": "tool call",
+   "ok": true,
+   "ttft_s": 0.088,
+   "decode_tps": 256.6,
+   "prompt_tokens": 280,
+   "completion_tokens": 152,
+   "text": "",
+   "reasoning_chars": 441,
+   "tool_calls": [
+    {
+     "name": "get_weather",
+     "args": "{\"city\": \"Lyon\"}"
+    }
+   ]
+  },
+  {
+   "label": "sound in a message fr.wav",
+   "ok": false,
+   "status": 400,
+   "error": "{\"error\":{\"message\":\"litellm.BadRequestError: Hosted_vllmException - {\\\"error\\\":{\\\"message\\\":\\\"At most 0 audio(s) may be provided in one prompt. (parameter=audio)\\\",\\\"type\\\":\\\"BadRequestError\\\",\\\"param\\\":\\\"audio\\\",\\\"code\\\":400}}. Received Model Group=assistant\\nAvailable Model Group Fallbacks=None\",\"type\":null,\"param\":null,\"code\":\"400\"}}"
+  },
+  {
+   "label": "sound in a message en.wav",
+   "ok": false,
+   "status": 400,
+   "error": "{\"error\":{\"message\":\"litellm.BadRequestError: Hosted_vllmException - {\\\"error\\\":{\\\"message\\\":\\\"At most 0 audio(s) may be provided in one prompt. (parameter=audio)\\\",\\\"type\\\":\\\"BadRequestError\\\",\\\"param\\\":\\\"audio\\\",\\\"code\\\":400}}. Received Model Group=assistant\\nAvailable Model Group Fallbacks=None\",\"type\":null,\"param\":null,\"code\":\"400\"}}"
+  }
+ ]
+}
