@@ -6985,7 +6985,7 @@ test('presets: the picks for an RTX PRO 6000 with vLLM — the capacity page\'s 
     // LOL Vibe: the model proven with the coding agent, and why not Flint.
     assert.match(picks.vibe.reasons[0], /^Qwen3\.6 35B-A3B · NVFP4 on vLLM, for 10 people at once .*: Covers your 10 with \d+/);
     assert.ok(picks.vibe.estimate.mid >= 48, `about 48–64 coders at 64k: ${picks.vibe.estimate.mid}`);
-    assert.match(picks.vibe.reasons[1], /^Picked for the most people among the models proven with the IDE's coding agent: 11\/15 on its five tasks, on vLLM\. Flint is not one yet: .* it joins once the farm's vLLM serves it and it is measured here\.$/);
+    assert.match(picks.vibe.reasons[1], /^Picked for the most people among the models proven with the IDE's coding agent: 11\/15 on its five tasks, on vLLM\. Flint is not counted yet: on the farm's vLLM 0.33\.0 it passed 13 of the same 15 tasks, for 20 people at 64k\.$/);
     assert.match(picks.computer.reasons[0], /tool calling, reads images/);
     // Plugins: Vibe gives document reading's memory back; the Computer turns every one on; Balanced = as shipped.
     assert.deepEqual(picks.vibe.plugins, { websearch: true, ocr: false, tts: false, classify: false, stt: false, bus: false });

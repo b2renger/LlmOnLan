@@ -62,9 +62,9 @@ function gateWorst(m) {
 // syntax check) on the five tasks of docs/spike/ide. The estimator has no agent data, so this list is the proof, by
 // catalog id. Qwen3.6: 11/15 (docs/spike/RESULTS.md, "The coding agent: five tasks, Flint vs Qwen3.6", 2026-10-23, on
 // the farm's vLLM). Qwen3.8 and Nemotron passed only the P5-0 spike's single edit task (docs/research/p5-spike, 3/3 each on
-// Ollama), never the five. Flint (8/10 given 32k replies, 9/15 at 8k) is not here: the farm serves it on llama.cpp only, a
-// few people at once, and vLLM's support is in no release yet; it joins once one serves it and HUMAN_TESTS J12–J13
-// measured it on the whole GPU.
+// Ollama), never the five. Flint is not here: on llama.cpp it passed 8/10 given 32k replies (2026-10-23); on the farm's
+// vLLM 0.33.0 (2026-11-02, branch vllm-033) 12/15 with its own template and 13/15 with the open-think copy the list uses,
+// for 20 people at 64k (Qwen3.6: 48). Adding it is the owner's decision.
 const AGENT_PROVEN = { 'qwen3.6-35b-a3b': '11/15 on its five tasks, on vLLM' };
 const PROVEN_NAMES = Object.keys(AGENT_PROVEN).map((id) => S.modelName(CATALOG.models.find((m) => m.id === id))).join(', ');
 const provenOf = (served) => { const c = S.matchModel(CATALOG, served || ''); return (c && AGENT_PROVEN[c.id]) || null; };
@@ -233,7 +233,7 @@ function poolReasons(p, pair, sc) {
     }
     if (p.id === 'vibe') {
         return [`Picked for the most people among the models proven with the IDE's coding agent: ${AGENT_PROVEN[pair.model.id]}. `
-            + `Flint is not one yet: the farm serves it on llama.cpp only, a few people at once; it joins once the farm's vLLM serves it and it is measured here.`];
+            + `Flint is not counted yet: on the farm's vLLM 0.33.0 it passed 13 of the same 15 tasks, for 20 people at 64k.`];
     }
     return [];
 }

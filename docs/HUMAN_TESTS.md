@@ -39,7 +39,7 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 | G. LOL Vibe's IDE | 1 laptop, a password farm, a GitHub account, a second drive or USB stick (G11) | 11 | — | 2.75 h |
 | H. Home Assistant on a real home | the office's Home Assistant Green | 4 | — | 2.5 h |
 | I. Document search on the farm | the farm, 2 laptops (one with old documents) | 7 | I1–I5 | 2 h |
-| J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client | 13 | J1–J4 | 5 h (+45 min install, +1 h for J10's 70 GB, +3 h 30 for J12–J13) |
+| J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client | 15 | J1–J4 | 6 h 30 (+45 min install, +1 h for J10's 70 GB, +3 h 30 for J12–J13) |
 | K. A Windows test box with an RTX card | a non-production RTX PC, the 4070/4080, a PC with no NVIDIA GPU | 8 | K1–K5 | 3.5 h (+45 min K6) |
 | L. The DGX Spark | a Spark with a screen | 3 | — | 3 h (+45 min) |
 | M. Reboot tests | the PRO 6000, the Spark | 2 | — | 1 h each |
@@ -47,7 +47,7 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 | O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 5 | — | 2 h 30 |
 | P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
 | Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q5) | 7 | — | 3 h 30 (+ a 22 GB download for Q4) |
-| **Total** | | **128** | **19** | about 60–65 h |
+| **Total** | | **130** | **19** | about 62–67 h |
 
 **The release, in order:** K1–K5 on the test box first (the Farm app update, the held-file copy, llama.cpp b11512,
 document search's first start, the small cards), then P1 and J1–J4 on the PRO 6000 (once `panel-engines` is merged), then I1–I5 and A1, B1 with the
@@ -1400,7 +1400,8 @@ there with a scratch vLLM, never from the panel of an installed Farm app).
 take-over saved before (a model removed by hand stays out). Step 3: Automatic says the measured number (Gemma: 16
 people at 32k, 8 at 64k on every turn). Step 4: the picture described; Gemma's thinking shows as thinking; the weather
 question gets an answer (Open WebUI sends the Computer's tools with it, so this is a request with tools), never an
-error. Step 5: the French sentence written back, close to word for word. Step 6: the same with Qwen3-Omni (Automatic:
+error. Step 5: the French sentence written back, close to word for word (on vLLM 0.33.0 Gemma 4 wrote the English
+translation instead, 6 of 6, 2026-11-02; Qwen3-Omni the French: write down which). Step 6: the same with Qwen3-Omni (Automatic:
 20 people at 32k, 10 at 64k; the first message with sound after its start takes several seconds). Write down the
 start times and anything that read wrong.
 - [ ] Done · Found:
@@ -1447,6 +1448,10 @@ One person, for comparison with the shared-GPU run: 53–55 tok/s with 12 of 47 
 TTFT 2.3 s at 3.3k and 12.4 s at 24.8k; on the whole GPU it should be several times faster. The quality gate:
 UD-Q4_K_XL scored 27/28 on 2026-10-23 with its experts in RAM (Q8_0: see RESULTS.md); Q8_0 within a point of it means UD-Q4_K_XL is the one to serve.
 - [ ] Done · Found:
+- **Done on vLLM instead (2026-11-02, branch `vllm-033`, by Claude Code, the farm closed by the owner):** Flint's NVFP4 GGUF
+  on vLLM 0.33.0 with the whole GPU: one person 252 tok/s; chat 64 / ≥ 128, agent ≥ 128 / ≥ 128, **40 people at 32k and
+  20 at 64k** (its memory: bf16 context only); the gate 25/28 three times (docs/spike/RESULTS.md, *vLLM 0.33.0 and Flint on
+  vLLM*). The llama.cpp steps above were not run: on this card vLLM serves 5–10× the people llama.cpp does.
 
 ### J13 The coding agent on Flint, whole GPU, against Qwen3.6
 *Proves:* whether Flint is the IDE agent's model on this box (the main question of 2026-10-23), with Flint fast enough
@@ -1463,6 +1468,40 @@ the client on this box (`%APPDATA%\LlmOnLan\dsh-runtime`).
 *Expect:* each line of `%TEMP%\lol-ide-<label>\results.jsonl` says whether the task's check passed, the steps, tool
 calls, failed calls and tokens. 2026-10-23 on the shared GPU: Flint 9/15 at 8192 and 8/10 at 32768 (with the standing-mode fence rule), Qwen3.6 11/15 (docs/spike/RESULTS.md, *Flint*). Write
 down the pass counts, the median wall time per task, and any `max-tokens` end.
+- [ ] Done · Found:
+- **Done on vLLM instead (2026-11-02, branch `vllm-033`):** the five tasks × 3 at 32,768 through a scratch farm: **Flint
+  13/15** (39 s a task, the farm's open-think template; 12/15 with Flint's own), **Qwen3.6 7/15 on vLLM 0.33.0 and 9/15 on
+  0.30.0** the same day (15–16 s); no `max-tokens` end. Still for a person: J15.
+
+### J14 Update vLLM from the panel: 0.30.0 → 0.33.0 (branch `vllm-033`)
+*Proves:* the owner's farm moves to vLLM 0.33.0 from the panel alone, and an update that stops half-way leaves 0.30.0
+serving. *Needs:* a quiet moment of about 45 min, the Farm app built from `vllm-033` (or its release), the farm on vLLM
+0.30.0 (`~/lol-vllm`). *Was:* new (2026-11-02; checked on a scratch root with `install.sh`, never from the panel).
+1. Open the vLLM section. Read the checklist.
+2. **Stop vLLM**, then **Update vLLM**. After a minute, **Stop** on the download bar. **Start vLLM**; chat from a laptop.
+3. **Stop vLLM**, **Update vLLM** again, to its end (about 10 min on a good connection: ~9 GB). **Start vLLM**.
+4. A chat, a picture and a PDF from a laptop; the IDE agent on one task; `nvidia-smi`.
+
+*Expect:* step 1: *vLLM 0.30.0 is installed; this farm was tested with 0.33.0.* with **Update vLLM** beside it, and vLLM
+still serving. Step 2: Stop keeps 0.30.0: it starts and answers as before (the panel still says 0.30.0). Step 3: the
+checklist says 0.33.0 is installed, the warning is gone; the first start takes longer (kernels compile, up to ~6 min).
+Step 4: everything works; Automatic still says 48 people at 64k. Write down the times.
+- [ ] Done · Found:
+
+### J15 Flint from the panel, for coding (branch `vllm-033`)
+*Proves:* Flint downloads, serves and behaves in Open WebUI and LOL Vibe through the farm. *Needs:* J14 done (vLLM 0.33.0),
+~23 GB of disk, a laptop with the coding agent. *Was:* new (2026-11-02; measured from a scratch farm, never from the panel).
+1. vLLM section ▸ the list: **Download** Flint (22.9 GB), then **Use this**; wait for the restart.
+2. Open WebUI: three short questions; then one with web search on (*"What is the weather in Lyon today?"*); look at each
+   chat's title.
+3. LOL Vibe: a real project, a few tasks of your own (and one with **Keep going until done**).
+4. **Use this** on Qwen3.6 again.
+
+*Expect:* step 1: Automatic says 20 people at 64k (measured); the checklist refuses Flint on 0.30.0 with *needs vLLM
+0.33.0 or newer*. Step 2: every answer in the reply, never only in the thinking block (the farm's open-think template),
+titles without a `<think>` block (one may be missing: Flint thinks up to ~900 tokens for one); Flint does not see
+pictures. Step 3: the agent works, slower than Qwen3.6 (about 40 s a small task against 15 s), writes and edits files;
+note any loop (it re-reads and re-checks) and any answer that stays empty. Write down how it compares with Qwen3.6.
 - [ ] Done · Found:
 
 ## K. A Windows test box with an RTX card (not production) — about 3 h

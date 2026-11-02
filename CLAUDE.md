@@ -67,7 +67,10 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     the process half) drives the scripts in `farm/vllm/` (`serve.sh` with the farm's whole argv in
     `LOL_VLLM_ARGS_B64`, `stop.sh`, `install.sh`, the read-only `status.sh`; on Windows through `wsl.exe` with a
     timeout on every call). The panel installs it (the **download slot**: outside the job slot and `serialize`,
-    never `busy`, resumable), keeps a list of five models (Download / Use this / Remove / Add by Hugging Face name):
+    never `busy`, resumable), installs **vLLM 0.33.0** (`vllm.version`; branch `vllm-033`, 2026-11-02: the five models
+    below checked on it, Qwen3.6 48 people at 64k every turn against 0.30.0's 32 the same day; an install of another
+    version is offered **Update vLLM**, never run by itself, which builds the new version in `.venv-next` and swaps it in
+    only once its check passed, so a stopped or failed update leaves the old one serving), keeps a list of six models (Download / Use this / Remove / Add by Hugging Face name):
     the spike's three NVFP4 models and, since 2026-10-09 (branch `vllm-models`), two that hear sound in a
     chat message (`audio`, the snapshot's `backend.audio`; vLLM's sound extras, `vllm[audio]` in `install.sh`, an
     older install offered Update vLLM): **Gemma 4 12B** (`unsloth/gemma-4-12b-it-NVFP4`, 9.25 GiB, vLLM's
@@ -75,7 +78,12 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     (`Qwen/Qwen3-Omni-30B-A3B-Instruct`, the thinker only, BF16 made FP8 at load, 30.9 GiB; 20 / 10 people, its memory
     the limit; `install.sh` writes its processor-only template as `chat_template.jinja` for tool calls, and the route
     drops `chat_template_kwargs` for a vLLM model with no thinking parser; vLLM's `/v1/audio/transcriptions` answers
-    for it, unrouted). A list saved before
+    for it, unrouted); and since 2026-11-02 (branch `vllm-033`) **Flint 40B-A2.5B** (`RecursiveSI/flint-nvfp4-gguf`: one
+    GGUF, `gguf`, whose config and tokenizer come from `configRepo` `RecursiveSI/flint`, only its small files, in
+    `<folder>/config`; `minVllm` 0.33.0, refused by the checklist and Use this on an older vLLM; the `glm47` parsers; a bf16
+    context only, so 40 people at 32k / 20 at 64k on the PRO 6000, its memory the limit; `openThink`: `install.sh` writes
+    a copy of its template whose answer opens a think block, else vLLM's `glm47` parser read a direct answer as thinking;
+    `alwaysThinks`: the route drops `chat_template_kwargs`, which leaked its `<think>` into titles). A list saved before
     a version added models gets them at the next start, except the ids in `vllm.removed` (a Remove of a built-in);
     and sets people at once, context per person and GPU memory for conversations
     (Automatic: measured seats capped by what the pool holds; the pool from free memory less the model, ~4 GB,
@@ -165,8 +173,9 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     and `presets-users`, not released): one per session — **Balanced** (the default: the serving engine's shipped defaults
     and plugins), **Documents** (`rag`: the MOST PEOPLE at 64k among models good enough for documents — `GATE_FLOOR`, 25/28
     or more on every run of the spike's check — document reading on), **LOL Vibe** (`vibe`: the most people at 64k among
-    models PROVEN WITH THE IDE'S CODING AGENT — `AGENT_PROVEN`, today Qwen3.6 alone, 11/15 on the five tasks; Flint joins
-    once the farm's vLLM serves it (0.33.0 does; the farm installs 0.30.0) and HUMAN_TESTS J12–J13 measured it — document reading off), **Computer** (the most
+    models PROVEN WITH THE IDE'S CODING AGENT — `AGENT_PROVEN`, today Qwen3.6 alone, 11/15 on the five tasks; Flint is not
+    in it: on the farm's vLLM 0.33.0 it passed 13/15 against Qwen3.6's 7–9/15 the same day, for 20 people at 64k; the
+    owner's call — document reading off), **Computer** (the most
     people at 32k among models that see pictures and do tools well, every plugin on). Picked for THIS box by `scenarios.js`
     `recommend()` (the capacity page's cards, the spike's measurements, the estimator; never copied), only among what it
     can run: vLLM's list where vLLM is set up on a GPU the capacity page knows for a group (people at once and memory
