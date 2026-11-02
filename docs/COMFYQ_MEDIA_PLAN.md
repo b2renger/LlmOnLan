@@ -4,6 +4,10 @@
 > future build — no code exists yet. Owner decisions are locked (see "Decisions locked"). When building,
 > follow the build order in "Execution / operations". Line/route references were verified against the
 > code at the time of writing; re-check before implementing.
+>
+> **2026-11-02:** something much smaller was built instead, on the owner's ask: two tools that only WRITE a prompt for a
+> ComfyQ workflow (`comfyq_models`, `comfyq_prompt_guide` in the client's MCP server — no connection to ComfyQ, the
+> student pastes the text; DEVLOG 2026-11-02). This plan, which books jobs, stays unbuilt.
 
 ## Context
 

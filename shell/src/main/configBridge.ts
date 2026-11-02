@@ -252,7 +252,7 @@ export function computerToolServer(conn: { url: string; token: string }): string
     return JSON.stringify([{
         type: 'mcp', url: conn.url, auth_type: 'bearer', key: conn.token,
         config: { enable: true },
-        info: { id: 'lol-computer', name: 'LlmOnLan Computer', description: 'Build and run graphs on the LlmOnLan Computer (this computer only).' },
+        info: { id: 'lol-computer', name: 'LlmOnLan Computer', description: 'Build and run graphs on the LlmOnLan Computer, and write prompts for ComfyQ\'s image, video and audio models (this computer only).' },
     }]);
 }
 

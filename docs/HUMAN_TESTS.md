@@ -30,7 +30,7 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 
 | Session | Setup | Tests | ★ | Time |
 |---|---|---|---|---|
-| A. One laptop + the PRO 6000, installed builds | 1 laptop, the production farm | 19 | A1 | A1 1 h; the rest 7–8 h in several sittings |
+| A. One laptop + the PRO 6000, installed builds | 1 laptop, the production farm (A20: a ComfyQ box) | 20 | A1 | A1 1 h; the rest 7–8 h in several sittings |
 | B. A fresh laptop, first install, no internet | a laptop never used, a blocked network, a proxy network | 6 | B1 | 2 h |
 | C. Upgrades and the data folder | a v0.2.9 laptop, the owner's v0.2.7 client, a spare profile, a USB stick | 6 | C1, C2 | 2.5 h |
 | D. Two machines, two farms, other subnets | 2 laptops, a second farm, a guest Wi-Fi | 15 | — | 4 h |
@@ -47,7 +47,7 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 | O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 5 | — | 2 h 30 |
 | P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
 | Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q5) | 7 | — | 3 h 30 (+ a 22 GB download for Q4) |
-| **Total** | | **127** | **19** | about 60–65 h |
+| **Total** | | **128** | **19** | about 60–65 h |
 
 **The release, in order:** K1–K5 on the test box first (the Farm app update, the held-file copy, llama.cpp b11512,
 document search's first start, the small cards), then P1 and J1–J4 on the PRO 6000 (once `panel-engines` is merged), then I1–I5 and A1, B1 with the
@@ -391,6 +391,24 @@ music at a talking level), a second person. *Was:* new.
 phrase ends after 2 s without it, so steady noise can keep a phrase open (no answer until the noise stops) and a
 pause near 2 s splits a sentence in two turns. Nothing here can be tuned without changing Open WebUI: if it fails
 in the studio, say so (the owner then decides on a voice mode of LOL's own, DEVLOG 2026-10-09).
+- [ ] Done · Found:
+
+### A20 A prompt for ComfyQ, pasted into ComfyQ
+*Proves:* a student gets a prompt for a ComfyQ workflow from Open WebUI and it works in ComfyQ's own form, with the farm's
+real model and a real ComfyQ box (the agent's run used a scratch llama-server and no ComfyQ: DEVLOG 2026-11-02).
+*Needs:* a client on the `comfyq-prompts` build, the farm, a ComfyQ box serving FLUX.2 Klein text to image (and one
+serving LTX 2.5 image to video), ComfyQ's discovery app on the laptop. *Was:* new (owner, 2026-11-02).
+1. Open WebUI ▸ the tools menu ▸ turn on **LlmOnLan Computer** (its line says it writes prompts for ComfyQ).
+2. Ask: *"Write me a prompt for FLUX.2 Klein: a lighthouse at night in a storm."* Then *"Which models does ComfyQ have?"*
+3. Paste the prompt into ComfyQ's form for FLUX.2 Klein text to image, set the size it said, book, look at the picture.
+4. Ask for an LTX 2.5 image-to-video prompt for a photo of yours, 5 seconds; paste it, upload the photo, book.
+5. Ask for a model ComfyQ does not have (*"a prompt for Midjourney"*).
+
+*Expect:* the model calls the tool (a fold *View Result from lol-computer_comfyq_prompt_guide* above its answer), says which ComfyQ
+workflow it chose (for "FLUX.2 Klein" the text-to-image one, or it asks), and gives the text under the form's field
+names; the FLUX prompt is full sentences, subject first, 30–80 words; the size it names is one the form accepts and the
+video's duration is the one asked. ComfyQ takes both texts as they are. For Midjourney it says ComfyQ has no such
+workflow instead of inventing one. Write down any workflow whose prompt came out wrong for its model.
 - [ ] Done · Found:
 
 ## B. A fresh laptop: first install, first start, no internet — about 2 h

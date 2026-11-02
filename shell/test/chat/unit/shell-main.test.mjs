@@ -15,7 +15,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHELL = path.join(HERE, '..', '..', '..');
 const BUILD = path.join(SHELL, 'build', 'main');
 const SRC = path.join(SHELL, 'src', 'main');
-const MODULES = ['farmSelect', 'discovery', 'configBridge', 'sidecar', 'sidecarManager', 'clientData', 'dataMigration', 'store', 'io', 'mcp', 'serial', 'webSearch'];
+const MODULES = ['farmSelect', 'discovery', 'configBridge', 'sidecar', 'sidecarManager', 'clientData', 'dataMigration', 'store', 'io', 'mcp', 'serial', 'webSearch', 'comfyqPrompts'];
 const WEB_FIXTURES = path.join(HERE, '..', 'fixtures', 'web');
 
 /** @type {string[]} */

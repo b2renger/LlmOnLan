@@ -517,6 +517,29 @@ reads, a Home command's device and action — is left out of
 what the model sets, and it tells you so. The connection stays on this computer (127.0.0.1): no other
 machine can drive your Computer.
 
+### Write a prompt for ComfyQ
+
+The same tool helps you write prompts for the image, video and audio models of
+[ComfyQ](https://github.com/b2renger/ComfyQ), the studio's app for booking ComfyUI workflows. It only **writes the
+text**: it never sends anything to ComfyQ and never looks for a machine. You paste the prompt into ComfyQ yourself.
+
+1. In Open WebUI, open the **tools** menu under the message field and turn on **LlmOnLan Computer**.
+2. Ask in plain words, naming the model or the workflow: *"Write me a prompt for FLUX.2 Klein: a lighthouse at night
+   in a storm"*, or *"I have a photo of my cat on a windowsill: write the ComfyQ prompt to animate it with LTX 2.5,
+   about 5 seconds"*. Ask *"Which models does ComfyQ have?"* to see the list.
+3. The model reads that workflow's prompt guide (the official guide ComfyQ links for it, and its tip), the fields of
+   its form and the sizes and durations the form allows. If your words fit several workflows (FLUX.2 Klein has six:
+   text to image, edit, edit with a reference, two inpaints, depth control), it picks the one that fits what you
+   have, or asks you.
+4. You get the text under the name of each field (**Prompt**, and **Negative prompt** when the workflow has one),
+   plus the size or aspect ratio and the duration to choose.
+5. Open ComfyQ's discovery app, pick the box serving that workflow, paste the text into its form, set the size and
+   duration it said, add your pictures or video if the workflow needs them, and book.
+
+Where a workflow has no prompt guide in ComfyQ, the model says so and goes by the workflow's own description and the
+example text ComfyQ ships in the field. The list of workflows comes with this app (it was read from ComfyQ's
+workflows when the app was built): a workflow added to ComfyQ since then is not in it yet.
+
 ### A board on the USB cable: Send by USB serial, and the Receive box
 
 An Arduino or an ESP32 plugged into this computer talks with a graph both ways, **one line = one message**:
