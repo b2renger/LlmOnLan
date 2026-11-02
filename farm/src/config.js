@@ -487,7 +487,7 @@ const VllmSchema = z.object({
     // serve.sh's memory guard (LOL_VLLM_MIN_FREE_GB): stop vLLM below this many GB of system memory. auto = 8 where
     // the GPU shares the system memory (DGX Spark: an out-of-memory there latches its clock), else off. 0 = off.
     minFreeGb: z.union([z.literal('auto'), z.number().int().min(0)]).default('auto'),
-    version: z.string().default('0.30.0'),            // the vLLM install.sh installs, measured in docs/spike/RESULTS.md
+    version: z.string().default('0.33.0'),            // the vLLM install.sh installs, measured in docs/spike/RESULTS.md (0.33.0: 2026-11-02)
     extraArgs: z.array(z.string()).default([]),       // appended last; a take-over keeps unknown running flags here
     library: z.array(VllmModelSchema).default(VLLM_LIBRARY),
     // The built-in models the operator removed from the list. A list saved by an Add, a Remove or a take-over keeps

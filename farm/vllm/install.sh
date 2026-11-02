@@ -7,7 +7,7 @@
 # Default repo: nvidia/Qwen3.6-35B-A3B-NVFP4 (~23.5 GB) -> $LOL_VLLM_ROOT/hf/<folder, default the repo's name>.
 # Needs: an NVIDIA driver (on Windows, the Windows driver is enough: WSL2 gets the GPU through it), x86_64 or
 # arm64 Linux, and curl. It installs uv (https://docs.astral.sh/uv/) in ~/.local/bin when missing, and uv brings
-# its own Python. Env: LOL_VLLM_ROOT (default ~/lol-vllm), LOL_VLLM_VERSION (default 0.30.0, the version measured
+# its own Python. Env: LOL_VLLM_ROOT (default ~/lol-vllm), LOL_VLLM_VERSION (default 0.33.0, the version measured
 # in docs/spike/RESULTS.md), LOL_VLLM_STEPS (default "venv,model"; "model" only downloads and never touches the venv).
 #
 # For the farm, which reads this script's output: "[lol-step] uv|venv|vllm|cuda-pins|check|model <repo>|done"
@@ -15,7 +15,7 @@
 # a download asked of a root with no vLLM, whose `hf` it uses). It runs as its
 # own process group, recorded in $LOL_VLLM_ROOT/run/install.pgid: `stop.sh install` stops it, download included.
 set -euo pipefail
-VER="${LOL_VLLM_VERSION:-0.30.0}"
+VER="${LOL_VLLM_VERSION:-0.33.0}"
 REPO="${1:-nvidia/Qwen3.6-35B-A3B-NVFP4}"
 FOLDER="${2:-${REPO##*/}}"
 CFG="${3:-}"   # a repo whose config and tokenizer the model takes (a GGUF's)

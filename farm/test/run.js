@@ -3934,7 +3934,7 @@ test('vLLM config: its defaults, the three measured models, and what it refuses 
     const v = defaultConfig().vllm;
     assert.deepEqual(
         { ...v, library: undefined },
-        { enabled: false, root: null, distro: null, port: 8100, alias: 'assistant', model: 'qwen3.6-35b-a3b', contextLength: 65536, parallel: 'auto', maxNumSeqs: 'auto', kvCacheGib: 'auto', ocrReserveGib: 9, marginPct: 8, minFreeGb: 'auto', version: '0.30.0', extraArgs: [], library: undefined, removed: [] },
+        { enabled: false, root: null, distro: null, port: 8100, alias: 'assistant', model: 'qwen3.6-35b-a3b', contextLength: 65536, parallel: 'auto', maxNumSeqs: 'auto', kvCacheGib: 'auto', ocrReserveGib: 9, marginPct: 8, minFreeGb: 'auto', version: '0.33.0', extraArgs: [], library: undefined, removed: [] },
     );
     assert.deepEqual(v.library.map((e) => [e.id, e.repo, e.vision, e.presencePenalty, e.measured]), [
         ['qwen3.6-35b-a3b', 'nvidia/Qwen3.6-35B-A3B-NVFP4', true, 1.5, 'qwen36'],
@@ -4482,7 +4482,7 @@ test('vLLM on this computer: the checklist, every blocking sentence, and the dis
     const spark = V.parseStatus(['home=/home/me', 'arch=aarch64', 'curl=/usr/bin/curl', 'gpu=NVIDIA GB10, [N/A], [N/A], 12.1', 'mem_total_kb=124991588', 'mem_available_kb=115343360', 'disk_free_kb=3000000000', 'install=/home/me/lol-vllm 0.29.0'].join('\n'));
     r = P(lin({ st: spark }), { ...c, vllm: { ...c.vllm, root: '~/lol-vllm' } });
     assert.ok(r.oks.includes('GPU: NVIDIA GB10 (119 GB shared with the system).') && r.oks.includes('vLLM 0.29.0 is installed (in /home/me/lol-vllm).'), r.oks.join('|'));
-    assert.ok(r.warnings.includes('vLLM 0.29.0 is installed; this farm was tested with 0.30.0.'));
+    assert.ok(r.warnings.includes('vLLM 0.29.0 is installed; this farm was tested with 0.33.0.'));
     assert.ok(r.problems.includes('Qwen3.6 35B-A3B · NVFP4 is not downloaded yet: press Download next to it.'));
     // Before vLLM is installed the list has no Download button: Install vLLM brings the model (PRO 6000, 2026-10-08).
     const bare = V.parseStatus(['home=/home/me', 'arch=x86_64', 'curl=/usr/bin/curl', 'cc=/usr/bin/cc', `gpu=${PRO}, 97887, 90000, 12.0`, 'mem_total_kb=1', 'mem_available_kb=1', 'disk_free_kb=3000000000'].join('\n'));
@@ -4888,7 +4888,7 @@ test('vLLM sound: status.sh says which install has vLLM\'s sound extras; a model
     const probe = (model, audio) => {
         c.vllm.model = model;
         const s = V.parseStatus(['home=/h', 'root=/h/lol-vllm', 'arch=x86_64', 'curl=/usr/bin/curl', 'cc=/usr/bin/gcc', 'gpu=NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 97887, 90000, 12.0',
-            'disk_free_kb=500000000', 'install=/h/lol-vllm 0.30.0', ...(audio ? ['audio=/h/lol-vllm'] : [])].join('\n'));
+            'disk_free_kb=500000000', 'install=/h/lol-vllm 0.33.0', ...(audio ? ['audio=/h/lol-vllm'] : [])].join('\n'));
         return V.problemsFrom({ st: s, at: 1, platform: 'linux' }, c).warnings;
     };
     const SOUND = 'Gemma 4 12B · NVFP4 hears sound in a message, and the vLLM installed here cannot read sound yet: press Update vLLM (a few minutes; text and pictures work meanwhile).';
