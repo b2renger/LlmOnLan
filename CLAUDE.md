@@ -166,7 +166,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     and plugins), **Documents** (`rag`: the MOST PEOPLE at 64k among models good enough for documents — `GATE_FLOOR`, 25/28
     or more on every run of the spike's check — document reading on), **LOL Vibe** (`vibe`: the most people at 64k among
     models PROVEN WITH THE IDE'S CODING AGENT — `AGENT_PROVEN`, today Qwen3.6 alone, 11/15 on the five tasks; Flint joins
-    once a vLLM release serves it and HUMAN_TESTS J12–J13 measured it — document reading off), **Computer** (the most
+    once the farm's vLLM serves it (0.33.0 does; the farm installs 0.30.0) and HUMAN_TESTS J12–J13 measured it — document reading off), **Computer** (the most
     people at 32k among models that see pictures and do tools well, every plugin on). Picked for THIS box by `scenarios.js`
     `recommend()` (the capacity page's cards, the spike's measurements, the estimator; never copied), only among what it
     can run: vLLM's list where vLLM is set up on a GPU the capacity page knows for a group (people at once and memory

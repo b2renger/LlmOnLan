@@ -233,7 +233,7 @@ function poolReasons(p, pair, sc) {
     }
     if (p.id === 'vibe') {
         return [`Picked for the most people among the models proven with the IDE's coding agent: ${AGENT_PROVEN[pair.model.id]}. `
-            + 'Flint is not one yet: the farm serves it on llama.cpp only, a few people at once; it joins once a vLLM release serves it and it is measured here.'];
+            + `Flint is not one yet: the farm serves it on llama.cpp only, a few people at once; it joins once the farm's vLLM serves it and it is measured here.`];
     }
     return [];
 }

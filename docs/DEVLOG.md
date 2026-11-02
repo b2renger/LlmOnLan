@@ -6,10 +6,42 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-02 (14:00) — Flint on the farm's other engines: Ollama and vLLM can serve it now, neither is ready for the coding agent yet
+
+The owner, before the v0.2.15 release: *"before any change on the flint side? can it be run through other backends?"*
+Checked on each project's GitHub and Hugging Face; nothing installed or run.
+- **llama.cpp (today):** b11836, the farm's pin since farm-v0.0.49, serves it; a person adds the GGUF by URL in the
+  llama.cpp section. A few people at once.
+- **Ollama:** runs Flint on Windows and Linux since **v0.40.9** (2026-10-22; macOS before): `flint:40b-a2b-qat-int4`
+  (23 GB, the size of `flint:latest`), `flint:40b-a2b-q4_1` (26 GB); text only, tools and thinking. The PRO 6000's
+  Ollama app is **0.40.4**: it needs an update first, then the panel's catalog takes it with no code change. But
+  **ollama#19191 is open**: an integer argument of an earlier tool call is written back into the prompt as `30000.0`,
+  Flint copies it and returns a string, and a client that checks the tool's schema refuses that call and every later
+  one with that argument. The coding agent's `read` takes `offset` and `limit` as numbers (dsh 0.1.7-rc.2,
+  `dsh-tool-fs`), so it would very likely hit it (not measured). And Ollama serves 2 at once by default.
+- **vLLM:** #62938 merged on 2026-10-22 and ships in **vLLM 0.33.0**, on PyPI since this morning (10:13 UTC); the
+  farm installs **0.30.0**. Flint on the farm's vLLM would take:
+  1. vLLM 0.30.0 → 0.33.x: PyTorch 2.14, CUDA 13.0 wheels only (12.9 dropped), Medusa and the MLP speculator removed;
+     every model of the list checked again on the PRO 6000 (the gate, the seats) and `install.sh`'s Update vLLM path.
+     A .0 of this morning: wait for its first fixes.
+  2. A list entry of a new shape: the NVFP4 GGUF (`RecursiveSI/flint-nvfp4-gguf`, 21.3 GiB, weight-only W4A16) takes
+     its config and tokenizer from the BF16 repo (`--hf-config-path`, `--tokenizer RecursiveSI/flint`: its small files,
+     not its 74 GiB), needs `gguf>=0.19.0` and the `glm47` tool and reasoning parsers. The list holds one Hugging Face
+     name per model today.
+  3. Its fast kernels are for B200/GB200 (SM100); the PRO 6000 (sm_120) and the Spark get vLLM's standard layers, so
+     its speed and people at once there are unknown: J12 on vLLM.
+- **Changed:** the panel's LOL Vibe reason and the docs said Flint joins "once a vLLM release serves it"; now "once the
+  farm's vLLM serves it" (`presets.js`, its test, `farm/README.md`, CLAUDE.md; spike/RESULTS.md has the details). Farm
+  `test/run.js` 279/0.
+- **Nothing else changes in v0.2.15.** If the owner wants Flint for many people, the next step is a branch that moves
+  the farm's vLLM to 0.33.x once it has its first fixes, adds the two-repo entry, and runs J12–J13 on vLLM.
+
+---
+
 ## 2026-11-02 (11:45) — Prompts for ComfyQ: two tools of the Computer's MCP server write a prompt for a ComfyQ workflow
 
 The owner: *"I would like OWUI to have a skill or a tool to help write prompts directly for the models supported by
-ComfyQ."* His answers: prompts per workflow only (no storyboards, no jobs), and it must **not** connect to ComfyQ or
+ComfyQ."* The owner's answers: prompts per workflow only (no storyboards, no jobs), and it must **not** connect to ComfyQ or
 look for any machine — the students paste the prompt into ComfyQ's discovery app. Branch `comfyq-prompts` (from
 `multiuser-phase0` 1728a9c). Not merged, not released. The older plan that books jobs (docs/COMFYQ_MEDIA_PLAN.md) stays
 unbuilt.

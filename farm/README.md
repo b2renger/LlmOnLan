@@ -1042,9 +1042,9 @@ can run:
   not read images: documents reach it as text, and scanned pages go through document reading (OCR), a model of its own.
 - **LOL Vibe's list** (`AGENT_PROVEN`): models proven with the IDE's own coding agent on its five tasks
   (`docs/spike/ide`); the estimator has no agent data. Today Qwen3.6 alone (11/15, `docs/spike/RESULTS.md`, *The coding
-  agent: five tasks*). Qwen3.8 27B and Nemotron passed only the P5-0 spike's single edit task. **Flint** joins once a
-  vLLM release serves it and HUMAN_TESTS J12–J13 measured it: today the farm serves it on llama.cpp only, a few people
-  at once, and its agent results were not better than Qwen3.6's.
+  agent: five tasks*). Qwen3.8 27B and Nemotron passed only the P5-0 spike's single edit task. **Flint** joins once
+  the farm's vLLM serves it (vLLM 0.33.0 does; the farm installs 0.30.0) and HUMAN_TESTS J12–J13 measured it: today the
+  farm serves it on llama.cpp only, a few people at once, and its agent results were not better than Qwen3.6's.
 - **Elsewhere** (a GeForce card, which the capacity page counts as one person's; a GPU it does not know; no vLLM):
   Ollama's default model with Automatic context and its 2 at once, except **LOL Vibe**, which serves a proven model when
   llama.cpp's or Ollama's is one, else llama.cpp's model (Qwen3.8 27B UD-IQ2_S by default) when llama.cpp can run here,

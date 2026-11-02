@@ -894,6 +894,13 @@ speed for now (follow-up PRs).
   experts in RAM; Q8_0 is worth it only where it fits whole on the GPU, if J12 shows a difference there.
 - **Engine: llama.cpp b11836** (this branch's pin) now; vLLM once a release carries #62938 — then J12 again on vLLM,
   whose multi-user ceiling on this card is 10–40× llama.cpp's (finding 4).
+  - *2026-11-02:* #62938 merged on 2026-10-22 and ships in **vLLM 0.33.0** (PyPI, 2026-11-02); the farm installs 0.30.0.
+    Its NVFP4 GGUF (`RecursiveSI/flint-nvfp4-gguf`, 21.3 GiB, weight-only W4A16) takes its config and tokenizer from the
+    BF16 repo (`--hf-config-path`, `--tokenizer`), needs `gguf>=0.19.0` and the `glm47` parsers; its fast kernels are
+    for B200/GB200, so this card (sm_120) and the Spark get vLLM's standard layers. **Ollama** runs Flint on Windows
+    from v0.40.9 (`flint:40b-a2b-qat-int4`, 23 GB; this box has 0.40.4), but ollama#19191 (open) turns an earlier tool
+    call's integer into `"30000.0"`, which the coding agent's `read` (`offset`, `limit`) would likely refuse. DEVLOG
+    2026-11-02.
 - **What the IDE needs before Flint is offered** (none of it is built, except the first):
   1. the fence's standing-mode rule (`sandbox_permissions: "workspace-write"` allowed; on this branch);
   2. a reply room of ≥ 32,768 for it — LOL Vibe chooses by model id, and the farm names every model `assistant`, so it
