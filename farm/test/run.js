@@ -3942,6 +3942,7 @@ test('vLLM config: its defaults, the three measured models, and what it refuses 
         ['qwen3.8-27b-nvfp4', 'nvidia/Qwen3.8-27B-NVFP4', true, null, 'qwen38'],
         ['gemma-4-12b', 'unsloth/gemma-4-12b-it-NVFP4', true, null, 'gemma4'],
         ['qwen3-omni-30b-a3b', 'Qwen/Qwen3-Omni-30B-A3B-Instruct', true, null, 'omni'],
+        ['flint', 'RecursiveSI/flint-nvfp4-gguf', false, null, null],
     ]);
     assert.equal(v.library[0].args.join(' '), '--kv-cache-dtype fp8 --enable-prefix-caching --mamba-cache-mode align --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_xml', 'the spike\'s flags, as serve.sh runs them');
     assert.ok(defaultConfig().vllm.library[0].args !== v.library[0].args, 'each config gets its own copy of the library');
@@ -4828,8 +4829,8 @@ test('vLLM list, Gemma 4 and Qwen3-Omni (owner 2026-10-09): their flags, their f
     // A list saved before these models existed (an Add, a Remove, a take-over) gets them at the next start; one the
     // operator removed stays out; added back by name it is the built-in entry again.
     const saved = ConfigSchema.parse({ vllm: { library: [lib[0], { id: 'mine', label: 'Mine', folder: 'Mine' }] } }).vllm;
-    assert.deepEqual(saved.library.map((e) => e.id), ['qwen3.6-35b-a3b', 'mine', 'nemotron-3.5-lightning', 'qwen3.8-27b-nvfp4', 'gemma-4-12b', 'qwen3-omni-30b-a3b']);
-    const without = ConfigSchema.parse({ vllm: { library: [lib[0]], removed: ['qwen3-omni-30b-a3b', 'nemotron-3.5-lightning'] } }).vllm;
+    assert.deepEqual(saved.library.map((e) => e.id), ['qwen3.6-35b-a3b', 'mine', 'nemotron-3.5-lightning', 'qwen3.8-27b-nvfp4', 'gemma-4-12b', 'qwen3-omni-30b-a3b', 'flint']);
+    const without = ConfigSchema.parse({ vllm: { library: [lib[0]], removed: ['qwen3-omni-30b-a3b', 'nemotron-3.5-lightning', 'flint'] } }).vllm;
     assert.deepEqual(without.library.map((e) => e.id), ['qwen3.6-35b-a3b', 'qwen3.8-27b-nvfp4', 'gemma-4-12b']);
     const back = V.newLibraryEntry({ repo: 'https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct' }, without.library);
     assert.deepEqual(back.entry, omni, 'its own entry, measured flags included');
@@ -4837,6 +4838,44 @@ test('vLLM list, Gemma 4 and Qwen3-Omni (owner 2026-10-09): their flags, their f
     const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
     assert.ok(upSrc.includes("persist('vllm', { library: config.vllm.library, removed: config.vllm.removed || [] });"), 'a Remove remembers a built-in');
     assert.ok(upSrc.includes("config.vllm.removed = (config.vllm.removed || []).filter((id) => id !== r.entry.id);"), 'an Add forgets it');
+});
+
+test('vLLM list, Flint (2026-11-02): one GGUF file with another repo\'s config, vLLM 0.33.0 or newer, its parsers, no thinking switch', () => {
+    const c = defaultConfig(); c.vllm.enabled = true; c.vllm.model = 'flint'; c.vllm.root = '/h/lol-vllm';
+    const e = V.vllmEntry(c);
+    assert.deepEqual([e.repo, e.gguf, e.configRepo, e.minVllm, e.vision, e.alwaysThinks], ['RecursiveSI/flint-nvfp4-gguf', 'flint-nvfp4.gguf', 'RecursiveSI/flint', '0.33.0', false, true]);
+    // vLLM loads the file, and takes the config and tokenizer from <folder>/config (install.sh's third argument).
+    const s = V.settingsOf(c, '/h/lol-vllm');
+    assert.equal(s.modelPath, '/h/lol-vllm/hf/flint-nvfp4-gguf/flint-nvfp4.gguf');
+    const argv = V.argvFor(e, s, 40, 32);   // Automatic people at once: 4 to start with (no measurement), so 32
+    assert.deepEqual(V.flagMap(argv), {
+        '--served-model-name': 'flint', '--max-model-len': '65536', '--max-num-seqs': '32', '--kv-cache-memory-bytes': String(40 * GIB),
+        '--enable-prefix-caching': true, '--reasoning-parser': 'glm47', '--enable-auto-tool-choice': true, '--tool-call-parser': 'glm47',
+        '--exclude-tools-when-tool-choice-none': true, '--hf-config-path': '/h/lol-vllm/hf/flint-nvfp4-gguf/config',
+        '--tokenizer': '/h/lol-vllm/hf/flint-nvfp4-gguf/config', '--override-generation-config': { max_new_tokens: 32768 },
+    });
+    assert.ok(!V.argvFor(V.vllmEntry(defaultConfig()), V.settingsOf(defaultConfig(), '/h'), 40, 64).includes('--hf-config-path'), 'the others: their folder, as before');
+    // A server started so is kept at the next start (adoption compares the file and the flags).
+    assert.ok(V.adoptable(c, { argv: [s.modelPath, ...argv], port: 8100, minFreeGb: null }, { root: '/h/lol-vllm' }).ok);
+    // The checklist and Use this: refused on an older vLLM, before anything stops (status.sh lists the folder by its GGUF).
+    const st = (ver) => V.parseStatus(['home=/h', 'root=/h/lol-vllm', 'arch=x86_64', 'curl=/usr/bin/curl', 'cc=/usr/bin/gcc', `gpu=${PRO}, 97887, 95000, 12.0`,
+        'disk_free_kb=500000000', `install=/h/lol-vllm ${ver}`, 'model=flint-nvfp4-gguf 22400000 vision=0 native=262144 partial=0',
+        'model=Qwen3.6-35B-A3B-NVFP4 22880000 vision=1 native=262144 partial=0'].join('\n'));
+    const OLD = 'Flint 40B-A2.5B · NVFP4 needs vLLM 0.33.0 or newer, and this computer has vLLM 0.30.0: press Update vLLM first.';
+    assert.ok(V.problemsFrom({ platform: 'linux', arch: 'x64', st: st('0.30.0') }, c).problems.includes(OLD));
+    assert.deepEqual(V.problemsFrom({ platform: 'linux', arch: 'x64', st: st('0.33.0') }, c).problems, []);
+    const q = defaultConfig(); q.vllm.root = '/h/lol-vllm';
+    assert.equal(V.applyChange(q, { model: 'flint' }, { st: st('0.30.0'), root: '/h/lol-vllm' }).error, OLD);
+    assert.deepEqual(V.applyChange(q, { model: 'flint' }, { st: st('0.33.0'), root: '/h/lol-vllm' }).patch, { model: 'flint' });
+    assert.equal(V.tooOld(e, '0.34.1'), null); assert.equal(V.tooOld(e, '0.33.0'), null); assert.ok(V.tooOld(e, '0.32.9'));
+    assert.equal(V.tooOld(V.vllmEntry(defaultConfig()), '0.20.0'), null, 'a model that names no version: never');
+    // Its template has no thinking switch: the route drops it (enable_thinking false made the glm47 parser leave Flint's
+    // <think> block in the answer, 6 titles of 6).
+    assert.deepEqual(buildLitellmConfig(c).model_list[0].litellm_params.additional_drop_params, ['chat_template_kwargs']);
+    // A Flint added by its name gets Flint's flags; the panel downloads the config repo too.
+    assert.deepEqual(V.familyArgs('RecursiveSI/flint'), e.args);
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.equal((upSrc.match(/configRepo: e(?: && e)?\.configRepo/g) || []).length, 2, 'Download and Install pass the config repo');
 });
 
 test('vLLM sound: status.sh says which install has vLLM\'s sound extras; a model that hears gets Update vLLM without them', () => {
@@ -5540,14 +5579,14 @@ test('take-over: what it keeps from the server, and when it offers nothing (§9.
     const st = prodStatus(); st.running.argv[0] = '/home/ateliernum/lol-spike/hf/qwen36'; st.models = [{ folder: 'qwen36', gb: 23, partial: false }];
     p = V.takeOverPlan(cp, st, 8100, { answering: true });
     const e = p.block.library.find((x) => x.id === 'qwen3.6-35b-a3b');
-    assert.deepEqual([e.folder, e.presencePenalty, p.block.library.length], ['qwen36', 1.0, 5]);
+    assert.deepEqual([e.folder, e.presencePenalty, p.block.library.length], ['qwen36', 1.0, 6]);
     assert.match(e.note, /Kept as it ran when the farm took it over\.$/);
     assert.equal(toYaml(buildLitellmConfig(loadConfigFrom({ vllm: p.block }))).replace('api_key: sk-lol-vllm', 'api_key: sk-lol-external'), toYaml(buildLitellmConfig(cp)), 'the same routing');
     // A model the list does not have: a new entry with its family's flags.
     const nst = prodStatus(); nst.running.argv = nst.running.argv.map((a) => (a === 'qwen3.6-35b-a3b' ? 'my-qwen' : a));
     const nc = prodExternalConfig(); nc.external.model = 'my-qwen';
     p = V.takeOverPlan(nc, nst, 8100, { answering: true });
-    assert.deepEqual([p.block.model, p.block.library.length, p.block.library[5].id, p.block.library[5].folder, p.block.library[5].vision], ['my-qwen', 6, 'my-qwen', 'Qwen3.6-35B-A3B-NVFP4', true]);
+    assert.deepEqual([p.block.model, p.block.library.length, p.block.library[6].id, p.block.library[6].folder, p.block.library[6].vision], ['my-qwen', 7, 'my-qwen', 'Qwen3.6-35B-A3B-NVFP4', true]);
     // Nothing to offer.
     const none = (why, st2, port = 8100, answering = true, cfg = c) => assert.equal(V.takeOverPlan(cfg, st2, port, { answering }), null, why);
     none('no install in that root', prodStatus({ installs: [] }));

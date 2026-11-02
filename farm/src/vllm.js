@@ -158,8 +158,13 @@ function vllmEntry(config) {
 
 const folderOf = (entry) => (entry ? entry.folder || (entry.repo ? entry.repo.split('/').pop() : entry.id) : null);
 // Where vLLM loads a model from: its folder in <root>/hf, or the folder it has anywhere else in this Linux (an entry by
-// `path`, "Use the models in this folder").
-const modelDir = (entry, root) => (entry.path ? entry.path : `${root}/hf/${folderOf(entry)}`);
+// `path`, "Use the models in this folder"); for a model published as one GGUF file (Flint's NVFP4), that file in it.
+const modelDir = (entry, root) => {
+    const dir = entry.path ? entry.path : `${root}/hf/${folderOf(entry)}`;
+    return entry.gguf ? `${dir}/${entry.gguf}` : dir;
+};
+// The config and tokenizer such a GGUF takes from another repo (install.sh downloads that repo's small files there).
+const configDir = (modelPath) => `${path.posix.dirname(modelPath)}/config`;
 // What status.sh found of a model of the list on disk (a model= or a pathmodel= line), or undefined.
 const diskOf = (st, entry) => (st && entry ? (st.models || []).find((m) => (entry.path ? m.path === entry.path : !m.path && m.folder === folderOf(entry))) : undefined);
 
@@ -192,6 +197,7 @@ const FAMILY_ARGS = [
     [/qwen3\.8/i, () => argsOf('qwen3.8-27b-nvfp4')],
     [/nemotron/i, () => argsOf('nemotron-3.5-lightning')],
     [/gemma-?4/i, () => argsOf('gemma-4-12b')],
+    [/flint/i, () => argsOf('flint')],
     [/qwen3/i, () => ['--enable-prefix-caching', '--reasoning-parser', 'qwen3', '--enable-auto-tool-choice', '--tool-call-parser', 'hermes']],
 ];
 function familyArgs(name) {
@@ -237,7 +243,7 @@ function newLibraryEntry(input = {}, library = [], disk = []) {
         return id;
     };
     const label = (fallback) => String(input.label || fallback).replace(/[\r\n\t]/g, ' ').trim().slice(0, 80) || fallback;
-    const blank = { repo: null, folder: null, path: null, sizeGb: null, weightsGib: null, vision: null, presencePenalty: null, catalog: null, measured: null, note: '' };
+    const blank = { repo: null, folder: null, path: null, gguf: null, configRepo: null, minVllm: null, sizeGb: null, weightsGib: null, vision: null, alwaysThinks: false, presencePenalty: null, catalog: null, measured: null, note: '' };
     // A model folder anywhere in vLLM's Linux, used where it is: its absolute Linux path (`found` = what the scan saw of
     // it: its size, whether it sees images).
     if (input.path != null) {
@@ -388,6 +394,7 @@ function argvFor(entry, s, kvGib, maxNumSeqs) {
     const i = own.indexOf('--override-generation-config');
     if (i >= 0) { try { gen = JSON.parse(own[i + 1]); } catch { gen = {}; } own.splice(i, 2); }
     if (s.maxReply) gen = { ...gen, max_new_tokens: s.maxReply };
+    if (entry.configRepo && s.modelPath) own.push('--hf-config-path', configDir(s.modelPath), '--tokenizer', configDir(s.modelPath));
     return [
         '--served-model-name', s.modelId,
         '--max-model-len', String(s.ctx),
@@ -512,6 +519,9 @@ function applyChange(config, body = {}, { st = null, launch = null, root = confi
         if (!e) return { error: 'That model is not in the vLLM list.' };
         const m = diskOf(st, e);
         if (!m || m.partial) return { error: e.path ? `${e.label} is not in ${e.path} any more.` : `${e.label} is not downloaded yet: press Download next to it.` };
+        const inst = st && (st.installs || []).find((i) => i.root === root);
+        const old = tooOld(e, inst && inst.version);
+        if (old) return { error: old };
         patch.model = e.id;
     }
     const entry = vllmEntry({ vllm: { ...v, ...patch } });
@@ -885,6 +895,8 @@ function problemsFrom(probe, config, entry = vllmEntry(config)) {
     const inst = st.installs.find((i) => i.root === root);
     if (inst) {
         oks.push(config.vllm.root ? `vLLM ${inst.version} is installed (in ${root}).` : `Found an existing vLLM in ${root}: the farm will use it.`);
+        const old = tooOld(entry, inst.version);
+        if (old) problems.push(old);
         if (inst.version !== config.vllm.version) warnings.push(`vLLM ${inst.version} is installed; this farm was tested with ${config.vllm.version}.`);
         // An install from before the sound extras (farm-v0.0.44 and earlier): text and pictures work, a message with
         // sound fails. Update vLLM adds them in a few minutes.
@@ -906,6 +918,17 @@ function problemsFrom(probe, config, entry = vllmEntry(config)) {
     if (disk.problem) problems.push(disk.problem);
     else if (Number.isFinite(disk.free)) oks.push(`${r1(disk.free)} GB free for vLLM and its models.`);
     return done();
+}
+
+// A model that needs a newer vLLM than the one installed (an entry's minVllm: Flint needs 0.33.0): the sentence, or null.
+// Said before a start, so the farm never stops a working vLLM for one that cannot load.
+function tooOld(entry, installed) {
+    if (!entry || !entry.minVllm || !installed) return null;
+    const n = (v) => String(v).split(/[^\d]+/).filter(Boolean).slice(0, 3).map(Number);
+    const [a, b] = [n(installed), n(entry.minVllm)];
+    const i = [0, 1, 2].find((k) => (a[k] || 0) !== (b[k] || 0));
+    return i != null && (a[i] || 0) < (b[i] || 0)
+        ? `${entry.label} needs vLLM ${entry.minVllm} or newer, and this computer has vLLM ${installed}: press Update vLLM first.` : null;
 }
 
 // The disk an install or a download needs (§4.2): about 10 GB for vLLM itself when its Python environment is (re)made
@@ -1349,7 +1372,7 @@ function folderBytes(t, folder) {
 // child left hf downloading on Linux (bash dies alone, its EXIT trap removes the pid file, and hf and tee carry on,
 // unrecorded: the next Download ran a second one into the same folder; checked inside WSL as native Linux, 2026-10-08).
 // runCmd's own kill, two minutes later, is the backstop. → {ok, kind, error, code}.
-async function install(t, { steps = 'venv,model', repo = null, folder = null, version = null, sizeGb = null, timeoutMs = 6 * 3600e3 } = {}, onProgress = () => {}) {
+async function install(t, { steps = 'venv,model', repo = null, folder = null, configRepo = null, version = null, sizeGb = null, timeoutMs = 6 * 3600e3 } = {}, onProgress = () => {}) {
     let kind = null; let error = null; let timer = null; const tail = [];
     const total = sizeGb ? sizeGb * 1e9 : null;
     const measure = () => { const b = folderBytes(t, folder); if (b != null) onProgress({ step: 'model', bytes: b, total }); };
@@ -1358,7 +1381,7 @@ async function install(t, { steps = 'venv,model', repo = null, folder = null, ve
     const r = await spawnScript(asConfig(t), 'install.sh', {
         LOL_VLLM_ROOT: t.root, LOL_VLLM_STEPS: steps, ...(version ? { LOL_VLLM_VERSION: version } : {}),
     }, {
-        timeoutMs: timeoutMs + 120e3, distro: t.distro || null, args: repo ? [repo, folder || repo.split('/').pop()] : [],
+        timeoutMs: timeoutMs + 120e3, distro: t.distro || null, args: repo ? [repo, folder || repo.split('/').pop(), ...(configRepo ? [configRepo] : [])] : [],
         onLine: (l) => {
             tail.push(l); if (tail.length > 40) tail.shift();
             let m;
@@ -1423,10 +1446,10 @@ async function setMarker(t, on) {
 module.exports = {
     GIB, VLLM_DIR, UNSUPPORTED, CANDIDATE_ROOTS,
     supported, decodeWsl, parseWslList, defaultDistro, scriptCommand,
-    parseStatus, memOf, vllmEntry, folderOf, modelDir, diskOf, resolveRoot, facts, peopleFit, measuredFor, seatsAuto, maxNumSeqsAuto, poolGib,
+    parseStatus, memOf, vllmEntry, folderOf, modelDir, configDir, diskOf, resolveRoot, facts, peopleFit, measuredFor, seatsAuto, maxNumSeqsAuto, poolGib,
     familyArgs, isGeneric, repoOf, newLibraryEntry, syncFolderEntries, applyChange, ocrFit,
     settingsOf, argvFor, planFor, flagMap, adoptable,
-    bootDecision, unanswered, keepRunning, gpuFit, hostGpuOf, downDecision, isOrphan, takeOverPlan, startPhase, logOffset, explainFailure, installStepText, downloadFailure, problemsFrom, diskCheck, baseUrl,
+    bootDecision, unanswered, keepRunning, gpuFit, hostGpuOf, downDecision, isOrphan, takeOverPlan, startPhase, logOffset, explainFailure, installStepText, downloadFailure, problemsFrom, tooOld, diskCheck, baseUrl,
     answers, runCmd, spawnScript, wslDistros, wslAnswer, lxssBasePath, hostDiskFree, status, probe, targetOf, logFile, readLog,
     start, waitReady, stop, stopInstall, folderBytes, install, removeFolder, takeOverProbe, setMarker,
     lxssEntries, wslDisk, moveAnswer, moveWsl, parseWslNames, wslRunning, wslCanMove,

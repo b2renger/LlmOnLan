@@ -209,7 +209,10 @@ function serverRoute(name, servedModel, apiBase, apiKey, { presencePenalty = nul
             ...(presencePenalty != null ? { presence_penalty: presencePenalty } : {}),
             // A model that does not think gets no thinking switch: the client's enable_thinking false made Qwen3-Omni's
             // template append an empty think block its Instruct model never saw, and it answered "<|im_start|>user"
-            // (measured 2026-10-09: 4 of 11 tool items, and every Computer list or title).
+            // (measured 2026-10-09: 4 of 11 tool items, and every Computer list or title). A model whose template has no
+            // thinking switch (Flint) loses it too: vLLM's glm47 parser takes enable_thinking false as "do not read its
+            // thinking apart", and Flint thinks anyway, so its <think> block landed in the answer (6 titles of 6,
+            // 2026-11-02).
             ...(dropTemplateKwargs ? { additional_drop_params: ['chat_template_kwargs'] } : {}),
         },
         // Flagging a text-only model as vision makes OWUI offer an image upload that then fails.
@@ -313,7 +316,7 @@ function buildLitellmConfig(config, peers = []) {
     if (engine === 'vllm') {
         const v = config.vllm; const e = vllmEntry(config) || {};
         model_list.push(...serverRoute(v.alias, v.model, vllmBaseUrl(config), 'sk-lol-vllm',
-            { presencePenalty: e.presencePenalty, vision: e.vision ?? !!v.visionResolved, dropTemplateKwargs: !(e.args || []).includes('--reasoning-parser') }, peers));
+            { presencePenalty: e.presencePenalty, vision: e.vision ?? !!v.visionResolved, dropTemplateKwargs: !(e.args || []).includes('--reasoning-parser') || !!e.alwaysThinks }, peers));
     }
 
     const lc = config.llamacpp || {};

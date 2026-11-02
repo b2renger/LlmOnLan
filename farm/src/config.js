@@ -376,10 +376,17 @@ const VllmModelSchema = z.object({
     // Or a model folder anywhere in vLLM's Linux, used where it is ("Use the models in this folder", 2026-10-12): an
     // absolute Linux path (a Windows drive is /mnt/<letter>/…). The farm never downloads into it nor deletes it.
     path: z.string().regex(/^(\/[^/\0\r\n"'\\$`]+)+$/).refine((p) => !/(^|\/)\.\.?(\/|$)/.test(p), 'no . or .. in the path').nullable().default(null),
+    // A model published as ONE GGUF file that takes its config and tokenizer from another repo (Flint's NVFP4,
+    // 2026-11-02): vLLM loads <folder>/<gguf>, and only the small files of `configRepo` (its json and its chat
+    // template, never its weights) are downloaded, into <folder>/config (--hf-config-path, --tokenizer).
+    gguf: z.string().regex(/^[\w.-]+\.gguf$/).nullable().default(null),
+    configRepo: z.string().regex(/^[A-Za-z0-9][\w.-]*\/[\w.-]+$/).nullable().default(null),
+    minVllm: z.string().regex(/^\d+\.\d+\.\d+$/).nullable().default(null),   // the oldest vLLM that loads it
     sizeGb: z.number().nullable().default(null),       // the download
     weightsGib: z.number().nullable().default(null),   // vLLM's "Model loading took X GiB"; null = its size on disk
     vision: z.boolean().nullable().default(null),      // null = what the checkpoint says (vision_config)
     audio: z.boolean().default(false),                 // hears sound in a chat message (and Qwen3-Omni transcribes)
+    alwaysThinks: z.boolean().default(false),          // its template has no thinking switch: the farm's route drops it (litellm.js)
     presencePenalty: z.number().min(-2).max(2).nullable().default(null),   // see external.presencePenalty
     args: z.array(z.string()).default([]),             // this model's `vllm serve` flags (parsers, KV precision)
     catalog: z.string().nullable().default(null),      // its id in src/capacity/catalog.json (memory per person)
@@ -408,6 +415,10 @@ const OMNI_ARGS = ['--quantization', 'fp8', '--kv-cache-dtype', 'fp8', '--enable
 // What a chat message may carry, for the two that hear sound: 4 pictures, 1 sound, no video (vLLM's recipe; it keeps
 // room for the largest message it allows, and no LlmOnLan surface sends video).
 const MM_LIMIT = ['--limit-mm-per-prompt', '{"image":4,"audio":1,"video":0}'];
+// Flint (vLLM's own recipe, recipes/models/RecursiveSI/flint.yaml at v0.33.0): the GLM-4.7 tool-call and thinking parsers,
+// and tools left out of the prompt when a request says tool_choice none.
+const FLINT_ARGS = ['--enable-prefix-caching', '--reasoning-parser', 'glm47', '--enable-auto-tool-choice', '--tool-call-parser', 'glm47',
+    '--exclude-tools-when-tool-choice-none'];
 const VLLM_LIBRARY = [
     {
         id: 'qwen3.6-35b-a3b', label: 'Qwen3.6 35B-A3B · NVFP4', repo: 'nvidia/Qwen3.6-35B-A3B-NVFP4',
@@ -438,6 +449,12 @@ const VLLM_LIBRARY = [
         sizeGb: 70.5, weightsGib: 30.91, vision: true, audio: true, presencePenalty: null, args: [...OMNI_ARGS, ...MM_LIMIT],
         catalog: 'qwen3-omni-30b-a3b', measured: 'omni',
         note: 'Sees images, hears sound in a message and writes down speech; answers in text only. Measured: 20 people at 32k, 10 at 64k on an RTX PRO 6000 (its memory is the limit). A 70 GB download.',
+    },
+    {
+        id: 'flint', label: 'Flint 40B-A2.5B · NVFP4', repo: 'RecursiveSI/flint-nvfp4-gguf', gguf: 'flint-nvfp4.gguf', configRepo: 'RecursiveSI/flint',
+        minVllm: '0.33.0', sizeGb: 22.9, weightsGib: null, vision: false, alwaysThinks: true, presencePenalty: null, args: FLINT_ARGS,
+        catalog: null, measured: null,
+        note: 'Recursive’s model for coding agents. Text only, always thinks.',
     },
 ];
 
