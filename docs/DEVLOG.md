@@ -6,6 +6,93 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-02 (18:09) — vLLM 0.33.0 for the farm, and Flint on it: the five models work, Qwen3.6 is faster, Flint serves 20 people at 64k (branch `vllm-033`)
+
+The owner: *"I would like to try to bump vllm in a branch ... then we start testing flint in a branch."* Branch `vllm-033`
+from `multiuser-phase0` (b515ad7). Not merged, not released. The owner closed the production farm for these tests, so
+the PRO 6000's GPU was free (the Ollama app stayed open, no model loaded). All numbers, with their conditions:
+[spike/RESULTS.md, *vLLM 0.33.0 and Flint on vLLM*](spike/RESULTS.md#vllm-0330-and-flint-on-vllm-rtx-pro-6000-2026-11-02).
+
+**How it was run.** vLLM 0.33.0 went into a root of its own, `~/lol-vllm-033`, through the farm's own `install.sh`
+(as the panel calls it); its `hf/` is a link to the production root's, so the models already there were reused, and the
+new ones (Gemma 4 12B 8.7 GB, Qwen3-Omni 67 GB, Flint 22 GB: new folders only) went into the production `hf/` through
+the farm's Download path. The production install (`~/lol-vllm`, vLLM 0.30.0) was never installed into; Nemotron and
+Qwen3.8 were read where the parked spike root keeps them (list entries by path). Each model was served by a scratch farm
+from this branch (`lol up` from a scratch folder: its own config and ports, beacon and plugins off, a stand-in Ollama)
+with the farm's own argv, and checked through the farm's route. The same-day A/B ran production's 0.30.0 from a root
+whose `.venv` and `hf` are links to production's, read only.
+
+**vLLM 0.33.0 on the five models of the list: no model breaks, so nothing blocks the bump.**
+- Every model starts with the farm's flags unchanged (first start 2–6.5 min: kernels compile; then 1–2.5 min) and
+  answers; thinking, tool calls and pictures work as on 0.30.0; Qwen3-Omni hears French and English and writes speech
+  down (`/v1/audio/transcriptions`, 0.11–0.16 s).
+- The gate, thinking on / off: Qwen3.6 27/28 / 28/28 (0.30.0 the same day: 26 / 28), Nemotron 26 / 25 (0.30.0: 25 / 26),
+  Qwen3.8 27 / 28 (26 / 28), Gemma 4 23 / 28 (22 / 26), Qwen3-Omni 26 and 27 in two runs (28): all within the gate's noise.
+- **Qwen3.6 at 64k, same day, same argv: 0.33.0 serves 48 people on every turn against 0.30.0's 32**, ≥ 64 in steady use
+  on both; decode is 15–25 % faster under load at every level (8 to 64 users).
+- Found: a conversation takes ~8 % more of vLLM's pool on the hybrid Qwens (Qwen3.6 73.9 instead of 80.3 people of 64k in
+  61 GiB; nothing measured changes, throughput binds first); `--mamba-cache-mode` is deprecated and does nothing (the farm
+  keeps passing it while a 0.30.0 install may run its flags, and must drop it before a vLLM that refuses it); the reply
+  limit is still a ceiling; **Gemma 4 12B now answers a French recording in English** (6 of 6; 0.30.0 the same day wrote
+  the French, 6 of 6; English recordings and Qwen3-Omni unchanged; not root-caused; no LlmOnLan surface sends sound to
+  Gemma yet).
+- The install: torch 2.14.0+cu132 (uv's `--torch-backend=auto` still picks cu132 on driver 596.36), FlashInfer
+  0.7.2.post1 compiles its kernels at the first start with the farm's toolchain, and `install.sh`'s `cuda-pins` step is
+  still right (the resolver brought nvcc/crt/nvvm 13.4.92 again; the step pinned them to the 13.2 runtime). 9.0 GB.
+
+**Flint on vLLM 0.33.0** (J12–J13 on vLLM; the NVFP4 GGUF and the BF16 repo's config and tokenizer, vLLM's recipe
+flags):
+- **Speed and people at once:** one person 252 tok/s (llama.cpp with its experts in RAM, 2026-10-23: 44–55); chat 64 /
+  ≥ 128, agent steps ≥ 128 / ≥ 128; **40 people at 32k, 20 at 64k** (every turn and steady), both the limit of its memory:
+  Flint's vLLM model takes a bf16 context cache only (fp8 stops the start), so the farm's 60 GiB pool holds 19.3
+  conversations of 64k (Qwen3.6: 48 people at 64k).
+- **Integer tool arguments survive across turns** (18 of 18 calls; Ollama's `"30000.0"` bug does not happen on vLLM),
+  and an earlier turn's reasoning reaches the prompt.
+- **Two problems, fixed in the farm:** an answer with no think block came back empty (vLLM's `glm47` parser starts every
+  answer as thinking; 3 of 6 short answers after a tool result): `install.sh` now writes a copy of Flint's template whose
+  answer opens a think block and the farm passes it (6 of 6). And `enable_thinking: false` (Open WebUI's titles) left
+  the `<think>` block in the title (6 of 6): the route drops the switch for Flint (6 of 6 clean).
+- **The gate:** 26, 24, 24 with Flint's own template, 25, 25, 25 with the farm's (llama.cpp, 2026-10-23: 27).
+  `tool_calendar` failed every run (no `date` argument).
+- **The coding agent, five tasks × 3** (the farm's reply room, 32,768): **Flint 13/15** (12/15 with its own template),
+  39 s a task (median), against **Qwen3.6 7/15 on 0.33.0 and 9/15 on 0.30.0** the same day, 15–16 s a task. Flint still
+  loops at times (110 and 149 steps in two runs that passed).
+
+**Changed (farm):**
+- `install.sh`: **Update vLLM builds the new version beside the working one** (`.venv-next`, a relocatable uv
+  environment) and swaps it in only once its check passed; a cut download, a full disk, a failed check or Stop leaves
+  0.30.0 in place, ready to serve. Checked for real: 0.30.0 → 0.33.0 stopped half-way twice (`.venv` still 0.30.0, its
+  `vllm` runs, status.sh says 0.30.0), then Update again finishes and swaps (`vllm`, `hf` and the imports work from the
+  renamed folder). The same version again installs in place, as before. It also installs `gguf>=0.19.0`, takes a config
+  repo as a third argument (its json and chat template only, into `<folder>/config`), and writes Flint's open-think
+  template copy when asked.
+- **The version: 0.33.0** (`install.sh`, `vllm.version`). A farm with 0.30.0 reads *"vLLM 0.30.0 is installed; this farm
+  was tested with 0.33.0."* with **Update vLLM** beside it and keeps serving on 0.30.0: nothing updates by itself, and the
+  five models' flags are the same on both.
+- **Flint in the list** (`config.js`): one GGUF file (`gguf`) with a config repo (`configRepo`), `minVllm: '0.33.0'`
+  (the checklist and Use this refuse it on an older vLLM, before anything stops), `openThink`, `alwaysThinks` (the route
+  drops the thinking switch), 21.86 GiB, the `glm47` parsers, text only. `status.sh` lists a GGUF folder and reads its
+  window from `config/`; `serve.sh` starts a single-file model offline too; a Flint added by name gets Flint's flags.
+- **Capacity:** `measured.json` `pro6000/vllm/flint` (40 at 32k, 20 at 64k), so Automatic serves 20 people at 64k on a
+  PRO 6000 instead of 4. No catalog entry (no estimate for other boxes; no memory cap from the catalog, so a smaller pool,
+  document reading on for example, holds fewer than the 20 seats). **Not in `AGENT_PROVEN`:** the panel's LOL Vibe line
+  now says Flint passed 13 of the 15 tasks on the farm's vLLM; adding it is the owner's call.
+- Tests: farm `test/run.js` **280/280** (the Flint entry, the version check, the route; the list's six built-ins);
+  `farm/vllm/test_scripts.sh` **129/129** (a new `update` test with a fake uv: a failed download or check leaves 0.30.0 in
+  place; the GGUF folder; the config repo; the open-think copy); `LOL_VLLM_FAKE=1 node test/vllm-lifecycle.js` **172/172**
+  (all 24 steps). No shell change, so no shell test.
+
+**My mistakes, undone:** the first install ran from Git Bash, which rewrote `/home/...` into `C:/Program Files/Git/home/...`:
+it began a venv inside the worktree's `farm/vllm/` (stopped after 4 min, the folder removed). And I edited `install.sh`
+while the next install was reading it (reverted within a minute): that install's last line failed with a syntax error
+after its check had passed; the same install again finished cleanly in 4 s.
+
+**Left:** `~/lol-vllm-033` (vLLM 0.33.0, 9.0 GB; a later Update of production can reuse its uv cache); the new model
+folders in production's `hf/` (98 GB on WSL's disk on F:); uv's cache grew by ~5 GB. Nothing of mine runs (below). The
+production root, its venv and its 0.30.0 are as they were; the owner's Farm app starts its own vLLM 0.30.0 as before.
+
+---
+
 ## 2026-11-02 (14:00) — Flint on the farm's other engines: Ollama and vLLM can serve it now, neither is ready for the coding agent yet
 
 The owner, before the v0.2.15 release: *"before any change on the flint side? can it be run through other backends?"*
