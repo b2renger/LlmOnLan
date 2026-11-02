@@ -8,7 +8,8 @@
 #   mem_total_kb= mem_available_kb= disk_free_kb=   (the disk under the root)
 #   install=<root> <vLLM version>             one per root with a vLLM, and venv_link=<root> when its .venv is a link,
 #                                             audio=<root> when it has vLLM's sound extras
-#   model=<folder> <kB> vision=<0|1> native=<window> partial=<0|1>   one per folder in <root>/hf
+#   model=<folder> <kB> vision=<0|1> native=<window> partial=<0|1>   one per folder in <root>/hf (a GGUF folder: its
+#                                             config/ read, partial until it is there)
 #   pathmodel=<kB> vision= native= partial= <path>   one per folder of LOL_VLLM_PATHS_B64 that holds a model
 #   running=<pgid>, then env=LOL_VLLM_…=, arg=<each `vllm serve` argument, the model first>, ready=1
 #   found=<root> <port> <pgid>                every serve.sh running on this computer, from any root
@@ -45,8 +46,10 @@ for r in "$ROOT" "${MORE[@]}"; do
 done
 for m in "$ROOT"/hf/*/; do
   [ -d "$m" ] || continue
-  c="$m/config.json"; inc=$(find "$m" -name '*.incomplete' 2>/dev/null | head -1)
-  [ -f "$c" ] || [ -n "$inc" ] || continue   # a folder that is not a model
+  c="$m/config.json"; inc=$(find "$m" -name '*.incomplete' 2>/dev/null | head -1); g=
+  # A model published as one GGUF file (Flint's NVFP4): its config is the other repo's, in config/ (install.sh).
+  [ -f "$c" ] || { ls "$m"*.gguf >/dev/null 2>&1 && g=1 && c="$m/config/config.json"; }
+  [ -f "$c" ] || [ -n "$g" ] || [ -n "$inc" ] || continue   # a folder that is not a model
   vis=0; grep -q '"vision_config"' "$c" 2>/dev/null && vis=1
   nat=$(grep -o '"max_position_embeddings": *[0-9]*' "$c" 2>/dev/null | head -1 | grep -o '[0-9]*$')
   part=0; { [ -n "$inc" ] || [ ! -f "$c" ]; } && part=1

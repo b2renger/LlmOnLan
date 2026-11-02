@@ -1,0 +1,23 @@
+#!/bin/bash
+# Stand-in for uv in install.sh's venv steps (farm/vllm/test_scripts.sh, "update"): `uv venv <dir> ...` makes a venv
+# whose python is ./python here, `uv pip install --python <py> vllm[...]==X ...` installs a fake vLLM X into it (its
+# dist-info, and the fake vllm and hf commands). FAKE_UV=fail-vllm makes that install fail before it changes anything
+# (as a download cut off does: uv prepares every package before it installs one); the fake python's own FAKE_UV=fail-check
+# makes the install's check fail.
+here="$(cd "$(dirname "$0")" && pwd)"
+case "$1 $2" in
+  "venv "*) d="$2"; mkdir -p "$d/bin" "$d/lib/python3.12/site-packages"; cp "$here/python" "$d/bin/python"; chmod +x "$d/bin/python"
+            for a in "$@"; do [ "$a" = --relocatable ] && : > "$d/relocatable"; done; exit 0;;
+  "pip install")
+    py=; prev=; for a in "$@"; do [ "$prev" = --python ] && py=$a; prev=$a; done
+    v="$(dirname "$(dirname "$py")")"
+    for a in "$@"; do
+      case "$a" in vllm*==*)
+        [ "${FAKE_UV:-}" = fail-vllm ] && { echo "error: Failed to fetch: https://files.pythonhosted.org/... (network)"; exit 2; }
+        rm -rf "$v"/lib/python3.12/site-packages/vllm-*.dist-info
+        mkdir -p "$v/lib/python3.12/site-packages/vllm-${a##*==}.dist-info"
+        cp "$here/vllm" "$here/fake_vllm.py" "$here/hf" "$v/bin/"; chmod +x "$v/bin/vllm" "$v/bin/hf";;
+      esac
+    done; exit 0;;
+esac
+echo "fake uv: $*"; exit 0

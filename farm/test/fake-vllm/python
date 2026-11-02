@@ -1,0 +1,11 @@
+#!/bin/bash
+# The python of a venv the fake uv makes: install.sh's check (`python -` with a script on stdin) prints a version line,
+# or fails with FAKE_UV=fail-check; anything else (`python -c …`, the cuda-pins step's question) answers nothing. The fake
+# vllm command runs fake_vllm.py with the system's python3 (its own shebang), never this.
+if [ "${1:-}" = - ]; then
+  cat > /dev/null
+  [ "${FAKE_UV:-}" = fail-check ] && { echo "ImportError: libcudart.so.13: cannot open shared object file"; exit 1; }
+  d="$(cd "$(dirname "$0")/.." && pwd)"; v=$(ls -d "$d"/lib/python3*/site-packages/vllm-*.dist-info 2>/dev/null | tail -1); v=${v##*/vllm-}
+  echo "vllm ${v%.dist-info} | torch fake"; exit 0
+fi
+exit 0

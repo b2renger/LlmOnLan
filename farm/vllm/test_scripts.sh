@@ -6,7 +6,7 @@
 #   Windows: wsl -d Ubuntu --cd <repo>\farm\vllm -e bash ./test_scripts.sh
 D="$(cd "$(dirname "$0")" && pwd)"
 FAKE="$(cd "$D/../test/fake-vllm" && pwd)"
-TESTS="${*:-daemon stopsh interactive devnull guard badfloor crash rewrite managed marker refusals rotation tilde status install stopscope foreign timelimit}"
+TESTS="${*:-daemon stopsh interactive devnull guard badfloor crash rewrite managed marker refusals rotation tilde status install update stopscope foreign timelimit}"
 ROOT=/tmp/lol-as-root; ROOT2=/tmp/lol-as-root2; LINK=/tmp/lol-as-link; EMPTY=/tmp/lol-as-empty; TH=/tmp/lol-as-home
 mkroot() {   # a root whose vllm and hf are the fakes, with the dist-info folder an install of vLLM 0.30.0 has
   pkill -KILL -f "$1/" 2>/dev/null
@@ -234,6 +234,13 @@ t_status() {
   check "model= a whole one: vision, its window" grep -qE '^model=M1 [0-9]+ vision=1 native=262144 partial=0$' "$ST"
   check "model= a partial one" grep -qE '^model=M2 [0-9]+ vision=0 native=32768 partial=1$' "$ST"
   check "no model= for a folder that is no model; no guard=, installing= or managed=" lacks '^model=notes|^guard=|^installing=|^managed=' "$ST"
+  # A model published as one GGUF file (Flint's NVFP4): its config is the other repo's, in config/; without it, partial.
+  mkdir -p "$ROOT/hf/G1/config" "$ROOT/hf/G2"; : > "$ROOT/hf/G1/m.gguf"; : > "$ROOT/hf/G2/m.gguf"
+  printf '{"max_position_embeddings": 262144}' > "$ROOT/hf/G1/config/config.json"
+  st "$ROOT"
+  check "model= a GGUF folder: its window from config/, whole" grep -qE '^model=G1 [0-9]+ vision=0 native=262144 partial=0$' "$ST"
+  check "model= a GGUF folder without its config yet: partial" grep -qE '^model=G2 [0-9]+ vision=0 native= partial=1$' "$ST"
+  rm -rf "$ROOT/hf/G1" "$ROOT/hf/G2"
   check "cc= the C compiler vLLM needs at a start (this Linux has one)" grep -qE '^cc=/' "$ST"
   # Models of the list by their own folder (the farm's "Use the models in this folder"): a path with a space, a missing
   # one, a folder that is no model; and hf/ as a link to a folder on another disk (the farm's model folder after a move).
@@ -262,6 +269,8 @@ t_install() {
   check "the weights in hf/<the repo's name>, no pgid file left" bash -c "[ -f '$ROOT/hf/Some-Model/config.json' ] && [ ! -e '$ROOT/run/install.pgid' ]"
   LOL_VLLM_STEPS=model bash "$D/install.sh" org/Some-Model my-folder > "$OUT" 2>&1
   check "or in a folder named by the farm" [ -f "$ROOT/hf/my-folder/config.json" ]
+  LOL_VLLM_STEPS=model bash "$D/install.sh" org/Thing-gguf thing org/Thing > "$OUT" 2>&1; rc=$?
+  check "a GGUF and its config repo: the GGUF in hf/<folder>, the other repo's small files only, in its config/" bash -c "[ $rc = 0 ] && [ -f '$ROOT/hf/thing/m.gguf' ] && [ -f '$ROOT/hf/thing/config/config.json' ] && grep -q 'org/Thing --local-dir $ROOT/hf/thing/config --include' '$ROOT/hf/thing/config/hf.args' && ! grep -q -- '--include' '$ROOT/hf/thing/hf.args'"
   # Qwen3-Omni's template is only its processor's: the tokenizer gets it as chat_template.jinja (tool calls 400 otherwise).
   FAKE_HF=proctpl LOL_VLLM_STEPS=model bash "$D/install.sh" org/Omni > "$OUT" 2>&1
   check "a processor-only chat template: chat_template.jinja written from chat_template.json" bash -c "[ \"\$(cat '$ROOT/hf/Omni/chat_template.jinja')\" = '{% for m in messages %}{{ m.content }}{% endfor %}' ]"
@@ -334,6 +343,25 @@ t_foreign() {
   wait $P $P2 2>/dev/null
 }
 
+t_update() {
+  echo "install.sh's venv steps with a fake uv: Update vLLM builds beside the working one and swaps only once it checks"
+  local U=/tmp/lol-as-upd FB=/tmp/lol-as-upd-bin rc
+  rm -rf "$U" "$FB"; mkdir -p "$FB"; cp "$FAKE/uv" "$FAKE/python" "$FAKE/vllm" "$FAKE/fake_vllm.py" "$FAKE/hf" "$FB/"; chmod +x "$FB"/*
+  ver() { local v; v=$(ls -d "$U"/.venv/lib/python3*/site-packages/vllm-*.dist-info 2>/dev/null | tr '\n' ' '); echo "$v"; }
+  ins() { PATH="$FB:$PATH" LOL_VLLM_ROOT="$U" LOL_VLLM_STEPS=venv LOL_VLLM_VERSION="$1" bash "$D/install.sh" > "$OUT" 2>&1; }
+  ins 0.30.0; rc=$?
+  check "a first install: vLLM 0.30.0 in .venv, made relocatable" bash -c "[ $rc = 0 ] && [ -d '$U/.venv/lib/python3.12/site-packages/vllm-0.30.0.dist-info' ] && [ -e '$U/.venv/relocatable' ] && [ ! -e '$U/.venv-next' ]"
+  FAKE_UV=fail-vllm ins 0.33.0; rc=$?
+  check "an update whose download fails: an error, the old vLLM untouched and still there to serve" bash -c "[ $rc != 0 ] && [ '$(ver)' = '$U/.venv/lib/python3.12/site-packages/vllm-0.30.0.dist-info ' ] && [ -x '$U/.venv/bin/vllm' ] && [ -d '$U/.venv-next' ]"
+  check "...and status.sh still says 0.30.0" bash -c "LOL_VLLM_ROOT='$U' bash '$D/status.sh' | grep -qx 'install=$U 0.30.0'"
+  FAKE_UV=fail-check ins 0.33.0; rc=$?
+  check "an update whose check fails: an error, the old vLLM untouched" bash -c "[ $rc != 0 ] && [ '$(ver)' = '$U/.venv/lib/python3.12/site-packages/vllm-0.30.0.dist-info ' ]"
+  ins 0.33.0; rc=$?
+  check "an update that checks: vLLM 0.33.0 in .venv, nothing left beside it" bash -c "[ $rc = 0 ] && [ '$(ver)' = '$U/.venv/lib/python3.12/site-packages/vllm-0.33.0.dist-info ' ] && [ ! -e '$U/.venv-next' ] && [ ! -e '$U/.venv-prev' ] && grep -q '^vllm 0.33.0' '$OUT'"
+  : > "$U/.venv/marker"; ins 0.33.0; rc=$?
+  check "the same version again (a repair): in .venv itself, nothing built beside it" bash -c "[ $rc = 0 ] && [ -e '$U/.venv/marker' ] && [ ! -e '$U/.venv-next' ]"
+  rm -rf "$U" "$FB"
+}
 t_timelimit() {
   echo "a download at the farm's time limit (vllm.js install): install.sh, hf and tee all stop, nothing left recorded"
   command -v node >/dev/null || { echo "  (skipped: no node)"; return; }
