@@ -6,6 +6,17 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-02 (14:36) — Release client v0.2.15: prompts for ComfyQ
+
+The owner: *"lets do a release"* (after the Flint check of 14:00, which changed nothing in the client).
+- **Client v0.2.15** (tag `v0.2.15`, commit `2a9a081`, CI run 41448863958, 38 min): success, 27 assets; `latest.yml` says
+  0.2.15. What it adds: `comfyq_models` and `comfyq_prompt_guide` in the Computer's MCP server (the merge `26c0a81`;
+  gates on that tree: shell build, chat-unit 1932/0, unit 29, lint 0; farm 279/0).
+- **No Farm app release:** the farm did not change for it. The wording fix of 14:00 (`presets.js`: Flint joins "once
+  the farm's vLLM serves it") waits for the next one.
+- **Release notes:** a "What's new" above CI's own text (how to turn the tool on, nothing sent to ComfyQ).
+- **Not done, the owner's:** HUMAN_TESTS A20 (a prompt for a ComfyQ workflow through Open WebUI, pasted into ComfyQ).
+
 ## 2026-11-02 (14:00) — Flint on the farm's other engines: Ollama and vLLM can serve it now, neither is ready for the coding agent yet
 
 The owner, before the v0.2.15 release: *"before any change on the flint side? can it be run through other backends?"*
