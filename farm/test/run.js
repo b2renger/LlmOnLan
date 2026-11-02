@@ -4843,7 +4843,7 @@ test('vLLM list, Gemma 4 and Qwen3-Omni (owner 2026-10-09): their flags, their f
 test('vLLM list, Flint (2026-11-02): one GGUF file with another repo\'s config, vLLM 0.33.0 or newer, its parsers, no thinking switch', () => {
     const c = defaultConfig(); c.vllm.enabled = true; c.vllm.model = 'flint'; c.vllm.root = '/h/lol-vllm';
     const e = V.vllmEntry(c);
-    assert.deepEqual([e.repo, e.gguf, e.configRepo, e.minVllm, e.vision, e.alwaysThinks], ['RecursiveSI/flint-nvfp4-gguf', 'flint-nvfp4.gguf', 'RecursiveSI/flint', '0.33.0', false, true]);
+    assert.deepEqual([e.repo, e.gguf, e.configRepo, e.openThink, e.minVllm, e.vision, e.alwaysThinks], ['RecursiveSI/flint-nvfp4-gguf', 'flint-nvfp4.gguf', 'RecursiveSI/flint', true, '0.33.0', false, true]);
     // vLLM loads the file, and takes the config and tokenizer from <folder>/config (install.sh's third argument).
     const s = V.settingsOf(c, '/h/lol-vllm');
     assert.equal(s.modelPath, '/h/lol-vllm/hf/flint-nvfp4-gguf/flint-nvfp4.gguf');
@@ -4853,6 +4853,9 @@ test('vLLM list, Flint (2026-11-02): one GGUF file with another repo\'s config, 
         '--enable-prefix-caching': true, '--reasoning-parser': 'glm47', '--enable-auto-tool-choice': true, '--tool-call-parser': 'glm47',
         '--exclude-tools-when-tool-choice-none': true, '--hf-config-path': '/h/lol-vllm/hf/flint-nvfp4-gguf/config',
         '--tokenizer': '/h/lol-vllm/hf/flint-nvfp4-gguf/config', '--override-generation-config': { max_new_tokens: 32768 },
+        // install.sh's copy of Flint's template whose answer opens a think block (vLLM's glm47 parser read an answer with
+        // none as thinking: 3 of 6 short answers after a tool result came back empty; with it, 0 of 6).
+        '--chat-template': '/h/lol-vllm/hf/flint-nvfp4-gguf/config/chat_template_open_think.jinja',
     });
     assert.ok(!V.argvFor(V.vllmEntry(defaultConfig()), V.settingsOf(defaultConfig(), '/h'), 40, 64).includes('--hf-config-path'), 'the others: their folder, as before');
     // A server started so is kept at the next start (adoption compares the file and the flags).
@@ -4875,7 +4878,7 @@ test('vLLM list, Flint (2026-11-02): one GGUF file with another repo\'s config, 
     // A Flint added by its name gets Flint's flags; the panel downloads the config repo too.
     assert.deepEqual(V.familyArgs('RecursiveSI/flint'), e.args);
     const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
-    assert.equal((upSrc.match(/configRepo: e(?: && e)?\.configRepo/g) || []).length, 2, 'Download and Install pass the config repo');
+    assert.equal((upSrc.match(/configRepo: e(?: && e)?\.configRepo, openThink: (?:!!\(e && e\.openThink\)|e\.openThink)/g) || []).length, 2, 'Download and Install pass the config repo and the open-think copy');
 });
 
 test('vLLM sound: status.sh says which install has vLLM\'s sound extras; a model that hears gets Update vLLM without them', () => {

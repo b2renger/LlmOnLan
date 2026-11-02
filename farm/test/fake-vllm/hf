@@ -11,6 +11,8 @@ case "${FAKE_HF:-ok}" in
   ok)    mkdir -p "$dir"; echo "$*" > "$dir/hf.args"   # what it was asked (a config repo's --include)
          # A repo named *-gguf holds one GGUF file and no config (Flint's NVFP4).
          case "$2" in *-gguf) : > "$dir/m.gguf"; exit 0;; esac
+         # A config repo (asked with --include) has Flint's chat template, its answer prompt last.
+         case " $* " in *" --include "*) printf '{%%- if add_generation_prompt -%%}\n<|assistant|>\n{%%- endif -%%}' > "$dir/chat_template.jinja";; esac
          echo '{"max_position_embeddings": 4096}' > "$dir/config.json"   # as hf 1.33: an earlier,
          # stopped attempt's .incomplete file stays (each attempt writes a file of its own; install.sh clears them)
          printf 'Fetching 2 files:  50%%|#####     | 1/2\rFetching 2 files: 100%%|##########| 2/2\n'; exit 0;;

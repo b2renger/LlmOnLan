@@ -100,6 +100,21 @@ if [[ "$STEPS" == *,model,* ]]; then
     "$ROOT/.venv/bin/hf" download "$CFG" --local-dir "$ROOT/hf/$FOLDER/config" --include "*.json" --include "*.jinja" --exclude "*.index.json" 2>&1 | tee -a "$OUT"
     rc=${PIPESTATUS[0]}
   fi
+  # LOL_VLLM_OPEN_THINK=1 (vllm.js, Flint): a copy of the config's chat template whose answer opens a think block,
+  # chat_template_open_think.jinja (vllm.js passes it as --chat-template). Flint chooses each turn whether to think,
+  # and vLLM's glm47 parser reads an answer with no think block as thinking: half the short answers after a tool
+  # result came back empty (2026-11-02). A template whose answer prompt is not the expected one is copied unchanged.
+  if [ "$rc" = 0 ] && [ -n "$CFG" ] && [ -n "${LOL_VLLM_OPEN_THINK:-}" ]; then
+    "$PY" - "$ROOT/hf/$FOLDER/config" <<'PY' || true
+import os, sys
+d = sys.argv[1]
+src = open(os.path.join(d, "chat_template.jinja"), encoding="utf8").read()
+old = "<|assistant|>\n{%- endif -%}"
+out = src.replace(old, "<|assistant|><think>\n{%- endif -%}") if src.count(old) == 1 else src
+open(os.path.join(d, "chat_template_open_think.jinja"), "w", encoding="utf8").write(out)
+print("wrote chat_template_open_think.jinja" + ("" if out != src else " (unchanged: its answer prompt is not the expected one)"))
+PY
+  fi
   set -e
   if [ "$rc" != 0 ]; then
     last=$(tr '\r' '\n' < "$OUT" | grep -v '^\s*$' | tail -n 1 | cut -c1-300 || true)

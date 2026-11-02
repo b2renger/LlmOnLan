@@ -271,6 +271,9 @@ t_install() {
   check "or in a folder named by the farm" [ -f "$ROOT/hf/my-folder/config.json" ]
   LOL_VLLM_STEPS=model bash "$D/install.sh" org/Thing-gguf thing org/Thing > "$OUT" 2>&1; rc=$?
   check "a GGUF and its config repo: the GGUF in hf/<folder>, the other repo's small files only, in its config/" bash -c "[ $rc = 0 ] && [ -f '$ROOT/hf/thing/m.gguf' ] && [ -f '$ROOT/hf/thing/config/config.json' ] && grep -q 'org/Thing --local-dir $ROOT/hf/thing/config --include' '$ROOT/hf/thing/config/hf.args' && ! grep -q -- '--include' '$ROOT/hf/thing/hf.args'"
+  check "...no open-think copy unless asked" [ ! -e "$ROOT/hf/thing/config/chat_template_open_think.jinja" ]
+  LOL_VLLM_OPEN_THINK=1 LOL_VLLM_STEPS=model bash "$D/install.sh" org/Thing-gguf thing org/Thing > "$OUT" 2>&1; rc=$?
+  check "LOL_VLLM_OPEN_THINK=1: a copy of its template whose answer opens a think block" bash -c "[ $rc = 0 ] && [ \"\$(cat '$ROOT/hf/thing/config/chat_template_open_think.jinja')\" = \"\$(printf '{%%- if add_generation_prompt -%%}\n<|assistant|><think>\n{%%- endif -%%}')\" ]"
   # Qwen3-Omni's template is only its processor's: the tokenizer gets it as chat_template.jinja (tool calls 400 otherwise).
   FAKE_HF=proctpl LOL_VLLM_STEPS=model bash "$D/install.sh" org/Omni > "$OUT" 2>&1
   check "a processor-only chat template: chat_template.jinja written from chat_template.json" bash -c "[ \"\$(cat '$ROOT/hf/Omni/chat_template.jinja')\" = '{% for m in messages %}{{ m.content }}{% endfor %}' ]"

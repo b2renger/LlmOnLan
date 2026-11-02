@@ -381,6 +381,10 @@ const VllmModelSchema = z.object({
     // template, never its weights) are downloaded, into <folder>/config (--hf-config-path, --tokenizer).
     gguf: z.string().regex(/^[\w.-]+\.gguf$/).nullable().default(null),
     configRepo: z.string().regex(/^[A-Za-z0-9][\w.-]*\/[\w.-]+$/).nullable().default(null),
+    // Its config repo's chat template, with the answer opening a think block (install.sh writes the copy,
+    // chat_template_open_think.jinja; vllm.js passes it): Flint thinks only when it chooses to, and vLLM's glm47 parser
+    // reads an answer with no think block as thinking (an empty reply).
+    openThink: z.boolean().default(false),
     minVllm: z.string().regex(/^\d+\.\d+\.\d+$/).nullable().default(null),   // the oldest vLLM that loads it
     sizeGb: z.number().nullable().default(null),       // the download
     weightsGib: z.number().nullable().default(null),   // vLLM's "Model loading took X GiB"; null = its size on disk
@@ -452,7 +456,7 @@ const VLLM_LIBRARY = [
     },
     {
         id: 'flint', label: 'Flint 40B-A2.5B · NVFP4', repo: 'RecursiveSI/flint-nvfp4-gguf', gguf: 'flint-nvfp4.gguf', configRepo: 'RecursiveSI/flint',
-        minVllm: '0.33.0', sizeGb: 22.9, weightsGib: null, vision: false, alwaysThinks: true, presencePenalty: null, args: FLINT_ARGS,
+        openThink: true, minVllm: '0.33.0', sizeGb: 22.9, weightsGib: null, vision: false, alwaysThinks: true, presencePenalty: null, args: FLINT_ARGS,
         catalog: null, measured: null,
         note: 'Recursive’s model for coding agents. Text only, always thinks.',
     },

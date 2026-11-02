@@ -243,7 +243,7 @@ function newLibraryEntry(input = {}, library = [], disk = []) {
         return id;
     };
     const label = (fallback) => String(input.label || fallback).replace(/[\r\n\t]/g, ' ').trim().slice(0, 80) || fallback;
-    const blank = { repo: null, folder: null, path: null, gguf: null, configRepo: null, minVllm: null, sizeGb: null, weightsGib: null, vision: null, alwaysThinks: false, presencePenalty: null, catalog: null, measured: null, note: '' };
+    const blank = { repo: null, folder: null, path: null, gguf: null, configRepo: null, openThink: false, minVllm: null, sizeGb: null, weightsGib: null, vision: null, alwaysThinks: false, presencePenalty: null, catalog: null, measured: null, note: '' };
     // A model folder anywhere in vLLM's Linux, used where it is: its absolute Linux path (`found` = what the scan saw of
     // it: its size, whether it sees images).
     if (input.path != null) {
@@ -395,6 +395,7 @@ function argvFor(entry, s, kvGib, maxNumSeqs) {
     if (i >= 0) { try { gen = JSON.parse(own[i + 1]); } catch { gen = {}; } own.splice(i, 2); }
     if (s.maxReply) gen = { ...gen, max_new_tokens: s.maxReply };
     if (entry.configRepo && s.modelPath) own.push('--hf-config-path', configDir(s.modelPath), '--tokenizer', configDir(s.modelPath));
+    if (entry.openThink && s.modelPath) own.push('--chat-template', `${configDir(s.modelPath)}/chat_template_open_think.jinja`);
     return [
         '--served-model-name', s.modelId,
         '--max-model-len', String(s.ctx),
@@ -1372,14 +1373,14 @@ function folderBytes(t, folder) {
 // child left hf downloading on Linux (bash dies alone, its EXIT trap removes the pid file, and hf and tee carry on,
 // unrecorded: the next Download ran a second one into the same folder; checked inside WSL as native Linux, 2026-10-08).
 // runCmd's own kill, two minutes later, is the backstop. → {ok, kind, error, code}.
-async function install(t, { steps = 'venv,model', repo = null, folder = null, configRepo = null, version = null, sizeGb = null, timeoutMs = 6 * 3600e3 } = {}, onProgress = () => {}) {
+async function install(t, { steps = 'venv,model', repo = null, folder = null, configRepo = null, openThink = false, version = null, sizeGb = null, timeoutMs = 6 * 3600e3 } = {}, onProgress = () => {}) {
     let kind = null; let error = null; let timer = null; const tail = [];
     const total = sizeGb ? sizeGb * 1e9 : null;
     const measure = () => { const b = folderBytes(t, folder); if (b != null) onProgress({ step: 'model', bytes: b, total }); };
     let timedOut = false;
     const limit = setTimeout(() => { timedOut = true; stopInstall(t); }, timeoutMs);
     const r = await spawnScript(asConfig(t), 'install.sh', {
-        LOL_VLLM_ROOT: t.root, LOL_VLLM_STEPS: steps, ...(version ? { LOL_VLLM_VERSION: version } : {}),
+        LOL_VLLM_ROOT: t.root, LOL_VLLM_STEPS: steps, ...(version ? { LOL_VLLM_VERSION: version } : {}), ...(openThink ? { LOL_VLLM_OPEN_THINK: '1' } : {}),
     }, {
         timeoutMs: timeoutMs + 120e3, distro: t.distro || null, args: repo ? [repo, folder || repo.split('/').pop(), ...(configRepo ? [configRepo] : [])] : [],
         onLine: (l) => {
