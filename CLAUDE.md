@@ -173,9 +173,10 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     and `presets-users`, not released): one per session — **Balanced** (the default: the serving engine's shipped defaults
     and plugins), **Documents** (`rag`: the MOST PEOPLE at 64k among models good enough for documents — `GATE_FLOOR`, 25/28
     or more on every run of the spike's check — document reading on), **LOL Vibe** (`vibe`: the most people at 64k among
-    models PROVEN WITH THE IDE'S CODING AGENT — `AGENT_PROVEN`, today Qwen3.6 alone, 11/15 on the five tasks; Flint is not
-    in it: on the farm's vLLM 0.33.0 it passed 13/15 against Qwen3.6's 7–9/15 the same day, for 20 people at 64k; the
-    owner's call — document reading off), **Computer** (the most
+    models PROVEN WITH THE IDE'S CODING AGENT — `AGENT_PROVEN`: Qwen3.6, 11/15 on the five tasks, and since 2026-11-03
+    (owner) Flint, 13/15 on the farm's vLLM 0.33.0 against Qwen3.6's 7–9/15 the same day — not on Ollama, whose
+    ollama#19191 breaks the agent's reads (`NOT_PROVEN_ON`); the most-people rule still picks Qwen3.6 on every card the
+    capacity page knows (48 against Flint's 20 on the PRO 6000) — document reading off), **Computer** (the most
     people at 32k among models that see pictures and do tools well, every plugin on). Picked for THIS box by `scenarios.js`
     `recommend()` (the capacity page's cards, the spike's measurements, the estimator; never copied), only among what it
     can run: vLLM's list where vLLM is set up on a GPU the capacity page knows for a group (people at once and memory

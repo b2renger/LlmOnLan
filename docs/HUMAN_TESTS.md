@@ -1497,7 +1497,9 @@ Step 4: everything works; Automatic still says 48 people at 64k. Write down the 
 3. LOL Vibe: a real project, a few tasks of your own (and one with **Keep going until done**).
 4. **Use this** on Qwen3.6 again.
 
-*Expect:* step 1: Automatic says 20 people at 64k (measured); the checklist refuses Flint on 0.30.0 with *needs vLLM
+*Expect:* step 1: Automatic says 19 people at 64k on a 60 GiB pool (20 were measured at 62k each; the farm counts the
+whole 64k window, and fewer with document reading's memory kept aside), and the Presets card's LOL Vibe still picks
+Qwen3.6, naming Flint as also proven; the checklist refuses Flint on 0.30.0 with *needs vLLM
 0.33.0 or newer*. Step 2: every answer in the reply, never only in the thinking block (the farm's open-think template),
 titles without a `<think>` block (one may be missing: Flint thinks up to ~900 tokens for one); Flint does not see
 pictures. Step 3: the agent works, slower than Qwen3.6 (about 40 s a small task against 15 s), writes and edits files;

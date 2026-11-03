@@ -4881,6 +4881,25 @@ test('vLLM list, Flint (2026-11-02): one GGUF file with another repo\'s config, 
     assert.equal((upSrc.match(/configRepo: e(?: && e)?\.configRepo, openThink: (?:!!\(e && e\.openThink\)|e\.openThink)/g) || []).length, 2, 'Download and Install pass the config repo and the open-think copy');
 });
 
+test('vLLM list, Flint\'s memory (2026-11-03): what vLLM 0.33.0 measured per token, in bf16 only; Automatic never seats more than the pool holds', () => {
+    const c = defaultConfig(); c.vllm.model = 'flint';
+    const e = V.vllmEntry(c); const f = V.facts(e);
+    assert.equal(e.catalog, 'flint');
+    // 1,266,476 tokens in a 60 GiB pool (the catalog keeps it at 1 byte/element, like every model; Flint's flags have no fp8).
+    assert.deepEqual([f.kvBytesPerToken, f.stateBytes], [50870, 0]);
+    // The spike's 20 people at 62k and 40 at 30.2k fit that pool; at the full window, 19 and 38.
+    assert.deepEqual([62000, 30200, 65536, 32768].map((ctx) => V.peopleFit(60, ctx, f)), [20, 41, 19, 38]);
+    // Automatic: the measured 20 at 64k, capped by what the pool holds (fewer with document reading's memory kept aside).
+    assert.deepEqual(V.seatsAuto(e, PRO, 65536, V.peopleFit(60, 65536, f)), { seats: 19, source: 'memory', label: '≥ 20' });
+    assert.deepEqual(V.seatsAuto(e, PRO, 65536, V.peopleFit(51, 65536, f)), { seats: 16, source: 'memory', label: '≥ 20' });
+    // The capacity page: Flint in bf16 whatever its toggle says (fp8 would count it twice), measured on the PRO 6000.
+    const E = require('../src/capacity/estimator'); E.init(require('../src/capacity/catalog.json'), require('../src/capacity/measured.json'));
+    const asFp8 = E.estimate('rtx-pro-6000-maxq', 'flint', { context: 65536, kvDtype: 'fp8' });
+    assert.equal(asFp8.opts.kvDtype, 'bf16');
+    assert.deepEqual(asFp8.people, E.estimate('rtx-pro-6000-maxq', 'flint', { context: 65536, kvDtype: 'bf16' }).people);
+    assert.equal(E.estimate('rtx-pro-6000-ws', 'flint', { context: 62000 }).confidence, 'measured');
+});
+
 test('vLLM sound: status.sh says which install has vLLM\'s sound extras; a model that hears gets Update vLLM without them', () => {
     const st = V.parseStatus(['home=/h', 'root=/h/lol-vllm', 'install=/h/lol-vllm 0.30.0', 'install=/h/other 0.30.0', 'audio=/h/other'].join('\n'));
     assert.deepEqual(st.installs.map((i) => [i.root, i.audio]), [['/h/lol-vllm', false], ['/h/other', true]]);
@@ -6985,7 +7004,7 @@ test('presets: the picks for an RTX PRO 6000 with vLLM — the capacity page\'s 
     // LOL Vibe: the model proven with the coding agent, and why not Flint.
     assert.match(picks.vibe.reasons[0], /^Qwen3\.6 35B-A3B · NVFP4 on vLLM, for 10 people at once .*: Covers your 10 with \d+/);
     assert.ok(picks.vibe.estimate.mid >= 48, `about 48–64 coders at 64k: ${picks.vibe.estimate.mid}`);
-    assert.match(picks.vibe.reasons[1], /^Picked for the most people among the models proven with the IDE's coding agent: 11\/15 on its five tasks, on vLLM\. Flint is not counted yet: on the farm's vLLM 0.33\.0 it passed 13 of the same 15 tasks, for 20 people at 64k\.$/);
+    assert.match(picks.vibe.reasons[1], /^Picked for the most people among the models proven with the IDE's coding agent: 11\/15 on its five tasks, on vLLM\. Also proven: Flint 40B-A2\.5B \(13\/15 on its five tasks, on vLLM 0\.33\.0\)\.$/);
     assert.match(picks.computer.reasons[0], /tool calling, reads images/);
     // Plugins: Vibe gives document reading's memory back; the Computer turns every one on; Balanced = as shipped.
     assert.deepEqual(picks.vibe.plugins, { websearch: true, ocr: false, tts: false, classify: false, stt: false, bus: false });
@@ -7011,7 +7030,7 @@ test('presets: the picks for a DGX Spark, a 24 GB and a 12 GB card, and a box wi
             balanced: 'ollama gemma4:12b auto 2', rag: 'ollama gemma4:12b auto 2', vibe: `llamacpp ${gguf} auto 1`, computer: 'ollama gemma4:12b auto 2',
         }, name);
         // No model proven with the coding agent serves here: LOL Vibe keeps llama.cpp's model, and says so.
-        assert.ok(PR.pickFor('vibe', PR_BOX[name]()).reasons.includes('No model proven with the IDE\'s coding agent is available here: so far only Qwen3.6-35B-A3B is (11/15 on its five tasks, on vLLM).'), name);
+        assert.ok(PR.pickFor('vibe', PR_BOX[name]()).reasons.includes('No model proven with the IDE\'s coding agent is available here: so far only Qwen3.6-35B-A3B (11/15 on its five tasks, on vLLM) and Flint 40B-A2.5B (13/15 on its five tasks, on vLLM 0.33.0) are.'), name);
     }
     // A proven model as Ollama's default: LOL Vibe serves it there rather than llama.cpp's unproven one.
     const olProven = PR_BOX.g12(); olProven.ollama.model = 'qwen3.6:35b';
@@ -7019,6 +7038,15 @@ test('presets: the picks for a DGX Spark, a 24 GB and a 12 GB card, and a box wi
     assert.deepEqual([vibeOl.engine, vibeOl.model, vibeOl.people], ['ollama', 'qwen3.6:35b', 2]);
     assert.equal(vibeOl.reasons[0], 'qwen3.6:35b on Ollama: proven with the IDE\'s coding agent (11/15 on its five tasks, on vLLM).');
     assert.ok(!vibeOl.reasons.some((r) => /No model proven/.test(r)));
+    // Flint (owner 2026-11-03): proven on llama.cpp as on vLLM, but not on Ollama, whose ollama#19191 breaks the agent's reads.
+    const lcFlint = PR_BOX.g24(); lcFlint.llamacpp = { ...PR_LC, id: 'flint-ud-q4_k_xl', label: 'flint-UD-Q4_K_XL', model: 'flint-UD-Q4_K_XL.gguf' };
+    const vibeLcFlint = PR.pickFor('vibe', lcFlint);
+    assert.deepEqual([vibeLcFlint.engine, vibeLcFlint.reasons[0]], ['llamacpp', 'flint-UD-Q4_K_XL on llama.cpp: proven with the IDE\'s coding agent (13/15 on its five tasks, on vLLM 0.33.0).']);
+    const olFlint = PR_BOX.g12(); olFlint.llamacpp = { available: false }; olFlint.ollama.model = 'flint:40b-a2b-qat-int4';
+    const vibeOlFlint = PR.pickFor('vibe', olFlint);
+    assert.equal(vibeOlFlint.engine, 'ollama');
+    assert.ok(vibeOlFlint.reasons.includes('Flint 40B-A2.5B is proven with the IDE\'s coding agent, but not on Ollama: Ollama turns a whole number from an earlier tool call into text (ollama#19191), and the agent reads files by line numbers.'));
+    assert.ok(vibeOlFlint.reasons.some((r) => /^No model proven/.test(r)));
     assert.ok(PR.pickFor('rag', PR_BOX.g24()).reasons.some((r) => /capacity page does not know this GPU/.test(r)));
     // A card the capacity page knows, but for one person (an RTX 5090, 32 GB): Ollama too, and why.
     const g32 = prBox('NVIDIA GeForce RTX 5090', 32, { current: 'gemma-4-12b', library: prLib(['gemma-4-12b']) });

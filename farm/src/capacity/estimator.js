@@ -44,8 +44,9 @@
     'qwen3.8-27b': { key: 'qwen38', stepMs: 2.81, extraGB: 0, effLin: 0.734, effAttn: 0.234, group: 6 },
   };
   // Measured on the PRO 6000 alone (2026-10-09, RESULTS.md "Gemma 4 12B and Qwen3-Omni"), not fitted into CAL: their
-  // measured cells show as measured; everything else about them (other boxes, other contexts) stays estimated.
-  const MEASURED_ONLY = { 'gemma-4-12b': 'gemma4', 'qwen3-omni-30b-a3b': 'omni' };
+  // measured cells show as measured; everything else about them (other boxes, other contexts) stays estimated. Flint:
+  // vLLM 0.33.0, 2026-11-02 ("vLLM 0.33.0 and Flint on vLLM"), its context in bf16 (the only precision it runs in).
+  const MEASURED_ONLY = { 'gemma-4-12b': 'gemma4', 'qwen3-omni-30b-a3b': 'omni', flint: 'flint' };
   const BOX = { 'rtx-pro-6000-ws': 'pro6000', 'dgx-spark': 'spark' };
   const CTX = { '32k': 30200, '64k': 62000, '128k': 120100 }; // the spike's follow-up context sizes
 
@@ -161,10 +162,10 @@
       singleTps: 1 / stepS(P, lay, 1, Cd, 0), coldS: coldS(P, o.context), turnS: ASSUME.ttftBaseS + tau, kvN };
   }
 
-  // ---- Measured lookup (vLLM follow-up profiles, fp8 KV)
+  // ---- Measured lookup (vLLM follow-up profiles, fp8 KV; bf16 for a model that runs in nothing else)
   function measuredCell(hwId, m, o) {
     const mj = DATA.measured, key = CAL[m.id] ? CAL[m.id].key : MEASURED_ONLY[m.id];
-    if (!mj || !key || !BOX[hwId] || o.kvDtype !== 'fp8') return null;
+    if (!mj || !key || !BOX[hwId] || o.kvDtype !== (m.kv_bf16_only ? 'bf16' : 'fp8')) return null;
     const ctx = Object.keys(CTX).find(k => Math.abs(o.context - CTX[k]) / CTX[k] <= 0.1);
     const cfg = ctx && mj.configs.find(c => c.id === BOX[hwId] + '/vllm/' + key);
     const p = cfg && cfg.people['followup_' + ctx];
@@ -195,7 +196,9 @@
   function estimate1(hwId, modelId, opts) {
     const o = Object.assign({ context: 32768, mode: 'every', thinking: 1, kvDtype: 'fp8', budget: 'farm', cluster: 'auto' }, opts);
     o.replyTokens = o.replyTokens || ASSUME.replyTokens; o.newTokens = o.newTokens || ASSUME.newTokens;
-    const H = resolveHw(hwId), m = byId(DATA.catalog.models, modelId), lay = kvLayout(m, o.kvDtype);
+    const H = resolveHw(hwId), m = byId(DATA.catalog.models, modelId);
+    if (m.kv_bf16_only) o.kvDtype = 'bf16';   // Flint: vLLM refuses an fp8 context for it, so the page's fp8 would count it twice
+    const lay = kvLayout(m, o.kvDtype);
     const nodeBudget = budgetGiB(H.node, o.budget) || 0, totalBudget = budgetGiB(H.hw, o.budget) || 0;
     const onePerson = personBytes(lay, o.context + o.replyTokens * o.thinking) / GiB;
     let ck = pickCheckpoint(m, nodeBudget, onePerson, o.checkpoint), cluster = 'single';

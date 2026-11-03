@@ -62,12 +62,19 @@ function gateWorst(m) {
 // syntax check) on the five tasks of docs/spike/ide. The estimator has no agent data, so this list is the proof, by
 // catalog id. Qwen3.6: 11/15 (docs/spike/RESULTS.md, "The coding agent: five tasks, Flint vs Qwen3.6", 2026-10-23, on
 // the farm's vLLM). Qwen3.8 and Nemotron passed only the P5-0 spike's single edit task (docs/research/p5-spike, 3/3 each on
-// Ollama), never the five. Flint is not here: on llama.cpp it passed 8/10 given 32k replies (2026-10-23); on the farm's
-// vLLM 0.33.0 (2026-11-02, branch vllm-033) 12/15 with its own template and 13/15 with the open-think copy the list uses,
-// for 20 people at 64k (Qwen3.6: 48). Adding it is the owner's decision.
-const AGENT_PROVEN = { 'qwen3.6-35b-a3b': '11/15 on its five tasks, on vLLM' };
-const PROVEN_NAMES = Object.keys(AGENT_PROVEN).map((id) => S.modelName(CATALOG.models.find((m) => m.id === id))).join(', ');
-const provenOf = (served) => { const c = S.matchModel(CATALOG, served || ''); return (c && AGENT_PROVEN[c.id]) || null; };
+// Ollama), never the five. Flint (owner 2026-11-03): 13/15 on the farm's vLLM 0.33.0 with the open-think template the list
+// uses (2026-11-02, RESULTS "vLLM 0.33.0 and Flint on vLLM"; 8/10 on llama.cpp given 32k replies, 2026-10-23), for 20
+// people at 62k each on the PRO 6000 against Qwen3.6's 48, so the most-people rule still picks Qwen3.6 there.
+const AGENT_PROVEN = { 'qwen3.6-35b-a3b': '11/15 on its five tasks, on vLLM', flint: '13/15 on its five tasks, on vLLM 0.33.0' };
+// An engine a proven model does NOT do the agent's job on. Flint on Ollama: ollama#19191 turns an earlier tool call's
+// integer into "30000.0", and the agent's read takes offset/limit (RESULTS 2026-11-02).
+const NOT_PROVEN_ON = { flint: ['ollama'] };
+const provenText = (id) => `${S.modelName(CATALOG.models.find((m) => m.id === id))} (${AGENT_PROVEN[id]})`;
+const PROVEN_TEXT = (() => { const t = Object.keys(AGENT_PROVEN).map(provenText); return `${t.join(' and ')} ${t.length > 1 ? 'are' : 'is'}`; })();
+const provenOf = (served, engine) => {
+    const c = S.matchModel(CATALOG, served || '');
+    return (c && AGENT_PROVEN[c.id] && !(NOT_PROVEN_ON[c.id] || []).includes(engine)) ? AGENT_PROVEN[c.id] : null;
+};
 
 // The four presets. `card` = the capacity page's scenario card whose use and head count it is picked for
 // (scenarios.js SCENARIOS); `context` overrides that use's own where the preset needs more; `need` adds to its needs;
@@ -189,7 +196,7 @@ function pickFor(id, box) {
         // context Automatic (the most the card holds). LOL Vibe: a model proven with the coding agent first (llama.cpp's,
         // then Ollama's); with neither, llama.cpp's model where llama.cpp runs, as before the agent rule, and it says so.
         const lc = box.llamacpp || {}; const ol = box.ollama || {};
-        const llama = p.id === 'vibe' && !!lc.available && (!!provenOf(lc.label) || !provenOf(ol.model));
+        const llama = p.id === 'vibe' && !!lc.available && (!!provenOf(lc.label, 'llamacpp') || !provenOf(ol.model, 'ollama'));
         const engine = llama ? 'llamacpp' : 'ollama';
         const ctx = SHIPPED[engine].contextLength;
         Object.assign(out, {
@@ -197,7 +204,7 @@ function pickFor(id, box) {
             context: ctx, people: llama ? SHIPPED.llamacpp.parallel : SHIPPED.ollama.numParallel, memory: null,
         });
         const cat = S.matchModel(CATALOG, out.modelLabel || '');
-        const proof = p.id === 'vibe' ? provenOf(out.modelLabel) : null;
+        const proof = p.id === 'vibe' ? provenOf(out.modelLabel, engine) : null;
         if (proof) out.reasons.push(`${out.modelLabel} on ${ENGINE[engine]}: proven with the IDE's coding agent (${proof}).`);
         else if (llama) {
             const unmet = cat ? S.unmet(cat, sc.need) : null;
@@ -206,7 +213,8 @@ function pickFor(id, box) {
             out.reasons.push(`${ol.model} on Ollama: ${p.id === 'vibe' ? 'llama.cpp cannot run on this computer, so the coding model is Ollama\'s' : 'one model for chat and for reading scanned pages and pictures'}.`);
             if ((p.id === 'computer' || p.id === 'rag') && cat && !cat.vision) out.reasons.push(`${ol.model} does not read images: make a model that does the default in the Ollama section.`);
         }
-        if (p.id === 'vibe' && !proof) out.reasons.push(`No model proven with the IDE's coding agent is available here: so far only ${PROVEN_NAMES} is (${Object.values(AGENT_PROVEN).join('; ')}).`);
+        if (p.id === 'vibe' && !proof && cat && (NOT_PROVEN_ON[cat.id] || []).includes(engine)) out.reasons.push(`${S.modelName(cat)} is proven with the IDE's coding agent, but not on ${ENGINE[engine]}: Ollama turns a whole number from an earlier tool call into text (ollama#19191), and the agent reads files by line numbers.`);
+        if (p.id === 'vibe' && !proof) out.reasons.push(`No model proven with the IDE's coding agent is available here: so far only ${PROVEN_TEXT}.`);
         out.reasons.push(`Context: Automatic, the most this card holds${p.context ? ` (the aim is ${fmtK(p.context)} each)` : ''}.`);
         out.reasons.push(`People at once: ${out.people}, ${ENGINE[engine]}'s default.`);
         if (vllmUp && !hw) out.reasons.push('vLLM is set up, but the capacity page does not know this GPU, so the presets keep to Ollama and llama.cpp. vLLM stays one click away in its section.');
@@ -232,8 +240,9 @@ function poolReasons(p, pair, sc) {
             ...(pair.model.vision ? [] : ['It does not read images: documents reach it as text, and scanned pages go through document reading (OCR), a model of its own.'])];
     }
     if (p.id === 'vibe') {
-        return [`Picked for the most people among the models proven with the IDE's coding agent: ${AGENT_PROVEN[pair.model.id]}. `
-            + `Flint is not counted yet: on the farm's vLLM 0.33.0 it passed 13 of the same 15 tasks, for 20 people at 64k.`];
+        const others = Object.keys(AGENT_PROVEN).filter((id) => id !== pair.model.id).map(provenText);
+        return [`Picked for the most people among the models proven with the IDE's coding agent: ${AGENT_PROVEN[pair.model.id]}.`
+            + (others.length ? ` Also proven: ${others.join(' and ')}.` : '')];
     }
     return [];
 }

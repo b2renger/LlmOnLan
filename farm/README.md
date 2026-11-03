@@ -1067,10 +1067,12 @@ can run:
   and Qwen3.8 27B (26–28) pass; Gemma 4 12B (22 with thinking on) and Qwen3-Omni (never run on it) do not. Nemotron does
   not read images: documents reach it as text, and scanned pages go through document reading (OCR), a model of its own.
 - **LOL Vibe's list** (`AGENT_PROVEN`): models proven with the IDE's own coding agent on its five tasks
-  (`docs/spike/ide`); the estimator has no agent data. Today Qwen3.6 alone (11/15, `docs/spike/RESULTS.md`, *The coding
-  agent: five tasks*). Qwen3.8 27B and Nemotron passed only the P5-0 spike's single edit task. **Flint** is not in it:
-  on the farm's vLLM 0.33.0 (2026-11-02) it passed 12/15 and 13/15 of the five tasks against Qwen3.6's 7/15 and 9/15 the
-  same day, for 20 people at 64k against Qwen3.6's 48; whether it joins is the owner's decision.
+  (`docs/spike/ide`); the estimator has no agent data. Qwen3.6 (11/15, `docs/spike/RESULTS.md`, *The coding agent: five
+  tasks*) and, since 2026-11-03, **Flint**: on the farm's vLLM 0.33.0 (2026-11-02) it passed 12/15 and 13/15 of the five
+  tasks against Qwen3.6's 7/15 and 9/15 the same day. Not on Ollama (ollama#19191 turns an earlier tool call's whole
+  number into text, and the agent reads files by line numbers): a farm whose Ollama serves Flint is told so. The rule
+  still picks Qwen3.6 on every card the capacity page knows: it serves the most people (48 at 64k on the PRO 6000,
+  Flint 20). Qwen3.8 27B and Nemotron passed only the P5-0 spike's single edit task.
 - **Elsewhere** (a GeForce card, which the capacity page counts as one person's; a GPU it does not know; no vLLM):
   Ollama's default model with Automatic context and its 2 at once, except **LOL Vibe**, which serves a proven model when
   llama.cpp's or Ollama's is one, else llama.cpp's model (Qwen3.8 27B UD-IQ2_S by default) when llama.cpp can run here,

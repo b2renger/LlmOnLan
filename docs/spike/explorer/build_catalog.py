@@ -618,6 +618,29 @@ M(id="qwen3-coder-next", name="Qwen3-Coder-Next (80B-A3B)", vendor="Alibaba Qwen
   reported_runs=[{"hardware": "dgx-spark", "engine": "vLLM", "quant": "NVFP4 (42.7 GiB)", "users": 1, "decode_tok_s": 60.8, "note": "72.0 with EAGLE3", "source": "repo-plan-s9"}],
   aggregate_index={"benchlm_open": None, "note": "not listed", "source": "benchlm-open"})
 
+# Added 2026-11-03 (owner: Flint joins LOL Vibe's proven list): every number is from RESULTS (2026-10-23 from its GGUFs and card,
+# 2026-11-02 measured on vLLM 0.33.0), not from an hf/ dump.
+M(id="flint", name="Flint 40B-A2.5B", vendor="Recursive", released="2026-10-21", role="coding agent (LOL Vibe's proven list); vLLM 0.33.0 or newer",
+  params_total_b=39.8, params_active_b=2.5, params_note="39.8B MoE, ~2.5B active (from its GGUF, RESULTS 2026-10-23)",
+  arch={"type": "MoE (256 experts, 6 routed + 2 shared)", "layers": 49, "attention": "14 full-attention + 35 sliding-window (513) layers with attention sinks; 2 dense layers then 47 MoE",
+        "full_attn_layers": 14, "kv_heads": 4, "head_dim": 128, "sliding_window": 513},
+  kv_bytes_per_token_fp8=25435, kv_bf16_only=True,
+  kv_calc="MEASURED, vLLM 0.33.0 on the PRO 6000 (2026-11-02): 1,266,476 tokens in a 60 GiB pool = 50,869 B a token in bf16, the only context precision vLLM runs Flint in (--kv-cache-dtype fp8 stops the start); kept here at 1 byte/element like every entry, and kv_bf16_only doubles it back. The config gives 14 full layers x 4 x (128+128) = 14,336 B (28,672 in bf16, llama.cpp's figure) plus the 35 sliding layers' 513 tokens; vLLM groups those with the full ones (7 padding layers), and its pool holds what is measured",
+  kv_constant_bytes_per_request=0, recurrent_state_bytes=0,
+  kv_confidence="measured (vLLM 0.33.0 start-up line); llama.cpp holds 28 KiB a token in f16", context_native=262144, context_max=262144,
+  vision=False, tools=True, thinking_toggle="always thinks", license="Apache-2.0 on its card; its GGUF metadata says flint-preview (unsettled)",
+  checkpoints=[ck("NVFP4 (weight-only W4A16 via Marlin on sm_120/121; vLLM 0.33.0+ loads it as one file)", "RecursiveSI/flint-nvfp4-gguf", 22.86, loaded_gib_measured=21.86),
+               ck("GGUF UD-Q4_K_XL", "unsloth/flint-GGUF", 25.05), ck("GGUF Q8_0", "unsloth/flint-GGUF", 42.30),
+               ck("BF16", "RecursiveSI/flint", 79.6, note="derived: 39.8B x 2 B")],
+  engines={"vllm_sm120": "MEASURED vLLM 0.33.0 (PRO 6000): 252 tok/s alone, 40 people at 30k and 20 at 62k (its memory the limit); the fast NVFP4 kernels are SM100 only",
+           "llama_cpp": "b11803+ (b11836 measured 2026-10-23 with its experts in RAM: 44-55 tok/s)",
+           "ollama": "v0.40.9+; ollama#19191 turns an earlier tool call's integer into \"30000.0\": not proven for the coding agent there"},
+  quality=[q("SWE-bench Verified", 74.2, card("RecursiveSI/flint"), note="mini-swe-agent, pass@1 over >= 5 attempts"), q("Terminal-Bench 2.1", 54.9, card("RecursiveSI/flint"), note="Terminus 2")],
+  quality_note="Its card's SWE-bench Pro v2 89.7 is left out: undefined, no independent run, and above its own Verified score (RESULTS 2026-10-23)",
+  spike_quality={"gate": "28-item smoke gate (10 code, 7 exact, 11 tool round-trips)", "pro6000_think_on_off": "25/28 (always thinks; vLLM 0.33.0 as the farm runs it, 3 runs of 3, 17-20k tok)",
+                 "note": "with its own template 26, 24 and 24 of 28; llama.cpp b11836 27 of 28 (2026-10-23)", "source": "repo-results"},
+  aggregate_index={"benchlm_open": None, "note": "released after the 2026-10-07 snapshot", "source": "benchlm-open"})
+
 # ---------------------------------------------------------------- measured spike anchors (repo-results)
 SPIKE = {
  "pass_rule": "TTFT p95 < 5 s AND per-user decode p10 >= 15 tok/s; people = largest passing concurrency, 'every turn' (all start within 3 s) / 'steady' (later turns)",
@@ -667,6 +690,7 @@ def verdict_for(m, cands, budget, single):
         if room >= min_kv:
             out = {"checkpoint": c["format"], "weights_gib": round(w, 1), "kv_room_gib": round(room, 1)}
             per = m.get("kv_bytes_per_token_fp8")
+            if per and m.get("kv_bf16_only"): per *= 2   # its context runs in bf16 only (Flint)
             if per:
                 person32 = 32768 * per + 2 * (m.get("recurrent_state_bytes") or 0) + (m.get("kv_constant_bytes_per_request") or 0)
                 out["people_by_kv_at_32k_est"] = int(0.93 * room * GiB // person32)
@@ -702,7 +726,7 @@ catalog = {
              "recurrent_state_bytes": "raw per-request state of linear/Mamba layers (fp32 state + bf16 conv); vLLM 0.30 align mode charged 2x raw, rounded to whole pages, on the two measured hybrids",
              "kv_constant_bytes_per_request": "sliding-window / chunked-attention KV that stops growing with context (fp8)",
              "tflops": "dense unless the field says sparse"},
-   "fit_rule": "fit[<hw>@<budget>] has two verdicts, vllm_sglang (non-GGUF checkpoints) and llama_cpp (GGUF). Each picks the SMALLEST >=4-bit, non-BF16 checkpoint (most KV room), then <=3-bit ones (verdict 'fits only at <=3-bit'), BF16 last; weights = measured loaded GiB, else resident estimate, else file size. It must leave >= 4 GiB for KV on farm budgets (>= 1 GiB on single_user budgets); 'tight' below 8 GiB (2 GiB). people_by_kv_at_32k_est = 0.93 x KV room / (32,768 x kv/token + 2 x recurrent state + constants): vLLM 0.30-style accounting (align mode charges 2x the state; 0.93 = highest pool fill that passed in the spike); ignores page rounding, so it reads ~3-10% high (it gives 107 for Qwen3.6 in a 50 GiB pool where ESTIMATES has 96-110). KV capacity only - throughput usually binds first (RESULTS finding 5). Fit says nothing about speed: see reported_runs and spike_measured.",
+   "fit_rule": "fit[<hw>@<budget>] has two verdicts, vllm_sglang (non-GGUF checkpoints) and llama_cpp (GGUF). Each picks the SMALLEST >=4-bit, non-BF16 checkpoint (most KV room), then <=3-bit ones (verdict 'fits only at <=3-bit'), BF16 last; weights = measured loaded GiB, else resident estimate, else file size. It must leave >= 4 GiB for KV on farm budgets (>= 1 GiB on single_user budgets); 'tight' below 8 GiB (2 GiB). people_by_kv_at_32k_est = 0.93 x KV room / (32,768 x kv/token + 2 x recurrent state + constants), kv/token doubled for a model whose context runs in bf16 only (kv_bf16_only): vLLM 0.30-style accounting (align mode charges 2x the state; 0.93 = highest pool fill that passed in the spike); ignores page rounding, so it reads ~3-10% high (it gives 107 for Qwen3.6 in a 50 GiB pool where ESTIMATES has 96-110). KV capacity only - throughput usually binds first (RESULTS finding 5). Fit says nothing about speed: see reported_runs and spike_measured.",
    "dgx_spark_link_correction": "Two DGX Sparks link through their ConnectX-7 NICs (200 Gb/s Ethernet/RoCE over a QSFP cable), not NVLink.",
    "caveats": [
      "Only the RTX PRO 6000 and one DGX Spark were measured by the studio (3 models). Everything else is vendor data, community reports or estimates.",

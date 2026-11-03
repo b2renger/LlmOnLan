@@ -6,6 +6,47 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-03 (09:23) — Flint joins LOL Vibe's proven list, with a capacity catalog entry (branch `vllm-033`)
+
+The owner (2026-11-03), after the vLLM 0.33.0 results below: merge the bump, release farm-v0.0.51, and add Flint to the
+models proven with the IDE's coding agent now.
+
+**Changed (farm):**
+- `presets.js` `AGENT_PROVEN`: **Flint**, *13/15 on its five tasks, on vLLM 0.33.0*, beside Qwen3.6. **Not on Ollama**
+  (`NOT_PROVEN_ON`): ollama#19191 turns a whole number from an earlier tool call into text, and the agent's read takes
+  offset/limit; a farm whose Ollama serves Flint is told so. On llama.cpp it counts, as Qwen3.6 counts on every engine.
+  The LOL Vibe reason names the other proven model; the "no proven model here" line names both with their proof.
+- **What the presets pick does not change** on any card the capacity page knows (the four presets on 9 cards, every vLLM
+  model on disk, compared before and after): the rule is the most people at 64k among proven models, and Qwen3.6
+  serves 48 there against Flint's 20 on the PRO 6000, and more on every other card.
+- `capacity/catalog.json`: a `flint` entry (the presets need it to name Flint; the farm's Automatic needs it to cap
+  Flint's seats by the pool). Its context memory is the **measured** figure, not the config's: vLLM 0.33.0 held
+  1,266,476 tokens in a 60 GiB pool, 50,869 B a token, in bf16, the only precision it runs Flint in. The config's 14
+  full-attention layers give 28,672 B (llama.cpp's figure), which would claim ~33 people at 64k where 20 were measured.
+  New field `kv_bf16_only`. The entry is in the generator (`docs/spike/explorer/build_catalog.py`, literal numbers from
+  RESULTS); its `hf/` dumps are not in the repo, so a full run would drop the other models' sizes: the entry was spliced
+  into the committed file, every other model as it was. Recursive's SWE-bench Pro v2 89.7 is left out of its scores
+  (RESULTS 2026-10-23: undefined, never rerun, above its own Verified score); SWE-bench Verified 74.2 and Terminal-Bench
+  2.1 54.9 are in. Its licence is recorded as unsettled.
+- `capacity/estimator.js`: a `kv_bf16_only` model is counted in bf16 whatever the capacity page's toggle says (fp8
+  would count Flint twice), and Flint's PRO 6000 measurements show as measured (`MEASURED_ONLY`). Every other model's
+  estimates are unchanged: 6,000 compared (each model on 10 cards, 5 contexts, fp8 and bf16, both modes), 0 differ.
+- `config.js`: Flint's list entry names its catalog id.
+- **Automatic now says 19 people at 64k for Flint on a 60 GiB pool, not 20.** The farm caps the measured seats by what
+  the pool holds at the whole window (65,536 tokens: 19.3), and the spike's "64k" was 62,000 tokens each (20.4); at 32k,
+  38 (40 measured at 30,200). A smaller pool (document reading's 9 GB kept aside) seats fewer, which the farm could not
+  say before this entry. HUMAN_TESTS J15 expects 19.
+
+**Tested:** farm `test/run.js` **281/281** (new: Flint's memory per token, the pool's people at 62k, 30.2k, 64k and
+32k, Automatic's seats on a 60 and a 51 GiB pool, the estimator in bf16; the preset tests: Flint named beside Qwen3.6,
+proven on llama.cpp, not on Ollama and said so). `farm/vllm/test_scripts.sh` 129/129 and `LOL_VLLM_FAKE=1 node
+test/vllm-lifecycle.js` 172/172 were rerun on the branch before this change; no script changed since. The explorer's
+`calibrate/test_cases.js` runs with Flint.
+
+**Still open:** which licence governs Flint's weights (its GGUF says `flint-preview`, its card Apache 2.0); Flint on a
+DGX Spark (unmeasured; the estimate gives about 3 people at 64k); `build_measured.py` does not know the 2026-11-02
+result labels.
+
 ## 2026-11-02 (18:09) — vLLM 0.33.0 for the farm, and Flint on it: the five models work, Qwen3.6 is faster, Flint serves 20 people at 64k (branch `vllm-033`)
 
 The owner: *"I would like to try to bump vllm in a branch ... then we start testing flint in a branch."* Branch `vllm-033`

@@ -1067,7 +1067,8 @@ the data folder on C:; through the scratch farm's route). Qwen3.6 rows: the same
 
 **What this means for the farm:** Flint now runs on the farm's vLLM, as a list entry of its own (a GGUF and its config
 repo), at **20 people at 64k** on the PRO 6000 (Qwen3.6: 48), text only, always thinking, and it did the IDE agent's five
-tasks better than Qwen3.6 today. It is in the list, not in a default and not in LOL Vibe's proven list (`AGENT_PROVEN`):
-that is the owner's call. Still unknown: longer work than five small tasks (a real project, Keep going); Flint on a DGX
+tasks better than Qwen3.6 today. It is in the list, not in a default. *2026-11-03, the owner:* it joins LOL Vibe's proven
+list (`AGENT_PROVEN`, not on Ollama), with a capacity catalog entry whose context memory is the measured 50,869 B a token
+in bf16; the presets' picks do not change on any card (DEVLOG 2026-11-03). Still unknown: longer work than five small tasks (a real project, Keep going); Flint on a DGX
 Spark (vLLM's standard layers there too); which licence governs the weights (the GGUF metadata says `flint-preview`, the
 cards say Apache 2.0).

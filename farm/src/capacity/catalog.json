@@ -12,7 +12,7 @@
    "kv_constant_bytes_per_request": "sliding-window / chunked-attention KV that stops growing with context (fp8)",
    "tflops": "dense unless the field says sparse"
   },
-  "fit_rule": "fit[<hw>@<budget>] has two verdicts, vllm_sglang (non-GGUF checkpoints) and llama_cpp (GGUF). Each picks the SMALLEST >=4-bit, non-BF16 checkpoint (most KV room), then <=3-bit ones (verdict 'fits only at <=3-bit'), BF16 last; weights = measured loaded GiB, else resident estimate, else file size. It must leave >= 4 GiB for KV on farm budgets (>= 1 GiB on single_user budgets); 'tight' below 8 GiB (2 GiB). people_by_kv_at_32k_est = 0.93 x KV room / (32,768 x kv/token + 2 x recurrent state + constants): vLLM 0.30-style accounting (align mode charges 2x the state; 0.93 = highest pool fill that passed in the spike); ignores page rounding, so it reads ~3-10% high (it gives 107 for Qwen3.6 in a 50 GiB pool where ESTIMATES has 96-110). KV capacity only - throughput usually binds first (RESULTS finding 5). Fit says nothing about speed: see reported_runs and spike_measured.",
+  "fit_rule": "fit[<hw>@<budget>] has two verdicts, vllm_sglang (non-GGUF checkpoints) and llama_cpp (GGUF). Each picks the SMALLEST >=4-bit, non-BF16 checkpoint (most KV room), then <=3-bit ones (verdict 'fits only at <=3-bit'), BF16 last; weights = measured loaded GiB, else resident estimate, else file size. It must leave >= 4 GiB for KV on farm budgets (>= 1 GiB on single_user budgets); 'tight' below 8 GiB (2 GiB). people_by_kv_at_32k_est = 0.93 x KV room / (32,768 x kv/token + 2 x recurrent state + constants), kv/token doubled for a model whose context runs in bf16 only (kv_bf16_only): vLLM 0.30-style accounting (align mode charges 2x the state; 0.93 = highest pool fill that passed in the spike); ignores page rounding, so it reads ~3-10% high (it gives 107 for Qwen3.6 in a 50 GiB pool where ESTIMATES has 96-110). KV capacity only - throughput usually binds first (RESULTS finding 5). Fit says nothing about speed: see reported_runs and spike_measured.",
   "dgx_spark_link_correction": "Two DGX Sparks link through their ConnectX-7 NICs (200 Gb/s Ethernet/RoCE over a QSFP cable), not NVLink.",
   "caveats": [
    "Only the RTX PRO 6000 and one DGX Spark were measured by the studio (3 models). Everything else is vendor data, community reports or estimates.",
@@ -8157,6 +8157,297 @@
     }
    },
    "kv_bytes_per_token_bf16": 24576
+  },
+  {
+   "id": "flint",
+   "name": "Flint 40B-A2.5B",
+   "vendor": "Recursive",
+   "released": "2026-10-21",
+   "role": "coding agent (LOL Vibe's proven list); vLLM 0.33.0 or newer",
+   "params_total_b": 39.8,
+   "params_active_b": 2.5,
+   "params_note": "39.8B MoE, ~2.5B active (from its GGUF, RESULTS 2026-10-23)",
+   "arch": {
+    "type": "MoE (256 experts, 6 routed + 2 shared)",
+    "layers": 49,
+    "attention": "14 full-attention + 35 sliding-window (513) layers with attention sinks; 2 dense layers then 47 MoE",
+    "full_attn_layers": 14,
+    "kv_heads": 4,
+    "head_dim": 128,
+    "sliding_window": 513
+   },
+   "kv_bytes_per_token_fp8": 25435,
+   "kv_bf16_only": true,
+   "kv_calc": "MEASURED, vLLM 0.33.0 on the PRO 6000 (2026-11-02): 1,266,476 tokens in a 60 GiB pool = 50,869 B a token in bf16, the only context precision vLLM runs Flint in (--kv-cache-dtype fp8 stops the start); kept here at 1 byte/element like every entry, and kv_bf16_only doubles it back. The config gives 14 full layers x 4 x (128+128) = 14,336 B (28,672 in bf16, llama.cpp's figure) plus the 35 sliding layers' 513 tokens; vLLM groups those with the full ones (7 padding layers), and its pool holds what is measured",
+   "kv_constant_bytes_per_request": 0,
+   "recurrent_state_bytes": 0,
+   "kv_confidence": "measured (vLLM 0.33.0 start-up line); llama.cpp holds 28 KiB a token in f16",
+   "context_native": 262144,
+   "context_max": 262144,
+   "vision": false,
+   "tools": true,
+   "thinking_toggle": "always thinks",
+   "license": "Apache-2.0 on its card; its GGUF metadata says flint-preview (unsettled)",
+   "checkpoints": [
+    {
+     "format": "NVFP4 (weight-only W4A16 via Marlin on sm_120/121; vLLM 0.33.0+ loads it as one file)",
+     "repo": "RecursiveSI/flint-nvfp4-gguf",
+     "disk_gb": 22.86,
+     "loaded_gib_measured": 21.86,
+     "disk_gib": 21.29,
+     "bytes_per_param_avg": 0.574
+    },
+    {
+     "format": "GGUF UD-Q4_K_XL",
+     "repo": "unsloth/flint-GGUF",
+     "disk_gb": 25.05,
+     "disk_gib": 23.33,
+     "bytes_per_param_avg": 0.629
+    },
+    {
+     "format": "GGUF Q8_0",
+     "repo": "unsloth/flint-GGUF",
+     "disk_gb": 42.3,
+     "disk_gib": 39.39,
+     "bytes_per_param_avg": 1.063
+    },
+    {
+     "format": "BF16",
+     "repo": "RecursiveSI/flint",
+     "disk_gb": 79.6,
+     "note": "derived: 39.8B x 2 B",
+     "disk_gib": 74.13,
+     "bytes_per_param_avg": 2.0
+    }
+   ],
+   "engines": {
+    "vllm_sm120": "MEASURED vLLM 0.33.0 (PRO 6000): 252 tok/s alone, 40 people at 30k and 20 at 62k (its memory the limit); the fast NVFP4 kernels are SM100 only",
+    "llama_cpp": "b11803+ (b11836 measured 2026-10-23 with its experts in RAM: 44-55 tok/s)",
+    "ollama": "v0.40.9+; ollama#19191 turns an earlier tool call's integer into \"30000.0\": not proven for the coding agent there"
+   },
+   "quality": [
+    {
+     "benchmark": "SWE-bench Verified",
+     "score": 74.2,
+     "source": "https://huggingface.co/RecursiveSI/flint",
+     "vendor_reported": true,
+     "note": "mini-swe-agent, pass@1 over >= 5 attempts"
+    },
+    {
+     "benchmark": "Terminal-Bench 2.1",
+     "score": 54.9,
+     "source": "https://huggingface.co/RecursiveSI/flint",
+     "vendor_reported": true,
+     "note": "Terminus 2"
+    }
+   ],
+   "quality_note": "Its card's SWE-bench Pro v2 89.7 is left out: undefined, no independent run, and above its own Verified score (RESULTS 2026-10-23)",
+   "spike_quality": {
+    "gate": "28-item smoke gate (10 code, 7 exact, 11 tool round-trips)",
+    "pro6000_think_on_off": "25/28 (always thinks; vLLM 0.33.0 as the farm runs it, 3 runs of 3, 17-20k tok)",
+    "note": "with its own template 26, 24 and 24 of 28; llama.cpp b11836 27 of 28 (2026-10-23)",
+    "source": "repo-results"
+   },
+   "aggregate_index": {
+    "benchlm_open": null,
+    "note": "released after the 2026-10-07 snapshot",
+    "source": "benchlm-open"
+   },
+   "fit": {
+    "rtx-pro-6000-ws@farm_with_ocr_gib": {
+     "budget_gib": 73.6,
+     "vllm_sglang": {
+      "checkpoint": "NVFP4 (weight-only W4A16 via Marlin on sm_120/121; vLLM 0.33.0+ loads it as one file)",
+      "weights_gib": 21.9,
+      "kv_room_gib": 51.7,
+      "people_by_kv_at_32k_est": 30,
+      "verdict": "fits"
+     },
+     "llama_cpp": {
+      "checkpoint": "GGUF UD-Q4_K_XL",
+      "weights_gib": 23.3,
+      "kv_room_gib": 50.3,
+      "people_by_kv_at_32k_est": 30,
+      "verdict": "fits"
+     }
+    },
+    "rtx-pro-6000-ws@single_user_max_gib": {
+     "budget_gib": 85.5,
+     "vllm_sglang": {
+      "checkpoint": "NVFP4 (weight-only W4A16 via Marlin on sm_120/121; vLLM 0.33.0+ loads it as one file)",
+      "weights_gib": 21.9,
+      "kv_room_gib": 63.6,
+      "people_by_kv_at_32k_est": 38,
+      "verdict": "fits"
+     },
+     "llama_cpp": {
+      "checkpoint": "GGUF UD-Q4_K_XL",
+      "weights_gib": 23.3,
+      "kv_room_gib": 62.2,
+      "people_by_kv_at_32k_est": 37,
+      "verdict": "fits"
+     }
+    },
+    "rtx-pro-5500@farm_with_ocr_gib": {
+     "budget_gib": 62.6,
+     "vllm_sglang": {
+      "checkpoint": "NVFP4 (weight-only W4A16 via Marlin on sm_120/121; vLLM 0.33.0+ loads it as one file)",
+      "weights_gib": 21.9,
+      "kv_room_gib": 40.7,
+      "people_by_kv_at_32k_est": 24,
+      "verdict": "fits"
+     },
+     "llama_cpp": {
+      "checkpoint": "GGUF UD-Q4_K_XL",
+      "weights_gib": 23.3,
+      "kv_room_gib": 39.3,
+      "people_by_kv_at_32k_est": 23,
+      "verdict": "fits"
+     }
+    },
+    "rtx-pro-5000-72@farm_with_ocr_gib": {
+     "budget_gib": 51.6,
+     "vllm_sglang": {
+      "checkpoint": "NVFP4 (weight-only W4A16 via Marlin on sm_120/121; vLLM 0.33.0+ loads it as one file)",
+      "weights_gib": 21.9,
+      "kv_room_gib": 29.7,
+      "people_by_kv_at_32k_est": 17,
+      "verdict": "fits"
+     },
+     "llama_cpp": {
+      "checkpoint": "GGUF UD-Q4_K_XL",
+      "weights_gib": 23.3,
+      "kv_room_gib": 28.3,
+      "people_by_kv_at_32k_est": 16,
+      "verdict": "fits"
+     }
+    },
+    "rtx-pro-5000-48@farm_with_ocr_gib": {
+     "budget_gib": 29.6,
+     "vllm_sglang": {
+      "checkpoint": "NVFP4 (weight-only W4A16 via Marlin on sm_120/121; vLLM 0.33.0+ loads it as one file)",
+      "weights_gib": 21.9,
+      "kv_room_gib": 7.7,
+      "people_by_kv_at_32k_est": 4,
+      "verdict": "tight"
+     },
+     "llama_cpp": {
+      "checkpoint": "GGUF UD-Q4_K_XL",
+      "weights_gib": 23.3,
+      "kv_room_gib": 6.3,
+      "people_by_kv_at_32k_est": 3,
+      "verdict": "tight"
+     }
+    },
+    "dgx-spark@farm_gib": {
+     "budget_gib": 84,
+     "vllm_sglang": {
+      "checkpoint": "NVFP4 (weight-only W4A16 via Marlin on sm_120/121; vLLM 0.33.0+ loads it as one file)",
+      "weights_gib": 21.9,
+      "kv_room_gib": 62.1,
+      "people_by_kv_at_32k_est": 37,
+      "verdict": "fits"
+     },
+     "llama_cpp": {
+      "checkpoint": "GGUF UD-Q4_K_XL",
+      "weights_gib": 23.3,
+      "kv_room_gib": 60.7,
+      "people_by_kv_at_32k_est": 36,
+      "verdict": "fits"
+     }
+    },
+    "dgx-spark@single_user_max_gib": {
+     "budget_gib": 110,
+     "vllm_sglang": {
+      "checkpoint": "NVFP4 (weight-only W4A16 via Marlin on sm_120/121; vLLM 0.33.0+ loads it as one file)",
+      "weights_gib": 21.9,
+      "kv_room_gib": 88.1,
+      "people_by_kv_at_32k_est": 52,
+      "verdict": "fits"
+     },
+     "llama_cpp": {
+      "checkpoint": "GGUF UD-Q4_K_XL",
+      "weights_gib": 23.3,
+      "kv_room_gib": 86.7,
+      "people_by_kv_at_32k_est": 51,
+      "verdict": "fits"
+     }
+    },
+    "dgx-spark-x2@farm_gib": {
+     "budget_gib": 168,
+     "vllm_sglang": {
+      "checkpoint": "NVFP4 (weight-only W4A16 via Marlin on sm_120/121; vLLM 0.33.0+ loads it as one file)",
+      "weights_gib": 21.9,
+      "kv_room_gib": 146.1,
+      "people_by_kv_at_32k_est": 87,
+      "verdict": "fits"
+     },
+     "llama_cpp": {
+      "checkpoint": "GGUF UD-Q4_K_XL",
+      "weights_gib": 23.3,
+      "kv_room_gib": 144.7,
+      "people_by_kv_at_32k_est": 86,
+      "verdict": "fits"
+     }
+    },
+    "dgx-spark-x2@single_user_max_gib": {
+     "budget_gib": 220,
+     "vllm_sglang": {
+      "checkpoint": "NVFP4 (weight-only W4A16 via Marlin on sm_120/121; vLLM 0.33.0+ loads it as one file)",
+      "weights_gib": 21.9,
+      "kv_room_gib": 198.1,
+      "people_by_kv_at_32k_est": 118,
+      "verdict": "fits"
+     },
+     "llama_cpp": {
+      "checkpoint": "GGUF UD-Q4_K_XL",
+      "weights_gib": 23.3,
+      "kv_room_gib": 196.7,
+      "people_by_kv_at_32k_est": 117,
+      "verdict": "fits"
+     }
+    },
+    "rtx-5090@single_user_max_gib": {
+     "budget_gib": 24.9,
+     "vllm_sglang": {
+      "checkpoint": "NVFP4 (weight-only W4A16 via Marlin on sm_120/121; vLLM 0.33.0+ loads it as one file)",
+      "weights_gib": 21.9,
+      "kv_room_gib": 3.0,
+      "people_by_kv_at_32k_est": 1,
+      "verdict": "fits"
+     },
+     "llama_cpp": {
+      "checkpoint": "GGUF UD-Q4_K_XL",
+      "weights_gib": 23.3,
+      "kv_room_gib": 1.6,
+      "people_by_kv_at_32k_est": 0,
+      "verdict": "tight"
+     }
+    },
+    "rtx-4080@single_user_max_gib": {
+     "budget_gib": 12.0,
+     "vllm_sglang": {
+      "verdict": "no",
+      "smallest_gib": 21.3
+     },
+     "llama_cpp": {
+      "verdict": "no",
+      "smallest_gib": 23.3
+     }
+    },
+    "rtx-4070@single_user_max_gib": {
+     "budget_gib": 8.2,
+     "vllm_sglang": {
+      "verdict": "no",
+      "smallest_gib": 21.3
+     },
+     "llama_cpp": {
+      "verdict": "no",
+      "smallest_gib": 23.3
+     }
+    }
+   },
+   "kv_bytes_per_token_bf16": 50870
   }
  ],
  "spike_measured": {
