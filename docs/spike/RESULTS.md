@@ -7,8 +7,10 @@ Two boxes, the same harness, the same flags:
 - two more models on the RTX PRO 6000 (2026-10-09), with the farm's own launch and a reduced suite:
   [Gemma 4 12B and Qwen3-Omni](#gemma-4-12b-and-qwen3-omni-rtx-pro-6000-2026-10-09);
 - Recursive's Flint for coding (2026-10-23), beside the live farm with most of its experts in system RAM, and the IDE's
-  coding agent on five tasks against the farm's Qwen3.6: [Flint](#flint-for-coding-rtx-pro-6000-shared-gpu-2026-10-23),
-  the last section.
+  coding agent on five tasks against the farm's Qwen3.6: [Flint](#flint-for-coding-rtx-pro-6000-shared-gpu-2026-10-23);
+- vLLM 0.33.0 on the RTX PRO 6000 (2026-11-02): the list's five models on it, a same-day A/B against 0.30.0, and Flint on
+  vLLM with the whole GPU (HUMAN_TESTS J12–J13 on vLLM):
+  [vLLM 0.33.0 and Flint on vLLM](#vllm-0330-and-flint-on-vllm-rtx-pro-6000-2026-11-02), the last section.
 
 **Box:** `AN-A6000PRO`: one NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 96 GB (97,887 MiB), sm_120,
 ~1.8 TB/s, driver 596.36 (CUDA 13.2), Windows 11 + WSL2 Ubuntu 26.04 (16 vCPU and 94 GB RAM given to WSL).
@@ -916,3 +918,157 @@ speed for now (follow-up PRs).
 (document search is 2.4× faster and the abandoned-call bug is gone, whatever the model) and the two fence fixes (the
 second-drive hole matters whatever the model), run J12–J13 at a quiet moment, and if Flint holds up at full speed, offer
 it as an opt-in llama.cpp coding model (UD-Q4_K_XL) with a 32k reply room — on a second, small farm first.
+
+# vLLM 0.33.0 and Flint on vLLM (RTX PRO 6000, 2026-11-02)
+
+The owner's request (2026-11-02): try vLLM 0.33.0 in a branch (`vllm-033`), then Flint on it. vLLM 0.33.0 (PyPI,
+2026-11-02 10:13 UTC) carries Flint (#62938). **The GPU was the farm's own**: the owner closed the production farm for
+these tests (the Ollama app stayed open with no model loaded, ~0.65 GB of the card; ComfyUI off). Same box, driver
+596.36, WSL2 Ubuntu.
+
+**The install.** vLLM 0.33.0 went into its own root (`~/lol-vllm-033`, its `hf/` a link to the production root's, read
+only; the production 0.30.0 install was never changed) through the farm's own `install.sh`, called as the panel calls it
+(`vllm.js` `spawnScript`): **vllm 0.33.0, torch 2.14.0+cu132 (CUDA 13.2 runtime), FlashInfer 0.7.2.post1, Triton 3.8.0,
+transformers 5.20.2, Python 3.12.14**, a 9.0 GB environment (0.30.0's: 7.9 GB). `--torch-backend=auto` still picks the
+cu132 torch on this driver although vLLM's own wheel is built for CUDA 13.0; `install.sh`'s `cuda-pins` step is still
+right: the resolver brought `nvidia-cuda-nvcc`/`crt`/`nvvm` 13.4.92 again and the step put them back to 13.2.86, the
+runtime's. FlashInfer 0.7.2.post1 ships no precompiled kernels for sm_120 here (*flashinfer-cubin not installed*) and
+JIT-compiled them at the first start with the farm's toolchain (`serve.sh`'s PATH, CUDA_HOME and link shim, unchanged).
+The download took 40 min on a slow PyPI connection (2–3 MB/s, beside 100 GB of model downloads); the same install again
+takes 4 s. vLLM 0.33.0 does not install the `gguf` package, which a GGUF checkpoint needs: `install.sh` now adds
+`gguf>=0.19.0` (0.19.0 here).
+
+**How each model ran.** A scratch farm from this branch (`lol up` from a scratch folder with its own `lol.config.json`:
+scratch ports, beacon off, plugins off, a stand-in Ollama) served each model with **the farm's own argv** (`vllm.js`
+`planFor`, 64k per person, Automatic people at once and memory, so the pool is the farm's ~60 GiB rather than the
+spike's fixed 58 GiB). Functional checks (`runs/probe.js`) and the 28-item gate went **through the farm's route** (seat
+gate → LiteLLM `hosted_vllm/` → `serve.sh`'s relay), the gate 4 items at a time. People at once ran the spike's harness
+on vLLM's own socket inside WSL, as on 2026-10-04. The A/B: the same scratch farm started the **production 0.30.0** from
+a root whose `.venv` and `hf` are links to production's (read only), with the same argv, the same day.
+
+## The five models on 0.33.0
+
+| Model | Starts (first) | Loaded | Pool at 64k (vLLM's line) | Thinking, tools, pictures, sound | Gate, thinking on / off (tokens) | On 0.30.0 |
+|---|---|---|---|---|---|---|
+| Qwen3.6 35B-A3B | yes (391 s) | 20.28 GiB | 61 GiB: 4,840,073 tokens, 73.9 people (0.30.0, same pool, same day: 5,261,850, 80.3) | all work; no sound (as before) | **27/28 (75.6k) / 28/28 (11.6k)** | 26/28 (88.6k) / 28/28 (12.2k), same day |
+| Nemotron 3.5 Lightning | yes (145 s) | 17.83 GiB | the farm caps it: 10 GiB, 29.9 people | thinking and tools; no pictures (as before) | **26/28 (58.6k) / 25/28 (7.6k)** | 25/28 (68k) / 26/28 (7k), 2026-10-04 |
+| Qwen3.8 27B | yes (240 s) | 19.83 GiB | 62 GiB: 1,663,303 tokens, 25.4 people (0.30.0: 58 GiB, 1,765,102 tokens) | all work | **27/28 (58.4k) / 28/28 (11.2k)** | 26/28 (55k) / 28/28 (11k), 2026-10-04 |
+| Gemma 4 12B | yes (115 s) | — | the farm caps it | thinking, tools, a picture; sound: English word for word, **French answered in English** (below) | **23/28 (141.6k) / 28/28 (11.5k)** | 22/28 (155k) / 26/28 (11k), 2026-10-09 |
+| Qwen3-Omni 30B-A3B | yes (150 s) | 30.91 GiB | 17.0 people | tools, a picture, sound in French and English word for word (the first one 8.1 s), `/v1/audio/transcriptions` 0.11–0.16 s | **26/28, 27/28** (two runs; it does not think) | 28/28, 2026-10-09 |
+
+Every start used the farm's flags unchanged; later starts take 1–2.5 min (the compile caches). Each gate difference is
+within the gate's noise (a point or two run to run, at temperature 0.6 with 4 items in flight); every miss with thinking
+on is a reply that ran out of its 16k budget while thinking, the pattern of 0.30.0.
+
+**People at once, Qwen3.6 at 64k** (the spike's `followup` profile, the question replaced, 62k-token contexts, 3 rounds;
+the farm's argv: 61 GiB, `--max-num-seqs 128`; the same day, A then B):
+
+| Users | 0.30.0 first follow-up: TTFT p95 / decode p10 | 0.30.0 later | **0.33.0 first follow-up** | **0.33.0 later** |
+|---|---|---|---|---|
+| 8 | 0.84 s / 76.0 | 0.35 / 77.7 | 0.69 / 88.5 | 0.26 / 94.1 |
+| 16 | 2.55 / 39.0 | 0.42 / 49.2 | 1.34 / 56.1 | 0.46 / 59.4 |
+| 32 | 2.89 / 28.0 | 0.48 / 28.8 | 2.61 / 32.4 | 0.44 / 34.1 |
+| 48 | 5.41 / 18.1 ✗ | 0.64 / 20.5 | **3.60 / 23.0** | 0.57 / 26.2 |
+| 64 | 5.49 / 14.6 ✗ | 0.65 / 16.1 | 5.06 / 18.6 ✗ | 0.61 / 19.8 |
+
+**People: 0.30.0 32 / ≥ 64, 0.33.0 48 / ≥ 64** (every turn / steady); aggregate at 64 users 1,152 against 1,342 tok/s.
+0.33.0 decodes 15–25 % faster under load at every level. (The 2026-10-04 spike measured 48 / 64 on 0.30.0 with a 58 GiB
+pool and `--max-num-seqs 192`: its 48-user first follow-up passed at 4.28 s, today's at 5.41 s; the A/B is today's.)
+
+What 0.33.0 changes for the farm, found here:
+- **`--mamba-cache-mode` is deprecated**: *"will be removed in v0.33.0. It has no effect: Mamba prefix caching follows
+  --enable-prefix-caching"* (still accepted by 0.33.0; the hybrid models get `align` by default with prefix caching). The
+  farm keeps passing it while a 0.30.0 install may still run its flags, and must drop it before a vLLM that refuses it.
+- **A conversation takes ~8 % more of the pool** on the hybrid Qwens (Qwen3.6: 73.9 instead of 80.3 people of 64k in
+  61 GiB; its attention block is 2,112 tokens instead of 2,096). Throughput binds first at 64k (48 every turn), so no
+  head count measured here changes.
+- **The reply limit** (`--override-generation-config max_new_tokens`) is still a ceiling for every request (`get_max_tokens`
+  is the same function in both versions).
+- **Gemma 4 12B answers a French recording in English.** Asked to write it down word for word in its own language, it
+  wrote the English translation, 6 of 6 (temperature 0 and its own sampling); 0.30.0, the same day and the same prompt
+  (231 prompt tokens in both), wrote the French, 6 of 6. English recordings are unchanged; Qwen3-Omni is unchanged. Not
+  root-caused (vLLM's Gemma 4 audio path or transformers 5.19 → 5.20). No LlmOnLan surface sends sound to Gemma today
+  (HUMAN_TESTS J10 does).
+- Requests sent while generation is paused get a 503 (release notes): the farm never pauses vLLM.
+
+## Flint on vLLM 0.33.0 (HUMAN_TESTS J12–J13 on vLLM)
+
+`RecursiveSI/flint-nvfp4-gguf` (revision 6ec43e19, `flint-nvfp4.gguf`, 22.86 GB) with `RecursiveSI/flint`'s config and
+tokenizer (revision 2a247be0: its json and `chat_template.jinja` only, 11 MB), vLLM's recipe flags (`glm47` reasoning and
+tool parsers, `--exclude-tools-when-tool-choice-none`), the farm's argv. **21.86 GiB loaded**; Marlin for the NVFP4
+experts and linears (weight-only on sm_120), FlashInfer attention with Flint's attention sinks (JIT-compiled), no
+`torch.compile` for this model (CUDA graphs for decode only). The context cache is **bf16 only**: `--kv-cache-dtype fp8`
+stops the start (`assert self.attn.kv_cache_dtype in ("auto", "bfloat16")`, `vllm/models/flint/model.py`). So the farm's
+60 GiB pool holds **1,266,476 tokens: 19.3 conversations of 64k** (vLLM adds 7 padding layers to group the 35
+sliding-window layers with the 14 full ones: up to 20 % of the pool). Starts in 2 min, 1 min once compiled.
+
+**Speed and people at once** (the spike's harness on vLLM's socket; Flint has no thinking switch):
+
+| Profile | Users tested | People every turn / steady | At the highest passing level |
+|---|---|---|---|
+| chat (4k message) | 1–128 | **64 / ≥ 128** | 64: TTFT p95 2.64 s, decode p10 33.2; 128 steady: 0.65 s, 21.3 |
+| agent step (8k shared + 2k, tools) | 1–128 | **≥ 128 / ≥ 128** | 128: 4.59 s, 27.5 tok/s, 3,838 tok/s in all |
+| 32k follow-ups (`--append`) | 8–40 | **≥ 40 / ≥ 40** (the pool: 41.9) | 40: first 1.59 s / 26.8, later 0.30 s / 28.0 |
+| 64k follow-ups (`--append`) | 4–20 | **≥ 20 / ≥ 20** (the pool: 20.4) | 20: first 1.64 s / 32.1, later 0.30 s / 31.9 |
+
+One person: **252 tok/s**, TTFT 0.10 s on a 4k message (llama.cpp with its experts in RAM on 2026-10-23: 44–55). Memory
+binds first, with decode still at 27–32 tok/s there: Flint serves **40 people at 32k and 20 at 64k** on this card
+(Qwen3.6: 96 and 48), the farm's Automatic numbers for it now (`measured.json` `pro6000/vllm/flint`).
+
+**What works through the farm's route:** thinking apart from the answer; tool calls (`glm47`); a picture refused (*flint
+is not a multimodal model*, text only); an earlier turn's reasoning reaches the prompt (50 against 24 prompt tokens);
+**integer tool arguments survive across turns**: 18 of 18 `read` calls with `offset`/`limit` kept integers over 3 runs of
+up to 5 steps each, the earlier calls sent back in the history (ollama#19191's `"30000.0"` does not happen here: vLLM
+renders the history's arguments with `tojson`).
+
+**Two problems found, both fixed in the farm** (measured before and after):
+1. **An answer with no think block came back empty.** Flint decides each turn whether to think; vLLM's `glm47` parser
+   starts every answer as thinking (GLM-4.7's template opens the block itself, Flint's does not), so a direct answer is
+   read as thinking to its end: **3 of 6 short answers after a tool result** came back with an empty reply (the gate's
+   weather item 3 runs of 3). Fresh chat questions were fine (24 of 24: Flint thinks first there). The fix: `install.sh`
+   writes `chat_template_open_think.jinja`, Flint's own template whose answer prompt is `<|assistant|><think>`, and the
+   farm passes it (`--chat-template`): **6 of 6** after a tool result, 24 of 24 chats.
+2. **Thinking leaked into titles.** Open WebUI's titles send `enable_thinking: false`; Flint's template has no such switch,
+   but the `glm47` parser takes it as "do not read the thinking apart", so the `<think>` block landed in the title (6 of
+   6). The farm's route now drops the switch for Flint (as for Qwen3-Omni): 6 of 6 titles clean. Flint thinks 200–900
+   tokens for a title, against Open WebUI's 1,000-token budget: one title of 15 came back empty (thinking past it).
+
+**The gate** (Flint's sampling: temperature 1.0, top_p 0.95, top_k 20, 32k replies; ~25 s each):
+
+| Template | Runs | code | exact | tool | Tokens |
+|---|---|---|---|---|---|
+| Flint's own (the recipe) | 26, 24, 24 | 10/10 ×3 | 7/7 ×3 | 9, 7, 7 /11 | 17–20k |
+| open-think (the farm's) | 25, 25, 25 | 10, 9, 9 /10 | 7/7 ×3 | 8, 9, 9 /11 | 16–21k |
+
+Misses: `tool_calendar` in all six runs (Flint sends `start_time: "14:30"` and no `date` argument; on llama.cpp on 2026-10-23
+it passed), `tool_weather` empty (Flint's own template only, problem 1), `tool_search` and `tool_write_file` re-checking
+past the gate's 5 steps (its habit, as on llama.cpp; the gate's loop also drops the reasoning from the history),
+`code_eval_expr` twice. On llama.cpp on 2026-10-23: 27/28.
+
+**The coding agent** (`docs/spike/ide/run.js`, five tasks × 3, the reply room the farm advertises: 32,768; the fence on,
+the data folder on C:; through the scratch farm's route). Qwen3.6 rows: the same harness the same day.
+
+| Runs | t1 | t2 | t3 | t4 | t5 | **all** | wall a task (median) | steps (median) | failed tool calls | output tokens (median) | ended on max-tokens |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Flint, vLLM 0.33.0, its own template | 3/3 | 2/3 | 2/3 | 2/3 | 3/3 | **12/15** | 49 s | 15 | 107 of 730 (15 %) | 8,645 | 0 |
+| Flint, vLLM 0.33.0, open-think (as the farm runs it) | 3/3 | 1/3 | 3/3 | 3/3 | 3/3 | **13/15** | 39 s | 10 | 43 of 383 (11 %) | 8,423 | 0 |
+| Qwen3.6, vLLM 0.33.0 | 0/3 | 3/3 | 1/3 | 3/3 | 0/3 | **7/15** | 15 s | 7 | 8 of 120 (7 %) | 2,438 | 0 |
+| Qwen3.6, vLLM 0.30.0 (A/B) | 2/3 | 3/3 | 1/3 | 3/3 | 0/3 | **9/15** | 16 s | 7 | 15 of 123 (12 %) | 2,207 | 0 |
+| *2026-10-23:* Flint, llama.cpp, experts in RAM, 32,768 | 2/2 | 2/2 | 2/2 | 1/2 | 1/2 | 8/10 | 234 s | 13 | 22 % | 10,922 | 0 |
+| *2026-10-23:* Qwen3.6, the owner's farm (0.30.0), 8,192 | 3/3 | 3/3 | 1/3 | 3/3 | 1/3 | 11/15 | 21 s | 9 | 17 % | 2,156 | 0 |
+
+- **Flint did the five tasks better than Qwen3.6 today: 12–13/15 against 7–9/15**, at 2.5–3× Qwen3.6's wall time
+  (39–49 s a task, 5× faster than on llama.cpp) and 3.5× its output tokens. Its failures: the p5 task's speed rule
+  (`speed 6 is not twice speed 3`, 3 runs), a test file that fails on the real code, a `check.js` it changed; and its
+  loops: two runs of 110 and 149 steps (t1, t3) before passing.
+- **Qwen3.6 scored lower than on 2026-10-23 on both versions** (t1 and t5: the string sort missed, tests of its own that
+  fail). 7/15 on 0.33.0 against 9/15 on 0.30.0 is inside the ±2 these 15 runs show at temperature 1.0; the shift from
+  11/15 on 2026-10-23 comes with today's reply room (32,768 instead of 8,192) and client build, not the vLLM version.
+
+**What this means for the farm:** Flint now runs on the farm's vLLM, as a list entry of its own (a GGUF and its config
+repo), at **20 people at 64k** on the PRO 6000 (Qwen3.6: 48), text only, always thinking, and it did the IDE agent's five
+tasks better than Qwen3.6 today. It is in the list, not in a default. *2026-11-03, the owner:* it joins LOL Vibe's proven
+list (`AGENT_PROVEN`, not on Ollama), with a capacity catalog entry whose context memory is the measured 50,869 B a token
+in bf16; the presets' picks do not change on any card (DEVLOG 2026-11-03). Still unknown: longer work than five small tasks (a real project, Keep going); Flint on a DGX
+Spark (vLLM's standard layers there too); which licence governs the weights (the GGUF metadata says `flint-preview`, the
+cards say Apache 2.0).

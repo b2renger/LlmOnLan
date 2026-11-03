@@ -3934,7 +3934,7 @@ test('vLLM config: its defaults, the three measured models, and what it refuses 
     const v = defaultConfig().vllm;
     assert.deepEqual(
         { ...v, library: undefined },
-        { enabled: false, root: null, distro: null, port: 8100, alias: 'assistant', model: 'qwen3.6-35b-a3b', contextLength: 65536, parallel: 'auto', maxNumSeqs: 'auto', kvCacheGib: 'auto', ocrReserveGib: 9, marginPct: 8, minFreeGb: 'auto', version: '0.30.0', extraArgs: [], library: undefined, removed: [] },
+        { enabled: false, root: null, distro: null, port: 8100, alias: 'assistant', model: 'qwen3.6-35b-a3b', contextLength: 65536, parallel: 'auto', maxNumSeqs: 'auto', kvCacheGib: 'auto', ocrReserveGib: 9, marginPct: 8, minFreeGb: 'auto', version: '0.33.0', extraArgs: [], library: undefined, removed: [] },
     );
     assert.deepEqual(v.library.map((e) => [e.id, e.repo, e.vision, e.presencePenalty, e.measured]), [
         ['qwen3.6-35b-a3b', 'nvidia/Qwen3.6-35B-A3B-NVFP4', true, 1.5, 'qwen36'],
@@ -3942,6 +3942,7 @@ test('vLLM config: its defaults, the three measured models, and what it refuses 
         ['qwen3.8-27b-nvfp4', 'nvidia/Qwen3.8-27B-NVFP4', true, null, 'qwen38'],
         ['gemma-4-12b', 'unsloth/gemma-4-12b-it-NVFP4', true, null, 'gemma4'],
         ['qwen3-omni-30b-a3b', 'Qwen/Qwen3-Omni-30B-A3B-Instruct', true, null, 'omni'],
+        ['flint', 'RecursiveSI/flint-nvfp4-gguf', false, null, null],
     ]);
     assert.equal(v.library[0].args.join(' '), '--kv-cache-dtype fp8 --enable-prefix-caching --mamba-cache-mode align --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_xml', 'the spike\'s flags, as serve.sh runs them');
     assert.ok(defaultConfig().vllm.library[0].args !== v.library[0].args, 'each config gets its own copy of the library');
@@ -4481,7 +4482,7 @@ test('vLLM on this computer: the checklist, every blocking sentence, and the dis
     const spark = V.parseStatus(['home=/home/me', 'arch=aarch64', 'curl=/usr/bin/curl', 'gpu=NVIDIA GB10, [N/A], [N/A], 12.1', 'mem_total_kb=124991588', 'mem_available_kb=115343360', 'disk_free_kb=3000000000', 'install=/home/me/lol-vllm 0.29.0'].join('\n'));
     r = P(lin({ st: spark }), { ...c, vllm: { ...c.vllm, root: '~/lol-vllm' } });
     assert.ok(r.oks.includes('GPU: NVIDIA GB10 (119 GB shared with the system).') && r.oks.includes('vLLM 0.29.0 is installed (in /home/me/lol-vllm).'), r.oks.join('|'));
-    assert.ok(r.warnings.includes('vLLM 0.29.0 is installed; this farm was tested with 0.30.0.'));
+    assert.ok(r.warnings.includes('vLLM 0.29.0 is installed; this farm was tested with 0.33.0.'));
     assert.ok(r.problems.includes('Qwen3.6 35B-A3B · NVFP4 is not downloaded yet: press Download next to it.'));
     // Before vLLM is installed the list has no Download button: Install vLLM brings the model (PRO 6000, 2026-10-08).
     const bare = V.parseStatus(['home=/home/me', 'arch=x86_64', 'curl=/usr/bin/curl', 'cc=/usr/bin/cc', `gpu=${PRO}, 97887, 90000, 12.0`, 'mem_total_kb=1', 'mem_available_kb=1', 'disk_free_kb=3000000000'].join('\n'));
@@ -4828,8 +4829,8 @@ test('vLLM list, Gemma 4 and Qwen3-Omni (owner 2026-10-09): their flags, their f
     // A list saved before these models existed (an Add, a Remove, a take-over) gets them at the next start; one the
     // operator removed stays out; added back by name it is the built-in entry again.
     const saved = ConfigSchema.parse({ vllm: { library: [lib[0], { id: 'mine', label: 'Mine', folder: 'Mine' }] } }).vllm;
-    assert.deepEqual(saved.library.map((e) => e.id), ['qwen3.6-35b-a3b', 'mine', 'nemotron-3.5-lightning', 'qwen3.8-27b-nvfp4', 'gemma-4-12b', 'qwen3-omni-30b-a3b']);
-    const without = ConfigSchema.parse({ vllm: { library: [lib[0]], removed: ['qwen3-omni-30b-a3b', 'nemotron-3.5-lightning'] } }).vllm;
+    assert.deepEqual(saved.library.map((e) => e.id), ['qwen3.6-35b-a3b', 'mine', 'nemotron-3.5-lightning', 'qwen3.8-27b-nvfp4', 'gemma-4-12b', 'qwen3-omni-30b-a3b', 'flint']);
+    const without = ConfigSchema.parse({ vllm: { library: [lib[0]], removed: ['qwen3-omni-30b-a3b', 'nemotron-3.5-lightning', 'flint'] } }).vllm;
     assert.deepEqual(without.library.map((e) => e.id), ['qwen3.6-35b-a3b', 'qwen3.8-27b-nvfp4', 'gemma-4-12b']);
     const back = V.newLibraryEntry({ repo: 'https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct' }, without.library);
     assert.deepEqual(back.entry, omni, 'its own entry, measured flags included');
@@ -4839,6 +4840,66 @@ test('vLLM list, Gemma 4 and Qwen3-Omni (owner 2026-10-09): their flags, their f
     assert.ok(upSrc.includes("config.vllm.removed = (config.vllm.removed || []).filter((id) => id !== r.entry.id);"), 'an Add forgets it');
 });
 
+test('vLLM list, Flint (2026-11-02): one GGUF file with another repo\'s config, vLLM 0.33.0 or newer, its parsers, no thinking switch', () => {
+    const c = defaultConfig(); c.vllm.enabled = true; c.vllm.model = 'flint'; c.vllm.root = '/h/lol-vllm';
+    const e = V.vllmEntry(c);
+    assert.deepEqual([e.repo, e.gguf, e.configRepo, e.openThink, e.minVllm, e.vision, e.alwaysThinks], ['RecursiveSI/flint-nvfp4-gguf', 'flint-nvfp4.gguf', 'RecursiveSI/flint', true, '0.33.0', false, true]);
+    // vLLM loads the file, and takes the config and tokenizer from <folder>/config (install.sh's third argument).
+    const s = V.settingsOf(c, '/h/lol-vllm');
+    assert.equal(s.modelPath, '/h/lol-vllm/hf/flint-nvfp4-gguf/flint-nvfp4.gguf');
+    const argv = V.argvFor(e, s, 40, 32);   // Automatic people at once: 4 to start with (no measurement), so 32
+    assert.deepEqual(V.flagMap(argv), {
+        '--served-model-name': 'flint', '--max-model-len': '65536', '--max-num-seqs': '32', '--kv-cache-memory-bytes': String(40 * GIB),
+        '--enable-prefix-caching': true, '--reasoning-parser': 'glm47', '--enable-auto-tool-choice': true, '--tool-call-parser': 'glm47',
+        '--exclude-tools-when-tool-choice-none': true, '--hf-config-path': '/h/lol-vllm/hf/flint-nvfp4-gguf/config',
+        '--tokenizer': '/h/lol-vllm/hf/flint-nvfp4-gguf/config', '--override-generation-config': { max_new_tokens: 32768 },
+        // install.sh's copy of Flint's template whose answer opens a think block (vLLM's glm47 parser read an answer with
+        // none as thinking: 3 of 6 short answers after a tool result came back empty; with it, 0 of 6).
+        '--chat-template': '/h/lol-vllm/hf/flint-nvfp4-gguf/config/chat_template_open_think.jinja',
+    });
+    assert.ok(!V.argvFor(V.vllmEntry(defaultConfig()), V.settingsOf(defaultConfig(), '/h'), 40, 64).includes('--hf-config-path'), 'the others: their folder, as before');
+    // A server started so is kept at the next start (adoption compares the file and the flags).
+    assert.ok(V.adoptable(c, { argv: [s.modelPath, ...argv], port: 8100, minFreeGb: null }, { root: '/h/lol-vllm' }).ok);
+    // The checklist and Use this: refused on an older vLLM, before anything stops (status.sh lists the folder by its GGUF).
+    const st = (ver) => V.parseStatus(['home=/h', 'root=/h/lol-vllm', 'arch=x86_64', 'curl=/usr/bin/curl', 'cc=/usr/bin/gcc', `gpu=${PRO}, 97887, 95000, 12.0`,
+        'disk_free_kb=500000000', `install=/h/lol-vllm ${ver}`, 'model=flint-nvfp4-gguf 22400000 vision=0 native=262144 partial=0',
+        'model=Qwen3.6-35B-A3B-NVFP4 22880000 vision=1 native=262144 partial=0'].join('\n'));
+    const OLD = 'Flint 40B-A2.5B · NVFP4 needs vLLM 0.33.0 or newer, and this computer has vLLM 0.30.0: press Update vLLM first.';
+    assert.ok(V.problemsFrom({ platform: 'linux', arch: 'x64', st: st('0.30.0') }, c).problems.includes(OLD));
+    assert.deepEqual(V.problemsFrom({ platform: 'linux', arch: 'x64', st: st('0.33.0') }, c).problems, []);
+    const q = defaultConfig(); q.vllm.root = '/h/lol-vllm';
+    assert.equal(V.applyChange(q, { model: 'flint' }, { st: st('0.30.0'), root: '/h/lol-vllm' }).error, OLD);
+    assert.deepEqual(V.applyChange(q, { model: 'flint' }, { st: st('0.33.0'), root: '/h/lol-vllm' }).patch, { model: 'flint' });
+    assert.equal(V.tooOld(e, '0.34.1'), null); assert.equal(V.tooOld(e, '0.33.0'), null); assert.ok(V.tooOld(e, '0.32.9'));
+    assert.equal(V.tooOld(V.vllmEntry(defaultConfig()), '0.20.0'), null, 'a model that names no version: never');
+    // Its template has no thinking switch: the route drops it (enable_thinking false made the glm47 parser leave Flint's
+    // <think> block in the answer, 6 titles of 6).
+    assert.deepEqual(buildLitellmConfig(c).model_list[0].litellm_params.additional_drop_params, ['chat_template_kwargs']);
+    // A Flint added by its name gets Flint's flags; the panel downloads the config repo too.
+    assert.deepEqual(V.familyArgs('RecursiveSI/flint'), e.args);
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.equal((upSrc.match(/configRepo: e(?: && e)?\.configRepo, openThink: (?:!!\(e && e\.openThink\)|e\.openThink)/g) || []).length, 2, 'Download and Install pass the config repo and the open-think copy');
+});
+
+test('vLLM list, Flint\'s memory (2026-11-03): what vLLM 0.33.0 measured per token, in bf16 only; Automatic never seats more than the pool holds', () => {
+    const c = defaultConfig(); c.vllm.model = 'flint';
+    const e = V.vllmEntry(c); const f = V.facts(e);
+    assert.equal(e.catalog, 'flint');
+    // 1,266,476 tokens in a 60 GiB pool (the catalog keeps it at 1 byte/element, like every model; Flint's flags have no fp8).
+    assert.deepEqual([f.kvBytesPerToken, f.stateBytes], [50870, 0]);
+    // The spike's 20 people at 62k and 40 at 30.2k fit that pool; at the full window, 19 and 38.
+    assert.deepEqual([62000, 30200, 65536, 32768].map((ctx) => V.peopleFit(60, ctx, f)), [20, 41, 19, 38]);
+    // Automatic: the measured 20 at 64k, capped by what the pool holds (fewer with document reading's memory kept aside).
+    assert.deepEqual(V.seatsAuto(e, PRO, 65536, V.peopleFit(60, 65536, f)), { seats: 19, source: 'memory', label: '≥ 20' });
+    assert.deepEqual(V.seatsAuto(e, PRO, 65536, V.peopleFit(51, 65536, f)), { seats: 16, source: 'memory', label: '≥ 20' });
+    // The capacity page: Flint in bf16 whatever its toggle says (fp8 would count it twice), measured on the PRO 6000.
+    const E = require('../src/capacity/estimator'); E.init(require('../src/capacity/catalog.json'), require('../src/capacity/measured.json'));
+    const asFp8 = E.estimate('rtx-pro-6000-maxq', 'flint', { context: 65536, kvDtype: 'fp8' });
+    assert.equal(asFp8.opts.kvDtype, 'bf16');
+    assert.deepEqual(asFp8.people, E.estimate('rtx-pro-6000-maxq', 'flint', { context: 65536, kvDtype: 'bf16' }).people);
+    assert.equal(E.estimate('rtx-pro-6000-ws', 'flint', { context: 62000 }).confidence, 'measured');
+});
+
 test('vLLM sound: status.sh says which install has vLLM\'s sound extras; a model that hears gets Update vLLM without them', () => {
     const st = V.parseStatus(['home=/h', 'root=/h/lol-vllm', 'install=/h/lol-vllm 0.30.0', 'install=/h/other 0.30.0', 'audio=/h/other'].join('\n'));
     assert.deepEqual(st.installs.map((i) => [i.root, i.audio]), [['/h/lol-vllm', false], ['/h/other', true]]);
@@ -4846,7 +4907,7 @@ test('vLLM sound: status.sh says which install has vLLM\'s sound extras; a model
     const probe = (model, audio) => {
         c.vllm.model = model;
         const s = V.parseStatus(['home=/h', 'root=/h/lol-vllm', 'arch=x86_64', 'curl=/usr/bin/curl', 'cc=/usr/bin/gcc', 'gpu=NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 97887, 90000, 12.0',
-            'disk_free_kb=500000000', 'install=/h/lol-vllm 0.30.0', ...(audio ? ['audio=/h/lol-vllm'] : [])].join('\n'));
+            'disk_free_kb=500000000', 'install=/h/lol-vllm 0.33.0', ...(audio ? ['audio=/h/lol-vllm'] : [])].join('\n'));
         return V.problemsFrom({ st: s, at: 1, platform: 'linux' }, c).warnings;
     };
     const SOUND = 'Gemma 4 12B · NVFP4 hears sound in a message, and the vLLM installed here cannot read sound yet: press Update vLLM (a few minutes; text and pictures work meanwhile).';
@@ -5540,14 +5601,14 @@ test('take-over: what it keeps from the server, and when it offers nothing (§9.
     const st = prodStatus(); st.running.argv[0] = '/home/ateliernum/lol-spike/hf/qwen36'; st.models = [{ folder: 'qwen36', gb: 23, partial: false }];
     p = V.takeOverPlan(cp, st, 8100, { answering: true });
     const e = p.block.library.find((x) => x.id === 'qwen3.6-35b-a3b');
-    assert.deepEqual([e.folder, e.presencePenalty, p.block.library.length], ['qwen36', 1.0, 5]);
+    assert.deepEqual([e.folder, e.presencePenalty, p.block.library.length], ['qwen36', 1.0, 6]);
     assert.match(e.note, /Kept as it ran when the farm took it over\.$/);
     assert.equal(toYaml(buildLitellmConfig(loadConfigFrom({ vllm: p.block }))).replace('api_key: sk-lol-vllm', 'api_key: sk-lol-external'), toYaml(buildLitellmConfig(cp)), 'the same routing');
     // A model the list does not have: a new entry with its family's flags.
     const nst = prodStatus(); nst.running.argv = nst.running.argv.map((a) => (a === 'qwen3.6-35b-a3b' ? 'my-qwen' : a));
     const nc = prodExternalConfig(); nc.external.model = 'my-qwen';
     p = V.takeOverPlan(nc, nst, 8100, { answering: true });
-    assert.deepEqual([p.block.model, p.block.library.length, p.block.library[5].id, p.block.library[5].folder, p.block.library[5].vision], ['my-qwen', 6, 'my-qwen', 'Qwen3.6-35B-A3B-NVFP4', true]);
+    assert.deepEqual([p.block.model, p.block.library.length, p.block.library[6].id, p.block.library[6].folder, p.block.library[6].vision], ['my-qwen', 7, 'my-qwen', 'Qwen3.6-35B-A3B-NVFP4', true]);
     // Nothing to offer.
     const none = (why, st2, port = 8100, answering = true, cfg = c) => assert.equal(V.takeOverPlan(cfg, st2, port, { answering }), null, why);
     none('no install in that root', prodStatus({ installs: [] }));
@@ -6943,7 +7004,7 @@ test('presets: the picks for an RTX PRO 6000 with vLLM — the capacity page\'s 
     // LOL Vibe: the model proven with the coding agent, and why not Flint.
     assert.match(picks.vibe.reasons[0], /^Qwen3\.6 35B-A3B · NVFP4 on vLLM, for 10 people at once .*: Covers your 10 with \d+/);
     assert.ok(picks.vibe.estimate.mid >= 48, `about 48–64 coders at 64k: ${picks.vibe.estimate.mid}`);
-    assert.match(picks.vibe.reasons[1], /^Picked for the most people among the models proven with the IDE's coding agent: 11\/15 on its five tasks, on vLLM\. Flint is not one yet: .* it joins once the farm's vLLM serves it and it is measured here\.$/);
+    assert.match(picks.vibe.reasons[1], /^Picked for the most people among the models proven with the IDE's coding agent: 11\/15 on its five tasks, on vLLM\. Also proven: Flint 40B-A2\.5B \(13\/15 on its five tasks, on vLLM 0\.33\.0\)\.$/);
     assert.match(picks.computer.reasons[0], /tool calling, reads images/);
     // Plugins: Vibe gives document reading's memory back; the Computer turns every one on; Balanced = as shipped.
     assert.deepEqual(picks.vibe.plugins, { websearch: true, ocr: false, tts: false, classify: false, stt: false, bus: false });
@@ -6969,7 +7030,7 @@ test('presets: the picks for a DGX Spark, a 24 GB and a 12 GB card, and a box wi
             balanced: 'ollama gemma4:12b auto 2', rag: 'ollama gemma4:12b auto 2', vibe: `llamacpp ${gguf} auto 1`, computer: 'ollama gemma4:12b auto 2',
         }, name);
         // No model proven with the coding agent serves here: LOL Vibe keeps llama.cpp's model, and says so.
-        assert.ok(PR.pickFor('vibe', PR_BOX[name]()).reasons.includes('No model proven with the IDE\'s coding agent is available here: so far only Qwen3.6-35B-A3B is (11/15 on its five tasks, on vLLM).'), name);
+        assert.ok(PR.pickFor('vibe', PR_BOX[name]()).reasons.includes('No model proven with the IDE\'s coding agent is available here: so far only Qwen3.6-35B-A3B (11/15 on its five tasks, on vLLM) and Flint 40B-A2.5B (13/15 on its five tasks, on vLLM 0.33.0) are.'), name);
     }
     // A proven model as Ollama's default: LOL Vibe serves it there rather than llama.cpp's unproven one.
     const olProven = PR_BOX.g12(); olProven.ollama.model = 'qwen3.6:35b';
@@ -6977,6 +7038,15 @@ test('presets: the picks for a DGX Spark, a 24 GB and a 12 GB card, and a box wi
     assert.deepEqual([vibeOl.engine, vibeOl.model, vibeOl.people], ['ollama', 'qwen3.6:35b', 2]);
     assert.equal(vibeOl.reasons[0], 'qwen3.6:35b on Ollama: proven with the IDE\'s coding agent (11/15 on its five tasks, on vLLM).');
     assert.ok(!vibeOl.reasons.some((r) => /No model proven/.test(r)));
+    // Flint (owner 2026-11-03): proven on llama.cpp as on vLLM, but not on Ollama, whose ollama#19191 breaks the agent's reads.
+    const lcFlint = PR_BOX.g24(); lcFlint.llamacpp = { ...PR_LC, id: 'flint-ud-q4_k_xl', label: 'flint-UD-Q4_K_XL', model: 'flint-UD-Q4_K_XL.gguf' };
+    const vibeLcFlint = PR.pickFor('vibe', lcFlint);
+    assert.deepEqual([vibeLcFlint.engine, vibeLcFlint.reasons[0]], ['llamacpp', 'flint-UD-Q4_K_XL on llama.cpp: proven with the IDE\'s coding agent (13/15 on its five tasks, on vLLM 0.33.0).']);
+    const olFlint = PR_BOX.g12(); olFlint.llamacpp = { available: false }; olFlint.ollama.model = 'flint:40b-a2b-qat-int4';
+    const vibeOlFlint = PR.pickFor('vibe', olFlint);
+    assert.equal(vibeOlFlint.engine, 'ollama');
+    assert.ok(vibeOlFlint.reasons.includes('Flint 40B-A2.5B is proven with the IDE\'s coding agent, but not on Ollama: Ollama turns a whole number from an earlier tool call into text (ollama#19191), and the agent reads files by line numbers.'));
+    assert.ok(vibeOlFlint.reasons.some((r) => /^No model proven/.test(r)));
     assert.ok(PR.pickFor('rag', PR_BOX.g24()).reasons.some((r) => /capacity page does not know this GPU/.test(r)));
     // A card the capacity page knows, but for one person (an RTX 5090, 32 GB): Ollama too, and why.
     const g32 = prBox('NVIDIA GeForce RTX 5090', 32, { current: 'gemma-4-12b', library: prLib(['gemma-4-12b']) });

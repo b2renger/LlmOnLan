@@ -1,0 +1,156 @@
+﻿{
+ "model": "assistant",
+ "calls": 18,
+ "integerCalls": 18,
+ "log": [
+  {
+   "run": 1,
+   "step": 1,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 30000, \"limit\": 200}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 1,
+   "step": 2,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 30000, \"limit\": 20}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 1,
+   "step": 2,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 30180, \"limit\": 25}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 1,
+   "step": 3,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 30000, \"limit\": 5}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 1,
+   "step": 3,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 30095, \"limit\": 5}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 1,
+   "step": 4,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 30003, \"limit\": 1}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 1,
+   "step": 4,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 30010, \"limit\": 1}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 1,
+   "step": 5,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 0, \"limit\": 200}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 1,
+   "step": 5,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 29900, \"limit\": 200}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 2,
+   "step": 1,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 30000, \"limit\": 200}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 2,
+   "step": 2,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 30200, \"limit\": 200}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 2,
+   "step": 3,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 30400, \"limit\": 200}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 2,
+   "step": 4,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 30440, \"limit\": 20}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 2,
+   "step": 5,
+   "final": "I searched through `logs/big.log` in 200-line chunks starting from line 30000:\n\n1. **Lines 30000–30199**: no FATAL found\n2. **Lines 30200–30399**: no FATAL foun"
+  },
+  {
+   "run": 3,
+   "step": 1,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 30000, \"limit\": 200}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 3,
+   "step": 2,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 32000, \"limit\": 200}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 3,
+   "step": 3,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 34000, \"limit\": 200}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 3,
+   "step": 4,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 36000, \"limit\": 200}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  },
+  {
+   "run": 3,
+   "step": 5,
+   "raw": "{\"path\": \"logs/big.log\", \"offset\": 30200, \"limit\": 200}",
+   "offset": "int",
+   "limit": "int",
+   "ok": true
+  }
+ ]
+}

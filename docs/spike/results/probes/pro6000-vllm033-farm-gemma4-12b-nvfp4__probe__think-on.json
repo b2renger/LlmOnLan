@@ -1,0 +1,99 @@
+{
+ "model": "assistant",
+ "base": "http://127.0.0.1:4400/v1",
+ "at": "2026-11-02T16:19:21.784Z",
+ "checks": [
+  {
+   "label": "warm-up",
+   "ok": true,
+   "ttft_s": 1.053,
+   "decode_tps": 127.8,
+   "prompt_tokens": 24,
+   "completion_tokens": 64,
+   "text": "",
+   "reasoning_chars": 197,
+   "tool_calls": []
+  },
+  {
+   "label": "one stream (512 tokens)",
+   "ok": true,
+   "ttft_s": 0.047,
+   "decode_tps": 122.4,
+   "prompt_tokens": 31,
+   "completion_tokens": 512,
+   "text": "",
+   "reasoning_chars": 2128,
+   "tool_calls": []
+  },
+  {
+   "label": "picture",
+   "ok": true,
+   "ttft_s": 0.566,
+   "decode_tps": 122.2,
+   "prompt_tokens": 307,
+   "completion_tokens": 200,
+   "text": "",
+   "reasoning_chars": 689,
+   "tool_calls": []
+  },
+  {
+   "label": "tool call",
+   "ok": true,
+   "ttft_s": 0.065,
+   "decode_tps": 128.2,
+   "prompt_tokens": 71,
+   "completion_tokens": 67,
+   "text": "",
+   "reasoning_chars": 185,
+   "tool_calls": [
+    {
+     "name": "get_weather",
+     "args": "{\"city\": \"Lyon\"}"
+    }
+   ]
+  },
+  {
+   "label": "sound in a message fr.wav",
+   "ok": true,
+   "ttft_s": 0.087,
+   "decode_tps": 124.3,
+   "prompt_tokens": 234,
+   "completion_tokens": 132,
+   "text": "French\nHello, I would like to book the meeting room for Thursday at 3 PM for six people.",
+   "reasoning_chars": 390,
+   "tool_calls": []
+  },
+  {
+   "label": "sound in a message en.wav",
+   "ok": true,
+   "ttft_s": 0.084,
+   "decode_tps": 124.8,
+   "prompt_tokens": 209,
+   "completion_tokens": 136,
+   "text": "English\nHello. Please order three boxes of blue markers and send the invoice to the design school.",
+   "reasoning_chars": 491,
+   "tool_calls": []
+  },
+  {
+   "label": "transcriptions fr.wav (fr)",
+   "ok": false,
+   "status": 404,
+   "seconds": 0,
+   "text": "{\"error\":{\"message\":\"This farm does not serve that route. It answers the OpenAI-compatible chat API under /v1: /v1/chat/completions, /v1/models.\",\"type\":\"invalid_request_error\",\"code\":\"lol_not_found\"}}"
+  },
+  {
+   "label": "transcriptions en.wav (en)",
+   "ok": false,
+   "status": 404,
+   "seconds": 0,
+   "text": "{\"error\":{\"message\":\"This farm does not serve that route. It answers the OpenAI-compatible chat API under /v1: /v1/chat/completions, /v1/models.\",\"type\":\"invalid_request_error\",\"code\":\"lol_not_found\"}}"
+  },
+  {
+   "label": "transcriptions fr.wav",
+   "ok": false,
+   "status": 404,
+   "seconds": 0,
+   "text": "{\"error\":{\"message\":\"This farm does not serve that route. It answers the OpenAI-compatible chat API under /v1: /v1/chat/completions, /v1/models.\",\"type\":\"invalid_request_error\",\"code\":\"lol_not_found\"}}"
+  }
+ ]
+}

@@ -2,12 +2,12 @@
 # Install vLLM into its own venv and download a model, for serve.sh. Idempotent: run it again to resume a download
 # or repair the venv. Never touches any other venv. The farm's panel runs it (Install vLLM, Download); by hand:
 #
-#   bash install.sh [hf repo id] [folder]   (Windows: wsl -d Ubuntu -- bash /mnt/c/<path to the repo>/farm/vllm/install.sh)
+#   bash install.sh [hf repo id] [folder] [config repo id]   (Windows: wsl -d Ubuntu -- bash /mnt/c/<path to the repo>/farm/vllm/install.sh)
 #
 # Default repo: nvidia/Qwen3.6-35B-A3B-NVFP4 (~23.5 GB) -> $LOL_VLLM_ROOT/hf/<folder, default the repo's name>.
 # Needs: an NVIDIA driver (on Windows, the Windows driver is enough: WSL2 gets the GPU through it), x86_64 or
 # arm64 Linux, and curl. It installs uv (https://docs.astral.sh/uv/) in ~/.local/bin when missing, and uv brings
-# its own Python. Env: LOL_VLLM_ROOT (default ~/lol-vllm), LOL_VLLM_VERSION (default 0.30.0, the version measured
+# its own Python. Env: LOL_VLLM_ROOT (default ~/lol-vllm), LOL_VLLM_VERSION (default 0.33.0, the version measured
 # in docs/spike/RESULTS.md), LOL_VLLM_STEPS (default "venv,model"; "model" only downloads and never touches the venv).
 #
 # For the farm, which reads this script's output: "[lol-step] uv|venv|vllm|cuda-pins|check|model <repo>|done"
@@ -15,9 +15,10 @@
 # a download asked of a root with no vLLM, whose `hf` it uses). It runs as its
 # own process group, recorded in $LOL_VLLM_ROOT/run/install.pgid: `stop.sh install` stops it, download included.
 set -euo pipefail
-VER="${LOL_VLLM_VERSION:-0.30.0}"
+VER="${LOL_VLLM_VERSION:-0.33.0}"
 REPO="${1:-nvidia/Qwen3.6-35B-A3B-NVFP4}"
 FOLDER="${2:-${REPO##*/}}"
+CFG="${3:-}"   # a repo whose config and tokenizer the model takes (a GGUF's)
 ROOT="${LOL_VLLM_ROOT:-$HOME/lol-vllm}"; ROOT="${ROOT/#\~/$HOME}"
 STEPS=",${LOL_VLLM_STEPS:-venv,model},"
 export UV_PYTHON_PREFERENCE=only-managed   # uv's own Python 3.12, never the system's
@@ -49,13 +50,22 @@ if [[ "$STEPS" == *,venv,* ]]; then
     UV="$HOME/.local/bin/uv"
   fi
   echo "[lol-step] venv"
-  [ -x "$PY" ] || "$UV" venv "$ROOT/.venv" --python 3.12 --seed
+  # Another vLLM version (Update vLLM) is built BESIDE the one that works, in .venv-next, and takes its place only once
+  # its check passed: a download cut off, a full disk or a failed check leaves the old vLLM as it was, ready to serve
+  # (installed over it, a stop half-way could leave an environment that no longer starts). --relocatable: its commands
+  # (vllm, hf) still run once the folder is renamed .venv. The same version again (a repair, the sound extras) goes
+  # into .venv itself, as before.
+  have=$(ls -d "$ROOT"/.venv/lib/python3*/site-packages/vllm-*.dist-info 2>/dev/null | tail -1 || true); have=${have##*/vllm-}; have=${have%.dist-info}
+  VENV="$ROOT/.venv"; [ -n "$have" ] && [ "$have" != "$VER" ] && VENV="$ROOT/.venv-next"
+  PY="$VENV/bin/python"
+  [ -x "$PY" ] || "$UV" venv "$VENV" --python 3.12 --seed --relocatable
   echo "[lol-step] vllm"
   # --torch-backend=auto picks the torch wheel that matches the installed driver (uv >= 0.8).
   # [audio]: the extras vLLM reads sound with (Gemma 4 12B and Qwen3-Omni hear audio in a chat message, and
   # Qwen3-Omni answers /v1/audio/transcriptions); without them a request with sound fails.
   "$UV" pip install --python "$PY" "vllm[audio]==$VER" --torch-backend=auto
-  "$UV" pip install --python "$PY" "huggingface_hub[hf_xet]"
+  # gguf: vLLM reads a GGUF checkpoint with it (Flint's NVFP4 needs 0.19 or later); vLLM itself does not require it.
+  "$UV" pip install --python "$PY" "huggingface_hub[hf_xet]" "gguf>=0.19.0"
   echo "[lol-step] cuda-pins"
   # FlashInfer JIT-compiles kernels with the pip CUDA toolkit. vLLM 0.30.0 resolved nvidia-cuda-nvcc 13.4 next to the
   # 13.2 runtime headers ("CUDA compiler and CUDA toolkit headers are incompatible"), and a 13.4 cicc (nvidia-nvvm)
@@ -68,6 +78,13 @@ import torch, vllm, platform
 print("vllm", vllm.__version__, "| torch", torch.__version__, "cuda", torch.version.cuda, "| python", platform.python_version(), platform.machine())
 print("gpu", torch.cuda.get_device_name(0), "cap", torch.cuda.get_device_capability(0))
 PY
+  if [ "$VENV" != "$ROOT/.venv" ]; then   # the new version checks: it takes the old one's place
+    rm -rf "$ROOT/.venv-prev"
+    mv "$ROOT/.venv" "$ROOT/.venv-prev"
+    mv "$VENV" "$ROOT/.venv" || { mv "$ROOT/.venv-prev" "$ROOT/.venv"; exit 1; }
+    rm -rf "$ROOT/.venv-prev"
+    PY="$ROOT/.venv/bin/python"
+  fi
 fi
 
 if [[ "$STEPS" == *,model,* ]]; then
@@ -77,6 +94,27 @@ if [[ "$STEPS" == *,model,* ]]; then
   set +e
   "$ROOT/.venv/bin/hf" download "$REPO" --local-dir "$ROOT/hf/$FOLDER" --exclude "*.png" --exclude ".eval_results/*" 2>&1 | tee "$OUT"
   rc=${PIPESTATUS[0]}
+  # A GGUF that takes its config and tokenizer from another repo (the third argument, Flint's NVFP4): that repo's small
+  # files only (its json and chat template, never its weights), into config/ beside it (vllm.js --hf-config-path).
+  if [ "$rc" = 0 ] && [ -n "$CFG" ]; then
+    "$ROOT/.venv/bin/hf" download "$CFG" --local-dir "$ROOT/hf/$FOLDER/config" --include "*.json" --include "*.jinja" --exclude "*.index.json" 2>&1 | tee -a "$OUT"
+    rc=${PIPESTATUS[0]}
+  fi
+  # LOL_VLLM_OPEN_THINK=1 (vllm.js, Flint): a copy of the config's chat template whose answer opens a think block,
+  # chat_template_open_think.jinja (vllm.js passes it as --chat-template). Flint chooses each turn whether to think,
+  # and vLLM's glm47 parser reads an answer with no think block as thinking: half the short answers after a tool
+  # result came back empty (2026-11-02). A template whose answer prompt is not the expected one is copied unchanged.
+  if [ "$rc" = 0 ] && [ -n "$CFG" ] && [ -n "${LOL_VLLM_OPEN_THINK:-}" ]; then
+    "$PY" - "$ROOT/hf/$FOLDER/config" <<'PY' || true
+import os, sys
+d = sys.argv[1]
+src = open(os.path.join(d, "chat_template.jinja"), encoding="utf8").read()
+old = "<|assistant|>\n{%- endif -%}"
+out = src.replace(old, "<|assistant|><think>\n{%- endif -%}") if src.count(old) == 1 else src
+open(os.path.join(d, "chat_template_open_think.jinja"), "w", encoding="utf8").write(out)
+print("wrote chat_template_open_think.jinja" + ("" if out != src else " (unchanged: its answer prompt is not the expected one)"))
+PY
+  fi
   set -e
   if [ "$rc" != 0 ]; then
     last=$(tr '\r' '\n' < "$OUT" | grep -v '^\s*$' | tail -n 1 | cut -c1-300 || true)

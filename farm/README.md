@@ -238,7 +238,7 @@ this computer and says what is missing, in plain words:
 
 **Install vLLM** (the vLLM section) runs `install.sh` into the vLLM folder (`vllm.root`, default `~/lol-vllm`; an
 existing install in `~/lol-vllm` or `~/lol-spike` is used as it is): `uv` if missing (user-local, no sudo), a
-Python 3.12 environment of uv's own, vLLM 0.30.0 and its GPU libraries (about 8 GB), the CUDA compiler packages
+Python 3.12 environment of uv's own, vLLM 0.33.0 and its GPU libraries (about 9 GB), the CUDA compiler packages
 FlashInfer's kernel build needs, a GPU check, then the chosen model. About 45 minutes on a typical connection. It
 runs in the farm's **download slot**: the farm keeps serving meanwhile, clients do not see it as busy, and Stop
 keeps what was fetched (Install again continues). An install refuses while vLLM runs from that folder. At its
@@ -247,9 +247,22 @@ own child left `hf` downloading on Linux). A download's meter is its folder on d
 downloader fills in large pieces, late: the bar says so and shows how long it has run, so a number that sits low
 for minutes and then jumps does not read as stuck. `lol install` does not install vLLM.
 
+**Update vLLM** (2026-11-02): an install of another version than the farm's (`vllm.version`, 0.33.0) is said on the
+checklist, *vLLM 0.30.0 is installed; this farm was tested with 0.33.0.*, with **Update vLLM** beside it; the farm keeps
+serving with the installed version until a person presses it, and nothing updates by itself. The update needs vLLM
+stopped (its files are in use) and builds the new version **beside** the working one, in `.venv-next` (a relocatable
+uv environment), which replaces `.venv` only once its check passed: a download cut off, a full disk, a failed check or
+Stop leaves the old version in `.venv`, ready to start again, and the next Update goes on from `.venv-next` (checked
+for real on 2026-11-02: 0.30.0 → 0.33.0 stopped half-way, then finished). The same version again (a repair, the sound
+extras) installs into `.venv` itself. A model of the list that needs a newer vLLM than the installed one (Flint needs
+0.33.0) is refused by the checklist and by Use this, before anything stops.
+
 **The models** are a list in the vLLM section: the three NVFP4 checkpoints the spike measured, with the flags it ran
-them with, and two added on 2026-10-09 that hear sound in a chat message (measured the same way on the PRO 6000,
-[RESULTS.md](../docs/spike/RESULTS.md#gemma-4-12b-and-qwen3-omni-rtx-pro-6000-2026-10-09)).
+them with, two added on 2026-10-09 that hear sound in a chat message (measured the same way on the PRO 6000,
+[RESULTS.md](../docs/spike/RESULTS.md#gemma-4-12b-and-qwen3-omni-rtx-pro-6000-2026-10-09)), and Recursive's Flint
+(2026-11-02, vLLM 0.33.0 or newer; [RESULTS.md](../docs/spike/RESULTS.md#vllm-0330-and-flint-on-vllm-rtx-pro-6000-2026-11-02)).
+All six were checked on vLLM 0.33.0 on the PRO 6000 (2026-11-02): they start with the farm's flags, answer, think, call
+tools and see pictures where they can, with gate scores within a point or two of 0.30.0's.
 
 | Model | Sees images | Hears sound | Measured (every turn) |
 |---|---|---|---|
@@ -258,6 +271,19 @@ them with, and two added on 2026-10-09 that hear sound in a chat message (measur
 | Qwen3.8 27B | yes | no | 16 at 32k on an RTX PRO 6000; too slow on a Spark |
 | Gemma 4 12B (`unsloth/gemma-4-12b-it-NVFP4`, 9.3 GB) | yes | yes | 16 at 32k, 8 at 64k on an RTX PRO 6000 (≥ 64 / ≥ 48 once the first follow-up is past) |
 | Qwen3-Omni 30B-A3B (`Qwen/Qwen3-Omni-30B-A3B-Instruct`, 70.5 GB, FP8 at load) | yes | yes, and writes down speech | 20 at 32k, 10 at 64k on an RTX PRO 6000 in a 30 GiB pool: its memory binds first (~30 / ~14 on a PRO 6000 of its own) |
+| Flint 40B-A2.5B (`RecursiveSI/flint-nvfp4-gguf` + `RecursiveSI/flint`'s config, 22.9 GB) | no | no | 40 at 32k, 20 at 64k on an RTX PRO 6000, its memory the limit (bf16 context only) |
+
+**Flint** is one GGUF file (its NVFP4 weights, served weight-only) that takes its config and tokenizer from the BF16
+repo: Download fetches the GGUF repo into `hf/flint-nvfp4-gguf/` and only the BF16 repo's json and chat template (never
+its 74 GiB of weights) into `hf/flint-nvfp4-gguf/config/`; the farm starts vLLM on the file with `--hf-config-path` and
+`--tokenizer` pointing there, and vLLM's `glm47` thinking and tool-call parsers (its recipe's flags). It needs vLLM
+0.33.0 and the `gguf` package (`install.sh` installs it). Two farm fixes, both measured live: Flint chooses each turn
+whether to think, and vLLM's `glm47` parser reads an answer with no think block as thinking (an empty reply: 3 of 6 short
+answers after a tool result), so `install.sh` also writes `chat_template_open_think.jinja`, Flint's own template whose
+answer opens a think block, and the farm passes it (`--chat-template`; 6 of 6 then); and its template has no thinking
+switch, so the route drops the client's (`enable_thinking: false` made the parser leave the `<think>` block in 6 titles
+of 6). It always thinks: a title costs it 200–900 tokens of thinking, and Open WebUI's titles allow 1,000. Its vLLM model
+accepts only a bf16 context cache, so memory binds first: 20 people at 64k in the PRO 6000's ~60 GiB pool (Qwen3.6: 48).
 
 Gemma 4 12B and Qwen3-Omni read sound only with vLLM's sound extras, which `install.sh` installs since 2026-10-09;
 on an older install the checklist says so, with **Update vLLM**. Qwen3-Omni answers in text only (vLLM serves its
@@ -545,8 +571,8 @@ Every step below was run on the PRO 6000 on 2026-10-05. **You need:** Windows 11
 driver (the Windows one is enough) and about 40 GB of disk in WSL (the 23.5 GB model plus the venv). Below,
 `<repo>` is this repository seen from WSL, e.g. `/mnt/c/Users/<you>/LlmOnLan`.
 
-1. **Install, once** (about 15 min plus the download). This installs uv if it is missing, then vLLM 0.30.0, the
-   version measured, into `~/lol-vllm/.venv`, pins the CUDA compiler packages that FlashInfer's kernel build
+1. **Install, once** (about 15 min plus the download). This installs uv if it is missing, then vLLM 0.33.0, the
+   version the farm installs (0.30.0 when these steps were run), into `~/lol-vllm/.venv`, pins the CUDA compiler packages that FlashInfer's kernel build
    needs on this card, and downloads `nvidia/Qwen3.6-35B-A3B-NVFP4` into `~/lol-vllm/hf/`. Run it again to
    resume or repair.
    ```powershell
@@ -1041,10 +1067,12 @@ can run:
   and Qwen3.8 27B (26–28) pass; Gemma 4 12B (22 with thinking on) and Qwen3-Omni (never run on it) do not. Nemotron does
   not read images: documents reach it as text, and scanned pages go through document reading (OCR), a model of its own.
 - **LOL Vibe's list** (`AGENT_PROVEN`): models proven with the IDE's own coding agent on its five tasks
-  (`docs/spike/ide`); the estimator has no agent data. Today Qwen3.6 alone (11/15, `docs/spike/RESULTS.md`, *The coding
-  agent: five tasks*). Qwen3.8 27B and Nemotron passed only the P5-0 spike's single edit task. **Flint** joins once
-  the farm's vLLM serves it (vLLM 0.33.0 does; the farm installs 0.30.0) and HUMAN_TESTS J12–J13 measured it: today the
-  farm serves it on llama.cpp only, a few people at once, and its agent results were not better than Qwen3.6's.
+  (`docs/spike/ide`); the estimator has no agent data. Qwen3.6 (11/15, `docs/spike/RESULTS.md`, *The coding agent: five
+  tasks*) and, since 2026-11-03, **Flint**: on the farm's vLLM 0.33.0 (2026-11-02) it passed 12/15 and 13/15 of the five
+  tasks against Qwen3.6's 7/15 and 9/15 the same day. Not on Ollama (ollama#19191 turns an earlier tool call's whole
+  number into text, and the agent reads files by line numbers): a farm whose Ollama serves Flint is told so. The rule
+  still picks Qwen3.6 on every card the capacity page knows: it serves the most people (48 at 64k on the PRO 6000,
+  Flint 20). Qwen3.8 27B and Nemotron passed only the P5-0 spike's single edit task.
 - **Elsewhere** (a GeForce card, which the capacity page counts as one person's; a GPU it does not know; no vLLM):
   Ollama's default model with Automatic context and its 2 at once, except **LOL Vibe**, which serves a proven model when
   llama.cpp's or Ollama's is one, else llama.cpp's model (Qwen3.8 27B UD-IQ2_S by default) when llama.cpp can run here,
@@ -1394,7 +1422,7 @@ nothing. Shape:
             "port": 8100, "alias": "assistant", "model": "qwen3.6-35b-a3b",   // a list id
             "contextLength": 65536, "parallel": "auto", "maxNumSeqs": "auto",
             "kvCacheGib": "auto", "ocrReserveGib": 9, "marginPct": 8, "minFreeGb": "auto",
-            "version": "0.30.0", "extraArgs": [], "library": [ /* the three measured NVFP4 models */ ] },
+            "version": "0.33.0", "extraArgs": [], "library": [ /* the six models of the list */ ] },
                                                //   a list entry may be { "path": "/mnt/f/models/x" }: a folder used where it is
   "storage": { "dir": null,                    // the panel's "Keep everything here": one folder for the farm's models
                "ollama": null },               //   (null = farm/.models, farm/.stt/models, Ollama's own place);

@@ -109,7 +109,7 @@ fi
 DRV_SO=$(ls /usr/lib/wsl/lib/libcuda.so.1 2>/dev/null || ldconfig -p | awk '/libcuda.so.1 /{print $NF; exit}')
 [ -n "$DRV_SO" ] && ln -sf "$DRV_SO" "$SHIM/libcuda.so"
 export FLASHINFER_EXTRA_LDFLAGS="-L$SHIM"
-[ -d "$MODEL" ] && export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"   # local weights: never ask huggingface.co
+[ -e "$MODEL" ] && export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"   # local weights (a folder, or one GGUF file): never ask huggingface.co
 
 "$ROOT/.venv/bin/python" "$HERE/relay.py" 127.0.0.1 "$PORT" "$SOCK" >> "$LOG" 2>&1 < /dev/null 3<&- &
 RELAY=$!

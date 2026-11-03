@@ -3121,7 +3121,7 @@ async function run(args) {
             const disk = vllmMod.diskCheck(vllmProbe, e, { keepGb: DISK_KEEP_GB, button: 'Download', distro: target.distro });
             if (disk.problem) return { ok: false, error: disk.problem };
             writeRuntimeState();
-            const r = await vllmMod.install(target, { steps: 'model', repo: e.repo, folder: vllmMod.folderOf(e), version: config.vllm.version, sizeGb: e.sizeGb },
+            const r = await vllmMod.install(target, { steps: 'model', repo: e.repo, folder: vllmMod.folderOf(e), configRepo: e.configRepo, openThink: e.openThink, version: config.vllm.version, sizeGb: e.sizeGb },
                 (p) => {
                     if (p.bytes != null) progress(vllmMod.installStepText('model', { label: e.label, bytes: p.bytes, total: p.total }), p.total ? (p.bytes / p.total) * 100 : null, { bytes: p.bytes, total: p.total });
                     else progress(vllmMod.installStepText(p.step, { label: e.label, version: config.vllm.version }), null);
@@ -3157,7 +3157,7 @@ async function run(args) {
             writeRuntimeState();
             const label = e ? e.label : 'the model';
             const r = await vllmMod.install(target, {
-                steps: e && e.repo ? 'venv,model' : 'venv', repo: e && e.repo, folder: e && vllmMod.folderOf(e), version: config.vllm.version, sizeGb: e && e.sizeGb,
+                steps: e && e.repo ? 'venv,model' : 'venv', repo: e && e.repo, folder: e && vllmMod.folderOf(e), configRepo: e && e.configRepo, openThink: !!(e && e.openThink), version: config.vllm.version, sizeGb: e && e.sizeGb,
             }, (p) => {
                 if (p.bytes != null) progress(vllmMod.installStepText('model', { label, bytes: p.bytes, total: p.total }), p.total ? (p.bytes / p.total) * 100 : null, { bytes: p.bytes, total: p.total });
                 else progress(vllmMod.installStepText(p.step, { label, version: config.vllm.version }), null);
