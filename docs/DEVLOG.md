@@ -6,6 +6,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-03 (09:31) — Release Farm app farm-v0.0.51: vLLM 0.33.0, Flint in the vLLM list and LOL Vibe's proven list
+
+The owner: *"Merge, then farm-v0.0.51"* and *"Add it now"* (Flint in `AGENT_PROVEN`, 09:23 below).
+- **Merged:** `vllm-033` into `multiuser-phase0` (`876aeb8`; the DEVLOG's one conflict kept both sides by date). Gates on
+  the merged tree: farm `test/run.js` 281/0; Farm app `npm test` 9 + 3 (under Electron 42.6.0). On the branch:
+  `farm/vllm/test_scripts.sh` 129/0 and `LOL_VLLM_FAKE=1 node test/vllm-lifecycle.js` 172/0, rerun by the lead
+  (no script changed after). No client change since v0.2.15 (`shell/`, `sidecar/` unchanged): no client release.
+- **Farm app farm-v0.0.51** (tag `farm-v0.0.51`, commit `9777e48`, CI run 41603347833, ~4 min): success, a prerelease,
+  10 assets (Windows x64, macOS arm64, Linux arm64 AppImage); GitHub's latest release is still the client's v0.2.15.
+- **Release notes:** a "What's new" above CI's own text: vLLM 0.33.0 and how to update (Stop, Update, Start; nothing
+  updates by itself), Flint and its memory, the two proven models, and three things to know (an older Farm app refuses
+  the settings once the vLLM list was edited here; Gemma 4 12B answers French sound in English on 0.33.0; Flint's licence).
+- **Not done, the owner's:** install farm-v0.0.51 on the PRO 6000; HUMAN_TESTS J14 (Update vLLM from the panel, one stop
+  half-way) and J15 (Flint from the panel, in Open WebUI and LOL Vibe); session Q and A20 from before.
+
 ## 2026-11-03 (09:23) — Flint joins LOL Vibe's proven list, with a capacity catalog entry (branch `vllm-033`)
 
 The owner (2026-11-03), after the vLLM 0.33.0 results below: merge the bump, release farm-v0.0.51, and add Flint to the
