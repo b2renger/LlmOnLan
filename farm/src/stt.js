@@ -157,7 +157,7 @@ async function ensureStt(config) {
         return true;
     } catch (e) {
         log.warn(`Speech-to-text install failed (${e.message}) — the farm will run WITHOUT it.`);
-        log.info(`  Retry: delete ${ROOT} and re-run \`lol up\`.`);
+        log.info(`  Retry: turn it off and on again in the admin panel's Plugins card (or restart the farm). If it fails again, delete ${ROOT} first.`);
         return false;
     }
 }
@@ -242,5 +242,5 @@ async function sttAlive(port, host = '127.0.0.1') {
 
 module.exports = {
     loadError, healthInfo, ensureStt, spawnStt, waitForStt, sttAlive, depsSignature, FW_VERSION, AV_VERSION, CUDA_DEPS, MODELS,
-    RESERVE_GIB, cudaPossible, resolveStt, reserveGib, modelOnDisk, ready, cudaLibDirs, modelsDir,
+    RESERVE_GIB, cudaPossible, resolveStt, reserveGib, installed, modelOnDisk, ready, cudaLibDirs, modelsDir,
 };

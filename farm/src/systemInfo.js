@@ -84,4 +84,4 @@ async function untilSteady(read, { tries = 5, gapMs = 400, stepGb = 0.25 } = {})
     return free;
 }
 
-module.exports = { detectHardware, gpuLiveStats, gpuFreeGb, untilSteady };
+module.exports = { detectHardware, gpuLiveStats, gpuFreeGb, untilSteady, execFileP };

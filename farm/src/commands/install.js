@@ -17,7 +17,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const { execSync, spawn } = require('child_process');
 const log = require('../log');
 const ollama = require('../ollama');
@@ -66,12 +65,12 @@ function ensureConfig() {
         log.ok(`Config: ${log.paint.grey(p)}`);
         return config;
     }
-    const config = defaultConfig();
-    config.name = `${os.hostname()} Farm`;
+    // Only what differs from the defaults, as `lol init` (init.js scaffold says why).
+    const file = require('./init').scaffold();
     const target = path.join(FARM_DIR, CONFIG_FILENAME);
-    writeConfig(target, config);
+    writeConfig(target, file);
     log.ok(`Scaffolded ${log.paint.bold(target)} (edit it to add hosts/models, then re-run).`);
-    return config;
+    return { ...defaultConfig(), ...file };
 }
 
 // --- 2. Ollama --------------------------------------------------------------

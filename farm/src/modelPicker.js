@@ -6,9 +6,12 @@
 //   2. --no-pick / --yes / -y, or no TTY (scripts / CI) → config.models unchanged.
 //   3. Interactive: list installed Ollama models (with sizes) and prompt.
 //
-// Returns the model catalog to serve as [{ id, default }]. Purely in-memory — the
-// choice drives THIS run (beacon, LiteLLM routing, pulls); lol.config.json is left
-// alone (change the persistent catalog with `lol models add/rm`).
+// Returns the model catalog to serve as [{ id, default }]. In memory — the choice
+// drives THIS run (beacon, LiteLLM routing, pulls), and the pick writes nothing. But
+// a later panel change to the Ollama catalog (Offer, Stop, Make default, Rename, a
+// download or a delete) saves this run's list into lol.config.json: the picked
+// models only, without their source, params or draft (up.js persistModels; review
+// 2026-11-05). Change the persistent catalog with `lol models add/rm`.
 
 const readline = require('readline');
 const log = require('./log');

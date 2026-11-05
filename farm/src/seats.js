@@ -19,9 +19,9 @@
 //   • every gated request refreshes the seat's lastActive;
 //   • a seat with no in-flight request and no activity for idleReleaseSec is
 //     reclaimed LAZILY (pruned on the next admit/view — no sweeper needed);
-//   • capacity = the engine's "people served at once" (llamacpp.parallel /
-//     ollama numParallel × hosts), read through a thunk so panel slot changes
-//     apply live without touching the gate.
+//   • capacity = the serving engine's "people served at once" (snapshot.js
+//     backendInfo().slots: llama.cpp, Ollama, vLLM or external), read through a
+//     thunk so panel slot changes apply live without touching the gate.
 // IP-keyed on purpose: it needs no client cooperation (raw API users are
 // gated too) and the office LAN is NAT-free. Known coarse edges, accepted:
 // several people behind one IP share a seat; a coordinator peer farm counts
@@ -254,10 +254,11 @@ const OWN_HEADERS = {
 // loopback. SSE streams ride the pipe untouched; a client that disconnects
 // mid-stream destroys the upstream request so the engine slot frees too.
 // `password` is a thunk like the others: the panel sets the farm password at runtime.
-// `unavailable` (a thunk too) is a sentence while the model cannot answer — the vLLM the
-// farm runs is starting or stopped (docs/archive/plans/VLLM_MANAGED_PLAN.md §3.10) — else null. A
-// generation then gets a 503 with that sentence, after the password check and before a
-// seat: nobody holds a seat for a model that is not there. The model list stays open.
+// `unavailable` (a thunk too) is { message, code, retryAfter } while the model cannot answer — the
+// vLLM the farm runs is starting (lol_engine_starting) or stopped (lol_engine_stopped, since
+// 2026-11-05; docs/archive/plans/VLLM_MANAGED_PLAN.md §3.10) — else null. A generation then gets
+// a 503 with that sentence and code, after the password check and before a seat: nobody holds
+// a seat for a model that is not there. The model list stays open.
 function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec, password = () => null, unavailable = () => null, stats = createGateStats() }) {
     const server = http.createServer((req, res) => {
         const t0 = Date.now();
@@ -287,8 +288,8 @@ function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec, passwo
             }
             const down = unavailable();
             if (down) {
-                res.writeHead(503, { ...OWN_HEADERS, 'retry-after': '60' });
-                return res.end(JSON.stringify({ error: { message: down, type: 'api_error', code: 'lol_engine_starting' } }));
+                res.writeHead(503, { ...OWN_HEADERS, 'retry-after': String(down.retryAfter || 60) });
+                return res.end(JSON.stringify({ error: { message: down.message, type: 'api_error', code: down.code } }));
             }
             const a = seats.admit(ip);
             if (!a.ok) {

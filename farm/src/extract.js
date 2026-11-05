@@ -18,7 +18,7 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const { execSync, spawn } = require('child_process');
+const { spawn } = require('child_process');
 const log = require('./log');
 const { serviceHosts } = require('./net');
 const { resolvePython } = require('./python');
@@ -37,10 +37,14 @@ const BASE_DEPS = ['fastapi', 'uvicorn', 'requests', 'pymupdf', 'opencv-python-h
 function venvPython() {
     return IS_WIN ? path.join(VENV, 'Scripts', 'python.exe') : path.join(VENV, 'bin', 'python');
 }
-function sh(cmd, opts = {}) { execSync(cmd, { stdio: 'inherit', ...opts }); }
-function shCapture(cmd) {
-    try { return execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); }
-    catch { return null; }
+// Async (a spawned shell, awaited), as classify.js: Enable in the Plugins card and a preset's Apply run the install
+// inside `lol up` (Docling's is multi-GB), so it must never freeze the seat gate, the beacon and the panel (review 2026-11-05).
+function sh(cmd, opts = {}) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(cmd, { shell: true, stdio: 'inherit', windowsHide: true, ...opts });
+        child.on('error', reject);
+        child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`${cmd.split(' ')[0]} exited with ${code}`))));
+    });
 }
 function readTrim(p) { try { return fs.readFileSync(p, 'utf8').trim(); } catch { return null; } }
 
@@ -82,22 +86,22 @@ async function ensureExtract(config) {
         fs.mkdirSync(ROOT, { recursive: true });
         if (!fs.existsSync(venvPython())) {
             log.step(`Creating OCR venv with ${log.paint.bold(py.version)} …`);
-            sh(`${py.cmd} -m venv "${VENV}"`);
+            await sh(`${py.cmd} -m venv "${VENV}"`);
         }
         const vpy = venvPython();
-        sh(`"${vpy}" -m pip install -q -U pip`);
+        await sh(`"${vpy}" -m pip install -q -U pip`);
         log.step('Installing the OCR service deps …');
-        sh(`"${vpy}" -m pip install -q ${BASE_DEPS.join(' ')}`);
+        await sh(`"${vpy}" -m pip install -q ${BASE_DEPS.join(' ')}`);
         if (config.ocr && config.ocr.docling) {
             log.step('Installing Docling (torch + OCR/layout models; multi-GB, first run only) …');
-            sh(`"${vpy}" -m pip install -q docling`);
+            await sh(`"${vpy}" -m pip install -q docling`);
         }
         fs.writeFileSync(MARKER, depsSignature(config) + '\n', 'utf8');
         log.ok(`OCR service installed → ${log.paint.grey(ROOT)}`);
         return true;
     } catch (e) {
         log.warn(`OCR service install failed (${e.message}) — the farm will run WITHOUT document OCR.`);
-        log.info(`  Retry: delete ${ROOT} and re-run \`lol up\`.`);
+        log.info(`  Retry: turn it off and on again in the admin panel's Plugins card (or restart the farm). If it fails again, delete ${ROOT} first.`);
         return false;
     }
 }

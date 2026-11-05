@@ -2,7 +2,10 @@
 // LOL Vibe and a configuration for the LOL Computer". One preset at a time: before a session the operator picks one in the
 // panel and the farm switches to it through its own controls (up.js makePresets). Pure: no I/O.
 //
-//   balanced  the farm as it ships (the default): the serving engine's own defaults and the shipped plugins
+//   balanced  the farm as it ships (the default): vLLM's shipped model and context where vLLM is set up on a GPU the
+//             capacity page knows (the card's best vLLM pick when that model is not in the list or does not fit),
+//             else Ollama's default model, whatever engine serves now (a farm serving llama.cpp switches to Ollama);
+//             the shipped plugins
 //   rag       Documents: the most people at 64k each among models good enough for documents (GATE_FLOOR), document
 //             reading on (owner 2026-10-27: "more users")
 //   vibe      LOL Vibe and its coding agent: the most people at 64k among models proven with the agent (AGENT_PROVEN),

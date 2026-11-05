@@ -22,6 +22,7 @@ Contract:
 """
 
 import asyncio
+import hmac
 import json
 import os
 import time
@@ -106,7 +107,9 @@ def _answer(result):
 
 @app.post("/classify")
 async def classify(request: Request):
-    if not API_KEY or request.headers.get("authorization", "") != f"Bearer {API_KEY}":
+    # Constant time, as the OCR service; as bytes (Starlette reads headers as latin-1), so an odd header is a 401, not a 500.
+    got = request.headers.get("authorization", "").encode("latin-1")
+    if not API_KEY or not hmac.compare_digest(got, f"Bearer {API_KEY}".encode("latin-1")):
         return JSONResponse({"detail": "bad key"}, status_code=401)
     if not state["ready"]:
         return JSONResponse({"detail": "warming up"}, status_code=503, headers={"Retry-After": "5"})

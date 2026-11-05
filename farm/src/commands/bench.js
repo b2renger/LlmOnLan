@@ -203,9 +203,17 @@ async function run(args = []) {
             `${summary.refused ? ` · ${summary.refused} turned away (no seat)` : ''}${summary.cancelled ? ` · ${summary.cancelled} stopped` : ''}`);
         // Name the engine this config serves with — the Ollama figure is meaningless
         // while llama.cpp or an external server answers.
+        // engineOf, as the farm itself decides (a vLLM farm was told about Ollama).
         if (config) {
-            if (config.external && config.external.enabled) log.info(`Reminder: the external server was declared to run ${config.external.parallel} generation(s) at once (external.parallel); the farm cannot verify it.`);
-            else if (config.llamacpp && config.llamacpp.enabled) log.info(`Reminder: llama-server runs ${config.llamacpp.parallel} generation(s) at once (llamacpp.parallel); more queue.`);
+            const engine = require('../litellm').engineOf(config);
+            if (engine === 'external') log.info(`Reminder: the external server was declared to run ${config.external.parallel} generation(s) at once (external.parallel); the farm cannot verify it.`);
+            // The bench reads only the file: Automatic's number lives in the running farm.
+            else if (engine === 'vllm') {
+                log.info(typeof config.vllm.parallel === 'number'
+                    ? `Reminder: vLLM serves ${config.vllm.parallel} people at once (vllm.parallel); more get a full-farm answer.`
+                    : 'Reminder: vLLM sets how many people it serves at once by itself (Automatic); the panel\'s Serving card says how many.');
+            }
+            else if (engine === 'llamacpp') log.info(`Reminder: llama-server runs ${config.llamacpp.parallel} generation(s) at once (llamacpp.parallel); more queue.`);
             else log.info(`Reminder: one Ollama runs ${config.ollama.numParallel} generation(s) at once (ollama.numParallel); more users than that queue.`);
         }
     }

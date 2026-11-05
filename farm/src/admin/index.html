@@ -357,8 +357,8 @@ function render(s) {
     // the proxy for a few seconds.
     + `<div class="row"><span></span><span><div class="mname">Farm password</div>
     <div class="meta">${s.requiresKey
-        ? '<b>Set.</b> Protects chat (everything on /v1), document reading, document search, Classify, speech to text and the message bus. Web search, voice and discovery stay open on the LAN. When the password is set or changed, a device that could already use document reading, document search, Classify or speech to text keeps them until the farm restarts. Use <b>Remove</b> to take it off.'
-        : 'Not set — anyone on the network can use this farm. Type one to require it (protects chat, document reading, document search, Classify, speech to text and the message bus; web search, voice and discovery stay open).'}</div></span>
+        ? '<b>Set.</b> Protects chat (everything on /v1), document reading, document search, Classify, speech to text and the message bus (OSC tools may still send to osc/… topics without it). Web search, voice and discovery stay open on the LAN. When the password is set or changed, a device that could already use document reading, document search, Classify or speech to text keeps them until the farm restarts. Use <b>Remove</b> to take it off.'
+        : 'Not set — anyone on the network can use this farm. Type one to require it (protects chat, document reading, document search, Classify, speech to text and the message bus, though OSC tools may still send to osc/… topics; web search, voice and discovery stay open).'}</div></span>
     <span class="badges"><input id="sec-in" type="password" placeholder="${s.requiresKey ? '••••••••' : 'choose a password'}" maxlength="128" spellcheck="false" autocomplete="new-password" data-orig="" />${
       s.requiresKey ? `<button id="sec-clear" class="stop"${jobRunning ? ' disabled' : ''}>Remove</button>` : ''}</span></div>`
 
@@ -378,7 +378,7 @@ function render(s) {
   // What the engine is actually doing: measured tok/s while generating (from its
   // own counters — wall-clock averages would understate), load, and the warnings
   // that would have named the live incident: VRAM full at idle. Read from
-  // llama-server, or from an external server that is a vLLM (perf.engine 'vllm').
+  // llama-server, or from a vLLM: the farm's own or an external server that is one (perf.engine 'vllm').
   // The llama.cpp warnings stay llama.cpp's: a vLLM fills VRAM on purpose, and
   // its own context is set where it was launched.
   const perf = s.perf || null;
@@ -1219,7 +1219,7 @@ function vllmKvRow(v) {
   const opts = [16, 24, 32, 40, 50, 60, 70, 80].filter((g) => !v.cardGib || g < v.cardGib);
   if (typeof cur === 'number' && !opts.includes(cur)) { opts.push(cur); opts.sort((a, b) => a - b); }
   const auto = `Automatic — ${v.unified ? 'from what the computer has free' : 'what the GPU has free'}, less the model`
-    + `${v.ocrReserveGib ? `, ${v.ocrReserveGib} GB for document reading` : ''}${v.embedReserveGib ? `, ${v.embedReserveGib} GB for document search` : ''} and a safety margin`
+    + `${v.ocrReserveGib ? `, ${v.ocrReserveGib} GB for document reading` : ''}${v.embedReserveGib ? `, ${v.embedReserveGib} GB for document search` : ''}${v.sttReserveGib ? `, ${v.sttReserveGib} GB for speech to text` : ''} and a safety margin`
     + `${v.unified && v.minFreeGb ? `, keeping ${v.minFreeGb} GB so it cannot run out` : ''}`
     + `${v.autoKvGib != null ? ` (now ${v.autoKvGib} GB)` : ''}`;
   return `<div class="row"><span></span><span><div class="mname">GPU memory for conversations</div>`
@@ -1781,8 +1781,10 @@ async function pluginAct(kind, id, btn) {
   busy = true; btn.disabled = true; btn.textContent = '…';
   try {
     const r = await api('/lol/admin/plugin/' + encodeURIComponent(id) + '/' + kind, { method: 'POST' });
+    // Its label (Document search, Speech to text), not its id (embed, stt).
+    const label = ((lastState && lastState.plugins || {})[id] || {}).label || id;
     if (!r.ok) toast(r.error || 'Action failed');
-    else toast((kind === 'enable' ? 'Enabled ' : 'Disabled ') + id);
+    else toast((kind === 'enable' ? 'Enabled ' : 'Disabled ') + label);
   } catch (e) {
     if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; }
     toast('Error: ' + (e.message || e));

@@ -4,39 +4,13 @@
     "enabled": true,
     "group": "239.255.43.10",
     "port": 41998,
-    "intervalSec": 5,
     "httpPort": 41997
   },
   "proxy": {
     "port": 4000,
     "host": "0.0.0.0",
-    "masterKey": null
-  },
-  "llamacpp": {
-    "enabled": true,
-    "alias": "assistant",
-    "model": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf",
-    "mmproj": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-F16.gguf",
-    "contextLength": 16384,
-    "parallel": 1,
-    "kvCacheType": "q4_0",
-    "flashAttention": true,
-    "ngl": 999,
-    "mtp": false,
-    "library": [
-      {
-        "id": "qwen3.8-27b-ud-iq2_s",
-        "label": "Qwen3.8 27B · UD-IQ2_S",
-        "url": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf",
-        "mmproj": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/mmproj-F16.gguf",
-        "sizeGb": 7.8,
-        "mtp": false,
-        "note": "Default. Best speed/quality on a 12 GB card, with headroom to spare."
-      }
-    ],
-    "port": 8081,
-    "binDir": null,
-    "extraArgs": []
+    "masterKey": null,
+    "seatIdleSec": 900
   },
   "models": [
     { "id": "gemma4:12b", "default": true }
@@ -44,41 +18,23 @@
   "ollama": {
     "hosts": ["http://127.0.0.1:11434"],
     "numParallel": 2,
-    "maxLoadedModels": 1,
-    "flashAttention": true,
-    "keepAlive": "-1",
-    "contextLength": 16384
+    "kvCacheType": "q8_0",
+    "contextLength": "auto"
   },
-  "litellm": {
-    "command": "litellm",
-    "extraArgs": [],
-    "provider": "ollama_chat"
-  },
-  "websearch": {
-    "enabled": true,
-    "port": 8888
-  },
-  "tts": {
+  "llamacpp": {
     "enabled": false,
-    "port": 8880,
-    "voice": "af_heart",
-    "model": "kokoro"
+    "contextLength": "auto"
   },
-  "ocr": {
-    "enabled": true,
-    "port": 8890,
-    "format": "markdown",
-    "pdfEngine": "auto",
-    "preprocess": false,
-    "docling": false
+  "vllm": {
+    "enabled": false
   },
-  "embed": {
-    "enabled": "auto",
-    "port": 8894
-  },
-  "admin": {
-    "token": null
-  },
-  "modelAlias": null,
-  "coordinator": false
+  "websearch": { "enabled": true },
+  "ocr": { "enabled": true },
+  "tts": { "enabled": false },
+  "classify": { "enabled": false },
+  "stt": { "enabled": false },
+  "bus": { "enabled": false },
+  "embed": { "enabled": "auto" },
+  "storage": { "dir": null },
+  "admin": { "token": null }
 }

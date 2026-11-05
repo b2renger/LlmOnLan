@@ -20,7 +20,7 @@
       est: { context: 32768, mode: 'steady', thinking: 1, replyTokens: 512, budget: 'farm' },
       need: { minContext: 32768 }, rank: 'price' },
     coding: { label: 'The coding agent (LOL Vibe\'s IDE)',
-      what: 'The coding agent works in back-to-back tool steps, each reply up to 8–16k tokens, over a 64k window. ' +
+      what: 'The coding agent works in back-to-back tool steps, each reply up to 8k tokens (16k with Keep going until done, 32k for a model it has no profile of, such as Flint), over a 64k window. ' +
         'It needs tool calling and a model that scores well at agentic coding.',
       est: { context: 65536, mode: 'steady', thinking: 1, replyTokens: 4096, budget: 'farm' },
       need: { minContext: 65536, tools: true, coding: true }, rank: 'price' },

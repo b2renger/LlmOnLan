@@ -129,13 +129,16 @@ const OllamaSchema = z.object({
     // of margin at identical throughput, because context is nearly free in speed
     // terms and costs only VRAM.
     //
-    // 'auto' (the DEFAULT since farm-v0.0.24) sizes it per box instead: the farm
-    // loads the default model at a VRAM-tiered candidate, asks /api/ps whether any
-    // of it landed in system RAM, steps down if so, and CACHES the verdict per
-    // (model, VRAM, parallel) — measuring beats modeling here because per-arch KV
+    // 'auto' (the DEFAULT since farm-v0.0.24) measures it per box instead: the farm
+    // loads the default model at 16k and 32k, takes the per-token slope from
+    // /api/ps, aims at min(the model's own max, VRAM less max(1 GB, 8 %)) and
+    // verifies with one more load (one halving, then 16k). If even 16k spills it
+    // tries 8192, then 4096. With no VRAM figure it aims at the model's max and
+    // lets the verify-load decide. The verdict is CACHED per (model, VRAM,
+    // parallel, KV type, and whether document search, and speech to text on the
+    // GPU, run beside it) — measuring beats modeling here because per-arch KV
     // math is unreliable (Gemma's sliding-window layers make the naive estimate
-    // several times too high). Worst case resolves to the proven 16384. A number
-    // pins it exactly as before.
+    // several times too high). A number pins it exactly as before.
     //
     // It is farm-GLOBAL but VRAM is per-host, so a mixed fleet is probed on the
     // box running `lol up` — num_ctx rides the generated LiteLLM routing, which
@@ -527,7 +530,7 @@ const ClassifySchema = z.object({
     port: z.number().int().positive().default(8891),
     threads: z.number().int().min(1).max(64).default(4),     // torch CPU threads (the cap)
     maxItems: z.number().int().min(1).max(1000).default(200), // items per call
-});
+}).strict();
 
 // Speech to text (docs/archive/plans/ECOSYSTEM_PLAN.md v2 §3.3; src/stt.js): faster-whisper for the Computer's Sound box in
 // Listen mode and for Open WebUI's microphone and Call mode on the laptops. OFF by default. 'auto' = the NVIDIA GPU
@@ -539,7 +542,7 @@ const SttSchema = z.object({
     model: z.string().default('auto'),                     // 'auto', or a faster-whisper size: tiny|base|small|medium|large-v3-turbo|…
     threads: z.number().int().min(1).max(64).default(4),
     maxMb: z.number().int().min(1).max(100).default(25),   // the Sound box's own cap
-});
+}).strict();
 
 // Document search (owner, 2026-10-08; src/embed.js): the laptops' Open WebUI sends document text here to be turned
 // into vectors (EmbeddingGemma 2 on llama-server) and keeps the vectors; the farm keeps nothing. 'auto' (the default)

@@ -1,7 +1,7 @@
 // LAN discovery beacon — adapted from ComfyQ's server/federation/beacon.js.
 //
 // The FARM broadcasts; the CLIENT (shell) listens. Every `intervalSec` we send
-// the discovery snapshot to (a) the multicast group on each interface, (b) each
+// the discovery snapshot to (a) the multicast group, (b) each
 // interface's directed broadcast (e.g. 10.10.16.255), and (c) the limited
 // broadcast 255.255.255.255, deduped. This belt-and-suspenders delivery is what
 // makes same-subnet clients actually see the farm: multicast alone is flaky

@@ -1007,12 +1007,14 @@ async function run(args) {
     // keeps the default model fully in VRAM on this box. llama.cpp gets this from
     // GGUF math (computeFit); here that math is unreliable — sliding-window
     // architectures (Gemma) make the naive KV estimate several times too high — so
-    // the farm MEASURES instead: load the model at a VRAM-tiered candidate, read
-    // /api/ps, and step down when size_vram < size (layers landed in system RAM =
-    // the "few tok/s" AN-VR-01 failure). The verdict is cached per (model, VRAM,
-    // parallel) next to the weights, so the probe cost — one or two model loads —
-    // is paid once per box, not per boot. The probe doubles as the warm-up: it
-    // leaves the model loaded at the size that will serve.
+    // the farm MEASURES instead: load the model at 16k and 32k, read /api/ps, aim
+    // along the slope and verify with one more load (size_vram < size = layers
+    // landed in system RAM, the "few tok/s" AN-VR-01 failure); walk 8192, then 4096,
+    // when 16k spills. The verdict is cached per (model, VRAM, the daemon's
+    // parallel, KV type, document search / speech to text on the GPU) next to the
+    // weights, so the probe cost — a few model loads — is paid once per box, not
+    // per boot. The probe doubles as the warm-up: it leaves the model loaded at the
+    // size that will serve.
     async function resolveOllamaContext(progress = () => {}) {
         const cl = config.ollama.contextLength;
         if (typeof cl === 'number') { config.ollama.contextResolved = cl; return cl; }
@@ -1727,8 +1729,8 @@ async function run(args) {
     const served = await proxyApi.listProxyModels(baseUrl, config.proxy.masterKey);
     log.ok(`Proxy healthy — ${log.paint.bold('/v1/models')}: ${served.length ? served.join(', ') : '(none yet)'}`);
 
-    // 4b. Farm-side plugins (web search / voice / OCR) — one shared instance each for the
-    // whole LAN, spawned + health-waited here and advertised in the snapshot. All three run
+    // 4b. Farm-side plugins (web search, voice, OCR, the bus, document search, Classify, speech to text) — one shared
+    // instance each for the whole LAN, spawned + health-waited here and advertised in the snapshot. All of them run
     // through the plugin registry so boot, live toggling (control.setPlugin), the health
     // timer, and teardown share ONE path. Auxiliary: a failure warns and the farm still
     // comes up without that plugin. (Client-side plugins like Blender aren't here — the
@@ -1771,7 +1773,7 @@ async function run(args) {
         ollamaUnmanagedHosts: oll.unmanagedHosts || [],
         host: hw,                        // static GPU/VRAM/RAM/cores (detected at boot)
         gpu: await gpuLiveStats(),       // live GPU util + VRAM (refreshed below)
-        perf: null,                      // measured throughput (health timer, llama.cpp engine)
+        perf: null,                      // measured throughput (health timer, llama.cpp or vLLM engine)
         // Boot outcome: llamacppChild exists iff the engine came up (fallback
         // cleared it). null = not the engine (Ollama mode / old farms). For the
         // external engine, `true` here — boot already probed it, and the health
@@ -1807,12 +1809,13 @@ async function run(args) {
                 seats,
                 idleReleaseSec: () => config.proxy.seatIdleSec || 900,
                 password: () => config.proxy.masterKey || null,
-                // §3.10: while the farm's vLLM is not ready, a generation gets a 503 that says why.
+                // §3.10: while the farm's vLLM is not ready, a generation gets a 503 that says why. Its code and
+                // Retry-After say which case (review 2026-11-05: a stopped vLLM was called starting).
                 unavailable: () => {
                     if (engineOf(config) !== 'vllm' || vllmState.phase === 'ready') return null;
                     return vllmState.phase === 'starting' || vllmState.phase === 'stopping'
-                        ? 'This farm\'s model is starting: about 2 minutes. Try again then.'
-                        : 'This farm\'s model is stopped for now. Try again later.';
+                        ? { message: 'This farm\'s model is starting: about 2 minutes. Try again then.', code: 'lol_engine_starting', retryAfter: 120 }
+                        : { message: 'This farm\'s model is stopped for now. Try again later.', code: 'lol_engine_stopped', retryAfter: 60 };
                 },
                 stats: gateStats,
             });
@@ -1996,7 +1999,7 @@ async function run(args) {
     // push a fresh beacon. Cheap (a few HTTP HEADs) and unref'd.
     const hosts = config.ollama.hosts.map(ollama.normalizeHost);
 
-    // Measured performance (llama.cpp, or an external vLLM) — see makePerfSampler.
+    // Measured performance (llama.cpp, or a vLLM: the farm's own or an external one) — see makePerfSampler.
     const perfSampler = makePerfSampler(config, liveHealth, () => !!llamacppChild, vllmReady);
     // A GPU latched at a low clock (a DGX Spark after a unified-memory OOM) — the panel says so.
     const clockWatch = perfMod.makeClockWatch();
@@ -2661,7 +2664,7 @@ async function run(args) {
         });
     }
 
-    // Toggle a FARM plugin (web search / voice / OCR / …) live: spawn or kill its service child,
+    // Toggle a FARM plugin (web search, voice, OCR, the bus, document search, Classify, speech to text) live: spawn or kill its service child,
     // reflect into liveHealth, kick the beacon so clients pick up the change. Kept for the next
     // start (owner, 2026-10-27: by a preset or by hand, like every other setting), written once
     // the change took: a plugin that did not come up stays off in the file too.
@@ -2722,6 +2725,10 @@ async function run(args) {
     }
     // config.models is what `lol up`'s picker rewrites at boot, so persisting it makes
     // panel changes survive a restart the same way an edited file would.
+    // ponytail: after a terminal pick (the picker or --model, never the Farm app's --no-pick) this writes the PICKED
+    // list whole: the models not picked leave the file, and the picked ones lose source, params and draft (review
+    // 2026-11-05). Upgrade path: remember the run's catalog came from a pick, and apply each change to the file's own
+    // `models` entry by id instead.
     function persistModels() {
         const r = patchConfigFile(configPath, (raw) => { raw.models = config.models; return raw; });
         return notSaved(r);
@@ -3291,6 +3298,8 @@ async function run(args) {
             url = String(sel.url).trim();
             if (!URL_RX.test(url)) return { ok: false, error: 'That does not look like a URL.' };
             mmproj = sel.mmproj ? String(sel.mmproj).trim() : null;
+            const clash = llamacpp.nameClash(config, [llamacpp.normalizeModelUrl(url), mmproj]);
+            if (clash) return { ok: false, error: clash };
             label = url.split('/').pop();
         } else {
             return { ok: false, error: 'Choose a model, or give a .gguf URL.' };
@@ -3356,6 +3365,8 @@ async function run(args) {
         if (!GGUF_URL_RX.test(url)) return { ok: false, error: 'That URL does not end in .gguf — llama.cpp cannot load it.' };
         const lib = (config.llamacpp.library || []).slice();
         if (lib.some((e) => e.url === url)) return { ok: false, error: 'That model is already in the library.' };
+        const clash = llamacpp.nameClash(config, [llamacpp.normalizeModelUrl(url), entry && entry.mmproj ? String(entry.mmproj).trim() : null]);
+        if (clash) return { ok: false, error: clash };
         const base = decodeURIComponent(url.split('/').pop().split('?')[0]).replace(GGUF_EXT_RX, '');
         const slug = base.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60)
             || `model-${lib.length + 1}`;

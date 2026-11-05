@@ -74,6 +74,9 @@ class Router:
 c = TestClient(cs.app)
 body = {"items": ["one", "two"], "question": {"instructions": "Pick.", "options": ["a", "b"]}}
 check("classify: no key -> 401", c.post("/classify", json=body).status_code == 401)
+# A wrong key, and a header that is not ASCII: both 401 (compared in constant time, as bytes).
+check("classify: wrong key -> 401", c.post("/classify", json=body, headers={"Authorization": "Bearer x"}).status_code == 401)
+check("classify: odd header -> 401", c.post("/classify", json=body, headers={"Authorization": "Bearer \xe9".encode("latin-1")}).status_code == 401)
 check("classify: warming -> 503", c.post("/classify", json=body, headers=KEY).status_code == 503)
 cs.state.update(router=Router(), ready=True)
 r = c.post("/classify", json=body, headers=KEY)
@@ -109,6 +112,8 @@ class Whisper:
 s = TestClient(ss.app)
 wav = {"file": ("a.wav", b"RIFF....", "audio/wav")}
 check("stt: no key -> 401", s.post("/v1/audio/transcriptions", files=wav).status_code == 401)
+check("stt: wrong key -> 401", s.post("/v1/audio/transcriptions", files=wav, headers={"Authorization": "Bearer x"}).status_code == 401)
+check("stt: odd header -> 401", s.post("/v1/audio/transcriptions", files=wav, headers={"Authorization": "Bearer \xe9".encode("latin-1")}).status_code == 401)
 check("stt: loading -> 503", s.post("/v1/audio/transcriptions", files=wav, headers=KEY).status_code == 503)
 ss.state.update(model=Whisper(), ready=True)
 r = s.post("/v1/audio/transcriptions", files=wav, data={"language": "fr"}, headers=KEY)

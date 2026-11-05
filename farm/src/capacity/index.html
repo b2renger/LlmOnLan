@@ -152,7 +152,7 @@ footer a, .detail a, .farm a { color: var(--accent) }
 <div class="wrap">
   <header>
     <h1>LlmOnLan Capacity Explorer</h1>
-    <p class="lede">Which model, how much context per person, on which hardware: how many people at once, how fast, at what price. The RTX PRO 6000 and one DGX Spark were measured (October 2026); every other figure is calibrated on them or estimated, and says so.</p>
+    <p class="lede">Which model, how much context per person, on which hardware: how many people at once, how fast, at what price. The RTX PRO 6000 and one DGX Spark were measured (October and November 2026); every other figure is calibrated on them or estimated, and says so.</p>
   </header>
   <p class="farm" id="farm" aria-live="polite"></p>
 
@@ -230,7 +230,7 @@ footer a, .detail a, .farm a { color: var(--accent) }
   <section class="panel detail" id="detail" aria-live="polite"></section>
 
   <footer>
-    <p><b>Where the numbers come from.</b> Measured cells are the spike runs: vLLM 0.30 with NVFP4 checkpoints and an fp8 KV cache, each person's own conversation already in the cache, a 256-token reply, one run per box (RTX PRO 6000 on 2026-10-04, DGX Spark on 2026-10-05/06). Calibrated cells use those models' fitted speeds scaled to the other box. Estimated cells derive bytes read per token from active parameters × bits and the attention cache, scaled by memory bandwidth and compute. Calibrated on the PRO 6000 alone, the method predicted the Spark's measured people within the measured range in 17 of 18 cases (mean error 1 %).</p>
+    <p><b>Where the numbers come from.</b> Measured cells are the spike runs: vLLM 0.30 with NVFP4 checkpoints and an fp8 KV cache, each person's own conversation already in the cache, a 256-token reply, one run per box (RTX PRO 6000 on 2026-10-04, DGX Spark on 2026-10-05/06). Three more models were measured on the PRO 6000 in the same way: Gemma 4 12B and Qwen3-Omni (BF16 made FP8 as it loads) on 2026-10-09, and Flint on vLLM 0.33.0 with a bf16 KV cache, the only one it runs (2026-11-02). Calibrated cells use those models' fitted speeds scaled to the other box. Estimated cells derive bytes read per token from active parameters × bits and the attention cache, scaled by memory bandwidth and compute. Calibrated on the PRO 6000 alone, the method predicted the Spark's measured people within the measured range in 17 of 18 cases (mean error 1 %).</p>
     <p><b>Not modelled.</b> Speculative decoding, sparse attention (long-context figures are pessimistic for GLM-5.3, DeepSeek-V4, MiniMax-M3), engines other than vLLM (llama.cpp served 2–24× fewer people in the spike), and people pausing to read. Prices are French retail with VAT on 2026-10-05/07, card only. Benchmark scores are mostly the vendors' own; the scenario cards rank quality by BenchLM's open-model index, a third-party aggregate.</p>
     <p id="srcline"></p>
     <p id="back" hidden><a href="/lol/admin">Back to the farm's admin panel</a></p>

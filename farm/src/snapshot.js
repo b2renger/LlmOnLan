@@ -305,7 +305,7 @@ function buildSnapshot(config, health = {}, callerIp = null) {
                 auth: keyed,
             }
             : null,
-        // Farm-side plugin state (web search / voice / OCR): { id: {label, runsOn, enabled,
+        // Farm-side plugin state (web search, voice, OCR, the bus, document search, Classify, speech to text): { id: {label, runsOn, enabled,
         // healthy} }. Bespoke fields above (searxngUrl/ttsUrl/extract) stay for back-compat;
         // this is the generic map the admin page + clients read.
         plugins: health.plugins || {},
@@ -351,8 +351,9 @@ function buildSnapshot(config, health = {}, callerIp = null) {
             // "all seats in use" is only useful if it can also say when one frees
             // — otherwise a full farm looks permanently shut.
             seatIdleSec: seatList ? (config.proxy.seatIdleSec || 900) : null,
-            // Live load when the engine reports it (llama.cpp's /metrics, or an
-            // external vLLM's): requests generating right now, and requests waiting.
+            // Live load when the engine reports it (llama.cpp's /metrics, or a
+            // vLLM's, the farm's own or an external one): requests generating right
+            // now, and requests waiting.
             busy: health.perf?.busySlots ?? null,
             queued: health.perf?.queued ?? null,
             // Unicast /lol/self only: does the CALLER's IP hold a seat right now? A
@@ -367,9 +368,10 @@ function buildSnapshot(config, health = {}, callerIp = null) {
         // Only the ACTIVE job is busy: a finished one lingers for the panel, but
         // clients must not keep saying "switching" after it is done.
         busy: job && !job.done ? { kind: job.kind, label: job.label, message: job.message, percent: job.percent } : null,
-        // Measured performance (llama.cpp, or an external server that is a vLLM): true
-        // tok/s while generating, sticky last-active rate, prompt speed, KV usage. null
-        // on Ollama, on a non-vLLM external server, or before the first sample. The
+        // Measured performance (llama.cpp, or a vLLM: the farm's own or an external
+        // server that is one): true tok/s while generating, sticky last-active rate,
+        // prompt speed, KV usage. null on Ollama, on a non-vLLM external server, or
+        // before the first sample. The
         // panel renders it; `lol status` and clients may too.
         perf: health.perf || null,
         ts: Date.now(),

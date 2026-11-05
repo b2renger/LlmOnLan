@@ -7,8 +7,9 @@
 // knew what would fit, so the farm was "back to too slow" with no visible cause.
 //
 // Three pure pieces live here so they can be unit-tested without a GPU:
-//   • parsePrometheus / sampleRates — read llama-server's --metrics endpoint (or an
-//     external vLLM's, through vllmSample) into "how fast is it actually generating".
+//   • parsePrometheus / sampleRates — read llama-server's --metrics endpoint (or a
+//     vLLM's, the farm's own or an external one, through vllmSample) into "how fast
+//     is it actually generating".
 //   • fitBudget — estimate whether weights + KV cache fit VRAM, and the largest
 //     context window that does. An ESTIMATE (the KV rate is measured, not derived),
 //     used to warn and clamp, deliberately with margin.
@@ -90,7 +91,7 @@ function sampleRates(prev, cur) {
     return out;
 }
 
-// --- an external vLLM's /metrics -----------------------------------------------
+// --- a vLLM's /metrics (the farm's own or an external one) ---------------------
 // Names read from vLLM's own source (v1/metrics/loggers.py, v1/spec_decode/metrics.py,
 // config/cache.py — 0.14.0 as installed, and the v0.8.5 / v0.9.2 / v0.10.2 / main
 // tags). Every series carries {model_name, engine} labels, one per data-parallel

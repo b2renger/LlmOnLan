@@ -21,10 +21,11 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const { execSync, spawn } = require('child_process');
+const { spawn } = require('child_process');
 const log = require('./log');
 const { serviceHosts } = require('./net');
 const { resolvePython } = require('./python');
+const { execFileP } = require('./systemInfo');
 
 // Bump deliberately: change the tag and re-run `lol up` — the next run re-fetches
 // + reinstalls automatically (guarded by the .src-tag / .installed-tag markers).
@@ -53,14 +54,20 @@ function configBeside() {
 const TAG_FILE = path.join(ROOT, '.installed-tag'); // tag actually pip-installed
 const SRC_TAG_FILE = path.join(ROOT, '.src-tag');   // tag actually extracted in src/
 const BACKEND_FILE = path.join(ROOT, '.backend');   // 'gpu' | 'cpu' chosen at install
+const ESPEAK_FILE = path.join(ROOT, '.espeak');     // the bundled espeak-ng library's path, read at each start
 
 function venvPython() {
     return IS_WIN ? path.join(VENV, 'Scripts', 'python.exe') : path.join(VENV, 'bin', 'python');
 }
-function sh(cmd, opts = {}) { execSync(cmd, { stdio: 'inherit', ...opts }); }
-function shCapture(cmd) {
-    try { return execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); }
-    catch { return null; }
+// Async (a spawned shell, awaited), as classify.js: a first install is several GB of pip, and Enable in the Plugins
+// card or a preset's Apply runs it inside `lol up`, so it must never freeze the event loop the seat gate, the beacon and
+// the panel run on (review 2026-11-05).
+function sh(cmd, opts = {}) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(cmd, { shell: true, stdio: 'inherit', windowsHide: true, ...opts });
+        child.on('error', reject);
+        child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`${cmd.split(' ')[0]} exited with ${code}`))));
+    });
 }
 function readTrim(p) { try { return fs.readFileSync(p, 'utf8').trim(); } catch { return null; } }
 
@@ -74,8 +81,8 @@ function findPython() {
 }
 
 // Is an NVIDIA GPU present? (picks the cu128 torch wheel; else CPU torch.)
-function gpuPresent() {
-    const out = shCapture('nvidia-smi -L');
+async function gpuPresent() {
+    const out = await execFileP('nvidia-smi', ['-L'], 10000);
     return !!out && /GPU \d+:/.test(out);
 }
 
@@ -98,11 +105,19 @@ function installed() {
 
 // The GPU/CPU backend for the CURRENT hardware: a real cuda.is_available() check
 // (against the installed torch) when an NVIDIA GPU is present, else CPU. Cheap
-// enough to run every `lol up` so a driver change self-heals.
-function currentBackend() {
-    if (!gpuPresent()) return 'cpu';
-    const avail = shCapture(`"${venvPython()}" -c "import torch;print(torch.cuda.is_available())"`);
+// enough to run every `lol up` so a driver change self-heals. Awaited: importing torch takes seconds.
+async function currentBackend() {
+    if (!(await gpuPresent())) return 'cpu';
+    const avail = await execFileP(venvPython(), ['-c', 'import torch;print(torch.cuda.is_available())'], 120000);
     return avail === 'True' ? 'gpu' : 'cpu';
+}
+
+// The bundled espeak-ng shared library path (so NO native eSpeak-NG install is needed), resolved from the venv's
+// espeakng-loader ('' if unavailable) and written beside .backend for spawnKokoro, which must stay synchronous (the
+// registry takes its child at once).
+async function saveEspeakLibrary() {
+    const lib = await execFileP(venvPython(), ['-c', 'import espeakng_loader,sys;sys.stdout.write(espeakng_loader.get_library_path())'], 60000);
+    fs.writeFileSync(ESPEAK_FILE, (lib || '') + '\n', 'utf8');
 }
 
 // Idempotent setup: source tarball (pinned tag) + venv + torch (gpu/cpu) + the
@@ -123,11 +138,12 @@ async function ensureKokoro() {
         }
         // Re-verify GPU/CPU each run — a box that lost CUDA (driver update/rollback)
         // falls back to CPU instead of USE_GPU=true hard-failing synthesis.
-        const b = currentBackend();
+        const b = await currentBackend();
         if (b !== readTrim(BACKEND_FILE)) {
             fs.writeFileSync(BACKEND_FILE, b + '\n', 'utf8');
             log.info(`Kokoro backend updated → ${b.toUpperCase()} (hardware/driver changed).`);
         }
+        await saveEspeakLibrary();
         return true;
     }
 
@@ -146,7 +162,7 @@ async function ensureKokoro() {
             fs.mkdirSync(SRC, { recursive: true });
             const tarball = path.join(ROOT, 'kokoro-src.tar.gz');
             await download(`${REPO_URL}/archive/refs/tags/${PINNED_TAG}.tar.gz`, tarball);
-            sh('tar -xzf kokoro-src.tar.gz -C src --strip-components=1', { cwd: ROOT });
+            await sh('tar -xzf kokoro-src.tar.gz -C src --strip-components=1', { cwd: ROOT });
             fs.rmSync(tarball, { force: true });
             if (!fs.existsSync(path.join(SRC, 'api', 'src', 'main.py'))) throw new Error('extraction produced no api/src/main.py');
             fs.writeFileSync(SRC_TAG_FILE, PINNED_TAG + '\n', 'utf8');
@@ -155,27 +171,27 @@ async function ensureKokoro() {
         // 2. Own venv (never the farm/.venv — torch is huge + version-specific).
         if (!fs.existsSync(venvPython())) {
             log.step(`Creating Kokoro venv with ${log.paint.bold(py.version)} …`);
-            sh(`${py.cmd} -m venv "${VENV}"`);
+            await sh(`${py.cmd} -m venv "${VENV}"`);
         }
         const vpy = venvPython();
-        sh(`"${vpy}" -m pip install -q -U pip`);
+        await sh(`"${vpy}" -m pip install -q -U pip`);
 
         // 3. torch — cu128 (Ada+Blackwell) when an NVIDIA GPU is present, else CPU.
         //    torch lives only in Kokoro's *extras*, so we install it explicitly from
         //    the right PyTorch index, then the app (base deps) sees it satisfied.
-        const gpu = gpuPresent();
+        const gpu = await gpuPresent();
         if (gpu) {
             log.step('Installing PyTorch (CUDA cu128 — Ada + Blackwell; multi-GB) …');
-            sh(`"${vpy}" -m pip install -q "torch==2.8.0+cu128" --index-url https://download.pytorch.org/whl/cu128`);
+            await sh(`"${vpy}" -m pip install -q "torch==2.8.0+cu128" --index-url https://download.pytorch.org/whl/cu128`);
         } else {
             log.step('No NVIDIA GPU — installing CPU PyTorch …');
-            sh(`"${vpy}" -m pip install -q "torch==2.8.0" --index-url https://download.pytorch.org/whl/cpu`);
+            await sh(`"${vpy}" -m pip install -q "torch==2.8.0" --index-url https://download.pytorch.org/whl/cpu`);
         }
 
         // 4. The Kokoro stack (fastapi/uvicorn/kokoro/misaki/espeakng-loader/spacy +
         //    en-core-web-sm URL wheel — all base deps, torch already satisfied).
         log.step('Installing the Kokoro TTS stack (a few minutes) …');
-        sh(`"${vpy}" -m pip install -q -e "${SRC}"`, { cwd: SRC });
+        await sh(`"${vpy}" -m pip install -q -e "${SRC}"`, { cwd: SRC });
 
         // 5. Model weights (~312MB) — voices already ship in the tarball.
         configBeside();
@@ -186,33 +202,28 @@ async function ensureKokoro() {
 
         // 6. Confirm CUDA actually engages (driver may be too old for cu128) → pick
         //    the runtime backend. GPU-torch still runs on CPU with USE_GPU=false.
-        const backend = currentBackend();
+        const backend = await currentBackend();
         if (gpu && backend === 'cpu') log.warn('NVIDIA GPU present but CUDA 12.8 unavailable (driver too old?) — Kokoro will run on CPU.');
         fs.writeFileSync(BACKEND_FILE, backend + '\n', 'utf8');
+        await saveEspeakLibrary();
         fs.writeFileSync(TAG_FILE, PINNED_TAG + '\n', 'utf8');
         log.ok(`Kokoro TTS installed → ${log.paint.grey(ROOT)} (${backend.toUpperCase()})`);
         return true;
     } catch (e) {
         log.warn(`Kokoro install failed (${e.message}) — the farm will run WITHOUT voice output.`);
-        log.info(`  Retry: delete ${ROOT} and re-run \`lol up\`.`);
+        log.info(`  Retry: turn it off and on again in the admin panel's Plugins card (or restart the farm). If it fails again, delete ${ROOT} first.`);
         return false;
     }
 }
 
-// The bundled espeak-ng shared library path (so NO native eSpeak-NG install is
-// needed). Resolved from the venv's espeakng-loader; '' if unavailable.
-function espeakLibrary() {
-    return shCapture(`"${venvPython()}" -c "import espeakng_loader,sys;sys.stdout.write(espeakng_loader.get_library_path())"`) || '';
-}
-
 // Spawn the server: <venv python> -m uvicorn api.src.main:app. Replicates upstream
 // start-gpu.ps1's env (relative MODEL_DIR/VOICES_DIR resolve against api/), but
-// points espeak at the bundled DLL and drops the `uv run` wrapper. Bound where
-// config.proxy.host says (LAN when shared, loopback when private — net.serviceHosts).
-// `spawnFn` / `espeak` are for tests (skip the venv probe).
+// points espeak at the bundled DLL (the path ensureKokoro saved) and drops the `uv run`
+// wrapper. Bound where config.proxy.host says (LAN when shared, loopback when private —
+// net.serviceHosts). `spawnFn` / `espeak` are for tests.
 function spawnKokoro(config, { spawnFn = spawn, espeak } = {}) {
     const backend = readTrim(BACKEND_FILE) || 'cpu';
-    const esp = espeak !== undefined ? espeak : espeakLibrary();
+    const esp = espeak !== undefined ? espeak : (readTrim(ESPEAK_FILE) || '');
     const bind = serviceHosts(config.proxy && config.proxy.host).bind;
     const child = spawnFn(venvPython(), ['-m', 'uvicorn', 'api.src.main:app', '--host', bind, '--port', String(config.tts.port)], {
         cwd: SRC,

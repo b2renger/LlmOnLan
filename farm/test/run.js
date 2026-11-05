@@ -37,6 +37,40 @@ test('config rejects a non-url ollama host', () => {
     assert.equal(r.success, false);
 });
 
+test('config: classify and stt are strict like every other section (a typo is said, not dropped; review 2026-11-05)', () => {
+    for (const k of ['classify', 'stt']) {
+        assert.equal(ConfigSchema.safeParse({ [k]: { enable: true } }).success, false, `${k}: "enable" is a typo`);
+        assert.equal(ConfigSchema.safeParse({ [k]: { enabled: true } }).success, true, k);
+    }
+});
+
+test('lol init and lol install scaffold only what differs from the defaults: the name (review 2026-11-05)', () => {
+    // A full default froze vllm.version 0.30.0 into CLI farms: never offered Update vLLM, Flint refused.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lol-init-'));
+    const was = process.cwd();
+    const quiet = console.log; console.log = () => {};
+    try {
+        process.chdir(dir);
+        assert.equal(require('../src/commands/init').run([]), 0);
+        const raw = JSON.parse(fs.readFileSync(path.join(dir, 'lol.config.json'), 'utf8'));
+        assert.deepEqual(Object.keys(raw), ['name']);
+        const c = ConfigSchema.parse(raw);
+        assert.equal(c.vllm.version, defaultConfig().vllm.version, 'every other key follows the farm');
+    } finally { console.log = quiet; process.chdir(was); fs.rmSync(dir, { recursive: true, force: true }); }
+    const inst = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'install.js'), 'utf8');
+    assert.ok(/writeConfig\(target, file\);/.test(inst) && /require\('\.\/init'\)\.scaffold\(\)/.test(inst), 'lol install writes the same');
+});
+
+test('lol.config.example.json holds the keys a developer edits, at their defaults: copied, it changes nothing (review 2026-11-05)', () => {
+    // It used to turn llama.cpp on and pin both contexts to 16384.
+    const ex = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'lol.config.example.json'), 'utf8'));
+    const got = ConfigSchema.parse(ex);
+    assert.equal(got.proxy.masterKey, null, 'no password: an open farm');
+    delete got.proxy.masterKey;   // null and absent mean the same (no password)
+    assert.deepEqual(got, ConfigSchema.parse({ name: ex.name }));
+    assert.ok(!('library' in (ex.llamacpp || {})) && !('version' in (ex.vllm || {})), 'no list or version a copy would freeze');
+});
+
 // ---- litellm generation ----------------------------------------------------
 const { buildLitellmConfig, toYaml, modelSupportsVision, servedEntries } = require('../src/litellm');
 
@@ -122,6 +156,21 @@ test('litellm flags supports_vision so the proxy keeps images (drop_params)', ()
     const coder = doc.model_list.find((d) => d.model_name === 'qwen2.5-coder:7b');
     assert.equal(gemma.model_info.supports_vision, true, 'gemma4 is multimodal');
     assert.ok(!coder.model_info, 'a text-only model carries no vision flag');
+});
+
+test('coordinator peers: never itself, one entry per farm id (the newest host wins), dropped once unheard past ttl (review 2026-11-05)', async () => {
+    const { PeerListener } = require('../src/peerListener');
+    const pl = new PeerListener({ selfId: 'me', ttlMs: 30 });   // no start(): no socket, _merge as a beacon would
+    pl._merge({ v: 1, id: 'me', name: 'This farm' }, '10.0.0.1');
+    pl._merge({ v: 1, id: 'peer', name: 'Peer' }, '10.0.0.2');
+    pl._merge({ id: 'old', name: 'no v' }, '10.0.0.3');
+    pl._merge({ v: 1, name: 'no id' }, '10.0.0.4');
+    assert.deepEqual(pl.getPeers().map((p) => [p.snap.id, p.host]), [['peer', '10.0.0.2']], 'itself and malformed snapshots are left out');
+    pl._merge({ v: 1, id: 'peer', name: 'Peer' }, '10.0.1.2');   // the same farm heard on another address
+    assert.deepEqual(pl.getPeers().map((p) => [p.snap.id, p.host]), [['peer', '10.0.1.2']], 'one entry per id');
+    await new Promise((r) => setTimeout(r, 60));
+    assert.deepEqual(pl.getPeers(), [], 'unheard past ttl: dropped');
+    assert.equal(pl.peers.size, 0, 'and forgotten');
 });
 
 test('coordinator config default is false', () => {
@@ -662,6 +711,24 @@ test('snapshot usage.clients mirrors clientsConnected (null on older farms)', ()
 
 // ---- plugin registry -------------------------------------------------------
 const { makeServices, pluginsSummary, FarmService } = require('../src/plugins/registry');
+
+test('registry: speech to text counts as installed on the CPU too, for the presets\' dry run (review 2026-11-05)', () => {
+    // It read stt.ready(), GPU-only: every CPU farm was told "a first start installs it", installed or not.
+    const sttM = require('../src/stt');
+    const desc = require('../src/plugins/registry').DESCRIPTORS.find((d) => d.id === 'stt');
+    const was = { installed: sttM.installed, modelOnDisk: sttM.modelOnDisk };
+    const seen = [];
+    try {
+        sttM.installed = (device) => { seen.push(device); return true; };
+        sttM.modelOnDisk = (model) => { seen.push(model); return true; };
+        const cpu = { stt: { device: 'cpu', model: 'small' } };
+        assert.equal(sttM.ready(cpu), false, 'ready() is the GPU start');
+        assert.equal(desc.installed(cpu), true);
+        assert.deepEqual(seen, ['cpu', 'small'], 'its own venv and model');
+        sttM.modelOnDisk = () => false;
+        assert.equal(desc.installed(cpu), false, 'the model still to download');
+    } finally { Object.assign(sttM, was); }
+});
 
 test('registry: seven farm services, config-gated (websearch+ocr on, tts+classify+stt+bus off, document search automatic)', () => {
     const c = defaultConfig();
@@ -1388,9 +1455,9 @@ test('engine failure explains the REAL error, not a canned MTP guess', () => {
 
 // ---- audit-driven regression tests (iteration 1, 2026-08-26) -----------------
 
-test('extract() really extracts — the zipPath regression shipped because nothing ran it', () => {
+test('extract() really extracts — the zipPath regression shipped because nothing ran it', async () => {
     // Windows-only smoke (the fleet's platform): a real zip through the real code.
-    if (process.platform !== 'win32') return;
+    if (process.platform !== 'win32') return 'skip';
     const { execFileSync } = require('child_process');
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lol-extract-'));
     fs.writeFileSync(path.join(tmp, 'hello.txt'), 'hi');
@@ -1398,7 +1465,7 @@ test('extract() really extracts — the zipPath regression shipped because nothi
     execFileSync('powershell', ['-NoProfile', '-Command',
         `Compress-Archive -Path '${path.join(tmp, 'hello.txt')}' -DestinationPath '${zip}'`]);
     const dest = path.join(tmp, 'out');
-    llamacpp.extract(zip, dest);
+    await llamacpp.extract(zip, dest);
     assert.ok(fs.existsSync(path.join(dest, 'hello.txt')), 'zip extracted');
     fs.rmSync(tmp, { recursive: true, force: true });
 });
@@ -1443,7 +1510,7 @@ test('coordinator skips password-protected peers in the ROUTING too', () => {
 test('gguf: native max + KV geometry from the real fleet model file', () => {
     const gguf = require('../src/gguf');
     const mp = path.join(__dirname, '..', '.models', 'Qwen3.8-27B-UD-IQ2_S.gguf');
-    if (!fs.existsSync(mp)) return;   // fresh checkout — covered on fleet boxes
+    if (!fs.existsSync(mp)) return 'skip';   // fresh checkout — covered on fleet boxes
     const meta = gguf.readGgufMeta(mp);
     assert.equal(meta.contextLength, 262144, 'native max read from the header');
     const rate = gguf.kvGbPer16k(meta, 'q4_0');
@@ -2077,7 +2144,7 @@ test('lol bench --people simulates PEOPLE: one source address each, so the real 
     const http = require('http');
     const net = require('net');
     const canBind = await new Promise((r) => { const s = net.createServer(); s.once('error', () => r(false)); s.listen(0, '127.0.0.2', () => s.close(() => r(true))); });
-    if (!canBind) { console.log('       (skipped: this OS only routes 127.0.0.1 — macOS needs `ifconfig lo0 alias`)'); return; }
+    if (!canBind) { console.log('       (skipped: this OS only routes 127.0.0.1 — macOS needs `ifconfig lo0 alias`)'); return 'skip'; }
     let aborted = 0;
     const upstream = http.createServer((req, res) => {   // a mock LiteLLM: 10 tokens, 30 ms apart
         req.resume();
@@ -2756,11 +2823,12 @@ test('plugin keys survive a farm restart, so no client restarts its Open WebUI (
 test('panel: the password row says what it protects — the plugins too — and that old plugin access lasts until the farm restarts (review 2026-10-07)', () => {
     const render = loadPanel();
     const set = render(adminState({ requiresKey: true }));
-    assert.ok(set.includes('Protects chat (everything on /v1), document reading, document search, Classify, speech to text and the message bus.'), 'what it protects');
+    // OSC senders may still write under osc/… on a keyed farm (bus.js): the row says so (review 2026-11-05).
+    assert.ok(set.includes('Protects chat (everything on /v1), document reading, document search, Classify, speech to text and the message bus (OSC tools may still send to osc/… topics without it).'), 'what it protects');
     assert.ok(set.includes('Web search, voice and discovery stay open on the LAN.'), 'what stays open');
     assert.ok(set.includes('When the password is set or changed, a device that could already use document reading, document search, Classify or speech to text keeps them until the farm restarts.'), 'a device that had the plugins keeps them until then');
     const open = render(adminState({ requiresKey: false }));
-    assert.ok(open.includes('protects chat, document reading, document search, Classify, speech to text and the message bus; web search, voice and discovery stay open'));
+    assert.ok(open.includes('protects chat, document reading, document search, Classify, speech to text and the message bus, though OSC tools may still send to osc/… topics; web search, voice and discovery stay open'));
     for (const html of [set, open]) assert.ok(!/document reading( and|,) discovery stay open|document reading \/ discovery/.test(html), 'no longer says document reading stays open');
 });
 
@@ -2778,11 +2846,25 @@ test('classify + stt start AFTER the farm is public, and their installs never bl
     const gate = upSrc.indexOf('seatGateServer = await startSeatGate(');
     assert.ok(boot > 0 && late > 0 && gate > 0, 'both loops and the seat gate are where they should be');
     assert.ok(boot < gate && gate < late, 'boot plugins before the seat gate; the late ones after it');
-    for (const f of ['classify', 'stt']) {
+    // Kokoro, OCR and SearXNG too: Enable in the Plugins card and a preset's Apply run their install inside `lol up`
+    // (Kokoro's torch is several GB), beside the seat gate, the beacon and the panel (review 2026-11-05).
+    for (const f of ['classify', 'stt', 'kokoro', 'extract', 'searxng']) {
         const src = fs.readFileSync(path.join(__dirname, '..', 'src', `${f}.js`), 'utf8');
-        assert.ok(!/execSync/.test(src), `${f}: no execSync — a 1 GB pip install must not freeze the farm`);
-        assert.ok(/await sh\(/.test(src), `${f}: the installs are awaited`);
+        assert.ok(!/execSync|execFileSync|spawnSync/.test(src), `${f}: nothing synchronous — a 1 GB pip install must not freeze the farm`);
+        assert.ok(/function sh\([^)]*\) \{\n\s+return new Promise\(\(resolve, reject\) => \{\n\s+const child = spawn\(/.test(src), `${f}: sh() is a spawned shell`);
+        const calls = (src.match(/\bsh\(/g) || []).length - 1;   // less the definition
+        assert.ok(calls > 0 && (src.match(/await sh\(/g) || []).length === calls, `${f}: every install step is awaited`);
     }
+    // llama.cpp's build is unpacked inside `lol up` too (document search's first start, a switch to llama.cpp).
+    const lsrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'llamacpp.js'), 'utf8');
+    assert.ok(!/execSync|execFileSync|spawnSync/.test(lsrc), 'llamacpp: the ~600 MB unpack must not freeze the farm');
+    assert.ok(lsrc.includes('await extract(got.path, BIN_DIR);'), 'llamacpp: the unpack is awaited');
+    // Kokoro's start stays synchronous (the registry takes its child at once): the espeak path is read from the file
+    // ensureKokoro writes, never asked of the venv's Python at spawn.
+    const kokoroSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'kokoro.js'), 'utf8');
+    const spawnBody = kokoroSrc.slice(kokoroSrc.indexOf('function spawnKokoro('), kokoroSrc.indexOf('function get('));
+    assert.ok(/readTrim\(ESPEAK_FILE\)/.test(spawnBody) && !/execFileP|await /.test(spawnBody), 'spawnKokoro reads the saved espeak path');
+    assert.equal((kokoroSrc.match(/await saveEspeakLibrary\(\);/g) || []).length, 2, 'ensureKokoro saves it on both paths (installed, and a fresh install)');
     // `lol down` from another shell stops them: their pids are recorded (again once a late one is up).
     assert.ok(/classifyPid: svcById\.classify\.pid/.test(upSrc) && /sttPid: svcById\.stt\.pid/.test(upSrc), 'recorded in the runtime');
     assert.ok(upSrc.indexOf('recordRuntime = writeRuntimeState') > 0 && /recordRuntime\(\);/.test(upSrc), 'a late plugin re-records');
@@ -2816,7 +2898,7 @@ test('classify + stt services: refusals and bookkeeping; OCR vision calls take t
     const bin = process.platform === 'win32' ? ['Scripts', 'python.exe'] : ['bin', 'python'];
     const candidates = [process.env.LOL_PYSVC_PYTHON, ...['.classify', '.stt'].map((d) => path.join(__dirname, '..', d, 'venv', ...bin))].filter(Boolean);
     const py = candidates.find((p) => fs.existsSync(p) && spawnSync(p, ['-c', 'import fastapi, httpx, multipart']).status === 0);
-    if (!py) { console.log('       (skipped: no Python with fastapi + httpx; set LOL_PYSVC_PYTHON)'); return; }
+    if (!py) { console.log('       (skipped: no Python with fastapi + httpx; set LOL_PYSVC_PYTHON)'); return 'skip'; }
     const r = spawnSync(py, ['-W', 'ignore', path.join(__dirname, '..', 'src', 'pysvc', 'check_services.py')], { encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' }, timeout: 120000 });
     assert.equal(r.status, 0, r.stdout + r.stderr);
 });
@@ -3660,7 +3742,7 @@ test('panel: the slots-vs-context line says what an edit does before Apply (plan
 
 test('panel: the client rules the line quotes are the shell\'s', () => {
     const shell = path.join(__dirname, '..', '..', 'shell');
-    if (!fs.existsSync(shell)) return;   // a farm-only copy (the Farm app ships farm/ alone)
+    if (!fs.existsSync(shell)) return 'skip';   // a farm-only copy (the Farm app ships farm/ alone)
     const read = (...p) => fs.readFileSync(path.join(shell, ...p), 'utf8');
     const bridge = read('src', 'main', 'configBridge.ts');
     const studio = read('src', 'main', 'studio.ts');
@@ -4439,15 +4521,15 @@ test('vLLM on this computer: the checklist, every blocking sentence, and the dis
     const card = (name, mib, cap) => V.parseStatus(['home=/home/me', 'arch=x86_64', 'curl=/usr/bin/curl', 'cc=/usr/bin/gcc', `gpu=${name}, ${mib}, ${mib - 1000}, ${cap}`].join('\n'));
     const small = card('NVIDIA GeForce RTX 4070', 12282, 8.9);
     r = P(lin({ st: small }));
-    assert.deepEqual(r.problems.filter((x) => /too little/.test(x)), ['This GPU has 12 GB: too little for any model in the vLLM list (the smallest needs about 25 GB, with 9 GB kept for document reading). llama.cpp or Ollama is the engine for this card.']);
+    assert.deepEqual(r.problems.filter((x) => /too little/.test(x)), ['This GPU has 12 GB: too little for any model in the vLLM list (the smallest needs about 26 GB, with 9 GB kept for document reading). llama.cpp or Ollama is the engine for this card.']);
     assert.equal(r.gpuTooSmall, true, 'nothing to install for: no Install button');
     assert.deepEqual(r.warnings, [], 'too small says it all: no "older card" warning beside it');
     const noOcr = { ...c, ocr: { ...c.ocr, enabled: false } };
-    assert.ok(P(lin({ st: card('NVIDIA GeForce RTX 4070', 12282, 8.9) }), noOcr).problems.includes('This GPU has 12 GB: too little for any model in the vLLM list (the smallest needs about 15 GB). llama.cpp or Ollama is the engine for this card.'));
+    assert.ok(P(lin({ st: card('NVIDIA GeForce RTX 4070', 12282, 8.9) }), noOcr).problems.includes('This GPU has 12 GB: too little for any model in the vLLM list (the smallest needs about 16 GB). llama.cpp or Ollama is the engine for this card.'));
     // A 24 GB card: not beside document reading's share, which is said; without it Gemma 4 12B fits (the old rule,
     // weights + 6 GB, let a 24 GB card through for the 20 GiB models, and its start failed).
     r = P(lin({ st: card('NVIDIA GeForce RTX 4090', 24564, 8.9) }));
-    assert.ok(r.problems.includes('This GPU has 24 GB: too little for any model in the vLLM list (the smallest needs about 25 GB, with 9 GB kept for document reading). llama.cpp or Ollama is the engine for this card. Turning document reading off would make room for one.'), r.problems.join('|'));
+    assert.ok(r.problems.includes('This GPU has 24 GB: too little for any model in the vLLM list (the smallest needs about 26 GB, with 9 GB kept for document reading). llama.cpp or Ollama is the engine for this card. Turning document reading off would make room for one.'), r.problems.join('|'));
     assert.equal(P(lin({ st: card('NVIDIA GeForce RTX 4090', 24564, 8.9) }), noOcr).gpuTooSmall, false);
     assert.equal(P(lin({ st: card('NVIDIA GeForce RTX 4080', 16376, 8.9) })).gpuTooSmall, true, 'a 4080 beside document reading: no');
     // A 32 GB card fits beside document reading now.
@@ -4455,7 +4537,7 @@ test('vLLM on this computer: the checklist, every blocking sentence, and the dis
     assert.deepEqual(P(lin({ st: card('NVIDIA A100-SXM4-80GB', 81920, 8.0) })).warnings, ['This GPU is older than the cards these models were measured on (RTX PRO 6000, DGX Spark): they may not load. If a start fails, llama.cpp is the engine for this card.']);
     // On Windows the size Windows sees is said before anything about WSL, which would be installed for nothing.
     r = P(win({ hostGpu: { name: 'NVIDIA GeForce RTX 4070', gb: 12 }, wsl: { error: 'no-wsl' }, st: null }));
-    assert.deepEqual(r.problems, ['This GPU has 12 GB: too little for any model in the vLLM list (the smallest needs about 25 GB, with 9 GB kept for document reading). llama.cpp or Ollama is the engine for this card.']);
+    assert.deepEqual(r.problems, ['This GPU has 12 GB: too little for any model in the vLLM list (the smallest needs about 26 GB, with 9 GB kept for document reading). llama.cpp or Ollama is the engine for this card.']);
     assert.equal(r.gpuTooSmall, true);
     assert.equal(P(win({ hostGpu: { name: PRO, gb: 96 } })).problems.length, 0, 'a PRO 6000 fits');
     assert.deepEqual(V.gpuFit(c, 12), { fits: false, needGib: (9.25 + 4 + 1 + 9) / 0.92, ocrGib: 9, fitsWithoutOcr: false });
@@ -4637,7 +4719,7 @@ test('the gate: while the farm\'s vLLM is not ready a generation gets 503 with w
     const upstream = http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"data":[]}'); });
     await new Promise((r) => upstream.listen(0, '127.0.0.1', r));
     const seats = seatsMod.createSeats({ capacity: () => 4, idleReleaseSec: () => 900 });
-    let down = 'This farm\'s model is starting: about 2 minutes. Try again then.';
+    let down = { message: 'This farm\'s model is starting: about 2 minutes. Try again then.', code: 'lol_engine_starting', retryAfter: 120 };
     const gate = await seatsMod.startSeatGate({ host: '127.0.0.1', port: 0, upstreamPort: upstream.address().port, seats, idleReleaseSec: () => 900, password: () => 'pw', unavailable: () => down });
     const send = (method, p, key) => new Promise((resolve, reject) => {
         const req = http.request({ host: '127.0.0.1', port: gate.address().port, method, path: p, headers: { 'content-type': 'application/json', ...(key ? { authorization: `Bearer ${key}` } : {}) } }, (res) => {
@@ -4650,13 +4732,18 @@ test('the gate: while the farm\'s vLLM is not ready a generation gets 503 with w
         assert.equal((await send('POST', '/v1/chat/completions', 'nope')).status, 401, 'the password is checked first');
         const r = await send('POST', '/v1/chat/completions', 'pw');
         assert.equal(r.status, 503);
-        assert.equal(r.headers['retry-after'], '60');
+        assert.equal(r.headers['retry-after'], '120', 'a start takes about 2 minutes');
         assert.equal(r.headers['access-control-allow-origin'], '*');
-        assert.deepEqual(JSON.parse(r.body).error, { message: down, type: 'api_error', code: 'lol_engine_starting' });
+        assert.deepEqual(JSON.parse(r.body).error, { message: down.message, type: 'api_error', code: 'lol_engine_starting' });
         assert.equal(seats.view().length, 0, 'no seat is held for a model that is not there');
         assert.equal((await send('GET', '/v1/models', 'pw')).status, 200, 'the model list stays open');
-        down = 'This farm\'s model is stopped for now. Try again later.';
-        assert.equal(JSON.parse((await send('POST', '/v1/chat/completions', 'pw')).body).error.message, down);
+        // Stopped is its own case, not "starting" (review 2026-11-05).
+        down = { message: 'This farm\'s model is stopped for now. Try again later.', code: 'lol_engine_stopped', retryAfter: 60 };
+        const st = await send('POST', '/v1/chat/completions', 'pw');
+        assert.deepEqual([st.status, st.headers['retry-after'], JSON.parse(st.body).error], [503, '60', { message: down.message, type: 'api_error', code: 'lol_engine_stopped' }]);
+        // The farm's own thunk gives both shapes.
+        const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+        assert.ok(upSrc.includes("code: 'lol_engine_starting', retryAfter: 120 }") && upSrc.includes("code: 'lol_engine_stopped', retryAfter: 60 }"), 'up.js names both cases');
         down = null;
         assert.equal((await send('POST', '/v1/chat/completions', 'pw')).status, 200, 'ready: through');
         assert.equal(seats.view().length, 1);
@@ -5132,11 +5219,16 @@ test('panel: the llama.cpp section before the switch: the list, Use this choosin
 test('llamacpp.onDisk: every part of a split .gguf on disk, else false', () => {
     const lc = require('../src/llamacpp');
     const { ggufPathFor } = require('../src/ollama');
+    // In a folder of its own, never the checkout's farm/.models (where a dev box keeps its real models; review 2026-11-05).
+    const ST = require('../src/storage');
+    const saved = ST.DEFAULT.gguf;
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lol-ondisk-'));
+    ST.DEFAULT.gguf = root;
     const one = 'https://example.invalid/lol-test-ondisk/a-x9q.gguf';
     const split = 'https://example.invalid/lol-test-ondisk/b-x9q-00001-of-00002.gguf';
-    const made = [];
-    const put = (u) => { const f = ggufPathFor(u); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, 'x'); made.push(f); };
+    const put = (u) => { const f = ggufPathFor(u); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, 'x'); };
     try {
+        assert.equal(path.dirname(ggufPathFor(one)), root, 'the test writes in its own folder');
         assert.equal(lc.onDisk(one), false);
         put(one);
         assert.equal(lc.onDisk(one), true);
@@ -5145,7 +5237,27 @@ test('llamacpp.onDisk: every part of a split .gguf on disk, else false', () => {
         put(split.replace('00001-of', '00002-of'));
         assert.equal(lc.onDisk(split), true);
         assert.equal(lc.onDisk('not a url'), false);
-    } finally { for (const f of made) fs.rmSync(f, { force: true }); }
+    } finally { ST.DEFAULT.gguf = saved; fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('llamacpp.nameClash: a new link whose file name another link already uses is refused (review 2026-11-05)', () => {
+    const lc = require('../src/llamacpp');
+    const qwen = 'https://huggingface.co/unsloth/Qwen-GGUF/resolve/main/model-Q4.gguf';
+    const proj = 'https://huggingface.co/unsloth/Qwen-GGUF/resolve/main/mmproj-F16.gguf';
+    const c = { llamacpp: { model: qwen, mmproj: proj, library: [{ id: 'q', url: qwen, mmproj: proj }, { id: 'p', path: 'C:\\models\\x.gguf', mmproj: null }] } };
+    // Another repo, the same file names: the cached file would be the first one's.
+    assert.match(lc.nameClash(c, ['https://huggingface.co/someone/Other-GGUF/resolve/main/model-Q4.gguf', null]), /a file named model-Q4\.gguf/);
+    assert.match(lc.nameClash(c, ['https://huggingface.co/unsloth/Gemma-GGUF/resolve/main/gemma.gguf', 'https://huggingface.co/unsloth/Gemma-GGUF/resolve/main/mmproj-F16.gguf']), /mmproj-F16\.gguf/);
+    // The same link again, a new name, or a path: nothing shared.
+    assert.equal(lc.nameClash(c, [qwen, proj]), null, 'the same links are the same file');
+    assert.equal(lc.nameClash(c, ['https://huggingface.co/someone/Other-GGUF/resolve/main/other.gguf', null]), null);
+    assert.equal(lc.nameClash(c, ['C:\\models\\model-Q4.gguf']), null, 'a path is used where it is');
+    // The shipped list has no clash of its own.
+    const d = defaultConfig();
+    for (const e of d.llamacpp.library) assert.equal(lc.nameClash(d, [e.url, e.mmproj]), null, e.id);
+    // Both doors that take a new link ask it.
+    const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.equal((upSrc.match(/const clash = llamacpp\.nameClash\(config, \[llamacpp\.normalizeModelUrl\(url\), /g) || []).length, 2, 'addLibraryModel and setLlamacppModel {url}');
 });
 
 test('free memory is read until it stops rising, before a start sizes against it (review 2026-10-07)', async () => {
@@ -5314,6 +5426,8 @@ test('panel: vLLM\'s rows, its trade line and the Apply text; Apply asks the far
     assert.ok(kvOpts.includes('Automatic — what the GPU has free, less the model, 9 GB for document reading and a safety margin (now 50 GB)'));
     assert.deepEqual([...kvOpts.matchAll(/value="(\d+)"/g)].map((m) => Number(m[1])), [16, 24, 32, 40, 50, 60, 70, 80], 'all below the 95.6 GB card');
     assert.ok(render(vllmState({ unified: true, minFreeGb: 8, cardGib: 119, autoKvGib: 27 })).includes('Automatic — from what the computer has free, less the model, 9 GB for document reading and a safety margin, keeping 8 GB so it cannot run out (now 27 GB)'));
+    // Every share it keeps is named, speech to text's too (review 2026-11-05).
+    assert.ok(render(vllmState({ embedReserveGib: 1.5, sttReserveGib: 2 })).includes('less the model, 9 GB for document reading, 1.5 GB for document search, 2 GB for speech to text and a safety margin'));
     assert.ok(html.includes('memory vLLM keeps for everyone\'s conversations. Automatic is worked out again at each start.'));
     assert.ok(html.includes('what appears in the model picker. Renaming takes a few seconds; vLLM keeps running.'));
     // The trade line, as configured: vLLM's own count of whole conversations, and what was measured.
@@ -5494,7 +5608,7 @@ test('D10: no text a person reads names a config file or key — the panel in ev
 
 test('docs: no control character but tab, line feed and carriage return — a Windows path whose backslashes a tool ate turns \\f and \\v into them (review 2026-10-07)', () => {
     const root = path.join(__dirname, '..', '..');
-    if (!fs.existsSync(path.join(root, 'docs'))) return;   // a farm-only copy (the Farm app ships farm/ alone)
+    if (!fs.existsSync(path.join(root, 'docs'))) return 'skip';   // a farm-only copy (the Farm app ships farm/ alone)
     const files = fs.readdirSync(path.join(root, 'docs'), { recursive: true }).filter((f) => f.endsWith('.md')).map((f) => path.join('docs', f))
         .concat(['farm/README.md', 'CLAUDE.md']);
     assert.ok(files.includes(path.join('docs', 'archive', 'PRO6000_VLLM_SWITCH.md')), 'PRO6000_VLLM_SWITCH.md moved: update this path');
@@ -5799,7 +5913,7 @@ test('storage: a model in Hugging Face\'s shared blobs moves as its file, checke
         try {
             fs.symlinkSync(path.join('..', '..', 'blobs', xh.slice(0, 2), xh), path.join(repo, 'blobs', sha), 'file');
             fs.symlinkSync(path.join('..', '..', 'blobs', sha), path.join(repo, 'snapshots', 's1', 'model.safetensors'), 'file');
-        } catch (e) { if (e.code === 'EPERM') { console.log('       (no symbolic links on this machine: skipped)'); return; } throw e; }
+        } catch (e) { if (e.code === 'EPERM') { console.log('       (no symbolic links on this machine: skipped)'); return 'skip'; } throw e; }
         const to = path.join(root, 'F', 'classify', 'models--x--laya');
         const files = await ST.listFiles(repo);
         const w1 = files.find((f) => f.rel === path.join('blobs', sha));
@@ -7288,12 +7402,18 @@ test('presets: the config keeps the preset (its ids are presets.js\'s), the plug
     assert.ok(panel.includes('except the Blender recommendation (this session only)'));
 });
 
+// A test that cannot run here (another OS, no venv, no symbolic links, a farm-only copy) returns 'skip': counted
+// apart, so "N passed" never counts a check that did not run (review 2026-11-05).
+let skipped = 0;
 (async () => {
     for (const { name, fn } of tests) {
         if (process.env.LOL_TEST_ONLY && !name.includes(process.env.LOL_TEST_ONLY)) continue;   // one group at a time
-        try { await fn(); console.log(`  ok  ${name}`); passed++; }
+        try {
+            if ((await fn()) === 'skip') { console.log(`  skip ${name}`); skipped++; }
+            else { console.log(`  ok  ${name}`); passed++; }
+        }
         catch (e) { console.error(`  FAIL ${name}\n       ${process.env.LOL_TEST_ONLY ? e.stack : e.message}`); process.exitCode = 1; }
     }
-    console.log(`\n${passed} passed`);
+    console.log(`\n${passed} passed${skipped ? `, ${skipped} skipped` : ''}`);
 })();
 

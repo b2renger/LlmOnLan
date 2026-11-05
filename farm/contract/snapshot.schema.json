@@ -162,7 +162,7 @@
         "percent": { "type": ["number", "null"], "description": "Progress, when known." }
       }
     },
-    "perf": { "type": ["object", "null"], "description": "Measured speed on llama.cpp or an external vLLM, null otherwise; its shape belongs to farm/src/perf.js. The admin panel; LOL Vibe's strip reads lastGenTokSec." },
+    "perf": { "type": ["object", "null"], "description": "Measured speed on llama.cpp or a vLLM (the farm's own or an external one), null otherwise; its shape belongs to farm/src/perf.js. The admin panel; LOL Vibe's strip reads lastGenTokSec." },
     "ts": { "type": "integer", "description": "When the farm built this snapshot (ms). Informational." }
   },
   "$defs": {

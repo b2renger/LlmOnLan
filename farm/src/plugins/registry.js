@@ -1,6 +1,7 @@
 // Farm-plugin registry — the single place that knows the farm-side optional services
-// (web search / voice / OCR). Each is a descriptor that DELEGATES to its existing
-// module (searxng.js / kokoro.js / extract.js) — the install/spawn/health internals are
+// (web search, voice, OCR, the message bus, document search, Classify, speech to text).
+// Each is a descriptor that DELEGATES to its existing module (searxng.js, kokoro.js,
+// extract.js, bus.js, embed.js, classify.js, stt.js) — the install/spawn/health internals are
 // untouched (and rig-verified); this only unifies the ORCHESTRATION so that boot, live
 // toggling (control.setPlugin), the health timer, teardown, and the snapshot all iterate
 // one list instead of three copy-pasted blocks.
@@ -53,7 +54,7 @@ const DESCRIPTORS = [
         waitReady: async (c) => {
             const sx = await searxng.waitForSearxng(c.websearch.port, undefined, probeHost(c));
             if (sx.up && sx.jsonOk) return { ok: true, level: 'ok', message: `SearXNG up — clients get web search automatically${firewallNote(c)}.` };
-            if (sx.up && !sx.jsonOk) return { ok: false, level: 'err', message: 'SearXNG is up but the JSON API is off (OWUI would get 403) — delete farm/.searxng/settings.yml and re-run `lol up`.' };
+            if (sx.up && !sx.jsonOk) return { ok: false, level: 'err', message: 'SearXNG is up but the JSON API is off (OWUI would get 403) — delete farm/.searxng/settings.yml, then turn Web search off and on again in the Plugins card (or restart the farm).' };
             return { ok: false, level: 'warn', message: `SearXNG did not become healthy on port ${c.websearch.port} (busy port? see the [searxng] log above). Continuing without web search.` };
         },
         alive: (c) => searxng.searxngAlive(c.websearch.port, probeHost(c)),
@@ -172,7 +173,9 @@ const DESCRIPTORS = [
         enabled: (c) => !!(c.stt && c.stt.enabled),
         port: (c) => c.stt.port,
         makeCtx: (c, rt) => ({ key: rt.pluginKey('stt', farmPassword(c)) }),
-        installed: (c) => stt.ready(c),
+        // The presets' dry run: its venv for this device and its model on disk. Not ready(), which is GPU-only (it says
+        // when a boot starts it early) and called every CPU farm's speech to text a first install (review 2026-11-05).
+        installed: (c) => stt.installed(c.stt.device) && stt.modelOnDisk(c.stt.model),
         ensure: (c) => stt.ensureStt(c),
         spawn: (c, ctx) => stt.spawnStt(c, ctx),
         stepMessage: (c) => `Speech to text: preparing faster-whisper "${c.stt.model}" on the ${c.stt.device === 'cuda' ? 'GPU' : 'CPU'} (port ${c.stt.port}) — first run installs it and downloads the model …`,

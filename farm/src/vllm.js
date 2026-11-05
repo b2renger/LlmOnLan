@@ -809,12 +809,14 @@ function gpuFit(config, gib, { unified = false } = {}) {
     return { fits: gib >= need(ocrGib), needGib: need(ocrGib), ocrGib, fitsWithoutOcr: gib >= need(0) };
 }
 // The sentence for a GPU no model of the list fits, or null when one does (or its size is unknown).
+// A minimum is rounded UP, as the vLLM section's line does (up.js hostFitOf): "about 15 GB" for 15.49 GB read as if a
+// 15 GB card were enough, and the two places said 17 and 18 GB for the same card (review 2026-11-05).
 function tooSmallText(config, gib, opts) {
     const f = gpuFit(config, gib, opts);
     if (!f || f.fits) return null;
     const ocr = f.ocrGib ? `, with ${r1(f.ocrGib)} GB kept for document reading` : '';
     const room = f.ocrGib && f.fitsWithoutOcr ? ' Turning document reading off would make room for one.' : '';
-    return `This GPU has ${r1(gib)} GB: too little for any model in the vLLM list (the smallest needs about ${r1(f.needGib)} GB${ocr}). llama.cpp or Ollama is the engine for this card.${room}`;
+    return `This GPU has ${r1(gib)} GB: too little for any model in the vLLM list (the smallest needs about ${Math.ceil(f.needGib)} GB${ocr}). llama.cpp or Ollama is the engine for this card.${room}`;
 }
 // What Windows itself sees of the GPU, from systemInfo.detectHardware's result: {name, gb}, name null when its
 // nvidia-smi did not answer. up.js reads it at boot, and again before each check while the name is missing: nvidia-smi

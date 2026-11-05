@@ -30,7 +30,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const crypto = require('crypto');
-const { execSync, spawn } = require('child_process');
+const { spawn } = require('child_process');
 const log = require('./log');
 const { serviceHosts } = require('./net');
 const { resolvePython } = require('./python');
@@ -53,10 +53,14 @@ function venvPython() {
     return IS_WIN ? path.join(VENV, 'Scripts', 'python.exe') : path.join(VENV, 'bin', 'python');
 }
 
-function sh(cmd, opts = {}) { execSync(cmd, { stdio: 'inherit', ...opts }); }
-function shCapture(cmd) {
-    try { return execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); }
-    catch { return null; }
+// Async (a spawned shell, awaited), as classify.js: Enable in the Plugins card and a preset's Apply run the install
+// inside `lol up`, so it must never freeze the seat gate, the beacon and the panel (review 2026-11-05).
+function sh(cmd, opts = {}) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(cmd, { shell: true, stdio: 'inherit', windowsHide: true, ...opts });
+        child.on('error', reject);
+        child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`${cmd.split(' ')[0]} exited with ${code}`))));
+    });
 }
 
 // Find a usable Python (same ladder as `lol install`'s LiteLLM venv). Honors
@@ -209,12 +213,12 @@ function patchWindowsCompat() {
 // ZoneInfo("Asia/Shanghai") (bilibili, …) throw `ModuleNotFoundError: tzdata` and dump
 // a full traceback at boot. The `tzdata` pip package provides the data. One-time,
 // marker-guarded so it doesn't re-pip every `lol up`; non-fatal.
-function ensureTzdata() {
+async function ensureTzdata() {
     if (!IS_WIN) return;
     const marker = path.join(ROOT, '.tzdata-ok');
     if (fs.existsSync(marker)) return;
     try {
-        sh(`"${venvPython()}" -m pip install -q tzdata`);
+        await sh(`"${venvPython()}" -m pip install -q tzdata`);
         fs.writeFileSync(marker, 'ok\n', 'utf8');
         log.ok('SearXNG: installed tzdata (fixes the Windows zoneinfo traceback).');
     } catch { /* only affects a couple of tz-dependent engines — non-fatal */ }
@@ -249,7 +253,7 @@ function ensureEnginesDisabled() {
 async function ensureSearxng() {
     writeSettingsIfMissing();
     ensureEnginesDisabled();
-    if (installed()) { patchWindowsCompat(); ensureTzdata(); return true; }
+    if (installed()) { patchWindowsCompat(); await ensureTzdata(); return true; }
 
     const py = findPython();
     if (!py) {
@@ -276,7 +280,7 @@ async function ensureSearxng() {
                 await download(`${REPO_URL}/archive/refs/heads/master.tar.gz`, tarball);
                 fetchedSha = null; // moving master — must never satisfy the pin
             }
-            sh(`tar -xzf searxng-src.tar.gz -C src --strip-components=1 --exclude "*/utils/*"`, { cwd: ROOT });
+            await sh(`tar -xzf searxng-src.tar.gz -C src --strip-components=1 --exclude "*/utils/*"`, { cwd: ROOT });
             fs.rmSync(tarball, { force: true });
             if (!fs.existsSync(path.join(SRC, 'searx'))) throw new Error('extraction produced no searx/ package');
             // Record what we actually extracted BEFORE pip, so a later pip failure
@@ -288,7 +292,7 @@ async function ensureSearxng() {
         // 2. Own venv (never the LiteLLM one — conflicting `==` pins).
         if (!fs.existsSync(venvPython())) {
             log.step(`Creating SearXNG venv with ${log.paint.bold(py.version)} …`);
-            sh(`${py.cmd} -m venv "${VENV}"`);
+            await sh(`${py.cmd} -m venv "${VENV}"`);
         }
 
         // 3. Install. Runtime deps MUST land first: setup.py imports searx/,
@@ -297,15 +301,15 @@ async function ensureSearxng() {
         //    works against a venv that already has requirements.txt installed.
         const vpy = venvPython();
         log.step('Installing SearXNG into its venv (a minute or two) …');
-        sh(`"${vpy}" -m pip install -q -U pip setuptools wheel pyyaml`);
-        sh(`"${vpy}" -m pip install -q -r "${path.join(SRC, 'requirements.txt')}"`);
+        await sh(`"${vpy}" -m pip install -q -U pip setuptools wheel pyyaml`);
+        await sh(`"${vpy}" -m pip install -q -r "${path.join(SRC, 'requirements.txt')}"`);
         try {
-            sh(`"${vpy}" -m pip install -q --use-pep517 --no-build-isolation -e "${SRC}"`, { cwd: SRC });
+            await sh(`"${vpy}" -m pip install -q --use-pep517 --no-build-isolation -e "${SRC}"`, { cwd: SRC });
         } catch {
             // Editable installs can be fragile (paths with spaces) — plain install
             // works too: setup.py package_data ships settings/static/templates.
             log.warn('Editable install failed — retrying as a regular install.');
-            sh(`"${vpy}" -m pip install -q --use-pep517 --no-build-isolation "${SRC}"`, { cwd: SRC });
+            await sh(`"${vpy}" -m pip install -q --use-pep517 --no-build-isolation "${SRC}"`, { cwd: SRC });
         }
 
         // Stamp what's ACTUALLY installed — the extracted source's SHA, not the pin
@@ -313,12 +317,12 @@ async function ensureSearxng() {
         // won't accept, so a later `lol up` re-attempts the pin instead of falsely
         // reporting it satisfied.
         fs.writeFileSync(SHA_FILE, (readTrim(SRC_SHA_FILE) || 'master') + '\n', 'utf8');
-        ensureTzdata();
+        await ensureTzdata();
         log.ok(`SearXNG installed → ${log.paint.grey(ROOT)}`);
         return true;
     } catch (e) {
         log.warn(`SearXNG install failed (${e.message}) — the farm will run WITHOUT web search.`);
-        log.info(`  Retry: delete ${ROOT} and re-run \`lol up\`.`);
+        log.info(`  Retry: turn it off and on again in the admin panel's Plugins card (or restart the farm). If it fails again, delete ${ROOT} first.`);
         return false;
     }
 }

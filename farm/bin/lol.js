@@ -10,7 +10,8 @@ ${log.paint.bold('lol')} — the LlmOnLan farm CLI
 
   ${log.paint.cyan('lol install')}             One-time bootstrap on a fresh pull: install Ollama
                           + LiteLLM, pull models + preinstall, build the
-                          web-search/OCR venvs (+ llama.cpp when enabled).
+                          web-search/OCR venvs, document search when it is
+                          on (+ llama.cpp when enabled).
   ${log.paint.cyan('lol init')} [--force]      Scaffold a lol.config.json here.
   ${log.paint.cyan('lol up')} | ${log.paint.cyan('serve')}        Ensure Ollama, pick+pull model(s), generate+run
                           the LiteLLM proxy, start the beacon (foreground).
@@ -29,7 +30,8 @@ ${log.paint.bold('lol')} — the LlmOnLan farm CLI
                           ${log.paint.grey('--ocr')} | ${log.paint.grey('--no-ocr')}  host shared document OCR so every
                           client can read scanned docs (on by default).
                           ${log.paint.grey('--no-alias')}         ignore the configured model alias.
-  ${log.paint.cyan('lol down')}                Stop the proxy + llama-server + plugins + beacon.
+  ${log.paint.cyan('lol down')}                Stop the proxy, the engine (llama-server, the farm's
+                          vLLM), every plugin and the beacon.
   ${log.paint.cyan('lol status')}              Health of each Ollama host + the proxy + loaded models.
   ${log.paint.cyan('lol fleet')}               Show every farm on the LAN (this box + peers): load,
                           VRAM, loaded models, roles.

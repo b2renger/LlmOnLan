@@ -300,8 +300,8 @@ function buildLitellmConfig(config, peers = []) {
     // coordinator fronts a second big box (plan Phase 3.0), its external branch's peers should
     // move to `hosted_vllm/` as well. ponytail: one LiteLLM process
     // still caps the farm at ~5,000 streamed tokens/s on that CPU (a second one on its own port
-    // bought 0.2 s more at 140); past it, the seat gate streams straight to a lone external deployment
-    // (farm/README.md, "LiteLLM's cost per streamed token").
+    // bought 0.2 s more at 140); upgrade path (not built): the seat gate streams a lone vLLM deployment
+    // straight to vLLM (farm/README.md, "LiteLLM's cost per streamed token").
     const engine = engineOf(config);
     const ex = config.external || {};
     if (engine === 'external') {

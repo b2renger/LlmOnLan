@@ -8673,8 +8673,8 @@
    "type": "repo-measured"
   },
   "repo-plan-s9": {
-   "title": "LlmOnLan multiuser_implementation_plan.md section 9 (model + Spark seed data, community numbers) and section 4.3 (Bonsai)",
-   "url": "multiuser_implementation_plan.md",
+   "title": "LlmOnLan docs/archive/plans/multiuser_implementation_plan.md section 9 (model + Spark seed data, community numbers) and section 4.3 (Bonsai)",
+   "url": "docs/archive/plans/multiuser_implementation_plan.md",
    "date": "2026-10-06",
    "type": "repo"
   },

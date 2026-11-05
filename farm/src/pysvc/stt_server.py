@@ -24,6 +24,7 @@ Contract (OpenAI's POST /v1/audio/transcriptions, the part we use):
 """
 
 import asyncio
+import hmac
 import io
 import os
 import sys
@@ -46,6 +47,13 @@ THREADS = max(1, int(os.environ.get("STT_THREADS", "4")))
 MAX_BYTES = max(1, int(os.environ.get("STT_MAX_MB", "25"))) * 1024 * 1024
 MAX_WAITING = max(0, int(os.environ.get("STT_MAX_WAITING", "4")))
 FORM_SLACK = 64 * 1024   # the multipart envelope around the file
+
+
+def _key_ok(request):
+    # Constant time, as the OCR service; as bytes (Starlette reads headers as latin-1), so an odd header is a 401, not a 500.
+    got = request.headers.get("authorization", "").encode("latin-1")
+    return bool(API_KEY) and hmac.compare_digest(got, f"Bearer {API_KEY}".encode("latin-1"))
+
 
 # The upload stays in memory (never spooled to a temp file): a voice is not written to the farm's disk.
 MultiPartParser.spool_max_size = MAX_BYTES + FORM_SLACK
@@ -147,7 +155,7 @@ def _transcribe(data: bytes, language, cancel: threading.Event):
 async def transcriptions(request: Request):
     # Every refusal that needs no audio comes BEFORE the audio is read: a wrong key, a model still
     # loading, a body declared too big or a busy farm never costs a 25 MB upload.
-    if not API_KEY or request.headers.get("authorization", "") != f"Bearer {API_KEY}":
+    if not _key_ok(request):
         return JSONResponse({"detail": "bad key"}, status_code=401)
     if not state["ready"]:
         return JSONResponse({"detail": "loading the model"}, status_code=503, headers={"Retry-After": "5"})

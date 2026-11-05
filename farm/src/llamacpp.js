@@ -22,7 +22,7 @@ const path = require('path');
 const http = require('http');
 const https = require('https');
 const os = require('os');
-const { spawn, execFileSync } = require('child_process');
+const { spawn } = require('child_process');
 const { downloadGguf, ggufPathFor } = require('./ollama');
 
 // Pinned llama.cpp build: an official ggml-org release (2026-10-23), the newest with its
@@ -104,20 +104,25 @@ function installed(binDirOverride) {
 // Extract an archive using whatever the platform ships — no archive dependency,
 // matching the rest of the farm's zero-extra-deps posture. tar.gz is the linux
 // format (tar is always present; unzip is not); zip is the Windows one.
-function extract(archivePath, destDir) {
+// Spawned and awaited, never synchronous: document search's first start and a switch to llama.cpp unpack
+// ~600 MB inside `lol up`, beside the seat gate, the beacon and the panel (review 2026-11-05, as FSV-1).
+function run(file, args) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(file, args, { stdio: 'ignore', windowsHide: true });
+        child.on('error', reject);
+        child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`${file} exited with ${code}`))));
+    });
+}
+async function extract(archivePath, destDir) {
     fs.mkdirSync(destDir, { recursive: true });
-    if (/\.tar\.gz$/i.test(archivePath)) {
-        execFileSync('tar', ['xzf', archivePath, '-C', destDir], { stdio: 'ignore' });
-        return;
-    }
+    if (/\.tar\.gz$/i.test(archivePath)) return run('tar', ['xzf', archivePath, '-C', destDir]);
     if (IS_WIN) {
-        execFileSync('powershell', [
+        return run('powershell', [
             '-NoProfile', '-NonInteractive', '-Command',
             `Expand-Archive -LiteralPath '${archivePath}' -DestinationPath '${destDir}' -Force`,
-        ], { stdio: 'ignore', windowsHide: true });
-    } else {
-        execFileSync('unzip', ['-oq', archivePath, '-d', destDir], { stdio: 'ignore' });
+        ]);
     }
+    return run('unzip', ['-oq', archivePath, '-d', destDir]);
 }
 
 // Download + extract the pinned llama.cpp build. Idempotent: a matching
@@ -143,7 +148,7 @@ async function ensureLlamacpp(onProgress = () => {}) {
         // carries the CUDA DLLs llama-server.exe loads from alongside itself; the
         // linux tarball is already self-contained.
         const got = await downloadGguf(`${assets.base}/${asset}`, (pct) => onProgress(asset, pct));
-        extract(got.path, BIN_DIR);
+        await extract(got.path, BIN_DIR);
     }
     // tar -C preserves modes, but belt-and-braces on the one bit that matters.
     if (!IS_WIN) { try { fs.chmodSync(serverBin(), 0o755); } catch { /* missing → caught below */ } }
@@ -247,6 +252,24 @@ function shardUrls(url) {
 // this then only chooses it.
 function onDisk(url) {
     return (shardUrls(url) || [url]).every((u) => { try { return fs.statSync(fileFor(u)).size > 0; } catch { return false; } });
+}
+
+// A downloaded .gguf is kept under its file name only (ollama.ggufPathFor): a new link whose file name is already the
+// file of ANOTHER link in the list (the model or projector of an entry, or of what llama.cpp serves) would share that
+// file, and llama-server would load the other one's weights or projector (review 2026-11-05). → a sentence, or null.
+// ponytail: refused, not solved; keying the cache by link (owner--repo--file) is the upgrade, and it touches Model
+// storage's "the folder is the list".
+function nameClash(config, urls) {
+    const mine = new Set(urls.filter(isUrl));
+    const lc = config.llamacpp || {};
+    const others = [lc.model, lc.mmproj, ...(lc.library || []).flatMap((e) => [e.url, e.mmproj])].filter((u) => isUrl(u) && !mine.has(u));
+    for (const u of mine) {
+        const f = fileFor(u);
+        if (others.some((o) => fileFor(o) === f)) {
+            return `Another model in the list uses a file named ${path.basename(f)}: llama.cpp would load that one. Download this file under another name and add it by its path.`;
+        }
+    }
+    return null;
 }
 
 // Shard 1's URL for any pasted part; single-file URLs pass through.
@@ -445,6 +468,6 @@ module.exports = {
     PINNED_BUILD, ROOT, BIN_DIR, assetsFor,
     ensureLlamacpp, ensureModel, spawnLlamacpp, waitForLlamacpp, llamacppAlive, fetchMetrics, supported,
     argsFor, baseUrl, installed, installedBuild, serverBin,
-    shardUrls, normalizeModelUrl, weightsBytesFor, onDisk, isUrl, fileFor,
+    shardUrls, normalizeModelUrl, weightsBytesFor, onDisk, isUrl, fileFor, nameClash,
     explainEngineFailure,
 };

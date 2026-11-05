@@ -88,7 +88,7 @@ async function ensureClassify() {
         return true;
     } catch (e) {
         log.warn(`Classify install failed (${e.message}) — the farm will run WITHOUT Classify.`);
-        log.info(`  Retry: delete ${ROOT} and re-run \`lol up\`.`);
+        log.info(`  Retry: turn it off and on again in the admin panel's Plugins card (or restart the farm). If it fails again, delete ${ROOT} first.`);
         return false;
     }
 }
