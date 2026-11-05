@@ -45,7 +45,7 @@ nsis:
   allowToChangeInstallationDirectory: false
   # Every artifact says WHICH machine it is for (owner ask 2026-09-02, after an
   # x64 AppImage was run on the arm64 Spark): windows-x64 / mac-arm64 (Apple
-  # Silicon) / mac-x64 (Intel) / linux-x64 / linux-arm64. Still no spaces (GitHub
+  # Silicon) / mac-x64 (Intel) / linux-x86_64 / linux-arm64. Still no spaces (GitHub
   # would dot them and break the updater's filename match).
   artifactName: ${productName}-Setup-${version}-windows-x64.${ext}
 
@@ -78,5 +78,6 @@ linux:
   target: AppImage
   icon: assets/icon.png
   category: Network
-  # linux-x64 (x86 PCs) / linux-arm64 (DGX Spark) — each CI job builds its host arch.
+  # linux-x86_64 (x86 PCs: electron-builder names the x64 AppImage x86_64) / linux-arm64
+  # (DGX Spark) — each CI job builds its host arch.
   artifactName: ${productName}-${version}-linux-${arch}.${ext}

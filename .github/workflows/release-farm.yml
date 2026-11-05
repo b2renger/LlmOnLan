@@ -1,6 +1,8 @@
 # Build + publish the LlmOnLan Farm installers to GitHub Releases on a farm-vX.Y.Z
-# tag. Sibling of release.yml (the client), kept on a DISTINCT tag prefix + a distinct
-# electron-updater channel (farm.yml) so the two apps in this one repo never collide.
+# tag. Sibling of release.yml (the client), kept on a DISTINCT tag prefix and published
+# as a prerelease (below) so the two apps in this one repo never collide. The farm*.yml
+# files electron-builder writes for its `farm` channel are read by nothing: the Farm app
+# has no electron-updater (farm-app/README.md "Updates (manual)").
 #
 # Unlike the client, there is NO heavy sidecar-build step: the Farm app ships the
 # pure-JS farm code as an extraResource and downloads the runtime (Python + Ollama +

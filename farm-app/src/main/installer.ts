@@ -4,7 +4,7 @@
 //   1 runtime  download portable CPython + Ollama              (runtimeManager)
 //   2 farm     copy the bundled farm code → userData/farm (writable) + write config
 //   3 model    pull gemma4:12b (~8 GB) with a real % bar       (app-owned Ollama)
-//   4 deps     `lol install` → LiteLLM / SearXNG / OCR venvs   (reuses that Ollama)
+//   4 deps     `lol install` → LiteLLM / SearXNG / OCR venvs, document search on an NVIDIA GPU (reuses that Ollama)
 //   5 launch   handed back to index.ts (start the FarmSupervisor, health-wait)
 //
 // Why model BEFORE deps: `lol install` also pulls the configured model, but if it's
@@ -35,9 +35,12 @@ const OLLAMA_HOST = '127.0.0.1';
 const OLLAMA_PORT = 11434;
 const OLLAMA_BASE = `http://${OLLAMA_HOST}:${OLLAMA_PORT}`;
 
-// Runtime dirs a dev checkout's ../farm may carry — never copy them into the app's
-// writable farm (they're rebuilt on THIS box by `lol install`).
-const FARM_COPY_SKIP = new Set(['.venv', '.searxng', '.extract', '.kokoro', '.git', '.lol-runtime.json', '.lol-id', '.lol-secret', 'lol.config.json', '.replaced']);
+// What a dev checkout's ../farm may carry at its top (its venvs and models, its runtime state, the Model storage move
+// journal) — never copied into the app's writable farm: it is rebuilt on THIS box by `lol install`, or is this box's
+// own. Any name starting with lol.config.json is refused too (farmCopyKeeps): the config and its backups
+// (lol.config.json.before-managed-vllm) hold the farm password and the admin token. Keep it in step with the ../farm
+// filter in electron-builder.yml (the installer's copy): test/supervisor.test.js checks both against one list.
+const FARM_COPY_SKIP = new Set(['.venv', '.searxng', '.extract', '.kokoro', '.classify', '.stt', '.models', '.llamacpp', '.git', '.lol-runtime.json', '.lol-id', '.lol-secret', '.lol-storage-move.json', '.replaced']);
 
 type Emit = (p: SetupProgress) => void;
 
@@ -45,7 +48,7 @@ const PHASE_LABELS: Record<SetupPhaseId, string> = {
     runtime: 'Runtime — Python & Ollama',
     farm: 'Farm code',
     model: `AI model — ${MODEL_ID}`,
-    deps: 'Services — proxy, search, OCR + staged model (~8.6 GB)',
+    deps: 'Services — proxy, search, OCR, document search + staged model (~8.6 GB)',
     launch: 'Launch the farm',
 };
 const PHASE_ORDER: SetupPhaseId[] = ['runtime', 'farm', 'model', 'deps', 'launch'];
@@ -82,12 +85,14 @@ function ensureAdminToken(): string {
 
 // --- farm copy + config -----------------------------------------------------
 
-// What a refresh never copies: the on-box runtime/state dirs (a dev checkout's), node_modules/.bin (CLI symlinks the
-// farm never uses — it require()s the packages; re-copying them over an existing tree threw "ENOENT stat
-// .../node_modules/.bin/js-yaml" and blocked every refresh once) and the generated proxy config.
-function farmCopyKeeps(rel: string): boolean {
-    if (FARM_COPY_SKIP.has(rel.split(path.sep)[0])) return false;
-    if (/(^|[\\/])\.bin([\\/]|$)/.test(rel)) return false;
+// What a refresh never copies: the on-box runtime/state (a dev checkout's), the config and its backups,
+// node_modules/.bin (CLI symlinks the farm never uses — it require()s the packages; re-copying them over an existing
+// tree threw "ENOENT stat .../node_modules/.bin/js-yaml" and blocked every refresh once), __pycache__ and the generated
+// proxy config.
+export function farmCopyKeeps(rel: string): boolean {
+    const top = rel.split(path.sep)[0];
+    if (FARM_COPY_SKIP.has(top) || top.startsWith('lol.config.json')) return false;
+    if (/(^|[\\/])(\.bin|__pycache__)([\\/]|$)/.test(rel)) return false;
     return rel.replace(/\\/g, '/') !== 'litellm/config.generated.yaml';
 }
 

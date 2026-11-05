@@ -1,19 +1,19 @@
 #!/usr/bin/env node
 // build-sidecar — produce the self-contained, UNMODIFIED Open WebUI sidecar that
-// the shell bundles. The pin is sidecar/OPENWEBUI_VERSION (single source of truth);
+// the shell downloads. The pin is sidecar/OPENWEBUI_VERSION (single source of truth);
 // upgrading OWUI is "bump that file + re-run this" with NO LOL code changes.
 //
 // Approach (the reliable one for OWUI, which ships a built SvelteKit frontend +
 // many data files + heavy native deps like torch): a fully relocatable
 // **standalone CPython** (astral-sh/python-build-standalone) into which we
 // `pip install open-webui==<pin>`, plus launcher.py. The result under
-// sidecar/build/<platform>-<arch>/ is self-contained (no system Python) and is
-// copied verbatim into the app by electron-builder's `extraResources`; the shell
-// runs `<bundle>/python(.exe) launcher.py serve --host --port`.
+// sidecar/build/sidecar/ is self-contained (no system Python); CI tars it into
+// owui-sidecar-<platform>-<arch>.tar.gz and the client downloads it to
+// userData/sidecar. The shell runs `<bundle>/python(.exe) launcher.py serve --host --port`.
 //
-// Runs on the build machine / CI. Heavy (a few GB with torch) — that's inherent
-// to OWUI's local-embeddings requirement (invariant #3). Needs `tar` (built into
-// Windows 10+, macOS, Linux) and network access.
+// Runs on the build machine / CI. Heavy (a few GB, torch is the bulk: Open WebUI's
+// local embeddings, MiniLM, which a data folder uses until it meets a farm with
+// document search). Needs `tar` (built into Windows 10+, macOS, Linux) and network access.
 
 import fs from 'fs';
 import path from 'path';
@@ -22,7 +22,7 @@ import { fileURLToPath } from 'url';
 import { execFileSync } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PY_PREFIX = process.env.LOL_PY_VERSION || '3.12'; // OWUI 0.10.1 supports 3.11/3.12
+const PY_PREFIX = process.env.LOL_PY_VERSION || '3.12'; // Open WebUI supports 3.11/3.12
 const OWUI_VERSION = fs.readFileSync(path.join(__dirname, 'OPENWEBUI_VERSION'), 'utf8').trim();
 
 // node platform/arch → python-build-standalone "install_only" asset triple.
@@ -65,8 +65,8 @@ async function main() {
     const triple = TRIPLES[key];
     if (!triple) die(`unsupported platform ${key}`);
 
-    // Fixed output name so electron-builder's extraResources `from` is the same on
-    // every OS (each CI matrix job builds its own for the OS it runs on).
+    // Fixed output name so CI's tar step (release.yml: tar -C sidecar/build/sidecar) is
+    // the same on every OS (each CI matrix job builds its own for the OS it runs on).
     const outDir = path.join(__dirname, 'build', 'sidecar');
     const workDir = path.join(__dirname, '.work');
     fs.rmSync(outDir, { recursive: true, force: true });
@@ -174,19 +174,15 @@ async function main() {
 
     // 3. drop in launcher.py (drives OWUI's Typer app; path-independent) + the
     // pin file, so the packaged About panel can read it (paths.bundledOwuiVersion
-    // reads resources/sidecar/OPENWEBUI_VERSION).
+    // reads <userData>/sidecar/OPENWEBUI_VERSION).
     fs.copyFileSync(path.join(__dirname, 'launcher.py'), path.join(outDir, 'launcher.py'));
     fs.copyFileSync(path.join(__dirname, 'OPENWEBUI_VERSION'), path.join(outDir, 'OPENWEBUI_VERSION'));
 
-    // 4. trim obvious build cruft to shrink the bundle.
-    for (const junk of ['__pycache__', 'pip', 'setuptools']) {
-        // (light touch — leave the runtime intact; just remove pip caches)
-    }
     fs.rmSync(workDir, { recursive: true, force: true });
 
     log(`done → ${outDir}  (built for ${key})`);
     log(`  test:  ${py} ${path.join(outDir, 'launcher.py')} serve --host 127.0.0.1 --port 8080`);
-    log(`  electron-builder extraResources copies sidecar/build/sidecar/ → resources/sidecar/`);
+    log(`  CI tars sidecar/build/sidecar/ into owui-sidecar-<platform>-<arch>.tar.gz`);
 }
 
 main().catch((e) => die(e.message));

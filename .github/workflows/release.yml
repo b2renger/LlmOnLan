@@ -39,7 +39,7 @@ jobs:
               echo "| \`-windows-x64.exe\` | Windows PCs |"
               echo "| \`-mac-arm64.dmg\` | Apple Silicon Macs (M1 and later) |"
               echo "| \`-mac-x64.dmg\` | Intel Macs (needs macOS 14+) |"
-              echo "| \`-linux-x64.AppImage\` | x86 Linux PCs |"
+              echo "| \`-linux-x86_64.AppImage\` | x86 Linux PCs |"
               echo "| \`-linux-arm64.AppImage\` | ARM Linux (DGX Spark) |"
               echo ""
               echo "The \`owui-sidecar-*\` archives download automatically on first run — never needed by hand."

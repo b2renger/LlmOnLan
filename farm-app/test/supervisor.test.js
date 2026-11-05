@@ -4,7 +4,9 @@
 //   - stop({keepEngine}) (the share toggle) runs no `lol down` and kills only `lol up`'s own pid;
 //   - a crash restart reaps the dead run's processes before the new `lol up`;
 //   - reapStaleFarm kills what the runtime file records and never runs `lol down` (vLLM is not a pid there);
-//   - the Linux autostart entry quotes the AppImage's path.
+//   - the Linux autostart entry quotes the AppImage's path;
+//   - a dev box's models, venvs and config backups stay out of the farm copy and the installer (electron-builder's
+//     own matcher on electron-builder.yml's filter, beside installer.ts's farmCopyKeeps).
 //
 //   cd farm-app && npm run build && node test/supervisor.test.js
 const assert = require('assert');
@@ -210,6 +212,23 @@ test('the wizard run again keeps the farm\'s config (its model folder above all)
         assert.deepEqual(ollamaModelsEnv(JSON.stringify({ storage: { dir, ollama: 'E:\\ollama' } })), { OLLAMA_MODELS: 'E:\\ollama', OLLAMA_NOPRUNE: '1' });
         assert.deepEqual(ollamaModelsEnv(JSON.stringify({})), {});
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('a dev box\'s models, venvs, config backups and move journal stay out of the app\'s farm copy and out of the installer (review PKG-1)', () => {
+    const { farmCopyKeeps } = fresh('installer');   // the app's copy (an update, a dev run from ../farm)
+    // The installer's copy: electron-builder.yml's ../farm filter, run by electron-builder's own matcher.
+    const yml = fs.readFileSync(path.join(__dirname, '..', 'electron-builder.yml'), 'utf8');
+    const patterns = [.../- from: \.\.\/farm\r?\n([\s\S]*?)\n\s*- from:/.exec(yml)[1].matchAll(/^\s*- "([^"]+)"\s*$/gm)].map((m) => m[1]);
+    const { FileMatcher } = require(require.resolve('app-builder-lib/out/fileMatcher', { paths: [path.join(__dirname, '..')] }));
+    const root = path.resolve('/farm');
+    const ships = new FileMatcher(root, 'farm', (s) => s, patterns).createFilter();
+    const both = (rel) => { const r = path.join(...rel.split('/')); return [farmCopyKeeps(r), ships(path.join(root, r), { isDirectory: () => false })]; };
+    for (const rel of ['.venv/pyvenv.cfg', '.searxng/venv/x', '.extract/venv/x', '.kokoro/x', '.classify/venv/pyvenv.cfg',
+        '.stt/venv/pyvenv.cfg', '.models/x.gguf', '.llamacpp/b11836/llama-server.exe', 'src/pysvc/__pycache__/x.pyc',
+        '.lol-runtime.json', '.lol-id', '.lol-secret', '.lol-storage-move.json', 'lol.config.json',
+        'lol.config.json.before-managed-vllm', 'litellm/config.generated.yaml']) assert.deepEqual(both(rel), [false, false], rel);
+    for (const rel of ['src/commands/up.js', 'vllm/serve.sh', 'bin/lol.js', 'lol.config.example.json', 'contract/snapshot.schema.json'])
+        assert.deepEqual(both(rel), [true, true], rel);
 });
 
 (async () => {

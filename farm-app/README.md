@@ -16,28 +16,31 @@ A setup wizard runs once (needs internet), with a phase checklist + progress + a
 
 | Phase | What happens | Where it lands |
 |---|---|---|
-| **Runtime** | Downloads a relocatable standalone **CPython** ([python-build-standalone](https://github.com/astral-sh/python-build-standalone)) + the **Ollama** binary for this OS/arch. | `userData/farm-runtime/{python,ollama}` |
+| **Runtime** | Downloads a relocatable standalone **CPython 3.12** ([python-build-standalone](https://github.com/astral-sh/python-build-standalone) 20260825) + the **Ollama** binary (v0.33.0) for this OS/arch: the pins in `src/main/runtimeManager.ts`. An installed farm keeps the ones it first downloaded. | `userData/farm-runtime/{python,ollama}` |
 | **Farm code** | Copies the bundled farm CLI to a **writable** location + writes `lol.config.json` (gemma4:12b default, a pinned admin token). | `userData/farm/` |
 | **Model** | `ollama pull gemma4:12b` (~8 GB) with a real % bar (an app-owned Ollama) — the catalog + OCR vision model. | Ollama's model store |
-| **Services** | `lol install` builds the LiteLLM / SearXNG / OCR venvs (and pre-fetches the llama.cpp backend only if `llamacpp.enabled` — off by default). | `userData/farm/.venv` · `.searxng` · `.extract` (· `.llamacpp` · `.models` when enabled) |
+| **Services** | `lol install` builds the LiteLLM / SearXNG / OCR venvs and, on an NVIDIA GPU (Windows x64, DGX Spark), sets up **document search**: the llama.cpp build with its CUDA runtime (~0.6 GB) and EmbeddingGemma 2 (~0.6 GB). The llama.cpp engine's own model comes only if `llamacpp.enabled` (off by default). | `userData/farm/.venv` · `.searxng` · `.extract` · `.llamacpp` + `.models` (document search on an NVIDIA GPU; the engine's model when enabled) |
 | **Staged model** | The same step also pulls the `preinstall` model + its draft module (~8.6 GB) — kept ready for the admin panel to start on demand, never served automatically. | Ollama's model store · `.models` |
 | **Launch** | Starts `lol up`, health-waits `http://127.0.0.1:41997/lol/self`. | — |
 
-vLLM is not part of the first run. On a big NVIDIA GPU (about 35 GB or more: an RTX PRO 6000, a DGX Spark), the
-panel's **vLLM** button checks this computer, and its card installs vLLM later (about 8 GB plus the model, about
-45 minutes; on Windows inside WSL, which an administrator installs once).
+vLLM is not part of the first run. On a big NVIDIA GPU (an RTX PRO 6000, a DGX Spark, or a 32 GB card for Gemma 4
+12B), the panel's **vLLM** section checks this computer and installs vLLM later (about 8 GB plus the model, about
+45 minutes; on Windows inside WSL, which an administrator installs once). The card needs about 27 GB as the farm
+ships (18 GB with document reading off); with document reading on, only Gemma 4 12B fits below about 36 GB.
 
 Every phase is **idempotent + resumable** — a Retry after a failure only redoes
 what's missing. On the 2nd+ launch it skips the wizard and goes straight to the
 running screen (and auto-starts the farm).
 
-> **The first run is big: ~18 GB (gemma4:12b + the staged model + venvs) plus the Python/Ollama
-> runtime** ([breakdown](../docs/GETTING_STARTED.md#first-run-download-both-routes)). The start screen narrates
+> **The first run is big: ~18 GB (gemma4:12b + the staged model + venvs; ~19 GB with an NVIDIA GPU, for
+> document search) plus the Python/Ollama runtime** ([breakdown](../docs/GETTING_STARTED.md#first-run-download-both-routes)). The start screen narrates
 > what `lol up` is doing — step lines ("Starting LiteLLM …") and live download
 > progress ("llama.cpp: model weights — 43%") — so a working bootstrap is
 > distinguishable from a hang. The supervisor waits as long as the farm keeps making
-> progress and only errors after **5 silent minutes**. **Don't press "Start the farm"
-> while a download is running** — that kills it and restarts the download from zero.
+> progress and only errors after **5 silent minutes**. The screen then clears itself if the farm comes up later
+> (`farm.log`, from Settings ▸ **Open data & logs folder**, shows whether it still works). **Start the farm**, the
+> top bar's **Start** or the wizard's **Retry** at that moment kill the run, and a model file it was downloading (a
+> `.gguf`) starts over from zero.
 >
 > An app **update** that changes the served checkpoint re-downloads the new weights on
 > the next boot, with the same progress line.
@@ -59,13 +62,19 @@ itself is run from the panel below.
 
 ## The model, its name, and capacity — in the panel, not in Settings
 
-All of it lives in the window itself: the panel opens on a **Backend** card carrying the engine
-switch (Ollama, llama.cpp, vLLM), the `.gguf` or vLLM model in use, **Name users see** (llama.cpp, vLLM),
-**People served at once**, the **context window** (on vLLM: context per person and GPU memory for
-conversations) and the farm password. One **Apply changes** applies them together, in one restart, and
-writes them back to `lol.config.json` (Ollama's "people served at once" takes effect after a farm
-restart; on vLLM, Apply says first whether vLLM restarts, about 2 minutes). vLLM has its own card below:
-the check of this computer, Install, its model list, Start and Stop, its log.
+All of it lives in the window itself. The panel opens on **Presets** (one click sets the farm up for a kind of
+session: Balanced, the default; Documents; LOL Vibe; Computer; **Review…** shows why and every change first), then
+**Serving** (what serves, people at once, who is connected), then one section per engine (Ollama, llama.cpp, vLLM).
+Each section holds everything about its engine (its models, its part of Model storage); every section but the
+serving one ends with **Serve with …**, and the serving one holds **People and context** (people served at once,
+the context window; on vLLM context per person and GPU memory for conversations). **Access** holds **Name users
+see** (llama.cpp, vLLM; on Ollama, each model row's Rename), **Free an idle seat after** and the farm password. One
+**Apply changes** applies these and the serving section's people and context together, in one restart, and writes
+them back to `lol.config.json` (Ollama's "people served at once" takes effect after a farm restart; on vLLM, Apply
+says first whether vLLM restarts, about 2 minutes). The vLLM section also holds the check of this computer,
+Install, its model list, Start and Stop, its log. Below Access, **Model storage** keeps all the farm's models in one
+folder (**Browse…** picks it; **Move here** copies and checks them before anything is deleted:
+[farm/README.md](../farm/README.md#where-the-models-are-on-disk-model-storage)), then Plugins, Clients and This box.
 
 These used to be split between Settings and the panel, in two half-versions that could disagree: the
 app re-applied its own stored values on every launch, so a rename done in the panel came back wrong
@@ -74,7 +83,7 @@ launch-at-login, update notifications + Check for updates, the panel access toke
 
 **Naming.** The model id clients receive *is* the name their picker shows — over an OpenAI-style
 connection there's no separate display-name channel — so this renames the served id: on llama.cpp and vLLM,
-*Backend* ▸ **Name users see**; on Ollama, each model row's **Rename** (`models[].alias`). A name you
+*Access* ▸ **Name users see**; on Ollama, each model row's **Rename** (`models[].alias`). A name you
 gave the model survives an engine switch and a fallback, so bound chats keep working; an unnamed
 default is served under its raw id on Ollama (`gemma4:12b`) and under `llamacpp.alias` (`assistant`)
 on llama.cpp, so name the model first if chats should survive a switch. The real checkpoint stays
@@ -86,10 +95,11 @@ visible to clients as the beacon's `underlying` field: only the label is friendl
 
 Out of the box the farm serves gemma4:12b on Ollama, **2 requests at a time** (`ollama.numParallel`,
 applied after a farm restart). On llama.cpp the default is 1; its slots share one context pool
-(`kvUnified`), so a person alone gets the whole window. Raise it in the panel: *Backend* ▸ **People
-served at once**. Past capacity, new generations get a clear "all seats in use" until a seat has been idle for
-*Backend* ▸ **Free an idle seat after** (15 min by default). On a big NVIDIA GPU, vLLM serves far more: 48 people
-at 64k on an RTX PRO 6000, 8 on a DGX Spark (the panel's vLLM button). Sizing table + budget:
+(`kvUnified`), so a person alone gets the whole window. Raise it in the panel: the serving engine's section ▸
+*People and context* ▸ **People served at once** (or a preset). Past capacity, new generations get a clear "all
+seats in use" until a seat has been idle for *Access* ▸ **Free an idle seat after** (15 min by default). On a big
+NVIDIA GPU, vLLM serves far more: 48 people at 64k on an RTX PRO 6000, 8 on a DGX Spark (the panel's vLLM
+section). Sizing table + budget:
 [`farm/README.md`](../farm/README.md#multiple-users--capacity).
 
 Every client shows how full each box is, so people can spread themselves across boxes without being
@@ -102,7 +112,8 @@ told to.
 ## Private by default (share compute is opt-in)
 
 Out of the box the farm is **fully private**: the proxy, discovery **and the plugins**
-(web search, document OCR, voice) bind `127.0.0.1` only and the UDP beacon is off, so
+(web search, document OCR, document search, voice, Classify, speech to text, the message bus) bind
+`127.0.0.1` only and the UDP beacon is off, so
 **no other machine can reach or use it** — not by direct IP, not by subnet scan. You run
 models for your own machine and nobody else spends your GPU.
 
@@ -115,7 +126,7 @@ users get the same control by editing `lol.config.json`.
 
 > Note: while private, your *own* other devices can't reach it either (it's localhost-
 > only). "Share" opens it to everyone on the LAN. To limit who uses a shared farm, set a
-> farm password (panel ▸ Backend ▸ Farm password); clients prompt for it once.
+> farm password (panel ▸ Access ▸ Farm password); clients prompt for it once.
 
 ## Why bundled Python + Ollama on PATH
 
@@ -142,13 +153,14 @@ to `userData/farm` (writable) rather than run from the read-only app resources.
 cd farm-app
 npm install
 npm run dev        # tsc → build/, then electron .
-npm test           # tsc, then test/supervisor.test.js (lol down before the kill, keepEngine, the reap, the Linux autostart entry)
+npm test           # tsc, then test/supervisor.test.js (lol down before the kill, keepEngine, the reap, the Linux autostart entry, what the farm copy and the installer leave out) and test/copytree.test.js (the update's copy over a held file, under Electron)
 ```
 
-Dev reads the sibling `../farm` directly (so `farm/node_modules` must exist — run
-`cd ../farm && npm install` once). The wizard + `lol install` + model pull all run
-against your machine's real Python/Ollama unless `$LOL_PYTHON` / `PATH` point at a
-bundled runtime.
+In dev the app copies the sibling `../farm` into its `userData/farm` at setup (so `farm/node_modules` must exist:
+run `cd ../farm && npm install` once) and runs that copy. It copies again only when `farm-app/package.json`'s
+version changes: after editing `../farm`, remove `farmCodeVersion` from `farm-settings.json` in the app's userData
+folder (Settings ▸ **Open data & logs folder**), then start the app again. The wizard runs as in a packaged app: it
+downloads its own Python and Ollama into `userData/farm-runtime`.
 
 > **Gotcha:** if `electron .` errors with *"Electron failed to install correctly"* or a
 > snapshot assertion, the binary postinstall was skipped — run
@@ -187,7 +199,7 @@ electron-updater pointed at it (a small change).
 
 | Target | Status | Notes |
 |---|---|---|
-| **Windows + NVIDIA (x64)** | primary | bundled Ollama uses CUDA; per-user one-click NSIS. First download trips SmartScreen (unsigned). Ollama, llama.cpp, and vLLM inside WSL2 on a card of about 35 GB or more — not an RTX 4070/4080/4090. |
+| **Windows + NVIDIA (x64)** | primary | bundled Ollama uses CUDA; per-user one-click NSIS. First download trips SmartScreen (unsigned). Ollama, llama.cpp, and vLLM inside WSL2 on a card of about 27 GB or more as the farm ships (18 GB with document reading off) — never an RTX 4070; a 4090 only with document reading off, a 4080 only with document reading and document search off. |
 | **macOS Apple Silicon (arm64)** | supported | ad-hoc signed (right-click → Open on first launch). gemma4:12b wants ≥16 GB unified memory — the wizard **warns** below that, doesn't block. Ollama only: no llama.cpp build for it, no vLLM. |
 | **NVIDIA DGX Spark (linux arm64)** | supported | AppImage built on `ubuntu-24.04-arm`; Ollama, llama.cpp and vLLM (8 people at 64k on Qwen3.6). Launch at login starts the farm only when someone logs in to the desktop. Needs FUSE (`--appimage-extract-and-run` is the FUSE-free fallback). |
 | **Linux x64** | no build | Run the `lol` CLI instead ([farm/README.md](../farm/README.md)): Ollama and vLLM; llama.cpp only with a llama-server you build. |

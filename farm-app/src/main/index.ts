@@ -174,9 +174,9 @@ function registerIpc(): void {
     ipcMain.handle('get-farm-state', () => supervisor.getState());
     ipcMain.handle('get-admin-webview', () => adminWebview());
 
-    // First-run setup (also the Retry path — idempotent). Runs the wizard, then
-    // launches the farm (phase 5) and, on success, flips `installed` so the next
-    // boot skips straight to the running screen.
+    // First-run setup (also the Retry path — idempotent). Runs the wizard; once phases 1–4 are done it marks the farm
+    // installed and stamps the farm-code version, then launches the farm (phase 5). A failed launch shows the wizard's
+    // Retry; the next boot skips the wizard and starts the farm.
     ipcMain.handle('start-setup', async () => {
         if (setupRunning) return { ok: false, error: 'Setup already running.' };
         setupRunning = true;

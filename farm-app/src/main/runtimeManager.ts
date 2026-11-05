@@ -8,8 +8,8 @@
 //
 // Sources are upstream release archives (no self-hosted asset): astral-sh/
 // python-build-standalone for CPython (same triples as sidecar/build-sidecar.mjs)
-// and ollama/ollama for Ollama. Asset names are matched by regex against the LATEST
-// release so a renamed/rotated tag doesn't break us. After extraction the ACTUAL
+// and ollama/ollama for Ollama. Asset names are matched by regex in the PINNED release
+// (RUNTIME_PINS below), the latest one only if the pin is gone. After extraction the ACTUAL
 // binary path is located and recorded in farm-runtime/runtime.json (paths.ts reads
 // it) — the per-platform archive layouts differ, so we trust what we find.
 
@@ -36,7 +36,7 @@ const PY_TRIPLES: Record<string, string> = {
 };
 
 // node platform-arch → the Ollama release asset that carries a runnable binary.
-// Verified against ollama/ollama v0.31.1 (2026-07). The Linux archives are zstd
+// Verified against the pinned release (RUNTIME_PINS). The Linux archives are zstd
 // (.tar.zst). For the DGX Spark we use the plain arm64 archive (it bundles the CUDA
 // runners for GB10-class GPUs); the *-jetpack5/6 variants are for older Jetson CUDA.
 const OLLAMA_ASSETS: Record<string, RegExp> = {
@@ -69,7 +69,10 @@ function httpGet(url: string, redirects = 0): Promise<{ status: number; body: st
 
 // Runtime pins — fleet installs must be REPRODUCIBLE. 'Latest' meant an upstream
 // release day could break every new farm install at once (and did make installs
-// unpredictable across the fleet). Bumping = edit here, test one box, roll out.
+// unpredictable across the fleet). A bump reaches NEW installs only: ensureRuntime
+// fetches a piece only when it is missing and runtime.json records no version, so an
+// installed farm keeps the runtime it first downloaded (a box set up before these pins,
+// 2026-08-26, keeps the 'latest' of its day).
 // If a pinned release disappears (repos do prune), we fall back to latest with a
 // loud log rather than dead-ending the installer.
 const RUNTIME_PINS: Record<string, string> = {

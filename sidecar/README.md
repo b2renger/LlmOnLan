@@ -6,7 +6,7 @@ that enforces prime‑directive invariant #1 structurally.
 
 ## The pin
 
-[`OPENWEBUI_VERSION`](OPENWEBUI_VERSION) is the **single source of truth** — currently `0.10.2`
+[`OPENWEBUI_VERSION`](OPENWEBUI_VERSION) is the **single source of truth** — currently `0.11.4`
 (Python 3.11/3.12; launched via the `open-webui serve` console entry, not `python -m`). The shell's
 About panel reads this file.
 
@@ -36,10 +36,11 @@ apply-after-restart updates — [`shell/src/main/sidecarManager.ts`](../shell/sr
 then runs `<userData>/sidecar/python(.exe) launcher.py serve --host 127.0.0.1 --port <free>`
 ([`shell/src/main/paths.ts`](../shell/src/main/paths.ts) `resolveSidecarCommand`).
 
-> **Heavy:** a few GB (torch is the bulk) — inherent to local embeddings (invariant #3, documents never
-> leave the device). The build runs on the build machine / CI, not the user's; the installer stays small
-> (~100 MB). A user's first run downloads the sidecar tarball (hundreds of MB) plus the ~90 MB MiniLM
-> embedding model once (to the user's HF cache).
+> **Heavy:** a few GB (torch is the bulk): Open WebUI's own dependencies, installed as they are. Its
+> in-process MiniLM runs on torch: the search model of a data folder that has not met the farm's document
+> search yet (local Whisper uses CTranslate2, not torch). The build runs on the build machine / CI, not the
+> user's; the installer stays small (~100 MB). A user's first run downloads the sidecar tarball (hundreds
+> of MB), and a data folder still on MiniLM downloads it once (~90 MB, to the user's HF cache).
 
 ## Dev (no bundle needed)
 
@@ -58,8 +59,11 @@ Upgrading Open WebUI is a **version bump, not a merge**:
 
 1. Edit `OPENWEBUI_VERSION` → the new pin.
 2. Re‑run `build-sidecar`.
-3. Run the smoke test (`LOL_SMOKE_SHOT`, see shell README).
+3. Recreate `sidecar/.venv` at the new pin with the two commands above (delete it first): a dev client, and so
+   the smoke test, runs the venv, not the build.
+4. Run the smoke test (`LOL_SMOKE_SHOT`, see shell README).
 
 **Pass = no LOL code changed and everything still works.** A failure means OWUI's public config surface
 drifted — that's a separation defect to redesign, not patch (re‑verify the env/REST surface in
-[`shell/src/main/configBridge.ts`](../shell/src/main/configBridge.ts)).
+[`shell/src/main/configBridge.ts`](../shell/src/main/configBridge.ts)). What to read in the new pin's source, and the
+notes of each bump so far: [docs/INTEGRATION_BRIEF.md](../docs/INTEGRATION_BRIEF.md#what-to-check-again-at-each-pin-bump).
