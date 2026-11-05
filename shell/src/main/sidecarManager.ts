@@ -1,6 +1,6 @@
 // sidecarManager — the OWUI sidecar is no longer bundled in the installer; it is
 // DOWNLOADED to userData/sidecar on first run (a relocatable standalone CPython +
-// open-webui, ~700 MB) so the installer stays small. This module:
+// open-webui, ~0.8–1.3 GB) so the installer stays small. This module:
 //   • ensureSidecar()        — first-run download + extract, with progress
 //   • applyPendingSidecar()  — swap a staged update in at boot (apply-after-restart)
 //   • checkOwuiUpdate()      — is a newer OWUI available on the latest release?
@@ -236,7 +236,7 @@ export async function ensureSidecar(onProgress?: ProgressCb): Promise<{ ok: bool
 
 // Is a newer OWUI available on the latest release? `latest: null` means GitHub could not
 // be read (offline, a closed LAN, rate-limited). A dev build never checks: it runs the
-// repo's sidecar/.venv, and a download would stage ~700 MB into a folder nothing uses.
+// repo's sidecar/.venv, and a download would stage ~0.8–1.3 GB into a folder nothing uses.
 export async function checkOwuiUpdate(): Promise<{ current: string; latest: string | null; updateAvailable: boolean; error?: string }> {
     const current = bundledOwuiVersion();
     if (!app.isPackaged) return { current, latest: null, updateAvailable: false, error: 'Chat-engine updates only apply to an installed build.' };

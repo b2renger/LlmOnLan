@@ -373,6 +373,53 @@ for (const version of ['0.11', '0.10']) {
     });
 }
 
+// The one reload of an Open WebUI page that loaded while its farm was not answering (reloadIfFarmBack,
+// 2026-10-07: OWUI reads the model list only as its page loads). Sliced out of app.js with the state it
+// reads; `set` restates onSidecarState's reset, which the test checks is still in the source.
+function farmBackScope() {
+    const start = APP_JS.indexOf('let loadedWithoutFarm');
+    const end = APP_JS.indexOf('// ---- first-run / update download');
+    assert.ok(start > 0 && end > start, 'reloadIfFarmBack moved — update the extraction anchors');
+    const sh = { reloads: 0, farm: null, load: null };
+    const els = { webview: { addEventListener: (ev, fn) => { if (ev === 'did-finish-load') sh.load = fn; }, reload: () => { sh.reloads++; } } };
+    const scope = new Function('els', 'activeFarm', `let webviewAuthed = false, sidecarState = null;\n${APP_JS.slice(start, end)}\n`
+        + "return { reloadIfFarmBack, set(authed, s) { webviewAuthed = authed; sidecarState = s; if (s.status !== 'ready') loadedWithoutFarm = false; } };");
+    return Object.assign(sh, scope(els, () => sh.farm));
+}
+
+test('Open WebUI loaded with no farm: one reload once that farm answers, and none otherwise', () => {
+    assert.ok(APP_JS.includes("sidecarState = s; if (s.status !== 'ready') loadedWithoutFarm = false;"), 'the reset `set` restates');
+    const ready = { status: 'ready' };
+    const up = { healthy: true, _stale: false };
+    let sh = farmBackScope();
+    sh.set(true, ready); sh.load();                     // the page loads while no farm answers
+    sh.reloadIfFarmBack();
+    assert.equal(sh.reloads, 0, 'the farm is still silent');
+    for (const notYet of [{ ...up, _stale: true }, { ...up, healthy: false }]) {
+        sh.farm = notYet; sh.reloadIfFarmBack();
+        assert.equal(sh.reloads, 0, 'a stale or unhealthy farm is not back');
+    }
+    sh.farm = up; sh.reloadIfFarmBack();
+    assert.equal(sh.reloads, 1, 'back: one reload, so the model list fills');
+    sh.reloadIfFarmBack();
+    assert.equal(sh.reloads, 1, 'and only one');
+
+    sh = farmBackScope();
+    sh.farm = up; sh.set(true, ready); sh.load(); sh.reloadIfFarmBack();
+    assert.equal(sh.reloads, 0, 'a page loaded with the farm answering is never reloaded');
+
+    sh = farmBackScope();
+    sh.set(false, ready); sh.load(); sh.farm = up; sh.reloadIfFarmBack();
+    assert.equal(sh.reloads, 0, 'not signed in yet: ensureAuthenticated reloads that page itself');
+    sh.set(true, ready); sh.reloadIfFarmBack();
+    assert.equal(sh.reloads, 1, 'then the next farm list does it');
+
+    sh = farmBackScope();
+    sh.set(true, ready); sh.load();
+    sh.set(true, { status: 'restarting' }); sh.set(true, ready); sh.farm = up; sh.reloadIfFarmBack();
+    assert.equal(sh.reloads, 0, 'Open WebUI restarted in between: its new page loads by itself');
+});
+
 (async () => {
     for (const { name, fn } of tests) {
         try { await fn(); console.log(`  ok  ${name}`); passed++; }

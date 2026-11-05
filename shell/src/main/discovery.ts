@@ -4,8 +4,8 @@
 //   2. Subnet sweep — unicast GET http://<ip>:<httpPort>/lol/self across a range
 //      (this is what finds farms on managed/school Wi-Fi that blocks broadcast).
 //   3. Manually added hosts (a farm on another subnet).
-// Emits 'farms' (the list, for the connection UX) and 'active' (the chosen
-// farm's endpoint, which index.ts feeds to the sidecar config-bridge).
+// Emits 'farms' (the list, for the connection UX); index.ts chooses the active
+// farm from it.
 
 import { EventEmitter } from 'events';
 import * as dgram from 'dgram';

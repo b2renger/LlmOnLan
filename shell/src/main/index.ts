@@ -4,7 +4,7 @@
 // sidecar (pointed at the farm via config-bridge), and loads it in a <webview>.
 // Discovery (M3) and full Preferences (M4) layer onto this skeleton.
 
-import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog, session, powerMonitor, Session, safeStorage } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, nativeTheme, dialog, session, powerMonitor, Session, safeStorage, WebContents } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -14,11 +14,11 @@ import { loadSettings, updateSettings } from './store';
 import { defaultDataDir, bundledOwuiVersion, sidecarRoot } from './paths';
 import { SidecarSupervisor } from './sidecar';
 import { McpoSupervisor } from './mcpoSupervisor';
-import { httpGet, tcpProbe } from './util';
+import { httpGet, tcpProbe, sameOrigin } from './util';
 import { Discovery } from './discovery';
-import { moveDataDir, dirHasData } from './dataMigration';
+import { moveDataDir, dirHasData, NOT_EMPTY } from './dataMigration';
 import { clientDataDir, prepareClientData, isInside, CLIENT_DIR_NAME, ClientDataNotice } from './clientData';
-import { initAutoUpdate, checkForAppUpdate, quitAndInstallUpdate, setUpdateNotifier } from './updater';
+import { initAutoUpdate, checkForAppUpdate, quitAndInstallUpdate, setUpdateNotifier, setAutoInstall } from './updater';
 import { OWUI_ENABLED } from './clientMode';
 import { fetchText } from './io';
 import { searchAndRead } from './webSearch';
@@ -36,7 +36,7 @@ import {
 import { ShellSettings, DiscoveredFarm, ScanRange, McpoState } from './types';
 import {
     farmEndpoint, chooseActive as pickActive, farmContext, connectPlan, FarmContext,
-    applyPluginKeys, PluginKeyEntry, keepPending,
+    applyPluginKeys, PluginKeyEntry, keepPending, passwordVerdict,
 } from './farmSelect';
 
 app.setName('LlmOnLan');
@@ -230,7 +230,7 @@ function mainWindowSession(): Session | undefined {
             clientSession = session.fromPath(clientDir, { cache: false });
         } catch (e) {
             clientDataLog([`session.fromPath(${clientDir}) failed: ${(e as Error).message}; using the default session`]);
-            clientNotices.push({ level: 'warn', text: `LOL Chat could not open ${clientDir} (${(e as Error).message}). This session uses the app's own folder.` });
+            clientNotices.push({ level: 'warn', text: `LOL Vibe could not open ${clientDir} (${(e as Error).message}). This session uses the app's own folder.` });
             clientDir = null;
             return undefined;
         }
@@ -313,7 +313,8 @@ function farmUsable(f: DiscoveredFarm): boolean {
 
 // Async check that a stored farm password still works; wrong → forget it, so
 // selection skips the farm and its card re-prompts. Rate-limited per farm so
-// the beacon cadence cannot turn this into a request storm.
+// the beacon cadence cannot turn this into a request storm. A farm restarting its
+// proxy (502-504, passwordVerdict) keeps the password: it said nothing about it.
 const keyCheckAt = new Map<string, number>();
 function verifyStoredFarmKey(f: DiscoveredFarm, key: string): void {
     const last = keyCheckAt.get(f.id) || 0;
@@ -323,7 +324,7 @@ function verifyStoredFarmKey(f: DiscoveredFarm, key: string): void {
     const t = setTimeout(() => ctrl.abort(), 5000);
     fetch(`${farmEndpoint(f)}/models`, { headers: { authorization: `Bearer ${key}` }, signal: ctrl.signal })
         .then((res) => {
-            if (res.ok) return;
+            if (passwordVerdict(res.status) !== 'refused') return;
             const s = loadSettings();
             const next = { ...(s.farmKeys || {}) };
             delete next[f.id];
@@ -598,13 +599,34 @@ function createWindow(): void {
         app.quit();                      // → before-quit does the cleanup
     });
 
-    // Keep external links (OWUI "Powered by" etc.) in the system browser, not in
-    // a new Electron window.
+    // A link the window's own page opens in a new window (LOL Vibe's, the Computer's) goes to the
+    // system browser, never a new Electron window. Open WebUI's are the webview's: keepOwuiLinks below.
     win.webContents.setWindowOpenHandler(({ url }) => {
         if (/^https?:\/\//i.test(url)) shell.openExternal(url);
         return { action: 'deny' };
     });
 }
+
+// A link Open WebUI opens in a new window (a citation, a web search's source, a link in a reply) comes
+// from the <webview>, a webContents of its own that the window's handler above never sees. Without a
+// handler of its own, Electron (the tag has `allowpopups`) opened it in a new app window on Open WebUI's
+// partition. Now any other site goes to the system browser. Open WebUI's own pages (a file it shows,
+// /api/v1/files/<id>/content) still open in an app window: it is the one place they are signed in, and
+// the system browser gets a 401 there. So does Open WebUI's community site: its "Share to Open WebUI
+// Community" opens openwebui.com/<kind>/create and posts the item into that window once it says "loaded"
+// (0.11.4's frontend), which a system-browser tab cannot receive. Neither gets the microphone, camera or
+// clipboard (configureWebviewPermissions: the sidecar's own origin only). The Farm app does the same for its
+// panel (farm-app/src/main/index.ts).
+const OWUI_COMMUNITY = 'https://openwebui.com';
+function keepOwuiLinks(wc: WebContents): void {
+    wc.setWindowOpenHandler(({ url }) => {
+        if (sameOrigin(url, sidecar.getState().url) || sameOrigin(url, OWUI_COMMUNITY)) return { action: 'allow' };
+        if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+        return { action: 'deny' };
+    });
+    wc.on('did-create-window', (child) => keepOwuiLinks(child.webContents));
+}
+app.on('web-contents-created', (_e, wc) => { if (wc.getType() === 'webview') keepOwuiLinks(wc); });
 
 // Grant the embedded OWUI <webview> the permissions it needs. Electron DENIES these
 // by default for a partition, which is why (a) voice mode silently did nothing —
@@ -613,19 +635,21 @@ function createWindow(): void {
 // `clipboard-sanitized-write` permission, which our handler was refusing. The
 // webview runs on the `persist:owui` partition over loopback (127.0.0.1 = a secure
 // context), so these APIs are otherwise available; we scope the grant to that
-// partition and to this explicit allow-list, not app-wide.
+// partition, to this explicit allow-list, and to the sidecar's own origin: a page
+// from anywhere else on that partition (a site a link opened) asks in vain.
 const OWUI_ALLOWED_PERMS = new Set([
     'media', 'audioCapture', 'videoCapture',      // voice / camera
     'clipboard-read', 'clipboard-sanitized-write', // OWUI copy buttons → system clipboard
 ]);
 function configureWebviewPermissions(): void {
     const ses = session.fromPartition('persist:owui');
-    ses.setPermissionRequestHandler((_wc, permission, callback) => {
-        callback(OWUI_ALLOWED_PERMS.has(permission));
+    const fromOwui = (url: string | undefined) => sameOrigin(url, sidecar.getState().url);
+    ses.setPermissionRequestHandler((_wc, permission, callback, details) => {
+        callback(OWUI_ALLOWED_PERMS.has(permission) && fromOwui(details?.requestingUrl));
     });
     // Some Chromium code paths consult the synchronous check handler instead of
     // firing a request; keep the two in lockstep so the mic isn't half-granted.
-    ses.setPermissionCheckHandler((_wc, permission) => OWUI_ALLOWED_PERMS.has(permission));
+    ses.setPermissionCheckHandler((_wc, permission, requestingOrigin) => OWUI_ALLOWED_PERMS.has(permission) && fromOwui(requestingOrigin));
 }
 
 // --- IPC --------------------------------------------------------------------
@@ -965,11 +989,11 @@ function registerIpc(): void {
                 headers: { authorization: `Bearer ${key}` }, signal: ctrl.signal,
             });
             clearTimeout(t);
-            // LiteLLM without a DB cannot answer a clean 401 for a wrong key — it
-            // tries to look the token up as a virtual key and fails with 400/500
-            // (verified live). So: exactly 200 with the key = accepted; anything
-            // else on a farm that ANSWERS = the password was not accepted.
-            if (!res.ok) return { ok: false, error: 'That password was not accepted.' };
+            // 2xx = accepted; 502-504 = the farm is restarting its proxy and cannot say;
+            // anything else = not accepted (farmSelect.ts passwordVerdict).
+            const verdict = passwordVerdict(res.status);
+            if (verdict === 'unknown') return { ok: false, error: 'The farm is restarting: try the password again in a few seconds.' };
+            if (verdict === 'refused') return { ok: false, error: 'That password was not accepted.' };
         } catch {
             return { ok: false, error: 'Could not reach the farm to check the password.' };
         }
@@ -1036,9 +1060,18 @@ function registerIpc(): void {
             if (isInside(held, newDir)) return { ok: false, error: `Pick a folder outside ${held}.` };
         }
         const mode = payload.mode === 'move' ? 'move' : 'fresh';
+        // Moving into a folder that holds anything would write over it (dataMigration.ts NOT_EMPTY): said
+        // before Open WebUI stops, so a refusal costs nothing.
+        if (mode === 'move' && dirHasData(newDir)) return { ok: false, error: NOT_EMPTY };
         await sidecar.stop({ keepState: true });
         let result: { ok: boolean; error?: string } = { ok: true };
-        if (mode === 'move') result = moveDataDir(oldDir, newDir, { exclude: [CLIENT_DIR_NAME] });
+        if (mode === 'move') {
+            // The coding agent and its Preview and LAN servers work in `LOL Studio Projects`, which the move
+            // copies and then deletes: a file written in between would be lost, and on Windows the agent's
+            // working folder would keep the old one from going. They end here, as at a reload.
+            await studioApi?.dispose();
+            result = moveDataDir(oldDir, newDir, { exclude: [CLIENT_DIR_NAME] });
+        }
         if (!result.ok) {
             // Nothing moved: OWUI comes back on the old folder, exactly as before.
             // Re-thread the farm's model + SearXNG + TTS + OCR so a failed change doesn't drop
@@ -1083,6 +1116,7 @@ function registerIpc(): void {
 
     ipcMain.handle('set-auto-update', (_e, on: boolean) => {
         const v = updateSettings({ autoUpdate: !!on }).autoUpdate;
+        setAutoInstall(v);           // off: a downloaded update waits for "Restart & install"
         if (v) initAutoUpdate(true); // start checking now if just enabled
         return v;
     });

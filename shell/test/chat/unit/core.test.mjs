@@ -94,13 +94,13 @@ export default (test) => {
 
   // ---------------------------------------------------------------- registry
   test('registry: SLOTS values are the §3.2 set', () => {
-    assert.equal(Object.keys(SLOTS).length, 25);   // 21 + the 4 Studio slots (S0 kickoff)
+    assert.equal(Object.keys(SLOTS).length, 22);   // 21 + WORKBENCH_PANELS (the Studio's other three were dropped)
     assert.equal(SLOTS.BEFORE_SEND, 'composer.beforeSend');
     assert.equal(SLOTS.REQUEST_TRANSFORMS, 'request.transforms');
     assert.equal(SLOTS.PART_RENDERERS, 'message.parts');
     assert.equal(SLOTS.NEW_MENU, 'sidebar.newMenu');
     assert.equal(SLOTS.CITATIONS, 'render.citations');
-    assert.equal(new Set(Object.values(SLOTS)).size, 25);
+    assert.equal(new Set(Object.values(SLOTS)).size, 22);
     assert.equal(SLOTS.WORKBENCH_PANELS, 'workbench.panels');
   });
   test('registry: list sorts by (order ?? 500, id) and returns a copy', () => {

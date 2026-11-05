@@ -13,6 +13,7 @@
     "build": "tsc -p tsconfig.json",
     "test": "node test/e2e.js",
     "test:unit": "node test/unit.js",
+    "test:chat": "npm run build && node test/chat-unit.js && node test/chat-lint.js",
     "watch": "tsc -w -p tsconfig.json",
     "start": "electron .",
     "dev": "npm run build && electron .",

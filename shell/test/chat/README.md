@@ -1,8 +1,9 @@
-# LOL Chat tests
+# LOL Vibe and Computer tests (the code keeps the name LOL Chat)
 
 Everything under `shell/test/chat/`, `shell/test/mock/` and `shell/test/chat-harness/` exists to
-test **LOL Chat vNext** (the Desk) without touching Open WebUI, the live farm, or the owner's real
-client. Plan: `docs/archive/plans/LOLCHAT_PLAN.md` §2 (harness), §2.3 (this mock), §2.6 (the P0 freeze).
+test **LOL Vibe** (named LOL Chat until 2026-09-27; the Desk) and **the Computer** without touching Open WebUI, the
+live farm, or the owner's real client. Plan: `docs/archive/plans/LOLCHAT_PLAN.md` §2 (harness), §2.3 (this mock),
+§2.6 (the P0 freeze).
 
 ---
 
@@ -10,7 +11,10 @@ client. Plan: `docs/archive/plans/LOLCHAT_PLAN.md` §2 (harness), §2.3 (this mo
 
 **This box runs a production farm and the owner's real LlmOnLan client.**
 
-1. **Never bind 4000, 4001, 41997, 41998, 8081, 8888, 8890, 11434.** `mock/index.js` refuses them on
+1. **Never bind a port the farm or the client uses:** 4000, 4001, 41997, 41998, 8081, 8888, 8890, 11434 (the
+   seat gate, LiteLLM, the panel, the beacon, llama-server, SearXNG, OCR, Ollama); 8100, 8880, 8891, 8892, 8893,
+   8894, 1883, 9001 (vLLM, Kokoro, Classify, speech to text, the bus's WebSocket, document search, MQTT, the bus's
+   OSC over UDP); and 41995 (the client's own MCP server). `mock/index.js` refuses those in its `FORBIDDEN_PORTS` on
    the *computed* port, slot or no slot, and exits 1 from the CLI.
 2. **Never set `LOL_MOCK_BEACON_OK=1` here.** The mock only creates a UDP socket when that variable
    is `1` *and* `--no-beacon` is absent. With a beacon it announces itself on `127.0.0.1:41998` — the
@@ -23,8 +27,29 @@ client. Plan: `docs/archive/plans/LOLCHAT_PLAN.md` §2 (harness), §2.3 (this mo
 
    and serves HTTP exactly as before. `require('dgram')` itself only happens inside the enabled
    branch, so a run that must not beacon never even loads the module.
-3. **Never run `electron .` in `shell/`.** It shares the owner's LOL Chat storage and fights the
-   single-instance lock. The harness runs its own Electron main against a throwaway `--user-data-dir`.
+3. **Never run `electron .` (or `npm run dev`) in `shell/` on the real profile.** A dev run is the real client:
+   `app.setName('LlmOnLan')` and no `userData` override, so it uses `%APPDATA%\LlmOnLan` — the owner's settings, his
+   data folder (Open WebUI's chats; LOL Vibe's history and the Computer's graphs in `<data folder>\lol-client`), his
+   Home Assistant link — and runs its first-launch migrations on them. And `app.requestSingleInstanceLock()` makes a
+   second copy on the same `userData` quit at once: with the installed client open, the dev run just exits. The harness
+   runs its own Electron main against a throwaway `--user-data-dir`.
+
+   **To run the real client apart**, give it its own `userData`. It then has its own single-instance lock (it runs
+   beside the installed client), its own settings and its own data folder (`<that folder>\owui-data`). Point it at a
+   mock, never the live farm (rule 4): `LOL_ENDPOINT` pins Open WebUI to the mock, and discovery is then informational
+   only — the live farm may still show on the cards, so never pick it.
+
+   ```powershell
+   node shell/test/mock-farm.js --slot 1                # in another terminal: the mock's proxy on 4029
+   npm --prefix shell run build                         # a stale build/ runs old main code
+   $env:LOL_ENDPOINT = 'http://127.0.0.1:4029/v1'
+   Remove-Item Env:ELECTRON_RUN_AS_NODE -EA SilentlyContinue   # when set, Electron runs as plain Node and exits
+   cd shell; npx electron . --user-data-dir="$env:TEMP\lol-dev-profile"   # a fresh profile: nothing to migrate
+   ```
+
+   A dev run starts Open WebUI from the repo's `sidecar/.venv` (or `LOL_SIDECAR_CMD`), never from `userData/sidecar`,
+   so there is nothing to download or link; that venv's Open WebUI can lag the pin (`sidecar/README.md` says how to
+   make it at the pin). Delete the profile folder afterwards.
 4. **Never send completions to the live farm.** Every one takes a real colleague's seat. The mock is
    the only endpoint a test may talk to.
 5. **Parallel builders share this machine — use your assigned slot** (§1 below) and nothing else. If a
@@ -56,15 +81,16 @@ integrator uses slot 0.
 ## 2. Commands
 
 ```bash
-# unit tests (dependency-free, Node >= 22) — the mock's own tests are "mock"
-# except farm-contract: it runs the farm's code and the compiled client (npm ci in farm/, npm run build in shell/)
+# unit tests (Node >= 22) — the mock's own tests are "mock". Fourteen suites test the compiled main process
+# (build/main): run `npm --prefix shell run build` first (farm-contract also needs `npm ci` in farm/)
 node shell/test/chat-unit.js                 # every shell/test/chat/unit/*.test.mjs
 node shell/test/chat-unit.js mock md         # only files whose name contains "mock" or "md"
 node shell/test/unit.js                      # the existing app.js tests, must stay green
 
 # gates (P0-U2)
 node shell/test/chat-lint.js                 # static safety rules (§2.4)
-node shell/test/chat-scope.js                # the change set stays inside the LOL Chat scope (§2.5)
+node shell/test/chat-scope.js                # LOL Chat vNext's phase gate (§2.5, 2026-09): flags any change outside that
+                                             # phase's allowlist (the farm, CLAUDE.md, most of main); no longer a gate
 
 # the chat-only Electron harness (P0-U2) — always with YOUR slot
 node shell/test/chat-harness/run.js --slot 1
@@ -100,10 +126,10 @@ await mock.close();     // destroys open sockets first, so an SSE stream cannot 
 | Route | Answer |
 |---|---|
 | `GET /v1/models` | every scenario model id |
-| `GET /model_group/info` | `{data:[{model_group, supports_vision}, …]}` — `gemma4:12b` and `mock-echo` are vision, `assistant` is not |
+| `GET /model_group/info` (and `/v1/model_group/info`) | `{data:[{model_group, supports_vision}, …]}` — `gemma4:12b`, `mock-echo`, `mock-vision-echo`, `mock-headings` and `mock-reads-pdf` are vision, `assistant` is not; `mock-hears` adds `supports_audio_input`, `mock-reads-pdf` `supports_pdf_input`, and `mock-nocaps` has no `supports_*` field at all. `state.modelGroupInfo` replaces the whole body |
 | `POST /v1/chat/completions` | the model behaviours below |
 | `GET /health/liveliness` | `{status:'healthy'}` |
-| `POST /v1/embeddings` | **418** — the client must never embed on the farm; an accidental call is loud instead of silent |
+| `POST /v1/embeddings` | **418** — the client never embeds through the chat endpoint (the farm's document search has its own address and key, `embed.url`); an accidental call is loud instead of silent |
 | anything else | 404 with a JSON error |
 
 - The **keyed** listener answers a missing or wrong key with LiteLLM's real shape: **400**
@@ -140,6 +166,17 @@ await mock.close();     // destroys open sockets first, so an SSE stream cannot 
 | `mock-usage-none` | 100 content deltas and `[DONE]`, **no** usage chunk. |
 | `mock-vision-refuse` | (P3) 400 `this model does not support image input` when any `image_url` part is present. `state.visionRefuseAll` applies that to every model. |
 | `mock-voice` | (Converse, k27) three short French sentences, one every `state.voiceChunkMs` (default 400 ms); the log entry gets `streamEndedAt` when the last is sent. |
+| `mock-studio-json` | (S0, the ask spine) JSON for the schema it was sent, in 7-character chunks: with a `json_schema` `response_format` the body IS the instance; without one, a sentence and a ```` ```json ```` fence (the shape is read from the prompt too). |
+| `mock-json-empty` | Empty content and empty reasoning, only a usage chunk (after `state.askDelayMs` when set): the "never a silent empty result" path. |
+| `mock-json-reasoning-only` | The JSON arrives only as `reasoning_content`; content stays empty. |
+| `mock-vision-echo` | What arrived, as `images: N`, `mimes: …`, `bytes: …`, `detail: …` lines (a vision model). |
+| `mock-item` | `item: <the item>` — the first line under the first `## ` heading of the last user message, else its last line: 40 distinct generations can be told apart. |
+| `mock-headings` | The last user message's markdown headings in order (`heading: ## …`), then `images:`, `systemChars:`, `promptChars:` lines (keys added at the end, never renamed). A vision model. |
+| `mock-verdict` | `{"verdict": …}` from `state.verdicts`, consumed in order, the last one repeating (default `['maybe']`). |
+| `mock-agent` | For a prompt saying *step k of …*, `state.agentSteps[k-1]` as JSON (the last repeats; none scripted: an `answer` step). |
+| `mock-code` | A sentence, then ONE fenced block of the kind asked (svg / p5 / three / html: the system message's *You write ONE …*, else the first named in the prompt; none → svg). `state.codeReply` replaces the whole answer. |
+| `mock-hears`, `mock-reads-pdf`, `mock-nocaps` | Answer like `mock-echo`; only their `/model_group/info` rows differ (audio input; PDF input and vision; no `supports_*` field). |
+| `mock-think-length` | 60 `reasoning_content` deltas only, then `finish_reason:"length"` and a usage of the whole `max_tokens` (default 4096): a thinking model cut off before its answer. |
 
 **`mock-echo` keys** — one per line, `key: value`, in this order. *Add keys at the end; never rename
 one*, tests parse them:
@@ -165,6 +202,9 @@ must never send one) · `markerDocument` · `markerWebSearch` · `markerBlenderS
 | `POST /stt/v1/audio/transcriptions` | the farm's speech to text (Bearer `mock-stt-key`): *Mock transcript of <file> (<bytes> bytes).* |
 | `POST /tts/v1/audio/speech` | the farm's voice: 0.3 s of silence, or (with `state.ttsMsPerChar`) a 220 Hz tone as long as the text; `input`, `voice`, `speed` kept on the log entry |
 | `GET /tts/v1/audio/voices` | Kokoro's voice list shape: `{voices: [{id, name}]}` |
+| `POST /classify/classify` | the farm's Laya by its own contract (Bearer `mock-classify-key`): `{answers:[{choice, confidence, probabilities}], ms, model}` — the first option named in an item at 0.9, else the last option at 0.4; the question asked is kept on the log entry |
+| `GET /ocr/health` | `{status:'ok', model:'mock-ocr', docling:false}` |
+| `PUT /ocr/process` | the farm's document extractor by its own contract (Bearer `mock-extract-key`, `X-Filename`, raw bytes): a JSON list of pages `{page_content, metadata:{page, source, engine}}`; the page count from `X-Mock-Pages`, `state.ocrPages`, a `pages-<N>.pdf` name, else the size |
 
 The harness's **microphone** is Chromium's fake device playing `chat-harness/mic-fixture.js`'s WAV (1 s of silence,
 1.5 s of a speech-like voice, 2 s of silence, looped; written into each run's userData, `LOL_HARNESS_MIC_WAV`), and its

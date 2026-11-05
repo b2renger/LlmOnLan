@@ -133,7 +133,8 @@ export function hfHubDir(env: NodeJS.ProcessEnv = process.env, home: string = os
 }
 
 // True when every Hugging Face model OWUI might fetch at runtime is already on disk, where the
-// pinned OWUI 0.10.2 actually looks for it (verified against the packaged sidecar's source):
+// pinned OWUI (0.10.2 and 0.11.4 alike) actually looks for it (verified against the packaged
+// sidecar's source):
 //   - MiniLM (embeddings, loaded at boot): retrieval/utils.py get_model_path() passes
 //     cache_dir=$SENTENCE_TRANSFORMERS_HOME (unset by us) to snapshot_download, so it lives in the
 //     default HF hub cache above — once per machine, shared by every data folder.
@@ -362,10 +363,11 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // (llamacpp.parallel=1), so any background call still in flight makes the
         // user's next completion QUEUE behind it — felt as a long time-to-first-token
         // that LOL Chat (which sends only the completion) never showed. In the pinned
-        // 0.10.2, follow-up-question generation and tag generation are default-ON and
-        // fire after EVERY response — exactly when the user is typing their next
-        // message. Off. Autocomplete is default-OFF in 0.10.2; pinned off so a future
-        // pin bump can't silently re-enable per-keystroke completions. Title
+        // OWUI (0.10.2 and 0.11.4 alike), follow-up-question generation and tag
+        // generation are default-ON and fire after EVERY response — exactly when the
+        // user is typing their next message. Off. Autocomplete is default-OFF in both;
+        // pinned off so a future pin bump can't silently re-enable per-keystroke
+        // completions. Title
         // generation stays ON: once per chat, a few tokens, and it's what names chats
         // in the sidebar. (Env names verified against the pinned OWUI's config.py;
         // ENABLE_PERSISTENT_CONFIG=false makes env authoritative.)
@@ -394,8 +396,7 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // NOTE: we deliberately leave HF_HOME at its default (~/.cache/huggingface),
         // NOT under DATA_DIR. The ~90 MB MiniLM embedding model then downloads ONCE
         // per machine and is shared across data folders — so changing DATA_DIR (M4)
-        // doesn't trigger a re-download or a huge cache copy. It's still 100% local;
-        // only its location differs from the CLAUDE.md "cached under DATA_DIR" note.
+        // doesn't trigger a re-download or a huge cache copy. It's still 100% local.
     };
 
     // --- boot time + offline resilience: skip the per-boot Hugging Face check ---
@@ -547,7 +548,3 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
     if (computerMcp) env.TOOL_SERVER_CONNECTIONS = computerToolServer(computerMcp);
     return env;
 }
-
-// The OWUI branding stays intact (invariant #2) — we never set WEBUI_NAME, so it
-// keeps its own name. Exposed for documentation/tests.
-export const OWUI_BRANDING_UNTOUCHED = true;

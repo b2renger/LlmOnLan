@@ -1,5 +1,5 @@
-// Small main-process utilities: free-port pick, tree-kill, and a tiny HTTP GET
-// (used to health-poll the sidecar + probe the farm's /lol/self).
+// Small main-process utilities: free-port pick, tree-kill, a tiny HTTP GET
+// (used to health-poll the sidecar + probe the farm's /lol/self), and an origin test.
 
 import * as net from 'net';
 import * as http from 'http';
@@ -66,6 +66,16 @@ export function httpGet(url: string, timeoutMs = 2500): Promise<HttpResult> {
         req.on('timeout', () => req.destroy(new Error('timeout')));
         req.on('error', reject);
     });
+}
+
+// Do two addresses share one web origin (scheme, host and port, exactly)? A prefix test is not enough:
+// "http://127.0.0.1:808" is a prefix of "http://127.0.0.1:8080". False for a missing address and for one
+// with no origin of its own (about:blank, data:, a sandboxed frame), so two of those never match.
+export function sameOrigin(url: string | null | undefined, base: string | null | undefined): boolean {
+    try {
+        const o = new URL(String(url)).origin;
+        return o !== 'null' && o === new URL(String(base)).origin;
+    } catch { return false; }
 }
 
 // Poll a URL until it returns 2xx or we time out. Resolves true/false.

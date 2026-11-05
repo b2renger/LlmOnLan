@@ -55,7 +55,7 @@ registerStrings('library', {
   removeV1Kept: 'The old copy was kept.',
   about: 'About',
   aboutBody: 'LOL Vibe keeps everything on this computer.',
-  aboutWhere: 'Chats and drafts — and the Computer’s graphs with their pictures, PDFs and sounds — live in this app’s own local database, inside your data folder (Preferences › Data location). Nothing is uploaded: only the text of the conversation you send goes to the farm, so it can answer.',
+  aboutWhere: 'Chats and drafts — and the Computer’s graphs with their pictures, PDFs and sounds — live in this app’s own local database, inside your data folder (Preferences › Data location). A chat sends only the text of the conversation to the farm, so it can answer. The Computer sends what a run needs, such as a picture inside a model’s request or a PDF to the farm’s document reader, and a sound only with Listen on or after you press ● Start on a Converse box.',
 
   // ---- transfer ----
   exported: 'Exported {name}',

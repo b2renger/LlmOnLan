@@ -24,7 +24,7 @@ const SHELL_DIR = path.join(__dirname, '..');
 const CHAT_DIR = path.join(SHELL_DIR, 'renderer', 'chat');
 
 // The frozen whole-module pure list (plan §2.6 C). Paths that do not exist yet are SKIPPED with a
-// note, so the list ships complete from P0 and each phase's files light up as they land.
+// note, so a module listed before it is written does not fail the gate.
 const PURE_MODULES = [
     // P0
     'core/ids.mjs', 'core/events.mjs', 'core/registry.mjs', 'core/i18n.mjs', 'core/types.mjs',
@@ -34,10 +34,8 @@ const PURE_MODULES = [
     'net/sse.mjs', 'net/delta.mjs', 'net/errors.mjs', 'net/request.mjs',
     // P2
     'ctx/tokens.mjs', 'ctx/budget.mjs', 'app/transfer-format.mjs',
-    // P3
-    'blender/taint.mjs',
-    // P4
-    'recipes/recipe.mjs',
+    // P3/P4 and the S2/S3 benches were never built and are not planned: ECOSYSTEM_PLAN v2 stopped chat-only
+    // features, and the IDE replaced the Studio benches. Of S3 only design/svg-sanitize.mjs exists (below).
     // S0 (Studio rails; studio plan §2.1). S1's map/* entries are NOT here — S1 was replaced by
     // docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md, whose own pure modules are listed at its kickoff.
     'app/json.mjs', 'app/studio-state.mjs', 'projects/memory.mjs',
@@ -72,11 +70,8 @@ const PURE_MODULES = [
     'computer/code-edit.mjs',
     // C3 (the sandbox parts, files and sharing)
     'graph/tidy.mjs', 'sandbox/protocol.mjs',
-    // S2
-    'preview/edit.mjs', 'preview/knobs.mjs', 'preview/brief.mjs',
     // S3
-    'design/color.mjs', 'design/tokens.mjs', 'design/quantize.mjs', 'design/svg-sanitize.mjs',
-    'design/areas.mjs', 'board/select.mjs', 'board/lint.mjs', 'board/scaffold.mjs',
+    'design/svg-sanitize.mjs',
     // Critic R1, Package B: what a wheel, a resize handle, a dropped wire end and Ctrl+C mean.
     'graph/gestures.mjs',
     // Converse (docs/archive/plans/COMPUTER_VOICE_PLAN.md K-V1): the turn-taking, the turn's sound, the sentence

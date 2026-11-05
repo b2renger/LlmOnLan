@@ -28,7 +28,10 @@ const MAX_REDIRECTS = 5;
 
 // ponytail: the farm's well-known ports, not the ACTIVE farm's actual ones — a farm configured on
 // other ports is not covered. Upgrade path: derive the list from discovery's snapshots.
-export const FARM_PORTS: ReadonlySet<number> = new Set([4000, 4001, 41997, 11434, 8081, 8880, 8888, 8890, 8891, 8892]);
+// The seat gate and LiteLLM, the panel, Ollama, llama-server, Kokoro, SearXNG, OCR, Classify, speech
+// to text, the farm's vLLM (8100: on the farm's own computer, with no key) and document search (8894).
+// Not the bus's 1883 and 9001: MQTT's and OSC's standard ports, which a person's own devices use.
+export const FARM_PORTS: ReadonlySet<number> = new Set([4000, 4001, 41997, 11434, 8081, 8880, 8888, 8890, 8891, 8892, 8100, 8894]);
 
 export type FetchCode = 'E_URL' | 'E_SCHEME' | 'E_CREDENTIALS' | 'E_FARM' | 'E_LOCAL' | 'E_DNS'
     | 'E_TIMEOUT' | 'E_SIZE' | 'E_TYPE' | 'E_HTTP' | 'E_REDIRECTS' | 'E_NET' | 'E_HOST';

@@ -283,7 +283,7 @@ export function prepareClientData(input: {
                 notices.push({
                     level: 'info',
                     text: `Your data now lives in ${input.dataDir}.`
-                        + (r.replacedTo ? ` The LOL Chat history that was already in that folder was kept aside in ${r.replacedTo}.` : ''),
+                        + (r.replacedTo ? ` The LOL Vibe history that was already in that folder was kept aside in ${r.replacedTo}.` : ''),
                 });
             }
             if (r.replacedTo) log.push(`set aside ${pending.to} -> ${r.replacedTo}`);
@@ -291,7 +291,7 @@ export function prepareClientData(input: {
             dir = pending.from;
             notices.push({
                 level: 'warn',
-                text: `LOL Chat and the Computer could not be moved to ${pending.to} (${r.error}). `
+                text: `LOL Vibe and the Computer could not be moved to ${pending.to} (${r.error}). `
                     + `They are still in ${pending.from} and in use; LlmOnLan tries the move again at the next launch.`,
             });
         }
@@ -306,7 +306,7 @@ export function prepareClientData(input: {
             notices.push({
                 level: 'warn',
                 text: `Your data folder ${input.dataDir} cannot be written (${w.error}). `
-                    + `LOL Chat and the Computer keep this session's work in ${fallback} instead. `
+                    + `LOL Vibe and the Computer keep this session's work in ${fallback} instead. `
                     + 'Reconnect the folder, or pick another in Preferences › Data location.',
             });
             const f = ensureWritable(fallback);
@@ -323,10 +323,10 @@ export function prepareClientData(input: {
             const r = movePendingClientData(fallback, wanted, now());
             log.push(r.ok ? `brought ${fallback} into ${wanted}` : `could not bring ${fallback} into ${wanted}: ${r.error}`);
             if (r.ok && r.moved) {
-                notices.push({ level: 'info', text: `The LOL Chat history kept in ${fallback} while your data folder was unavailable is now in ${input.dataDir}.` });
+                notices.push({ level: 'info', text: `The LOL Vibe history kept in ${fallback} while your data folder was unavailable is now in ${input.dataDir}.` });
             } else if (!r.ok) {
                 dir = fallback;
-                notices.push({ level: 'warn', text: `LOL Chat keeps using ${fallback} this session: it could not be moved into your data folder (${r.error}).` });
+                notices.push({ level: 'warn', text: `LOL Vibe keeps using ${fallback} this session: it could not be moved into your data folder (${r.error}).` });
             }
         } else {
             const aside = `${fallback}.unmerged-${stamp(now())}`;
@@ -335,7 +335,7 @@ export function prepareClientData(input: {
                 log.push(`set aside ${fallback} -> ${aside}`);
                 notices.push({
                     level: 'warn',
-                    text: `While your data folder was unavailable, LOL Chat ran from ${fallback}. Anything written there was not merged into your data folder: it is kept in ${aside}.`,
+                    text: `While your data folder was unavailable, LOL Vibe ran from ${fallback}. Anything written there was not merged into your data folder: it is kept in ${aside}.`,
                 });
             } catch (e) {
                 log.push(`could not set aside ${fallback}: ${(e as Error).message}`);
@@ -365,18 +365,18 @@ export function prepareClientData(input: {
             if (r.copied.length) {
                 notices.push({
                     level: 'info',
-                    text: `LOL Chat's history and the Computer's graphs now live in your data folder (${dir}). `
+                    text: `LOL Vibe's history and the Computer's graphs now live in your data folder (${dir}). `
                         + `The old copy stays in ${input.userDataDir} as a backup.`,
                 });
             } else if (r.skipped === 'target-has-data' && legacyNow) {
-                notMerged('Your data folder already had a LOL Chat history, and an older one was found where earlier versions kept it.');
+                notMerged('Your data folder already had a LOL Vibe history, and an older one was found where earlier versions kept it.');
             }
         } else {
             log.push(`legacy import into ${dir} failed: ${r.error}; using the default session`);
             dir = null;
             notices.push({
                 level: 'warn',
-                text: `LOL Chat's history could not be copied into your data folder (${r.error}). `
+                text: `LOL Vibe's history could not be copied into your data folder (${r.error}). `
                     + 'This session uses it where it was; LlmOnLan tries again at the next launch.',
             });
         }

@@ -1,5 +1,6 @@
 // projects/schedule.mjs: "on a schedule" — the next run's time (pure), and a schedule that sends its message into its
-// own thread through the controller, skips (never queues) while a reply runs, and stops when switched off.
+// own thread through the controller, skips (never queues) while a reply runs, and stops when switched off; and, on a
+// fake clock, a run more than an hour apart that still comes on time (the hourly re-check keeps the planned time).
 import assert from 'node:assert/strict';
 import { nextRun, setSchedule, clearSchedule, scheduleOf, resetSchedules, MIN_EVERY_MIN, MARK } from '../../../renderer/chat/projects/schedule.mjs';
 
@@ -50,5 +51,40 @@ export default (test) => {
       await sleep(250);
       assert.equal(sent.length, 2, 'off means off');
     } finally { resetSchedules(); delete globalThis.window; }
+  });
+
+  test('schedule: every 90 minutes sends at +90 and +180 minutes (the hourly re-check keeps the planned time)', async () => {
+    // A fake clock: Date.now and the timers the module reads, real minutes, nothing waits for real.
+    const real = { now: Date.now, setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout };
+    const t0 = new Date(2026, 10, 5, 9, 0, 0).getTime();
+    let now = t0, seq = 0;
+    /** @type {Map<number, {at: number, fn: () => void}>} */ const timers = new Map();
+    const advanceTo = async (/** @type {number} */ t) => {
+      for (;;) {
+        const due = [...timers].filter(([, x]) => x.at <= t).sort((a, b) => a[1].at - b[1].at)[0];
+        if (!due) break;
+        timers.delete(due[0]); now = due[1].at; due[1].fn();
+        await new Promise((r) => setImmediate(r));   // the tick's await of send, then its next timer
+      }
+      now = t;
+    };
+    /** @type {number[]} */ const sentAtMin = [];
+    const app = { controller: { send: async () => { sentAtMin.push((Date.now() - t0) / 60000); }, isStreaming: () => false } };
+    Date.now = () => now;
+    globalThis.setTimeout = /** @type {any} */ ((/** @type {() => void} */ fn, /** @type {number} */ ms) => { timers.set(++seq, { at: now + Math.max(0, ms || 0), fn }); return seq; });
+    globalThis.clearTimeout = /** @type {any} */ ((/** @type {number} */ id) => { timers.delete(id); });
+    try {
+      assert.equal(setSchedule(app, 'p90', { spec: { every: 90 }, text: 'x', threadId: 't' }).ok, true);
+      await advanceTo(t0 + 89 * 60000);
+      assert.deepEqual(sentAtMin, [], 'nothing before +90 (one re-check at +60 only)');
+      await advanceTo(t0 + 90 * 60000);
+      assert.deepEqual(sentAtMin, [90]);
+      await advanceTo(t0 + 180 * 60000);
+      assert.deepEqual(sentAtMin, [90, 180], 'again 90 minutes later');
+      assert.equal(scheduleOf('p90').next, t0 + 270 * 60000);
+    } finally {
+      resetSchedules();
+      Date.now = real.now; globalThis.setTimeout = real.setTimeout; globalThis.clearTimeout = real.clearTimeout;
+    }
   });
 };

@@ -362,9 +362,9 @@ export function install(app) {
 
   // Order matters: the status line reads left-to-right after the counts it explains, and the `?`
   // carries `margin-left:auto`, so it and the Record switch after it are pinned to the right edge.
-  // Outputs (plan v2 §3.5): shown only when the graph has a Send or a Trigger box. DISARMED is a dry run; arming
-  // asks first and lists every target; Panic disarms and blacks out the DMX a graph lit. The truth is
-  // in main (outputs.ts); `armed` here only mirrors it for the label.
+  // Outputs (plan v2 §3.5): shown only when the graph has a Send, a Home command or a Trigger box (Panic with a Send
+  // or a Home command). DISARMED is a dry run; arming asks first and lists every target; Panic disarms and blacks
+  // out the DMX a graph lit. The truth is in main (outputs.ts); `armed` here only mirrors it for the label.
   let armed = false;
   let armedFor = '';
   const outBtn = button('comp-run-outputs', t('computer.outputsDry'), async () => {
@@ -580,7 +580,7 @@ export function install(app) {
     const hasSend = has('send') || has('home-command');
     if (armed && here !== armedFor) { armed = false; const door = outputsDoor(); if (door) void door.arm(false); }
     outBtn.hidden = !(hasSend || has('trigger'));
-    // Panic stays with a Send box whether armed or not: disarming does not turn off the lights a run lit.
+    // Panic stays with a Send or a Home command box whether armed or not: disarming does not turn off the lights a run lit.
     panicBtn.hidden = !hasSend;
     const outText = armed ? t('computer.outputsLive') : t('computer.outputsDry');
     if (outBtn.textContent !== outText) outBtn.textContent = outText;

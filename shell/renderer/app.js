@@ -215,7 +215,13 @@ prefs.changeFolder.addEventListener('click', async () => {
   setMoveButtons(false);
   prefs.moveStatus.textContent = '';
   prefs.moveStatus.classList.remove('err');
-  if (res.oldHasData) {
+  if (res.hasData) {
+    // A move into a folder that holds anything would write over what it holds (main refuses it too).
+    prefs.moveQ.textContent = `“${res.path}” is not empty. Use what is there as your data folder? LlmOnLan restarts to switch`
+      + (res.oldHasData ? '; your current data stays where it is. To move your data instead, pick an empty folder.' : '.');
+    prefs.moveYes.classList.add('hidden');
+    prefs.moveFresh.textContent = 'Use this folder';
+  } else if (res.oldHasData) {
     prefs.moveQ.textContent = `Move everything to “${res.path}” — LOL Vibe, the Computer and Open WebUI — or start fresh there? `
       + 'LlmOnLan restarts to finish; “Start fresh” leaves your current data where it is.';
     prefs.moveYes.classList.remove('hidden');
@@ -790,7 +796,7 @@ function renderInstall() {
   els.panelTitle.textContent = 'Setting up the chat engine';
   if (installState.phase === 'download') {
     const pct = installState.percent;
-    els.panelMsg.textContent = 'Downloading Open WebUI — a one-time setup (~700 MB).';
+    els.panelMsg.textContent = 'Downloading Open WebUI — a one-time setup (about 0.8 GB, 1.1–1.3 GB on Linux).';
     els.panelDetail.textContent = (installState.receivedMB != null && installState.totalMB)
       ? `${installState.receivedMB} / ${installState.totalMB} MB${pct != null ? `   ${pct}%` : ''}`
       : (pct != null ? `${pct}%` : '');

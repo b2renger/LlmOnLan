@@ -15,7 +15,7 @@ names `d3.` (`sandbox/host.mjs` `libsFor`). A fifth needs an owner decision, not
 | `p5.min.js` | `p5@1.11.13` | 1 063 246 | LGPL-2.1 | `p5-1.11.13.tgz` → `package/lib/p5.min.js` |
 | `matter.min.js` | `matter-js@0.20.0` | 83 476 | MIT | `matter-js-0.20.0.tgz` → `package/build/matter.min.js` |
 | `d3.min.js` | `d3@7.9.0` | 279 706 | ISC | `d3-7.9.0.tgz` → `package/dist/d3.min.js` |
-| licences | — | 26 653 | — | each tarball's own licence file, verbatim |
+| licences | — | 27 384 | — | each tarball's own licence file, verbatim |
 
 **Total: 2 096 312 bytes of library text (the 2.0 MiB budget, 840 bytes to spare) + 27 KB of licences**
 (budget 40 KB). Measured at the C3 landing; the lint re-measures on every run, so going over is a
@@ -37,10 +37,13 @@ be evaluated from a `blob:` URL, which is a change to the containment story, not
 5. Rules 1-8 of the lint SKIP this directory: it is upstream source we may not edit, so a finding
    here would have no fix that keeps prime directive #1.
 
-p5.js is LGPL-2.1: shipped verbatim with its licence, listed in the About section, and replaceable
-by the user through a project's own `lib/p5.js` — `sandbox/libs.mjs` takes a project override ahead
-of the vendored build, and the panel says which one ran. That override *is* the relink freedom the
-licence asks for. Recorded as a DISCUSS item for the packaging/licence page.
+p5.js is LGPL-2.1: shipped verbatim with its licence (`p5.LICENSE.txt`, here). `sandbox/libs.mjs`
+can take a project's own build ahead of the vendored one (`loadLib`'s `override`, through
+`createSandbox`'s `libSource`): that override is the relink freedom the licence asks for. **Not wired
+yet:** no caller passes one (so the sandbox's "Using this project's p5." note never shows), and
+neither About section (the app's, LOL Vibe's) lists the vendored libraries, so the app does not offer
+that freedom today. An open item for the owner, recorded as a DISCUSS item for the packaging/licence
+page.
 
 Nothing here is fetched from the network at runtime. `../libs.mjs` reads these files from inside
 the app via `import.meta.url` and hands the TEXT to the sandbox guest over `postMessage`; the guest

@@ -10,6 +10,16 @@ export function farmEndpoint(f: { _host: string; proxyPort: number }): string {
     return `http://${f._host}:${f.proxyPort}/v1`;
 }
 
+// What the farm's answer to GET /v1/models with a password says about that password. LiteLLM
+// without a database cannot answer a clean 401 for a wrong key: it looks the token up as a virtual
+// key and fails with 400/500 (verified live). So 2xx = accepted and any other answer = refused,
+// except 502-504: that is the farm's seat gate while LiteLLM restarts (Apply changes, an engine
+// switch, a model start; the farm stays healthy meanwhile), and it says nothing about the password.
+export function passwordVerdict(status: number): 'accepted' | 'refused' | 'unknown' {
+    if (status >= 200 && status < 300) return 'accepted';
+    return status >= 502 && status <= 504 ? 'unknown' : 'refused';
+}
+
 // Load metric for a farm, from the telemetry the beacon already carries. Lower =
 // more free. Slot occupancy beats GPU%: clients/slots is "how many people are ahead
 // of you", where a busy GPU is just a healthy box mid-answer. Old farms without

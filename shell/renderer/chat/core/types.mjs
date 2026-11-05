@@ -701,9 +701,6 @@ export const THINKING_TASKS = Object.freeze(['graph:condition', 'graph:filter'])
  * @typedef {{ label: string, i: number, n: number, running: boolean, cancelled: boolean,
  *   truncated: number, refused?: boolean, stalled?: boolean }} QueueState */
 
-/** @typedef {{ name, code: string, lang: string, from: 'model'|'user'|'template' }} Revision */
-/** @typedef {{ id, label, type: 'number'|'color'|'boolean'|'select', value, min?, max?, step?, options? }} Knob */
-
 /** A workbench panel instance (studio plan §3.5.2). The workbench owns els.workBody; a panel owns
  * only the element it is handed.
  * @typedef {{ show(ctx: {thread: Thread|null, studio: StudioState}): void, hide(): void,

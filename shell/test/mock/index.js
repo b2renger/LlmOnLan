@@ -7,8 +7,10 @@
 // TWO safety rules are enforced here and nowhere else, because this box runs a live farm
 // and the owner's real client (plan §2, override 3):
 //
-//  1. FORBIDDEN PORTS. {4000, 4001, 41997, 41998, 8081, 8888, 8890, 11434} are refused on
-//     the COMPUTED ports, slot or no slot.
+//  1. FORBIDDEN PORTS. {4000, 4001, 41997, 41998, 8081, 8888, 8890, 11434, 8100, 8880, 8891,
+//     8892, 8893, 8894, 1883, 9001, 41995} are refused on the COMPUTED ports, slot or no slot:
+//     the farm's seat gate, LiteLLM, panel, beacon, engines and plugins (the bus's 9001 is UDP,
+//     listed anyway), and 41995, the client's own MCP server.
 //  2. THE BEACON. A UDP socket is created only when `beacon:true` AND
 //     process.env.LOL_MOCK_BEACON_OK === '1'. The env var is never set on this box: the
 //     owner's client listens on 41998, prefers coordinators, and would switch to "Mock
@@ -21,7 +23,7 @@ const { createStore } = require('./state');
 const { createProxyHandler } = require('./proxy');
 const { createServicesHandler, snapshot } = require('./services');
 
-const FORBIDDEN_PORTS = [4000, 4001, 41997, 41998, 8081, 8888, 8890, 11434];
+const FORBIDDEN_PORTS = [4000, 4001, 41997, 41998, 8081, 8888, 8890, 11434, 8100, 8880, 8891, 8892, 8893, 8894, 1883, 9001, 41995];
 
 /** Slot 0 bases; a slot n offsets every port by 20n (plan §2.6 A). */
 const BASE_PORTS = { port: 4009, keyedPort: 4010, servicesPort: 4011, httpPort: 41987 };

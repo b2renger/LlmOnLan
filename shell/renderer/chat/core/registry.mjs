@@ -35,12 +35,10 @@ export const SLOTS = Object.freeze({
   SETTINGS_SECTIONS: 'settings.sections',   // {id, order, title, render(el, app)}
   SHORTCUTS: 'shortcuts',                   // {id, keys, when?(e, app) -> boolean, run(e, app)}
   PALETTE: 'palette.commands',              // {id, label, keywords?, run(app)}
-  CITATIONS: 'render.citations',
-  // ---- Studio (S0 kickoff, studio plan 3.2). Inert until their host renders them (2.6 AD).
+  CITATIONS: 'render.citations',            // {id, resolve(n, msg, app) -> {url, title}|null}  first non-null wins
+  // ---- Studio (S0 kickoff, studio plan 3.2). The Project panel registers here (ui/project-panel.mjs). The Studio's
+  // preview, design and board slots were dropped with those plans (ECOSYSTEM_PLAN v2); nothing ever read them.
   WORKBENCH_PANELS: 'workbench.panels', // {id, order, icon, label, defaultWidth:'split'|'work', available(app) -> boolean|{no:string}, create(host, app) -> PanelInstance}
-  PREVIEW_TEMPLATES: 'preview.templates', // {id, order, label, kind:'canvas'|'dom'|'three'|'p5'|'svg', libs, files() -> {path,text}[], brief, knobs?}
-  DESIGN_SECTIONS: 'design.sections',    // {id, order, title, available(app) -> boolean|{no:string}, render(el, app) -> {refresh?, destroy?}}
-  BOARD_PACKS: 'board.packs',            // {id, order, pack: BoardPack}  a pack is data, never code            // {id, resolve(n, msg, app) -> {url, title}|null}  first non-null wins
 });
 
 const KNOWN = new Set(Object.values(SLOTS));

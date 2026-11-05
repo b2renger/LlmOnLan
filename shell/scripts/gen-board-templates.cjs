@@ -94,7 +94,7 @@ const SAY_WIFI = [
 const HOW_WIFI = [
   'How to start',
   '',
-  '1. On the farm: admin panel ▸ Plugins ▸ Message bus ▸ Enable (it stays on until the farm restarts).',
+  '1. On the farm: admin panel ▸ Plugins ▸ Message bus ▸ Enable (it stays on, after a restart too, until you Disable it).',
   '2. Copy the sketch in the Text box on the far right into the Arduino IDE (an ESP32, and the PubSubClient library), fill in YOUR SETTINGS (your Wi-Fi, the farm\'s address, its password, BOARD = board1) and Upload.',
   '3. Arm the outputs: press "Outputs: dry run" in the run bar, read the list, then Arm. Nothing else to press: each reading starts a run.',
   '',

@@ -138,10 +138,10 @@ function createProxyHandler({ store, role, key }) {
             return undefined;
         }
 
-        // /v1/embeddings must never be called by the client (prime directive): answering
-        // 418 makes an accidental call unmissable in a test instead of silently working.
+        // /v1/embeddings is never called on the chat endpoint: document search has its own address
+        // (embed.url). Answering 418 makes an accidental call unmissable in a test instead of silently working.
         if (pathOnly === '/v1/embeddings') {
-            return json(res, 418, { error: { message: 'the client must never call /v1/embeddings', type: 'mock_violation', code: '418' } });
+            return json(res, 418, { error: { message: 'the client never calls /v1/embeddings on the chat endpoint (document search has its own address)', type: 'mock_violation', code: '418' } });
         }
 
         return json(res, 404, { error: { message: `no mock route for ${method} ${pathOnly}`, type: 'not_found', code: '404' } });

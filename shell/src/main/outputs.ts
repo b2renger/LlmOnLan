@@ -3,7 +3,8 @@
 // safety rules cannot be skipped by a renderer bug or an imported graph:
 //   - DISARMED by default, and disarmed again whenever the window (re)loads: an unarmed send is a DRY
 //     RUN — the box shows what it would send, nothing leaves;
-//   - a person-typed target only (the renderer passes the box's settings, never a wire's value);
+//   - a target from the box's settings only (the renderer passes them, never a wire's value; a model
+//     building graphs through the MCP tools may fill them in, and arming lists every target);
 //   - never the farm's own ports (this machine IS allowed: OSC to TouchDesigner or Max on 127.0.0.1
 //     is the classic case, and a lighting node on a link-local address is normal);
 //   - a rate limit per target, and DMX frames capped at 3 a second PER UNIVERSE, whatever address

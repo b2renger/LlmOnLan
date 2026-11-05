@@ -61,24 +61,30 @@ export function setSchedule(app, projectId, o) {
   clearSchedule(projectId);
   const entry = { app, projectId: String(projectId), spec: o.spec, text, threadId: o.threadId, model: String(o.model || ''), timer: /** @type {any} */ (null), next: 0, runs: 0, skipped: 0, last: 0 };
   schedules.set(entry.projectId, entry);
-  arm(entry);
+  plan(entry);
   notify();
   return { ok: true, next: entry.next };
 }
 
-/** @param {any} entry */
-function arm(entry) {
+/** The next run's time: when the schedule starts and after each run, never at a re-check. @param {any} entry */
+function plan(entry) {
   entry.next = nextRun(entry.spec, Date.now(), minuteMs());
-  // setTimeout, re-armed after each run (chat-lint rule 13: no setInterval); a far-off daily time is re-checked hourly
-  // so a computer that slept does not fire a day late.
-  const wait = Math.max(0, Math.min(entry.next - Date.now(), 3600000));
-  entry.timer = setTimeout(() => { void tick(entry); }, wait);
+  wait(entry);
+}
+
+/** @param {any} entry */
+function wait(entry) {
+  // setTimeout, re-armed after each run (chat-lint rule 13: no setInterval); a wait longer than an hour is re-checked
+  // hourly so a computer that slept does not fire a day late. The re-check keeps entry.next: planning again there
+  // pushed every N > 60 minutes out by N at each hour, so it never ran (fixed 2026-11-05).
+  const ms = Math.max(0, Math.min(entry.next - Date.now(), 3600000));
+  entry.timer = setTimeout(() => { void tick(entry); }, ms);
 }
 
 /** @param {any} entry */
 async function tick(entry) {
   if (schedules.get(entry.projectId) !== entry) return;
-  if (Date.now() < entry.next - 50) { arm(entry); return; }   // an hourly re-check before a daily time
+  if (Date.now() < entry.next - 50) { wait(entry); return; }   // the hourly re-check before a far run
   const ctl = entry.app && entry.app.controller;
   if (!ctl || (typeof ctl.isStreaming === 'function' && ctl.isStreaming())) {
     entry.skipped += 1;
@@ -87,7 +93,7 @@ async function tick(entry) {
     entry.last = Date.now();
     try { await ctl.send({ threadId: entry.threadId, text: MARK + entry.text, ...(entry.model ? { model: entry.model } : {}) }); } catch (e) { console.warn('[lolchat] a scheduled message failed', e); }
   }
-  if (schedules.get(entry.projectId) === entry) arm(entry);
+  if (schedules.get(entry.projectId) === entry) plan(entry);
   notify();
 }
 

@@ -40,7 +40,7 @@ export const LIB_FILES = Object.freeze({
   }),
 });
 
-/** The set a caller may name. A fourth library needs an owner decision, not a new row. */
+/** The set a caller may name. A fifth library needs an owner decision, not a new row. */
 export const LIB_NAMES = Object.freeze(Object.keys(LIB_FILES));
 
 /** Session cache: a library's text is read once per app run, then held. @type {Map<string, string>} */
@@ -54,8 +54,9 @@ export function forgetLibs() { cache.clear(); }
  *
  * `override` is the per-project escape hatch (studio plan §3.7.5): given the library's name it
  * returns that project's own build as text, or null/undefined to use the one we ship. That override
- * IS the relink freedom p5's LGPL asks for — a user pins their own p5 by dropping it in the
- * project's lib/, with no version manager and no download.
+ * IS the relink freedom p5's LGPL asks for. Not wired yet: no caller passes one (createSandbox's
+ * `libSource` is set only by the unit tests), so a project's own lib/p5.js is not read today
+ * (lib/README.md, an open item for the owner).
  *
  * @param {string} name
  * @param {{override?: ((name: string) => Promise<string|null>|string|null)|null}} [o]
@@ -107,7 +108,8 @@ export async function loadLibs(names, o = {}) {
 }
 
 /** Which of the declared libraries are actually present in this build, with the pin and the size —
- * for the About section and for a scenario that must skip when nothing is vendored.
+ * meant for the About section and for a scenario that must skip when nothing is vendored. Nothing calls it
+ * yet (lib/README.md: the About sections do not list the libraries).
  * @returns {Promise<Record<string, {present: boolean, version: string, spdx: string, bytes: number}>>} */
 export async function libStatus() {
   /** @type {Record<string, any>} */ const out = {};

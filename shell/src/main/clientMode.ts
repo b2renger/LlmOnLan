@@ -15,7 +15,3 @@
 // ---------------------------------------------------------------------------
 
 export const OWUI_ENABLED = true;
-
-// Human-readable label used in overlay copy so the connection screen matches
-// what this build actually starts.
-export const CLIENT_SURFACE = OWUI_ENABLED ? 'Open WebUI' : 'LOL Chat';

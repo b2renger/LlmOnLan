@@ -39,7 +39,8 @@ const SCENARIO_DIR = path.join(HARNESS_DIR, 'scenarios');
 
 const BASE_PORTS = { cdp: 9333, proxy: 4009, keyed: 4010, services: 4011, self: 41987 };
 const SLOT_STRIDE = 20;
-const FORBIDDEN_PORTS = new Set([4000, 4001, 41997, 41998, 8081, 8888, 8890, 11434]);
+// The live farm's ports, from the mock farm's own list (one list: this copy had fallen behind it, 8 ports of 17).
+const FORBIDDEN_PORTS = new Set(require('../mock/index.js').FORBIDDEN_PORTS);
 const MOCK_KEY = 'harness-pw';
 
 const CHAT_DIR = path.join(SHELL_DIR, 'renderer', 'chat');

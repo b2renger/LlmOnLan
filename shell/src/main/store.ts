@@ -50,10 +50,25 @@ export function loadSettings(): ShellSettings {
     return loaded;
 }
 
+// Written beside the file, flushed to the disk, then renamed over it: an app that dies or a
+// computer that loses power mid-write leaves the old file whole. A cut-off file would load as
+// the DEFAULTS above (no data folder, no farm passwords, no pending move), and the next save
+// would make that for good.
 export function saveSettings(next: ShellSettings): ShellSettings {
     cache = next;
+    const file = settingsFile();
+    const text = JSON.stringify(next, null, 2);
     try {
-        fs.writeFileSync(settingsFile(), JSON.stringify(next, null, 2), 'utf8');
+        const tmp = `${file}.tmp`;
+        const fd = fs.openSync(tmp, 'w');
+        try { fs.writeFileSync(fd, text, 'utf8'); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+        try { fs.renameSync(tmp, file); }
+        catch {
+            // Windows refuses the rename while another program holds the file (a virus scanner):
+            // write it in place, as before, rather than not at all.
+            fs.writeFileSync(file, text, 'utf8');
+            fs.rmSync(tmp, { force: true });
+        }
     } catch (e) {
         console.warn('[store] could not save settings:', (e as Error).message);
     }

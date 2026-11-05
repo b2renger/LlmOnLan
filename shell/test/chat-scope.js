@@ -3,6 +3,12 @@
 // §1.1 allowlist, and the three shared files it is allowed to touch must be touched in the one way
 // that was agreed.
 //
+// NOT A GATE TODAY. This was LOL Chat vNext's phase gate (2026-09, docs/archive/plans/LOLCHAT_PLAN.md).
+// By design it flags every change outside that phase's allowlist: the farm, CLAUDE.md, the
+// Farm app, most of shell/src/main. A red result on main or on a branch means nothing; the gates
+// are chat-unit, unit and chat-lint. Kept for its --self-test and for checkScope, which
+// test/chat/unit/projects-scope.test.mjs uses. Retiring it is the owner's call.
+//
 //   node shell/test/chat-scope.js                # check this working tree against merge-base(HEAD, main)
 //   node shell/test/chat-scope.js --base <ref>   # compare against another base
 //   node shell/test/chat-scope.js --self-test    # the checker's own tests (no git, no files touched)
@@ -684,6 +690,7 @@ function main() {
     if (verbose) for (const v of verdicts) console.log(`  ${v.why === 'OUT OF SCOPE' ? 'XX' : 'ok'}  ${v.path}  — ${v.why}`);
     for (const v of violations) console.log(`SCOPE  ${v.path}: ${v.message}`);
     console.log(violations.length ? `${violations.length} scope violation(s)` : 'scope clean');
+    if (violations.length) console.log('(LOL Chat vNext\'s phase allowlist, 2026-09: it flags any change outside that phase by design; not a gate today)');
     return violations.length ? 1 : 0;
 }
 

@@ -15,7 +15,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHELL = path.join(HERE, '..', '..', '..');
 const BUILD = path.join(SHELL, 'build', 'main');
 const SRC = path.join(SHELL, 'src', 'main');
-const MODULES = ['farmSelect', 'discovery', 'configBridge', 'sidecar', 'sidecarManager', 'clientData', 'dataMigration', 'store', 'io', 'mcp', 'serial', 'webSearch', 'comfyqPrompts'];
+const MODULES = ['farmSelect', 'discovery', 'configBridge', 'sidecar', 'sidecarManager', 'clientData', 'dataMigration', 'store', 'io', 'mcp', 'serial', 'webSearch', 'comfyqPrompts',
+  // Loaded by other suites with no staleness check of their own (review 2026-11-05, TST-6), and the ones loaded below.
+  'outputs', 'homeAssistant', 'debugLog', 'projectGit', 'util', 'updater'];
 const WEB_FIXTURES = path.join(HERE, '..', 'fixtures', 'web');
 
 /** @type {string[]} */
@@ -1024,7 +1026,7 @@ export default (test) => {
     /** @type {any} */ let s2 = { pendingClientMove: null, legacyClientDataImported: false };
     const first = CD.prepareClientData({ userDataDir: ud2, dataDir: data2, settings: s2, save: (/** @type {any} */ p) => { s2 = { ...s2, ...p }; } });
     assert.equal(first.notices[0].level, 'warn');
-    assert.match(first.notices[0].text, /already had a LOL Chat history/);
+    assert.match(first.notices[0].text, /already had a LOL Vibe history/);
     assert.equal(snapshot(CD.clientDataDir(data2))['Local Storage/leveldb/000003.log'], 'prefs: dev build', 'nothing overwritten');
   });
 
@@ -1077,6 +1079,9 @@ export default (test) => {
     assert.equal(code('http://2130706433/'), 'E_LOCAL', 'a decimal IPv4 (the URL parser makes it 127.0.0.1)');
     assert.equal(code('http://[::ffff:8.8.8.8]/'), 'ok', 'a mapped PUBLIC address stays reachable');
     assert.equal(code('http://example.org:8892/'), 'E_FARM', 'the speech-to-text port is a farm port too');
+    assert.equal(code('http://10.10.16.58:8894/v1/embeddings'), 'E_FARM', 'document search');
+    assert.equal(code('http://example.org:8100/v1/models'), 'E_FARM', "the farm's vLLM");
+    assert.equal(code('http://example.org:1883/'), 'ok', "MQTT's standard port: a person's own broker");
     const own = Object.values(os.networkInterfaces()).flat().find((a) => a && a.family === 'IPv4' && !a.internal);
     if (own) assert.equal(IO.blockedAddress(own.address), true, `this machine's own LAN address (${own.address})`);
     assert.equal(IO.blockedAddress('fe80::1'), true);
@@ -1705,6 +1710,158 @@ export default (test) => {
     assert.equal(S.grantRequest('media', 'null'), false, 'not the sandbox guest');
     assert.equal(S.grantRequest('media', 'http://127.0.0.1:8080/'), false, 'not a served page');
     assert.equal(S.grantRequest('notifications', 'http://x/'), true, 'the rest as Electron without a handler');
+  });
+
+  // ---------------------------------------------------------------- review 2026-11-05: the client's main process
+  // index.ts cannot be loaded without Electron: its pure parts are tested here, and its wiring read from the source.
+  const indexSrc = () => fs.readFileSync(path.join(SRC, 'index.ts'), 'utf8');
+  /** index.ts's `ipcMain.handle(name, …)`, up to the next handler. */
+  const handlerSrc = (/** @type {string} */ name) => {
+    const src = indexSrc();
+    const at = src.indexOf(`ipcMain.handle('${name}'`);
+    assert.ok(at > 0, `the ${name} handler moved`);
+    const end = src.indexOf('ipcMain.handle(', at + 20);
+    return src.slice(at, end > at ? end : undefined);
+  };
+
+  test('SHM-1: a new window Open WebUI opens goes to the system browser (its own pages excepted), and its microphone, camera and clipboard are only for its own origin', () => {
+    const U = require(path.join(BUILD, 'util.js'));
+    const owui = 'http://127.0.0.1:8080';
+    assert.equal(U.sameOrigin('http://127.0.0.1:8080/api/v1/files/x/content', owui), true);
+    assert.equal(U.sameOrigin('http://127.0.0.1:8080/', owui), true, 'a trailing slash is the same origin');
+    assert.equal(U.sameOrigin('http://127.0.0.1:8080/', 'http://127.0.0.1:808'), false, 'a prefix of it is not');
+    assert.equal(U.sameOrigin('http://127.0.0.1:8081/', owui), false, 'another port');
+    assert.equal(U.sameOrigin('http://localhost:8080/', owui), false, 'another host name');
+    assert.equal(U.sameOrigin('https://example.org/', owui), false);
+    assert.equal(U.sameOrigin('about:blank', 'about:blank'), false, 'no origin of its own never matches');
+    assert.equal(U.sameOrigin('http://127.0.0.1:8080/', null), false, 'Open WebUI not ready: nothing is its own');
+    assert.equal(U.sameOrigin(undefined, owui), false);
+    const src = indexSrc();
+    assert.ok(src.includes("app.on('web-contents-created', (_e, wc) => { if (wc.getType() === 'webview') keepOwuiLinks(wc); });"),
+      'every webview guest gets a handler: the window\'s own never sees its popups');
+    const keep = src.slice(src.indexOf('function keepOwuiLinks'), src.indexOf("app.on('web-contents-created'"));
+    assert.ok(keep.includes("if (sameOrigin(url, sidecar.getState().url) || sameOrigin(url, OWUI_COMMUNITY)) return { action: 'allow' };"),
+      'Open WebUI\'s own page (a file it shows) stays where it is signed in, and its community site keeps the window "Share" posts into');
+    assert.ok(src.includes("const OWUI_COMMUNITY = 'https://openwebui.com';"), 'the community site, exactly (https, no other host)');
+    assert.equal(U.sameOrigin('https://openwebui.com/tools/create', 'https://openwebui.com'), true);
+    assert.equal(U.sameOrigin('https://openwebui.com.evil.example/x', 'https://openwebui.com'), false, 'a look-alike host is not it');
+    assert.equal(U.sameOrigin('http://openwebui.com/x', 'https://openwebui.com'), false, 'nor plain http');
+    assert.ok(keep.includes('shell.openExternal(url);') && keep.includes("return { action: 'deny' };"), 'any other: the system browser, never an app window');
+    assert.ok(keep.includes("wc.on('did-create-window', (child) => keepOwuiLinks(child.webContents));"), 'and a window it opened keeps the rule');
+    const perms = src.slice(src.indexOf('function configureWebviewPermissions'), src.indexOf('// --- IPC'));
+    assert.ok(perms.includes('const fromOwui = (url: string | undefined) => sameOrigin(url, sidecar.getState().url);'));
+    assert.ok(perms.includes('callback(OWUI_ALLOWED_PERMS.has(permission) && fromOwui(details?.requestingUrl));'), 'the request handler checks the origin');
+    assert.ok(perms.includes('setPermissionCheckHandler((_wc, permission, requestingOrigin) => OWUI_ALLOWED_PERMS.has(permission) && fromOwui(requestingOrigin));'), 'and so does the check handler');
+  });
+
+  test('SHM-2: a farm restarting its proxy (502-504) keeps a stored password, and a typed one is asked again, not refused', () => {
+    for (const s of [200, 204]) assert.equal(FS.passwordVerdict(s), 'accepted', String(s));
+    for (const s of [400, 401, 403, 500]) assert.equal(FS.passwordVerdict(s), 'refused', `${s}: what LiteLLM answers a wrong key`);
+    for (const s of [502, 503, 504]) assert.equal(FS.passwordVerdict(s), 'unknown', `${s}: the seat gate while LiteLLM restarts`);
+    const src = indexSrc();
+    const verify = src.slice(src.indexOf('function verifyStoredFarmKey'), src.indexOf('const pluginKeyCache'));
+    assert.ok(verify.includes("if (passwordVerdict(res.status) !== 'refused') return;"), 'only a refusal forgets the password');
+    const typed = handlerSrc('set-farm-key');
+    assert.ok(typed.includes("if (verdict === 'unknown') return { ok: false, error: 'The farm is restarting: try the password again in a few seconds.' };"));
+    assert.ok(typed.includes("if (verdict === 'refused') return { ok: false, error: 'That password was not accepted.' };"));
+    assert.ok(typed.indexOf("verdict === 'unknown'") < typed.indexOf('updateSettings('), 'nothing is stored before the farm said yes');
+  });
+
+  test('SHM-3 + SHM-11: "Move my data" never writes into a folder that holds anything, and the coding agent ends before its projects move', () => {
+    const root = tempDir('move-full');
+    const mine = path.join(root, 'mine');
+    const theirs = path.join(root, 'theirs');
+    write(path.join(mine, 'webui.db'), 'my chats');
+    write(path.join(theirs, 'webui.db'), 'their chats');
+    write(path.join(theirs, 'lol-embedding.json'), '{"contract":"x"}');
+    assert.deepEqual(DM.moveDataDir(mine, theirs, { exclude: ['lol-client'] }), { ok: false, error: DM.NOT_EMPTY });
+    assert.equal(fs.readFileSync(path.join(theirs, 'webui.db'), 'utf8'), 'their chats', 'its chats are untouched');
+    assert.deepEqual(fs.readdirSync(theirs).sort(), ['lol-embedding.json', 'webui.db'], 'nothing added');
+    assert.equal(fs.readFileSync(path.join(mine, 'webui.db'), 'utf8'), 'my chats', 'and ours are still where they were');
+    const made = path.join(root, 'made-in-the-dialog');
+    fs.mkdirSync(made);
+    assert.deepEqual(DM.moveDataDir(mine, made, { exclude: ['lol-client'] }), { ok: true }, 'an empty folder takes it');
+    assert.equal(fs.readFileSync(path.join(made, 'webui.db'), 'utf8'), 'my chats');
+    const shown = path.join(root, 'shown-by-finder');
+    write(path.join(shown, '.DS_Store'), 'x');
+    write(path.join(shown, 'desktop.ini'), 'x');
+    assert.equal(DM.dirHasData(shown), false, 'the files an OS drops into a folder it showed are not data');
+    write(path.join(shown, 'notes.txt'), 'x');
+    assert.equal(DM.dirHasData(shown), true, 'one real file is');
+    const h = handlerSrc('set-data-dir');
+    assert.ok(h.includes("if (mode === 'move' && dirHasData(newDir)) return { ok: false, error: NOT_EMPTY };"));
+    assert.ok(h.indexOf('dirHasData(newDir)') < h.indexOf('sidecar.stop('), 'refused before Open WebUI stops: it costs nothing');
+    const dispose = h.indexOf('await studioApi?.dispose();');
+    assert.ok(dispose > 0 && dispose < h.indexOf('moveDataDir('), 'the agent and its servers stop before LOL Studio Projects is copied and deleted');
+    const app = fs.readFileSync(path.join(SHELL, 'renderer', 'app.js'), 'utf8');
+    const click = app.slice(app.indexOf("prefs.changeFolder.addEventListener('click'"), app.indexOf("prefs.moveYes.addEventListener('click'"));
+    const [a, b] = [click.indexOf('if (res.hasData) {'), click.indexOf('} else if (res.oldHasData) {')];
+    assert.ok(a > 0 && b > a, 'a folder that is not empty is asked about first');
+    const full = click.slice(a, b);
+    assert.ok(full.includes("prefs.moveYes.classList.add('hidden');"), 'the panel offers no move into a folder that is not empty');
+    assert.ok(full.includes('is not empty'), 'and says why');
+  });
+
+  test('SHM-9: the settings are written beside the file, flushed, then renamed over it', () => {
+    const file = path.join(USER_DATA, 'shell-settings.json');
+    STORE.updateSettings({ theme: 'dark' });
+    assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).theme, 'dark');
+    assert.equal(fs.existsSync(`${file}.tmp`), false, 'no temp file is left');
+    STORE.updateSettings({ theme: 'system' });
+    const src = fs.readFileSync(path.join(SRC, 'store.ts'), 'utf8');
+    const save = src.slice(src.indexOf('export function saveSettings'));
+    assert.ok(save.indexOf('fs.fsyncSync(fd)') > 0 && save.indexOf('fs.fsyncSync(fd)') < save.indexOf('fs.renameSync(tmp, file)'),
+      'flushed before the rename: a power cut leaves the old file or the new one, never half of one');
+  });
+
+  test('SHM-14: an update installs at quit only while "Install app updates automatically" is on, a manual check included', async () => {
+    const resolved = require.resolve('electron-updater', { paths: [BUILD] });
+    const saved = require.cache[resolved];
+    const fake = { autoDownload: false, autoInstallOnAppQuit: null, on() { return this; }, checkForUpdates: async () => ({ updateInfo: { version: '0.0.0-test' } }) };
+    require.cache[resolved] = /** @type {any} */ ({ id: resolved, filename: resolved, loaded: true, exports: { autoUpdater: fake } });
+    fakeApp.isPackaged = true;
+    try {
+      STORE.updateSettings({ autoUpdate: false });
+      const UP = require(path.join(BUILD, 'updater.js'));
+      const r = await UP.checkForAppUpdate();
+      assert.equal(r.available, false, 'the fake answers this very version');
+      assert.equal(fake.autoDownload, true, 'a manual check still downloads');
+      assert.equal(fake.autoInstallOnAppQuit, false, 'but with the box off the update waits for Restart & install');
+      UP.setAutoInstall(true);
+      assert.equal(fake.autoInstallOnAppQuit, true, 'the box turned on');
+      UP.setAutoInstall(false);
+      assert.equal(fake.autoInstallOnAppQuit, false, 'and off again, in the same session');
+      assert.ok(handlerSrc('set-auto-update').includes('setAutoInstall(v);'), 'Preferences tells the updater');
+    } finally {
+      fakeApp.isPackaged = false;
+      if (saved) require.cache[resolved] = saved; else delete require.cache[resolved];
+      STORE.updateSettings({ autoUpdate: true });
+    }
+  });
+
+  test('TST-3: the env behind the privacy and env-is-authoritative rules', () => {
+    const rules = {
+      WEBUI_AUTH: 'false', ENABLE_PERSISTENT_CONFIG: 'false', ENABLE_VERSION_UPDATE_CHECK: 'false', ENABLE_OLLAMA_API: 'false',
+      ANONYMIZED_TELEMETRY: 'false', DO_NOT_TRACK: 'true', SCARF_NO_ANALYTICS: 'true',
+    };
+    const none = CB.buildSidecarEnv({ endpoint: null, dataDir: tempDir('inv') });
+    for (const [k, v] of Object.entries(rules)) assert.equal(none[k], v, k);
+    assert.equal(none.ENABLE_OPENAI_API, 'false', 'no farm: never api.openai.com, Open WebUI\'s default');
+    assert.equal(none.OPENAI_API_BASE_URL, undefined);
+    const farmEnv = CB.buildSidecarEnv({ endpoint: 'http://10.0.0.5:4000/v1', dataDir: tempDir('inv2') });
+    for (const [k, v] of Object.entries(rules)) assert.equal(farmEnv[k], v, `${k} with a farm`);
+    assert.equal(farmEnv.ENABLE_OPENAI_API, 'true');
+    assert.equal(farmEnv.OPENAI_API_BASE_URL, 'http://10.0.0.5:4000/v1');
+    for (const env of [none, farmEnv]) assert.equal(env.WEBUI_NAME, undefined, 'Open WebUI keeps its own name (invariant #2)');
+  });
+
+  test('TST-15: the Blender tools listen on this computer only, with blender-mcp\'s telemetry off', () => {
+    const src = fs.readFileSync(path.join(SRC, 'mcpoSupervisor.ts'), 'utf8');
+    assert.ok(src.includes("const HOST = '127.0.0.1';"), 'mcpo defaults to 0.0.0.0, and execute_blender_code runs any code');
+    assert.ok(src.includes("const args = ['--host', HOST, '--port', String(this.port)"), 'mcpo is told so');
+    assert.ok(src.includes("DISABLE_TELEMETRY: 'true', BLENDER_MCP_DISABLE_TELEMETRY: 'true', MCP_DISABLE_TELEMETRY: 'true',"), 'all three names blender-mcp reads');
+    const at = src.indexOf("const child = spawn(venvBin('mcpo'), args, {");
+    assert.ok(at > 0 && /^[^{]*\{\s*windowsHide: true, detached: !IS_WIN, env, stdio/.test(src.slice(at)), 'and started with those args and that env');
   });
 
   test('cleanup', () => {

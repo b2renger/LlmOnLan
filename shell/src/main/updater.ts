@@ -1,9 +1,12 @@
 // Auto-update via electron-updater (GitHub Releases). Auto-checks on launch when
 // enabled (no-op in dev). Also exposes a manual "Check for updates" + an explicit
-// "Restart & install" for the Preferences buttons. Downloads in the background and
-// installs on quit — a LAN tool shouldn't interrupt a chat.
+// "Restart & install" for the Preferences buttons. Downloads in the background and,
+// with "Install app updates automatically" on, installs on quit — a LAN tool shouldn't
+// interrupt a chat. With it off, a manual check still downloads, and only
+// "Restart & install" installs.
 
 import { app } from 'electron';
+import { loadSettings } from './store';
 
 type AutoUpdater = typeof import('electron-updater').autoUpdater;
 
@@ -26,12 +29,17 @@ function wire(u: AutoUpdater): void {
     if (wired) return;
     wired = true;
     u.autoDownload = true;
-    u.autoInstallOnAppQuit = true;
+    u.autoInstallOnAppQuit = loadSettings().autoUpdate;
     u.on('error', (e) => console.warn('[updater] error:', e?.message || e));
     u.on('checking-for-update', () => console.log('[updater] checking…'));
     u.on('update-available', (i) => console.log(`[updater] update available: v${i.version}`));
     u.on('update-not-available', () => console.log('[updater] up to date'));
     u.on('update-downloaded', (i) => { console.log(`[updater] v${i.version} downloaded`); onDownloaded?.(i.version); });
+}
+
+// The Preferences box changed: an update already downloaded installs at quit only while it is on.
+export function setAutoInstall(on: boolean): void {
+    if (autoUpdater) autoUpdater.autoInstallOnAppQuit = on;
 }
 
 export function initAutoUpdate(enabled: boolean): void {
