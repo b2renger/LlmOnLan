@@ -1,5 +1,11 @@
 # LOL Chat Studio — vision and release decision
 
+> **Archived 2026-11-05.** The Studio's vision (2026-09-15). It replaced P3/P4's release core; S0 (R1–R5) and V1/V2/V8 were
+> built (the sandbox, projects on disk, the vendored libraries), released in v0.2.0 and used by the Computer and the IDE.
+> §4's "BUILD NOW" release did not happen as written: the map (S1) became the Computer (LOLCHAT_COMPUTER_SPEC.md, then COMPUTER_PLAN.md) and the vibecode bench (S2) the IDE ([IDE_PLAN.md](../../plans/IDE_PLAN.md)); ECOSYSTEM_PLAN.md (2026-09-27) is the direction since.
+> Never built: the designer bench (§3.4, D1–D5; only D5's SVG sanitiser exists, `renderer/chat/design/svg-sanitize.mjs`, for the Computer's Preview box), the board bench (§3.5, B1–B5) and the rest of the Preview bench (V3–V7).
+> Whether the designer and board benches are still wanted is asked in [docs/plans/README.md](../../plans/README.md).
+
 > Written 2026-09-15 by the pragmatic, after the owner read `LOLCHAT_PLAN.md` §P3/§P4 and said:
 > *"it feels like we are reinventing owui with a different stack… I was hoping for vibecoding with a
 > specific harness, we code in js and also make some esp32 stuff and arduino stuff, I was hoping for

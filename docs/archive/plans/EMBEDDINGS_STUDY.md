@@ -1,5 +1,11 @@
 # Embedding models for the client: is a Gemma model worth it? (2026-10-08)
 
+> **Archived 2026-11-05.** A dated study whose decision is built: document search on the farm with EmbeddingGemma 2
+> (`farm/src/embed.js`), released in farm-v0.0.44 + client v0.2.10 (2026-10-09). The rule now: CLAUDE.md, "Data locality".
+> Since then: round 1's "do nothing for now" (and its granite-97m / 300M advice) below is replaced by the decision; the
+> llama.cpp pin it waits for moved to b11512 (2026-10-08), then b11836 (2026-10-23).
+> Leftovers (a laptop fallback under the same contract, once an Open WebUI release can load EmbeddingGemma 2): [docs/plans/README.md](../../plans/README.md).
+
 The owner asked (2026-10-07): "I wonder if [Gemma] embeddings could be interesting for us." A workflow answered it on
 2026-10-08:
 - **Research:** the models as of October 2026, from primary sources.

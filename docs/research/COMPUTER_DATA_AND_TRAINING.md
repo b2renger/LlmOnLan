@@ -8,6 +8,11 @@
 > Grounding: [CLAUDE.md](../../CLAUDE.md), [COMPUTER_STATUS.md](../archive/COMPUTER_STATUS.md),
 > [COMPUTER_PLAN.md](../archive/plans/COMPUTER_PLAN.md) §0, §4 and §6, [farm/README.md](../../farm/README.md), and the parts in
 > `shell/renderer/chat/graph/parts/`. Web sources were checked on 2026-09-23 and are listed at the end.
+>
+> **Since:** Laya runs as the farm's Classify plugin (on the CPU, off by default; v0.2.0), and the Computer's Classify
+> box asks it. Data comes in through the Fetch and Open data boxes, and the Analyse a dataset template draws its table
+> and chart in code. Not built: the Data box, the table view, the chunker, the Label-then-count template and the
+> Watch-it-learn lesson.
 
 ---
 

@@ -1,5 +1,10 @@
 # The Computer — status on 27 Sept (merged into main)
 
+> **Archived 2026-11-05.** A dated report to the owner, 24 Sept to 12 Oct (newest first), not kept up to date; "LOL Chat"
+> is LOL Vibe's old name. What the Computer does now: CLAUDE.md (the Computer) and [LOLCHAT_COMPUTER_TUTORIAL.md](../LOLCHAT_COMPUTER_TUTORIAL.md).
+> Since then: Converse, called unmerged below, was released in v0.2.12; the resume banner (2026-09-28), the farm's speech to text with the Sound box's Listen (D-F12, v0.2.0), and lessons 5–14 with 12 templates are built, so most of "What is NOT there yet" is out of date; the boxes this report never covers (Fetch, Classify, Speak, Send, Receive, Trigger, Agent, Open data, Home, Home command) and the MCP server shipped in v0.2.0–v0.2.10.
+> Leftovers (a Section that carries its boxes, wires in the kind's colour, a Data/table box, D-F13's page cap and stop): [docs/plans/README.md](../plans/README.md).
+
 > Branch `lolchat/vnext`, merged into `main` on 27 Sept (`811451a`). Every phase of
 > [COMPUTER_PLAN.md](plans/COMPUTER_PLAN.md) through **K6**, plus **K7** (the debug log), the **S1–S3**
 > critic series, **Live previews and Edit code** ([COMPUTER_LIVE_PLAN.md](plans/COMPUTER_LIVE_PLAN.md)) and

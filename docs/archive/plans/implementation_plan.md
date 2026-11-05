@@ -1,5 +1,12 @@
 # Implementation Plan — LlmOnLan (LOL)
 
+> **Archived 2026-11-05.** The first plan: milestones M0–M5, shipped through v0.1.25 (2026-07-05), and a roadmap whose
+> batches shipped up to 2026-08-27. The current state is CLAUDE.md's build status and [DEVLOG.md](../../DEVLOG.md).
+> Since then: an uploaded file goes to the farm's OCR (on by default since 2026-07-05) and its text to the farm's
+> document search (owner, 2026-10-08), so "local embeddings" and "never switch embeddings to the farm" no longer hold; Open WebUI is touched through env and its user-settings API, never the admin API; speech to text runs on the farm when it offers it; Ollama's context is Automatic, not 65536.
+> Built differently: no baked-in address; a hand-rolled settings store and no update channel; the sidecar downloaded on first run, CI publishing with `--publish never` + `gh release upload`; clients pick the least-loaded farm (2026-07-01, `farmSelect.ts`) and LiteLLM routes least-busy, not simple-shuffle (2026-09-04); keyed farms built 2026-08-26; plugin switches kept since 2026-10-27.
+> Leftovers (several boxes behind one coordinator with a fleet password, ComfyQ media, the v1.1 backlog items not shown done): [docs/plans/README.md](../../plans/README.md).
+
 > Read `CLAUDE.md` first — the invariants (unmodified Open WebUI, local data, config via public
 > surface only, upgrade‑is‑a‑version‑bump), the farm CLI/config spec, the ComfyQ visual tokens, the
 > ComfyQ packaging recipe, and the UDP‑beacon discovery design all live there and constrain every

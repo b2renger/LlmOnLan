@@ -1,13 +1,15 @@
 # Rig / real-hardware verification checklist
 
+> **Archived 2026-11-05.** [HUMAN_TESTS.md](../../HUMAN_TESTS.md) replaced it on 2026-10-09: the arrows below name its
+> tests, and its ticked lines are copied word for word into HUMAN_TESTS Part 4, with their dates.
+
 What's been verified **single-machine on the dev box** vs. what still needs a **real two-machine LAN,
 real installers, and the actual target OSes**. Everything below the line in each section is the residual
 risk; the build itself is implemented (see [DEVLOG.md](../../DEVLOG.md)).
 
 > **2026-10-09:** the open items now live in [HUMAN_TESTS.md](../../HUMAN_TESTS.md) (the arrow names the test there); this file keeps the
-> verified ones. Two ticked lines below are history: the pin is Open WebUI **0.11.4** now, and since document search
-> (2026-10-08) a farm with it turns document text into vectors (nothing kept), so "zero `/v1/embeddings`" holds only
-> for a data folder still on MiniLM. The old open items' full text: `git show 3b8c0c1:docs/archive/testing/RIG_CHECKLIST.md`.
+> verified ones. One ticked line below is history: since document search (2026-10-08) a farm with it turns
+> document text into vectors (nothing kept), so "zero `/v1/embeddings`" holds only for a data folder still on MiniLM. The old open items' full text: `git show 3b8c0c1:docs/archive/testing/RIG_CHECKLIST.md`.
 
 ## Discovery (two machines, real Wi-Fi)
 - [x] Beacon sent by the farm + received by a listener on the same host (UDP loopback/broadcast).
@@ -32,7 +34,7 @@ risk; the build itself is implemented (see [DEVLOG.md](../../DEVLOG.md)).
 
 ## Open WebUI integration (re-verify per pin — see INTEGRATION_BRIEF §7)
 - [x] OWUI boots with the privacy env; `/health` true; **local** MiniLM embeddings load in-process.
-      *(Verified at 0.10.1; the current pin is **0.10.2** — re-verify pin-sensitive checks per the section rule.)*
+      *(Verified at 0.10.1; the pin is 0.11.4 since 2026-09-27; re-verify pin-sensitive checks at each bump.)*
 - [x] All user data (webui.db, `vector_db/chroma.sqlite3`, uploads) lands under the local `DATA_DIR`.
 - [x] Auto-admin under `WEBUI_AUTH=false`; `get_all_models()` runs against the farm endpoint.
 - [x] **A full chat through the OWUI UI** end-to-end (Playwright drove a real chat → streamed gemma4
@@ -97,7 +99,7 @@ dev Electron boot to the welcome screen on the dev box.
 
 ## Admin panel + plugins + presence (shipped 2026-07-03→05; needs a two-machine pass)
 - → **D9** (start/stop of a model verified live 2026-07-04; the panel changed since).
-- → **D9** (now also Classify, Speech to text, Document search; a switch lasts until the farm restarts).
+- → **D9** (now also Classify, Speech to text, Document search; a switch is kept across a restart since farm-v0.0.50).
 - → **N1** (real PDFs read since 2026-07-05; the `.extract` bootstrap on a fresh box is left).
 - → **D9**.
 - → **D11** (pending since 2026-07-04).

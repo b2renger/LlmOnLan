@@ -1,5 +1,11 @@
 # Night report: 24 Sept 20:00 → 25 Sept 08:40
 
+> **Archived 2026-11-05.** The report of one night's work on the Computer (branch `lolchat/vnext`): the debug log (K7),
+> the owner's eight bugs, a critic loop to HAPPY and the perf pass, released with the rest of the Computer in v0.2.0. A
+> dated record, not kept up to date: [DEVLOG.md](../../DEVLOG.md) has the same night. Since then: the run bar's message
+> after a run refused in a hidden window ("found this morning, not fixed" below) is fixed, `runOutcomeHidden`. Nothing
+> is left: the rig checklist it points to moved into [HUMAN_TESTS.md](../../HUMAN_TESTS.md).
+
 The Computer, on branch `lolchat/vnext`. Everything below is committed and pushed. This report says
 what was actually done and how each claim was checked, and it names what was not done.
 

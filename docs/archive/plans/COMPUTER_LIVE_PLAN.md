@@ -1,5 +1,10 @@
 # The Computer: live, interactive previews and hand-editing (plan, 2026-09-25)
 
+> **Archived 2026-11-05.** Built in full on 2026-09-25 (12cf37f; [DEVLOG](../../DEVLOG.md) 2026-09-25 18:03) and released
+> in v0.2.0: ▶ Live, `lol.orbit`, Edit code. "What is true today" below is the state before the build; its K-7 to K-9
+> contracts are still the ones the code cites. How to use it now: [LOLCHAT_COMPUTER_TUTORIAL.md](../../LOLCHAT_COMPUTER_TUTORIAL.md);
+> the check by hand: [HUMAN_TESTS.md](../../HUMAN_TESTS.md) A13. Nothing is left.
+
 > *"In the threejs, p5js and svg examples it would be cool to be able to edit the code by hand and
 > then rerun to see the changes. I also noticed that the key events, or mouse events are not passed
 > on the canvas, for instance in the threejs it would be cool to have a camera control and be sure it

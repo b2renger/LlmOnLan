@@ -53,7 +53,7 @@ That's it — the farm is now serving an OpenAI‑compatible endpoint and broadc
 the desktop clients auto‑discover it. To change which models are served, open the admin panel
 (`http://<box>:41997/lol/admin`, token in the `lol up` banner): see
 [Adding or changing models](#adding-or-changing-models). Editing `models` in
-[`lol.config.json`](lol.config.example.json) (or `lol models add <id>` then `lol up --no-pick`) also works, over SSH.
+[`lol.config.json`](#config--lolconfigjson) (or `lol models add <id>` then `lol up --no-pick`) also works, over SSH.
 
 > Prefer to drive the CLI directly? `node bin/lol.js install` then `node bin/lol.js up` do the same
 > (and `npm link` puts `lol` on your PATH so it's just `lol install` / `lol up`).
@@ -96,10 +96,10 @@ npm link        # then just `lol <cmd>` anywhere
 
 | Command | Does |
 |---|---|
-| `lol install` / `setup` | One‑time bootstrap: install Ollama + LiteLLM, pull every `models` + `preinstall` entry, set up shared web search (SearXNG) + document OCR (both on by default), and — only when `llamacpp.enabled` — fetch the llama.cpp build + weights. Idempotent. |
+| `lol install` / `setup` | One‑time bootstrap: install Ollama + LiteLLM, pull every `models` + `preinstall` entry, set up shared web search (SearXNG) + document OCR (both on by default), document search when it is on (the llama.cpp build + EmbeddingGemma 2, ~0.6 GB), and — only when `llamacpp.enabled` — fetch the llama.cpp engine's build + weights. Idempotent. |
 | `lol init [--force]` | Scaffold a `lol.config.json` in the current directory. |
 | `lol up` / `lol serve` | Ensure Ollama, **pick the Ollama model(s) to serve** (interactive, from what's installed; Enter = default), pull anything missing, start `llama-server` if enabled (fetching build + weights on first run), generate + run the LiteLLM proxy behind the seat gate, start SearXNG + OCR (if enabled) + the beacon + the admin panel, then (vLLM) start or keep vLLM as a job. Foreground; Ctrl‑C stops (vLLM too). |
-| `lol down` | Stop the proxy + `llama-server` + SearXNG + TTS + OCR + beacon (and any Ollama this CLI started), and the vLLM the farm runs (from the runtime file, or the config when that file is gone). |
+| `lol down` | Stop the proxy + `llama-server` + every plugin (SearXNG, TTS, OCR, Classify, speech to text, the message bus, document search) + beacon (and any Ollama this CLI started), and the vLLM the farm runs (from the runtime file, or the config when that file is gone). |
 | `lol status` | Health of each Ollama host + the proxy + which models are loaded. Works from any shell. It does not report vLLM or llama.cpp: the panel does (its Serving card, and each engine's section). |
 | `lol fleet` | Every farm on the LAN (this box + peers): health, GPU load, VRAM, loaded models, roles, search URL. |
 | `lol bench` | Load‑test before a workshop: N concurrent chats → first‑token latency (p50/p95) + tokens/s, and how many the seat gate turned away. `--users N --rounds R --model id --url … --people --cancel F --out file.json` (see [Multiple users & capacity](#multiple-users--capacity)). |
@@ -122,12 +122,12 @@ Knowing which one is serving is the thing to understand before changing models o
 
 | Computer | Ollama | llama.cpp | vLLM |
 |---|---|---|---|
-| Windows x64 + NVIDIA (Farm app) | yes | yes, downloaded by the farm | inside WSL2, on a card of about 35 GB or more (25 GB with document reading off, but the panel's Plugins switch lasts only until the farm restarts): an RTX PRO 6000 or PRO 5000, not an RTX 4070, 4080 or 4090 |
+| Windows x64 + NVIDIA (Farm app) | yes | yes, downloaded by the farm | inside WSL2, on a card of about 27 GB or more as the farm ships (18 GB with document reading off, 16 GB with document search off too; [the size rule](#vllm-run-by-the-farm)): an RTX PRO 6000 or PRO 5000, or a 32 GB card; a 4090 only with document reading off, a 4080 only with both off, never a 4070 |
 | DGX Spark, Linux arm64 (Farm app) | yes | yes, this repository's build | yes: 8 people at 64k on Qwen3.6 |
 | Linux x64 + NVIDIA (this CLI only, no Farm app) | yes | only with a llama-server you build (`llamacpp.binDir`) | yes, with the same size rule |
 | macOS, Apple Silicon (Farm app) | yes | no ready-made build (`llamacpp.binDir`) | no |
 
-The panel says the same on each engine's button, in plain words.
+The panel says the same on each engine's section line, in plain words.
 
 | | **llama.cpp** (`llama-server`) | **Ollama** |
 |---|---|---|
@@ -154,8 +154,9 @@ an unnamed Ollama default the failed engine's alias **for that run only** (never
 
 **A reachable Ollama is required even when llama.cpp, vLLM or an external server serves.** `lol up` exits
 with *"No reachable Ollama host"* if none answers: Ollama is the fallback engine, and document OCR
-drives its vision model there. With another engine serving, a farm-started Ollama keeps models warm
-for only 5 minutes, and **pressure eviction** unloads Ollama models when VRAM is ≥ 92 % full and the
+drives its vision model there. With another engine serving, an Ollama the farm started with that engine
+already chosen keeps models warm for only 5 minutes (one started while Ollama served keeps its own setting
+until the farm restarts), and **pressure eviction** unloads Ollama models when VRAM is ≥ 92 % full and the
 GPU ≤ 20 % busy (never mid-extraction) — the farm log says so, and on llama.cpp or vLLM (the farm's own, or an external one)
 so does the panel's Performance, in the serving engine's section.
 
@@ -217,8 +218,8 @@ it, watches it and stops it, and the operator does all of it from the panel. The
 (`serve.sh`, `stop.sh`, `install.sh`, `status.sh`); it does not re-implement them.
 
 **Where it runs:** Windows x64 inside WSL2 (Ubuntu), and Linux x86_64 or arm64 (the DGX Spark), with an NVIDIA GPU
-and its driver (on Windows, the Windows driver serves WSL too). Not on a Mac. The panel's **vLLM** button checks
-this computer and says what is missing, in plain words:
+and its driver (on Windows, the Windows driver serves WSL too). Not on a Mac. Opening the panel's **vLLM** section
+checks this computer and says what is missing, in plain words:
 - **WSL** is installed by an administrator, once: `wsl --install -d Ubuntu` in an administrator PowerShell, a
   restart, then Ubuntu opened once from the Start menu to choose a user name. The panel says exactly that; it has
   no button that asks for administrator rights (the owner's question (d), 2026-10-07).
@@ -230,9 +231,14 @@ this computer and says what is missing, in plain words:
   space back.
 - A card no model of the list fits is refused, with llama.cpp or Ollama named as its engine: the smallest model's
   weights, ~4 GB of vLLM's own, 8 % of the card, 1 GB for conversations, and the 9 GB kept for document reading
-  while that is on (`vllm.ocrReserveGib`) and document search's 1.5 GB while it is on must fit an empty card:
-  about 35 GB with document reading, 25 GB without (about 1.6 GB more with document search). So the studio's RTX 4070 (12 GB), 4080 (16 GB) and a 4090 (24 GB) never get an Install or a start;
-  a 32 GB card fits only with document reading off, and the panel says so. On Windows the size Windows itself
+  while that is on (`vllm.ocrReserveGib`) and document search's 1.5 GB while it is on must fit an empty card. With
+  Gemma 4 12B, the list's smallest, that is about 27 GB as the farm ships (document reading on, and document search,
+  which turns itself on with an NVIDIA GPU where there is a ready-made llama.cpp for this computer), 18 GB with
+  document reading off, 16 GB with document search off too, and 2 GB more with speech to text on the GPU (the vLLM
+  section's line rounds up). So an RTX 4070 (12 GB) never gets an Install or a
+  start; a 4090 (24 GB) only with document reading off, and the panel says so; a 4080 (16 GB) only with document
+  reading and document search off; a 32 GB card fits with both on. With document reading on, only Gemma 4 12B fits
+  below about 36 GB (the next smallest, Nemotron, needs that much). On Windows the size Windows itself
   sees comes first, before anything about WSL, and so does a PC with no NVIDIA GPU at all. A card older than
   compute capability 12.0 (Blackwell) gets a warning: the list's NVFP4 checkpoints were measured on Blackwell only.
 
@@ -299,7 +305,7 @@ clients use).
 `hf`), **Use this** serves it (vLLM restarts
 with it), **Remove** takes it off the list and, asked again, deletes its files. **Add a model** takes a Hugging
 Face name or link (`owner/name`) and gives it its family's flags (Qwen3-Omni, Qwen3.5/3.6, Qwen3.8, Nemotron, Gemma 4,
-other Qwen3); a model of the list removed earlier, added back by its name, is its own entry again;
+Flint, other Qwen3); a model of the list removed earlier, added back by its name, is its own entry again;
 a model of no known family gets prefix caching only, and the panel says tools and thinking may not show. Folders
 already in `<root>/hf` show as "Also on this computer", with **Add to the list**.
 
@@ -553,11 +559,11 @@ sent) were replayed straight to vLLM, 2 to 8 times each, with a 32,768-token lim
 
 ## External: a vLLM you run yourself
 
-**For a developer, not an operator.** To serve vLLM on this computer, an operator presses the panel's **vLLM**
-button ([vLLM, run by the farm](#vllm-run-by-the-farm)): it installs, starts, sizes and stops vLLM, with no file
+**For a developer, not an operator.** To serve vLLM on this computer, an operator uses the panel's **vLLM**
+section ([vLLM, run by the farm](#vllm-run-by-the-farm)): it installs, starts, sizes and stops vLLM, with no file
 to edit and no script to run. The farm can also route to an OpenAI-compatible server it does not run: SGLang,
 TensorRT-LLM, a server on another machine, or a vLLM started by hand from `farm/vllm`. That is the [`external`](#config--lolconfigjson) engine,
-which a developer sets up in `lol.config.json`; the panel shows its button only while the file holds one, and
+which a developer sets up in `lol.config.json`; the panel shows its section only while the file holds one, and
 never offers it otherwise. The farm routes to it and reads a vLLM's `/metrics`, but never installs, starts, stops
 or configures it. Until 2026-10-07 this recipe was the only way to serve vLLM (the studio's PRO 6000 ran on it). A
 vLLM on this computer started this way is offered to the farm on the panel
@@ -694,13 +700,14 @@ folder. vLLM's own log is still `~/lol-vllm/logs/vllm.log`.
 Checked on 2026-10-07 with a stand-in for vLLM (no GPU) on a spare port: the Farm app started only once the
 server answered; the distro and the server were still up 60 s after the script exited, with no other `wsl.exe`;
 `stop.sh` ended the script's `wsl.exe` and the distro stopped 10 s later; a 12 s timeout and a `serve.sh` that
-stopped at once both still started the Farm app. The task runs on the PRO 6000 since 2026-10-07
-([docs/archive/PRO6000_VLLM_SWITCH.md](../docs/archive/PRO6000_VLLM_SWITCH.md)); after the farm takes that vLLM over, it only opens
-the Farm app.
+stopped at once both still started the Farm app. The task ran on the PRO 6000 from 2026-10-07 until the clean-state
+run of 2026-10-08 removed it: the farm runs vLLM there now
+([docs/archive/PRO6000_VLLM_SWITCH.md](../docs/archive/PRO6000_VLLM_SWITCH.md)). On a box the farm takes over, the task
+only opens the Farm app.
 
 ### On Linux (DGX Spark)
 
-This is the operator-run recipe. With the Farm app, a Spark's operator presses the panel's **vLLM** button
+This is the operator-run recipe. With the Farm app, a Spark's operator uses the panel's **vLLM** section
 instead ([vLLM, run by the farm](#vllm-run-by-the-farm)): the farm installs vLLM, sets the memory guard and the
 4 compile jobs itself, and needs no unit, flag or file. The same scripts run vLLM natively on Linux. On the DGX Spark (GB10, 128 GB of memory shared by the CPU and the
 GPU), the spike measured vLLM serving **8 people at once on Qwen3.6-35B-A3B, at 32k or 64k of context each, or 16
@@ -983,9 +990,13 @@ lol up --no-pick                     # serve EVERYTHING in `models` (see the war
 > **⚠ `lol up`'s picker (OLLAMA engine only — no prompt while llama.cpp serves) REPLACES the catalog for that run.** On a terminal, plain `lol up` prompts, and
 > pressing Enter serves **only the default model** — silently dropping the model you just added. Use
 > `lol up --no-pick` (alias `--yes` / `-y`) to serve the configured `models`, or answer the prompt with
-> every number you want (e.g. `1,3`). Whatever you pick at the prompt is **ephemeral**; it is not written
-> back to `lol.config.json`. (If the configured default isn't installed on the box, Enter falls back to
-> the first installed model.)
+> every number you want (e.g. `1,3`). Whatever you pick at the prompt (or with `--model`) is not written
+> back to `lol.config.json` at once, **but the first panel change to the Ollama catalog in that run writes
+> the picked list over the file's**: Offer, Stop, Make default, Rename, a download or a delete, and an
+> engine switch that moves the default's name. The models you did not pick then leave the file, and the
+> picked ones lose their `source`, `params` and `draft`. On a farm you change from the panel, start with
+> `lol up --no-pick` (the Farm app always does). (If the configured default isn't installed on the box,
+> Enter falls back to the first installed model.)
 
 Or edit `models` directly, giving each a stable role name:
 
@@ -1030,9 +1041,9 @@ to 15 min after.
 
 **Under an external server** its name, people at once and context are refused (*"This farm routes to a server it
 does not run, so its model, context and people at once are that server's own. To change them here, switch to
-Ollama, llama.cpp or vLLM."*), because that server's model, window and concurrency are its own. The engine
-buttons still work: Ollama, llama.cpp or vLLM then serves, and the External server button stays while the file
-holds its block. The farm password still applies. The
+Ollama, llama.cpp or vLLM."*), because that server's model, window and concurrency are its own. The other
+sections' **Serve with …** still work: Ollama, llama.cpp or vLLM then serves, and the External server section stays
+while the file holds its block. The farm password still applies. The
 Ollama catalog is standby, exactly as under llama.cpp.
 
 Only **one** long operation runs at a time — a download, a backend switch, a reload. Everything else is
@@ -1048,7 +1059,7 @@ can run:
 
 | Preset | Picked for (the capacity page's card) | Engine and model | Context each | Plugins on |
 |---|---|---|---|---|
-| **Balanced** (the default) | a class chatting, 30 | the serving engine's own defaults (vLLM: Qwen3.6 at 64k; Ollama: `gemma4:12b`) | 64k on vLLM, else Automatic | web search, document reading |
+| **Balanced** (the default) | a class chatting, 30 | the farm as it ships: vLLM's shipped model (Qwen3.6 at 64k; the card's best vLLM model if the list lacks it) where vLLM is set up on a GPU the capacity page knows, else Ollama's default (`gemma4:12b`); a farm serving llama.cpp switches to Ollama | 64k on vLLM, else Automatic | web search, document reading |
 | **Documents** | documents (RAG), 5 | the most people, among models good enough for documents (25/28 or more on every run of the spike's quality check); a lead under 10 % is a tie the better model wins | 64k (Open WebUI reads whole documents from 24k) | web search, document reading |
 | **LOL Vibe** | vibe-coding, 10 | the most people, among models proven with the IDE's coding agent | 64k | web search (document reading off: its 9 GB go to vLLM) |
 | **Computer** | a Computer workshop, 20 | the most people, among models that see pictures and do tools well | 32k | all: web search, document reading, voice, Classify, speech to text, the message bus |
@@ -1146,9 +1157,10 @@ against the whole pool, as before.
 **The Ollama engine sizes automatically too** (`ollama.contextLength: "auto"`, the default): GGUF
 math is unreliable for its zoo of architectures (Gemma's sliding-window layers make the naive KV
 estimate several times too high), so the farm **measures instead** — it loads the default model at 16k
-and 32k, derives the per-token cost from `/api/ps`, aims at min(native max, VRAM − 8%) and verifies with
-one more load (one halving, then 16k, if it spills). The verdict is **cached** per (model, VRAM,
-numParallel, kvCacheType), so the loads are paid once per box, not per boot. If even 16k spills it walks
+and 32k, derives the per-token cost from `/api/ps`, aims at min(native max, VRAM − max(1 GB, 8%)) and
+verifies with one more load (one halving, then 16k, if it spills). The verdict is **cached** per (model, VRAM,
+numParallel, kvCacheType, and document search or speech to text on the GPU running beside it), so the loads
+are paid once per box, not per boot. If even 16k spills it walks
 down to 8192/4096. Verified: gemma4:12b on a 96 GB box probes straight to its native **262144** (fully
 in VRAM — that sliding window makes its KV tiny). The probe doubles as the warm-up. `Automatic` in the
 panel's context selector works on both engines.
@@ -1269,8 +1281,8 @@ network.
 
 ## Message bus
 
-Off by default. `"bus": { "enabled": true }` in `lol.config.json` (or the panel's plugin toggle, for the
-session) makes the farm the meeting point for microcontrollers and Computers on the LAN: **one in-memory
+Off by default. `"bus": { "enabled": true }` in `lol.config.json` (or the panel's Plugins switch, kept for the
+next start) makes the farm the meeting point for microcontrollers and Computers on the LAN: **one in-memory
 topic space behind three doors**, so an ESP32 on MQTT, a browser page on WebSocket and TouchDesigner on OSC
 see the same messages. Node's standard library only (`src/bus.js`, run as its own process so a flood never
 reaches the seat gate), nothing to install. It binds to `proxy.host` like the other plugins, starts once
@@ -1291,8 +1303,7 @@ its items, an object → its JSON text. Every door delivers to every matching su
 
 **Auth** follows the farm password: MQTT wants username `lol` + the password (CONNACK 5 otherwise), the
 WebSocket wants `?key=<password>` on its URL (401 otherwise), `/lol/listen` wants it as its second argument
-(ignored otherwise). A new password reaches the bus within one health tick (~10 s) and ends every session
-made with the old one. On a keyed farm, OSC *writes* stay open — ordinary OSC tools cannot log in — but only
+(ignored otherwise). A new password reaches the bus at once and ends every session made with the old one. On a keyed farm, OSC *writes* stay open — ordinary OSC tools cannot log in — but only
 under `osc/…`; reading anything needs the password. An open farm asks for nothing.
 
 **Limits.** 256 connections per door, 64 KB per MQTT packet or WebSocket message, 200 messages/s per
@@ -1322,7 +1333,8 @@ An ESP32 that publishes a light reading and takes its LED from the bus:
 ## Admin HTTP API
 
 The panel is a thin page over these routes on `beacon.httpPort` (41997), bound to `proxy.host`. Every
-`/lol/admin/*` route needs `Authorization: Bearer <admin token>`; the rest are open. Routes that reload a
+`/lol/admin/*` route needs `Authorization: Bearer <admin token>`; the rest are open, except `/lol/plugin-keys` (the
+farm password). Routes that reload a
 model return at once with a job, whose progress rides `GET /lol/admin/state` (one job at a time — others
 get *"the farm is busy"*).
 
@@ -1330,6 +1342,7 @@ get *"the farm is busy"*).
 |---|---|
 | `GET /lol/self` | The discovery snapshot (open, CORS `*`), plus `capacity.mine` for the caller. Its shape, and who reads each field: [`contract/snapshot.schema.json`](contract/snapshot.schema.json). |
 | `POST /lol/client-ping` | Client presence heartbeat (open). |
+| `GET /lol/plugin-keys` | On a farm with a password: the OCR, document search, Classify and speech-to-text keys (`Authorization: Bearer <farm password>`; 401 otherwise, 404 on an open farm, whose keys are in `/lol/self`). |
 | `GET /lol/admin` | The panel page (open — it asks for the token). |
 | `GET /lol/capacity` | The capacity explorer (open, read-only): usage scenarios and a models × hardware table, this box marked from `/lol/self`. Its scripts and data are `/lol/capacity/{estimator.js,scenarios.js,catalog.json,measured.json}` (`src/capacity/`); it asks nothing off the farm. How to rebuild: [docs/spike/explorer](../docs/spike/explorer/README.md). |
 | `GET /lol/admin/state` | Everything the panel renders. |
@@ -1406,7 +1419,7 @@ nothing. Shape:
                                                //   applies to an Ollama the farm starts
               "keepAlive": "-1",               // keep models warm in VRAM (no reload after idle)
               "contextLength": "auto" },       // num_ctx for OLLAMA models. DEFAULT "auto": probed per
-                                               //   box (largest that stays in VRAM, 4096 if even 16k spills) — a number pins it
+                                               //   box (largest that stays in VRAM; 8192, then 4096, if even 16k spills) — a number pins it
   "litellm": { "command": "litellm", "extraArgs": [], "provider": "ollama_chat" },
   "websearch": { "enabled": true, "port": 8888 },   // shared SearXNG → clients get web search
   "tts": { "enabled": false, "port": 8880,            // shared Kokoro voice (off by default — multi-GB install)
@@ -1448,7 +1461,8 @@ computer, used where it is); `llamacpp.model` and `mmproj` take either.
 
 **`llamacpp.library`** is the list of `.gguf`s the panel offers under *Use this*, so an operator can
 switch weights without hunting for URLs. Each entry is
-`{ id, label, url, mmproj, sizeGb, mtp, note }` — only `id`, `label` and `url` are required. `mtp` marks
+`{ id, label, url | path, mmproj, sizeGb, mtp, note }` — `id`, `label` and a `url` (downloaded) or a `path`
+(a `.gguf` already on this computer, used where it is) are required. `mtp` marks
 a quant that still carries its MTP head; it defaults to `false`, the safe direction, because the farm
 reads it to decide whether it must turn speculative decoding **off** when you switch onto that model.
 The list is only a menu: `llamacpp.model` is what is actually served, and adding an entry downloads
@@ -1508,8 +1522,8 @@ build for Blackwell cards (16 GB+); replace it freely.
   `classify: {url, key}` (the same LAN trust as the OCR key), one forward pass at a time, one request in
   flight per client, then 429 + `Retry-After`; `choice` questions only (2–20 options); no request body is
   ever logged. Measured on the dev box's CPU: 13.7 s cold, then ~0.2 s per item. It shares the CPU with
-  everything else, so run `lol bench` with it busy before turning it on for a class. The panel's plugin
-  toggles list it (a toggle lasts the session; `classify.enabled` in the config makes it permanent).
+  everything else, so run `lol bench` with it busy before turning it on for a class. The panel's Plugins
+  switches list it (a switch is kept for the next start, as `classify.enabled`).
   `rm -rf farm/.classify` uninstalls it.
 - **Speech to text (OFF by default, 2026-09-27; on the GPU and for Open WebUI since 2026-10-09):** for the
   Computer's Sound box in **Listen** mode, and for **Open WebUI's microphone and Call (voice) mode** on every laptop:
@@ -1542,7 +1556,7 @@ build for Blackwell cards (16 GB+); replace it freely.
   back and are kept on the laptop, in its data folder. **The farm keeps nothing:** no text, no vector, and its log
   holds token counts only (llama-server's default log level; the farm's log also drops its three lines per text).
   `"embed": { "enabled": "auto", "port": 8894 }` — `"auto"` = on when this computer has an NVIDIA GPU and llama.cpp
-  can run here, else off; `true`/`false` decide for good, and the panel's plugin toggle decides for this run.
+  can run here, else off; `true`/`false` decide for good, and the panel's Plugins switch writes one of them.
   - **One model per LOL release**, in the code (`src/embed.js`): **EmbeddingGemma 2**, ggml-org's BF16 conversion of
     google/embeddinggemma-2 (Apache 2.0, no login), pinned by revision and sha256; 768 numbers per text; Google's
     search prefixes (`task: search result | query: ` for a search, `title: none | text: ` for a document). The farm
@@ -1662,7 +1676,7 @@ build for Blackwell cards (16 GB+); replace it freely.
   reason in the panel; dying later → the farm goes unhealthy so clients fail over, exactly like a dead
   llama-server. `contextLength`/`parallel` are declarations, not measurements (no portable endpoint
   reports them), and they size the client's whole-document gate and the seat count — so get them right.
-  The panel shows an **External server** button only while the file holds this block (a developer wrote it),
+  The panel shows an **External server** section only while the file holds this block (a developer wrote it),
   and switching away from it works from the panel; it never offers it otherwise. The tested vLLM recipe is
   [External: a vLLM you run yourself](#external-a-vllm-you-run-yourself); a vLLM on this computer started that
   way is offered to the farm to run ([vLLM, run by the farm](#vllm-run-by-the-farm), "Taking over").
@@ -1690,10 +1704,13 @@ build for Blackwell cards (16 GB+); replace it freely.
   rules are in that section) or a number; `ocrReserveGib` (9) is kept for document reading when OCR is on, and
   `marginPct` (8) of the card stays free. `version` is the vLLM `install.sh` installs. `extraArgs` go last on
   `vllm serve` (a take-over keeps there the flags a server ran with that the list's entry does not give). Each
-  `library` entry is `{ id, label, repo, folder, sizeGb, weightsGib, vision, audio, presencePenalty, args, catalog,
-  measured, note }` (`audio`: it hears sound in a chat message, said in the snapshot's `backend.audio`): `id` (lowercase) is vLLM's `--served-model-name`, `folder` its folder in `<root>/hf`
-  (default: the repo's name), `args` its own `vllm serve` flags, `catalog`/`measured` its entries in
-  `src/capacity/` (memory per person, people measured). A farm-v0.0.42 or older refuses a file with this block.
+  `library` entry is `{ id, label, repo, folder, path, gguf, configRepo, openThink, minVllm, sizeGb, weightsGib, vision,
+  audio, alwaysThinks, presencePenalty, args, catalog, measured, note }` (`audio`: it hears sound in a chat message, said in the snapshot's `backend.audio`): `id` (lowercase) is vLLM's `--served-model-name`, `folder` its folder in `<root>/hf`
+  (default: the repo's name), `path` a model folder anywhere in vLLM's Linux, used where it is (never downloaded into
+  or deleted), `gguf` + `configRepo` one GGUF file that takes its config and tokenizer from another repo (Flint),
+  `openThink` a copy of its template whose answer opens a think block (`install.sh` writes it), `minVllm` the oldest
+  vLLM that loads it, `alwaysThinks` its template has no thinking switch (the route drops the client's), `args` its
+  own `vllm serve` flags, `catalog`/`measured` its entries in `src/capacity/` (memory per person, people measured). A farm-v0.0.42 or older refuses a file with this block.
 - **`proxy.seatGate`** (default `true`) — the public `proxy.port` is the farm's own listener and
   LiteLLM binds loopback-only behind it (`proxy.internalPort`, default port+1), so the farm can
   ENFORCE who generates: an IP's first completion claims a **seat** (capacity = the engine's

@@ -49,7 +49,7 @@ qwen3.8 read before it edited, made targeted `edit`s, re-read and grepped its ow
 complete, and recovered from a failed edit (re-read, retried). Whether it opens a goal varies (a job that fits one
 turn is simply done in one turn). The Send box stayed a dry run: no MCP tool arms the outputs.
 
-## What the product needs (none of it built yet)
+## What the product needed (items 1–5 all built by v0.2.6, 2026-09-30)
 1. **DONE (`392ea34`, v0.2.5) — compaction on small windows, a fix for the IDE as shipped**, loops or not: with a 32k window (also the IDE's
    fallback when a farm advertises none) dsh's compaction budget is negative and it never compacts; a long project
    conversation then dies on max-tokens. `- id: compaction-basic / config: { headroomTokens: 4096, maxTokens: 4096 }`

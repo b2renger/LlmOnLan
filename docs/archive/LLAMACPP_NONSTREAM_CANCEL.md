@@ -1,5 +1,9 @@
 # llama.cpp: a non-streaming request is not cancelled while another slot streams
 
+> **Archived 2026-11-05.** An upstream report drafted for the owner (2026-10-05). It was fixed upstream (#29707, first
+> shipped in b11769), and the farm pins b11836 since farm-v0.0.49 (2026-10-23), where all 8 paths of
+> `farm/test/litellm-cancel.js` stop. Nothing is left to post or build.
+
 > **Fixed upstream (2026-10-23).** PR #29707 was merged on 2026-10-20 and first shipped in b11769. On the farm's new
 > pin b11836, `farm/test/litellm-cancel.js` with Qwen3.8 UD-IQ2_S passes all 8 paths: the non-streaming call beside a
 > stream gets `cancel task` and is released 945 ms after its client left (b11512: 19.6 s, 2071 tokens). Nothing is

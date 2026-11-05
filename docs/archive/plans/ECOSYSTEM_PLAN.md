@@ -1,5 +1,11 @@
 # LlmOnLan ecosystem plan
 
+> **Archived 2026-11-05.** The ecosystem plan (2026-09-27, v2): P0–P6 are built and released in v0.2.0 to v0.2.10, so the
+> "Built (local `main`, not released)" below is the state of that evening. The Computer now: CLAUDE.md (the Computer) and [LOLCHAT_COMPUTER_TUTORIAL.md](../../LOLCHAT_COMPUTER_TUTORIAL.md); the IDE: [IDE_PLAN.md](../../plans/IDE_PLAN.md).
+> Since then: the Home and Home command boxes, lessons 13–14 and three templates (2026-10-09, v0.2.10; §5's P6 row says not built); agent pages, IDE_PLAN §5 A (2026-09-30, v0.2.6); d3 7.9.0 vendored whole with matter.js kept (Q7, answered 2026-09-27); plugin keys tied to the farm password (Q8, 2026-09-27); LOL Chat renamed LOL Vibe (2026-09-27).
+> As built, P3b followed §8d: the farm hosts the message bus (`farm/src/bus.js`), the Trigger listens to a bus topic or a schedule, `perHour` caps runs, not generations, and there is no `inputs.ts`. Panic disarms and sends one blackout frame to each DMX universe a graph lit; it does not keep sending.
+> Leftovers (agent-skills, Home Assistant's WebSocket push, a table view, the Art-Net interface choice on a laptop with several network cards; IDE_PLAN §5 B and C stay in IDE_PLAN): [docs/plans/README.md](../../plans/README.md).
+
 > **Status: v2 (2026-09-27, 19:00). v1 went through one critic loop (§9).** The plan was written from the
 > owner's vision of 2026-09-27.
 > **Built (local `main`, not released):** P1a, P1b, P1c (OWUI 0.11.4), P2 (Listen + Speak), P3a (the Send box

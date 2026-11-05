@@ -1,5 +1,8 @@
 # LOL Chat vNext + the Computer — how to try it
 
+> **Archived 2026-11-05.** HUMAN_TESTS.md replaced it on 2026-10-09 (§4's five items are there); §1's dev-run warnings,
+> still true, now live in [shell/test/chat/README.md](../../../shell/test/chat/README.md) §0.
+
 > For the owner, 2026-09-16. Everything below is on branch **`lolchat/vnext`**, built over phases
 > P0–P2 (the chat) and S0 + C1–C3 (the workbench and the Computer). The build stops here on purpose:
 > the vibecode bench (S2) and the design/board benches (S3) are planned but **not built**.

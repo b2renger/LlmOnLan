@@ -1,5 +1,10 @@
 # The Computer, standalone: build plan
 
+> **Archived 2026-11-05.** The Computer's build plan (2026-09-22). K1–K7 were built 2026-09-22 to 09-24 and released in
+> v0.2.0 (2026-09-27); Live and Edit code came from COMPUTER_LIVE_PLAN.md. What the Computer does now: CLAUDE.md (the Computer) and [LOLCHAT_COMPUTER_TUTORIAL.md](../../LOLCHAT_COMPUTER_TUTORIAL.md).
+> Since then, so the "As built" notes below are stale: the resume banner (§7.5, 2026-09-28), a ? example on every box instead of §8.5's card (v0.2.0) and the loop notice's button (it opens lesson 6, this plan's lesson 10) are built; lessons 5–14 shipped (lesson 8 is §10.3's 5, the rest teach other things). ECOSYSTEM_PLAN.md (2026-09-27) and the owner's later asks overrode §0.2 and §12: Fetch, Open data, Take a picture, Speak, Converse, Send/Receive, the Home boxes and the MCP server exist, each through one door (main's for Fetch, Open data, Send and the home); §12 still holds for image, audio and video generation (ComfyQ prompts only, v0.2.15) and the Range, Switch, 3D Model and Data parts.
+> Still not built: §8.4's lesson links on the other errors; §10.3's lessons 7, 8, 9, 11 and 12 (its 6 only as lesson 4's sandbox sentence); seven of §10.5's eight templates and Explain this graph; §9's wires in the kind's colour; a Section that carries its parts. Leftovers: [docs/plans/README.md](../../plans/README.md).
+
 > Status: **executable plan, revision 2** (critic's pass applied — see §15 Revision notes).
 > Date: 2026-09-22. Branch: `lolchat/vnext` at `a474b2c`.
 > Owner's brief (2026-09-22, verbatim in §0.1). Reference images: [COMPUTER_REFERENCE_CAPTURE.md](../../research/COMPUTER_REFERENCE_CAPTURE.md).

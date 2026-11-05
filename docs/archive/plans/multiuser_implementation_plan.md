@@ -1,5 +1,10 @@
 # LlmOnLan — Multi-user implementation plan and hardware/model brief
 
+> **Archived 2026-11-05.** The multi-user plan (2026-10-04, revised to 2026-10-08). Built and released: Phase 0, the client fixes and the workshop setting (1.6, 1.2), web search v2, the snapshot contract (4.4), the capacity page (Phase 5) and the vLLM engine run by the farm, in client v0.2.8 + farm-v0.0.42 and farm-v0.0.43 (2026-10-08). How it works now: [farm/README.md](../../../farm/README.md) and CLAUDE.md.
+> Since then (the statuses below stop at 2026-10-08): farm-v0.0.43 shipped; the production take-over was superseded by the clean-state run (DEVLOG 2026-10-08 14:05), which stopped the operator-run vLLM and removed its log-on task, and the PRO 6000 now runs the farm's own vLLM (`~/lol-vllm`, seen serving on 2026-10-12); vLLM is 0.33.0 since farm-v0.0.51; llama.cpp's cancel bug was fixed upstream (#29707, b11769) and the farm pins b11836 since farm-v0.0.49, so all 8 paths stop; the Backend card became the Serving card, with "Free an idle seat after" in the Access card (2026-10-12).
+> Closed by the owner's answer of 2026-11-05 (no shared computers: clients run on people's own computers, farms on the owner's machines): §1.1's and §13b's cloned-image items (`clientId`, `farm/.lol-id`). Presets (2026-10-27) set the engine, model, people, context and plugins, not "Free an idle seat after".
+> Leftovers (the class-size acceptance, web search under a class's burst, the admin-token rate limit, vLLM's own model reading documents, the shell warning on an older farm, several big boxes, LAN model sharing, the laptop study, the workshop flow): [docs/plans/README.md](../../plans/README.md).
+
 As of 2026-10-04. Covers LlmOnLan client v0.2.7, farm-v0.0.41, Open WebUI **0.11.4** (the pin; the field
 still runs 0.10.x sidecars, because engine updates are a person's click).
 

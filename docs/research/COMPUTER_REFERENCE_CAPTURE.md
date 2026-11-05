@@ -91,3 +91,9 @@ per-component elapsed time · numbered in-canvas lessons with a "next up" card �
 **Do not take:** the hand-drawn visual identity (we use warmed-up ComfyQ tokens, owner's choice) · the
 cloud model and the credit counter (`6/750`) · image/audio/video/speech generation · the 3D Model and
 Camera components · Website scraping (offline LAN) · anything that talks to a service outside the farm.
+
+> Later, on the owner's asks: Fetch, Open data and Speak ([ECOSYSTEM_PLAN](../archive/plans/ECOSYSTEM_PLAN.md),
+> 2026-09-27), Take a picture (2026-09-28), Home Assistant (ECOSYSTEM_PLAN P6, 2026-09-30) and Converse
+> ([COMPUTER_VOICE_PLAN](../archive/plans/COMPUTER_VOICE_PLAN.md), 2026-10-12). Send reaches devices a person typed.
+> Image, audio and video generation, the 3D Model box and Range are still not built: for ComfyQ there are only
+> prompts to paste (2026-11-02).

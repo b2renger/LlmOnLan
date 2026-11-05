@@ -1,5 +1,12 @@
 # LOL Chat vNext: out-of-scope changes to discuss
 
+> **Archived 2026-11-05.** The owner's discussion list of 2026-09-14, for changes outside LOL Chat's scope (LOL Vibe since
+> 2026-09-27). The farm is no longer out of scope, and "None of them is being built" no longer holds.
+> Done or moot since: D-C1 (the last view is kept, so LOL Vibe or the Computer opens at once while Open WebUI boots; no "ready" chip); D-C2 (option 3, `<DATA_DIR>/lol-client`, 2026-09-27); D-F3, answered otherwise (with a farm password the keys come only from `/lol/plugin-keys`, and OCR's vision calls take turns instead of taking a seat, multi-user plan 0.4); D-F5; D-F6; D-F10 (Open WebUI's microphone and Call mode use the farm's speech to text, 2026-10-09); D-F11 (the farm ships as the Farm app); D-F12's transcription (the stt plugin, v0.2.0); D-M5, D-M9, D-M11, D-U3; D-S2 and D-M10, moot with P3/P4 cancelled; D-L1, moved to HUMAN_TESTS (2026-10-09). The D-C2, D-F3 and D-F12 texts below describe the state before.
+> Still open: D-C3, D-C4 (the main-frame `will-navigate` guard), D-C6, D-C7, D-C8, D-X1/D-X2, D-F1, D-F2, D-F4 with D-F12's capability flags, D-F7, D-F8, D-F13, D-P1 with D-M2, D-P3, D-O1, D-O3, D-U1, D-U2, D-V1, and the owner's D-S1 and D-U6: [docs/plans/README.md](../../plans/README.md).
+> The rest stay as decided then: D-C5, D-F9 and D-P2 only if a feature needs them; D-O2 goes with D-F1; D-M1, D-M3,
+> D-M4, D-M6–D-M8, D-U4 and D-U5 were accepted or settled.
+
 > Status: **discussion list** for the owner. Date: 2026-09-14 (revision 2, after the critic review of the plan).
 >
 > The brief limits this work to the LOL Chat feature. Every item below is something we would like to

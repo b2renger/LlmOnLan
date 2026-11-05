@@ -8,17 +8,12 @@ farm re-running costs nothing.
 
 It is **not** a mind map and not a chat with a diagram. There is no cloud and no API key. Every
 graph you make is saved on this computer, in the Computer's own library — which lives in your data
-folder (Settings ⚙ ▸ **Data location**) with the pictures, PDFs and sounds in its boxes and the files
+folder (Preferences (⚙) ▸ **Data location**) with the pictures, PDFs and sounds in its boxes and the files
 its File boxes write, so moving that folder takes all of it along.
 
-> Rewritten on 2026-09-25 (critic S1-16) to describe the Computer as it is now: its own surface
-> with a library, the ＋ menu's boxes by their current names, pictures, PDFs and sounds in boxes,
-> the drawer on the right, and the Learn shelf. The design is in
-> [COMPUTER_PLAN.md](archive/plans/COMPUTER_PLAN.md); what works today and what does not is in
-> [COMPUTER_STATUS.md](archive/COMPUTER_STATUS.md). Checked against the code again on 2026-09-27 (docs
-> review): the view tools, Live pausing, and the boxes and buttons it had left out; and on 2026-09-28
-> with the in-app texts (the v0.2.3 review): lessons 7–12, the Outputs control with a Trigger, the
-> resume banner, tooltips.
+> Kept in step with the app (last: the ComfyQ prompts, 2026-11-02). The design, built and archived, is in
+> [COMPUTER_PLAN.md](archive/plans/COMPUTER_PLAN.md); [COMPUTER_STATUS.md](archive/COMPUTER_STATUS.md) is a dated
+> report up to 12 Oct.
 
 ---
 
@@ -37,7 +32,8 @@ What you see, left to right:
 - **The run bar**, above the canvas: **Run all** (with **Stop** beside it while a run is going),
   counts of boxes and generations, how much of the Cap the last run used, a sentence about the last
   run (and **Run everything again** when nothing needed a re-run), **Outputs** when the graph has a
-  Send or a Trigger box and **Panic** with a Send (see [the Send box](#acting-on-the-world-the-send-box)), **?**
+  Send, a Home command or a Trigger box and **Panic** with a Send or a Home command (see
+  [the Send box](#acting-on-the-world-the-send-box)), **?**
   (what is this?), and **● Record log** (see [COMPUTER_DEBUG_LOG.md](COMPUTER_DEBUG_LOG.md)). Hover
   any button for what it does.
 - **The canvas**, with its toolbar: **＋ Add a box**, the **Select (V)** and **Hand (H)** tools, the
@@ -483,15 +479,18 @@ down in a fraction of a second; on a CPU farm it takes a second or two, one pers
 | **USB serial (Arduino, ESP32)** | the board you pick with **Choose the board…**, and its speed (115200) | one line: the text, or the JSON of anything else |
 | **The farm's message bus** | a topic, like `lol/board1/led` (no `+` or `#`) | the text, or the JSON of anything else ([below](#boards-on-wi-fi-the-farms-message-bus-and-the-trigger-box)) |
 
-The target is always typed by you in the box: an arrow only brings the **value**, so a model can never
-choose where a graph sends. And the rules are the same for every graph, even one someone gave you:
+The target is in the box's own settings: an arrow only brings the **value**, so nothing a graph computes can
+choose where it sends. A model that builds graphs for you (Open WebUI's LlmOnLan Computer tool, or the coding
+agent with Use the Computer on) can fill in a Send box's target, but it can never arm the outputs: the arming
+question lists every target before anything leaves, and while you have them armed no tool can change the graph.
+And the rules are the same for every graph, even one someone gave you:
 
 - **Dry run by default.** Until you arm the outputs, a Send box only shows **Dry run — would send: …**
   and nothing leaves. A graph always opens as a dry run, and so does the Computer after a restart.
-- **Arming asks first.** The run bar's **Outputs: dry run** button (it appears when the graph has a Send
-  or a Trigger box) asks before arming and lists every target of the graph. Armed, it reads **Outputs:
+- **Arming asks first.** The run bar's **Outputs: dry run** button (it appears when the graph has a Send,
+  a Home command or a Trigger box) asks before arming and lists every target of the graph. Armed, it reads **Outputs:
   LIVE**; press it again to go back to a dry run. Opening another graph disarms.
-- **Panic** (next to it whenever the graph has a Send box, armed or not) stops the run and every output
+- **Panic** (next to it whenever the graph has a Send or a Home command box, armed or not) stops the run and every output
   at once, sends a **blackout** to every DMX universe the graph lit, and goes back to a dry run.
   Quitting the app does the same.
 - **Limits:** at most 20 messages a second to one target, and DMX at most **3 frames a second per
@@ -717,6 +716,7 @@ The **Control** group holds the boxes that decide **whether and when** the rest 
 | **Dialog** | Stops and asks you a question; your answer flows on. |
 | **Toggle** | A switch: while it is off, the boxes after it do not run. |
 | **Timer** | Waits a few seconds (once, or several times in a row), then lets what follows run. |
+| **Trigger** | Starts a run by itself, on a message on the farm's bus or every few seconds, only while the outputs are armed and the Computer is on screen ([Boards on Wi-Fi](#boards-on-wi-fi-the-farms-message-bus-and-the-trigger-box)). It cannot close a loop. |
 
 A box that is waiting for you says **Waiting for you**, and the run bar counts the boxes
 waiting, with **Show me** to go to the oldest one.

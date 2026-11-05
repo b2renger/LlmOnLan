@@ -1,5 +1,12 @@
 # vLLM, run by the farm — the plan
 
+> **Archived 2026-11-05.** The design record of vLLM run by the farm, built 2026-10-07/08 and released in Farm app
+> farm-v0.0.43 (2026-10-08): the "Not released yet" in its build status is the state before. How it works now:
+> [farm/README.md, "vLLM, run by the farm"](../../../farm/README.md#vllm-run-by-the-farm).
+> Since then: §7's Backend card, engine grid and vLLM card became the Serving card and the vLLM section (2026-10-12); §2 is the 2026-10-09 list, and the code has six models since Flint (2026-11-02) with the fields `gguf`, `configRepo`, `openThink`, `minVllm` and `alwaysThinks` (`farm/src/config.js`); vLLM is 0.33.0 since 2026-11-02, farm-v0.0.51 (§2 and R6 say 0.30.0), and an older install is offered Update vLLM, built beside the working one.
+> A person still checks it: [HUMAN_TESTS.md](../../HUMAN_TESTS.md) J1, K6, L2, M1, M2 (the production take-over, §9.6, was superseded by the clean-state run).
+> Leftovers (R4: a headless Linux farm gets nothing at boot): [docs/plans/README.md](../../plans/README.md).
+
 The fourth engine: the farm installs vLLM, starts it, sizes it, supervises it and stops it, on Windows (inside
 WSL2) and on Linux x86_64 or arm64 with an NVIDIA GPU, operated entirely from the panel (the Farm app's window, or
 `http://<box>:41997/lol/admin`). Written 2026-10-07 from the owner's request, after the production farm moved to

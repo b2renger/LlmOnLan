@@ -52,8 +52,9 @@ that does not say what it is can be closed, never opened. Also:
   never used by a model: running another script by name, `scene.apply`/`create`, playing a URL on a speaker, sending a
   remote's raw codes. Area, device or label targets a model adds are dropped.
 - Only devices and the helpers that drive them can be commanded (lights, switches, covers, climate, media players,
-  fans, vacuums, valves, scenes, scripts, buttons, numbers, selects, and the helpers `input_boolean`, `input_number`,
-  `input_select`, `input_button`). Sensors, people, cameras, updates, notifications and Home Assistant itself are
+  fans, vacuums, valves, scenes, scripts, buttons, numbers, selects, remotes (on and off only), humidifiers, water
+  heaters and lawn mowers, and the helpers `input_boolean`, `input_number`, `input_select`, `input_button`). A lock
+  may only be locked, an alarm panel only armed, a siren only turned off, a valve only closed. Sensors, people, cameras, updates, notifications and Home Assistant itself are
   read-only.
 - A command Home Assistant does not confirm within 20 s is reported as "sent, not confirmed": it may still be
   happening, so the model is told to read the device before trying again.
@@ -211,5 +212,6 @@ no coordinate; a Home command on the bed light said "Arm the outputs" (not armed
 allowed) while the light stayed off, then turned it on at 30 % (brightness 76 of 255) once both were done; "unlock" on the
 front door was refused and it stayed locked; after Panic the next run was a dry run.
 
-Not tried yet: speaking the request (Open WebUI turns speech into text on this computer, then it is the same chat), a
+Not tried yet: speaking the request (Open WebUI turns speech into text on this computer, or on the farm when it offers
+speech to text; then it is the same chat), a
 real Home Assistant with real devices, and a schedule driving the home.

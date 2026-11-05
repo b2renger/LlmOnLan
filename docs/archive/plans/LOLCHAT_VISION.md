@@ -1,5 +1,12 @@
 # LOL Chat vNext — "the Desk"
 
+> **Archived 2026-11-05.** The decision document for LOL Chat vNext (2026-09-14). Tiers 1–2 shipped as P0–P2 (released in
+> v0.2.0): F41 as two temperatures only, F53 as the thread's system prompt, F71's vision check as `app/caps.mjs` (S0).
+> P3/P4 (F50–F52, F70, F72–F74, F80, F90–F91) and the stretch tier (F8, F44, F54, F58, F82) were never built:
+> LOLCHAT_STUDIO_VISION.md replaced P3/P4's release core on 2026-09-15, and ECOSYSTEM_PLAN.md §2.2 (2026-09-27) stopped
+> chat-only work. LOL Chat is LOL Vibe since 2026-09-27. §C's wish list went to LOLCHAT_DISCUSS.md; what of it is still
+> open: [docs/plans/README.md](../../plans/README.md).
+
 > Status: **decision document** (pragmatic synthesis of the scout fact sheet, the doubter's ideas, the
 > expert's feature map and both debate rounds). Date: 2026‑09‑14. Scope: **LOL Chat only**
 > (`shell/renderer/chat*`, the `#lolchat` section, the chat CSS, additive `window.__lolFarm` fields,

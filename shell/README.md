@@ -38,7 +38,9 @@ src/main/                       (TypeScript → build/ via tsc; Electron main pr
   util.ts         free-port, tree-kill, http GET/health-poll
   types.ts        shared types + the renderer IPC contract
   projects.ts / projectsPath.ts / debugLog.ts   the Computer's projects API and debug log
-  mcp.ts          the Computer's MCP server on 127.0.0.1:41995 (also answers OWUI's web search and the home tools)
+  mcp.ts          the Computer's MCP server on 127.0.0.1:41995 (also answers OWUI's web search, the home tools
+                  and ComfyQ's prompt tools)
+  comfyqPrompts.ts ComfyQ's two prompt-writing MCP tools (bundled data from scripts/gen-comfyq-prompts.cjs; no network)
   homeAssistant.ts the Home Assistant a person linked: reading, and commands only once a person allowed them
   io.ts           the GETs main sends for the Computer (Fetch, Open data, an Agent's hosts) and web search's page reads
   outputs.ts / serial.ts  the Send box's one choke point (armed outputs) and USB serial (+ mic/camera grants)
@@ -58,10 +60,13 @@ sidecar live in the main process. LOL Vibe and the Computer (`renderer/chat/`) a
 keep their state in the renderer's IndexedDB — and the main window runs on
 `session.fromPath(<DATA_DIR>/lol-client)`, so that state lives in the user's data folder with OWUI's
 (owner rule 2026-09-27: all data in DATA_DIR). The OWUI `<webview>` keeps its `persist:owui` partition
-under userData (its token and caches only).
+under userData (its token and caches only). A link it opens in a new window goes to the system browser (Open
+WebUI's own pages, such as a file it shows, open in an app window, the one place they are signed in), and its
+microphone, camera and clipboard are granted only to the sidecar's own origin.
 
 **Data-folder changes restart the app.** Chromium holds the window's session open, so Preferences ▸
-Data location copies OWUI's data right away (sidecar stopped), saves `dataDir` plus a
+Data location copies OWUI's data right away (sidecar stopped; a move into a folder that already holds anything is
+refused before that, since it would write over what the folder holds: `dataMigration.ts` `NOT_EMPTY`), saves `dataDir` plus a
 `pendingClientMove` marker, and relaunches without the quit prompt; the next boot — before app `ready`,
 before any session exists — moves `lol-client` via a staging folder, clears the marker, removes the old
 copy, and tells the user in a toast. A move that fails keeps the marker, opens the window on the
@@ -82,9 +87,15 @@ user‑settings API writes (and the auth token/settings reads they need) listed 
 - **Env stays authoritative** — `ENABLE_PERSISTENT_CONFIG=false`. OWUI's `OPENAI_*` are PersistentConfig
   (env seeds only the first boot, then the DB wins). Turning persistence off means **repointing the farm
   is just a sidecar restart with a new env** — no OWUI edits, no stale persisted URL winning (M1).
-- **Data locality** — `DATA_DIR` → a user‑chosen local folder; default local embeddings (we never set
-  `RAG_EMBEDDING_ENGINE`, so documents embed in‑process and never leave the device); a stable
-  `WEBUI_SECRET_KEY`.
+- **Data locality** — `DATA_DIR` → a user‑chosen local folder; a stable `WEBUI_SECRET_KEY`. The vectors are
+  always stored there. **Document search on the farm:** a folder that met a farm offering a contract this client
+  knows (`EMBEDDING_CONTRACTS`, written once to `DATA_DIR/lol-embedding.json`) gets `RAG_EMBEDDING_ENGINE=openai`,
+  `RAG_EMBEDDING_MODEL=embeddinggemma-2`, `RAG_OPENAI_API_BASE_URL=<embed.url>/v1` with its key, the query and
+  content prefixes, batches of 32, 2 at a time and a 300 s timeout. The text of each piece of a document (and of
+  each search) goes to the farm, which keeps nothing, and the vectors come back. On a farm without it, such a folder
+  gets `RAG_OPENAI_API_BASE_URL=http://127.0.0.1:0/v1` (key `sk-lol-none`), so an upload fails at once and two
+  models never mix in one folder. A folder that never met one keeps Open WebUI's in‑process MiniLM
+  (`RAG_EMBEDDING_ENGINE` unset). With the farm's OCR, an uploaded file's bytes go to the farm too (below).
 - **Kiosk + privacy** — `WEBUI_AUTH=false` (single‑user, auto‑admin); telemetry fully off;
   `ENABLE_VERSION_UPDATE_CHECK=false` (the app's own updater is the single source of update truth).
 - **Adaptive document answers** — `RAG_FULL_CONTEXT=true` when the farm's per-slot context ≥ 24576 (or
@@ -93,10 +104,12 @@ user‑settings API writes (and the auth token/settings reads they need) listed 
 - **Boot + closed LAN** — `RAG_EMBEDDING_MODEL_AUTO_UPDATE=false`: OWUI no longer asks huggingface.co for MiniLM's
   latest revision at every boot, a request with no timeout that cost 21 s a boot where the site is silently blocked.
   `HF_HUB_OFFLINE=1` once MiniLM (in the HF hub cache) and faster-whisper base (under
-  `DATA_DIR/cache/whisper/models`, where the pinned OWUI puts it) are both whole on disk (`hfModelState`: the snapshot
-  `refs/main` names, every file the loader reads, no dangling link); until then `HF_HUB_ETAG_TIMEOUT=2`. Before each
-  start `sidecar.ts` repairs a half or damaged MiniLM (`repairMiniLm`: the hub's file list and dangling links, then
-  the snapshots only if it is still half; never the blobs). While MiniLM is not on disk it asks huggingface.co once
+  `DATA_DIR/cache/whisper/models`, where the pinned OWUI puts it) are both whole on disk (whisper alone for a folder
+  on the farm's document search; `hfModelState`: the snapshot
+  `refs/main` names, every file the loader reads, no dangling link); until then `HF_HUB_ETAG_TIMEOUT=2`. For a folder
+  still on MiniLM (never one on the farm's document search): before each start `sidecar.ts` repairs a half or damaged
+  MiniLM (`repairMiniLm`: the hub's file list and dangling links, then the snapshots only if it is still half; never
+  the blobs), and while MiniLM is not on disk it asks huggingface.co once
   (a 3 s HEAD through Electron's `net.fetch`, so the system proxy applies; no probe behind an env proxy). No answer
   → that launch alone gets `HF_HUB_OFFLINE=1`: the chat opens in ~12 s, and a toast says document uploads need one
   start online.
@@ -105,9 +118,13 @@ user‑settings API writes (and the auth token/settings reads they need) listed 
 - **Farm plugins ride the beacon** — when the farm advertises them: web search (`ENABLE_WEB_SEARCH`, 5
   results, `fetch_url` cut at 12000 characters; `WEB_SEARCH_ENGINE=external` → this app's main at
   `127.0.0.1:41995/web/search` while the MCP listener is up, else `SEARXNG_QUERY_URL` with `SEARXNG_LANGUAGE=auto`),
-  neural voice (`AUDIO_TTS_*` → Kokoro), and document OCR
-  (`CONTENT_EXTRACTION_ENGINE=external` + `EXTERNAL_DOCUMENT_LOADER_URL/_API_KEY`). Speech‑to‑text is
-  always local (`AUDIO_STT_ENGINE=''` → faster‑whisper, `WHISPER_MODEL=base`).
+  neural voice (`AUDIO_TTS_*` → Kokoro), document OCR (`CONTENT_EXTRACTION_ENGINE=external` +
+  `EXTERNAL_DOCUMENT_LOADER_URL/_API_KEY`: an uploaded file's bytes go to the farm for their text), document search
+  (Data locality, above) and speech to text. Speech to text goes to the farm when it advertises one with a key
+  (`AUDIO_STT_ENGINE=openai` → `<stt.url>/v1`, its key and model: each recording of OWUI's microphone and Call mode
+  is written down there and dropped, and OWUI keeps its own copy in `DATA_DIR/cache/audio`); otherwise it stays local
+  (`AUDIO_STT_ENGINE=''` → faster‑whisper, `WHISPER_MODEL=base`). The plugin keys of a farm with a password come
+  from `GET /lol/plugin-keys` with that password, never from the beacon.
 - **Keeping the farm's slot for the user (TTFT)** — OWUI runs *extra* LLM calls around a chat, against
   the same farm endpoint. A farm has **few inference slots** — 2 per box on the default Ollama engine
   (`ollama.numParallel`), 1 on `llama-server` (`llamacpp.parallel`) — so anything in flight makes the
@@ -154,7 +171,7 @@ beacon arrived (so model / SearXNG / TTS / OCR were all `null`), then the first 
 what we booted with and forced a repoint — which is a full sidecar restart. What fixed it:
 
 - the **farm context is persisted** alongside `lastEndpoint` (`lastFarmModel` / `lastFarmSearxng` /
-  `lastFarmTts` / `lastFarmExtract` / `lastFarmCtxPerSlot` / `lastFarmKey`) and seeds the boot, so an
+  `lastFarmTts` / `lastFarmExtract` / `lastFarmEmbed` / `lastFarmStt` / `lastFarmCtxPerSlot` / `lastFarmKey`) and seeds the boot, so an
   unchanged farm *confirms* what we started with instead of contradicting it. The auto-connect and a
   pinned card go through the same `connectTo()`. There `farmSelect.ts` `connectPlan` decides two things
   apart: restart OWUI (the context differs from the one it runs) and save (the settings lack this context, password
@@ -182,7 +199,9 @@ last session's farm on a cold boot, and otherwise the least busy healthy farm (c
 = clients/slots, else GPU%; ties within 15 points picked at random). The least-busy pick skips a
 password-protected farm until its password was entered on its card and verified; entering it does not
 pin it. A pinned, current or last-session farm is used anyway, and when a stored password stops working
-(the operator rotated it) the client drops it and the card asks again.
+(the operator rotated it) the client drops it and the card asks again. A farm restarting its proxy (502–504, after
+Apply changes or an engine switch) says nothing about the password, and the client keeps it
+(`farmSelect.ts` `passwordVerdict`).
 
 A farm seen under two names (its beacon and a hostname or second IP you added) keeps the address it
 was first reached at while that address answers, so OWUI is not restarted every time the other name
@@ -239,7 +258,7 @@ npm run test:unit                        # app.js capacity helpers (test/unit.js
 node test/chat-unit.js                   # LOL Vibe + Computer suites, and the compiled main process
                                          #   (chat/unit/shell-main.test.mjs — run `npm run build` first)
 node test/chat-lint.js                   # static rules for renderer/chat/** (every string via t(), tokens only, …)
-node test/chat-scope.js                  # the LOL Vibe branch's change set stays in its allowlist
+node test/chat-scope.js                  # the LOL Vibe phase's allowlist, not a gate today: it flags any farm, main or root change by design
 node test/asar-probe.js                  # ES modules still load from a packed app.asar under the CSP
 node test/chat-harness/run.js --slot N   # chat-only Electron over CDP against a NON-beaconing mock-farm.js
 ```

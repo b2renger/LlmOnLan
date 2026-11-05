@@ -1,5 +1,10 @@
 # Switching the studio's RTX PRO 6000 farm to vLLM
 
+> **Archived 2026-11-05.** A one-machine runbook. Part 1 ran on 2026-10-07; Part 2 was superseded by the clean-state run
+> of 2026-10-08 (DEVLOG 14:05), which stopped the operator-run vLLM and removed its log-on task. The PRO 6000 now runs
+> the farm's own vLLM (`~/lol-vllm`, seen serving on 2026-10-12), set from the panel:
+> [farm/README.md, "vLLM, run by the farm"](../../farm/README.md#vllm-run-by-the-farm). Do not run any of it again. Nothing is left.
+
 Two parts. **Part 1** (done on 2026-10-07, DEVLOG 17:48) made vLLM the farm's `external` engine: vLLM started by a
 log-on task, the farm routing to it. **Part 2** lets the farm run that same vLLM itself, so the model, the people
 and the context are set in the panel, and switching to Ollama or llama.cpp and back is a button

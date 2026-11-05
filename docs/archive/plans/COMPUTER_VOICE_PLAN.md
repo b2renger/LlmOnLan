@@ -1,5 +1,11 @@
 # The Computer: Converse — a real voice loop for designing voice interaction (plan, 2026-10-09)
 
+> **Archived 2026-11-05.** Built 2026-10-12 (branch `converse`) and released in client v0.2.12 (DEVLOG 2026-10-12 16:20
+> and 17:18). How to use it now: [LOLCHAT_COMPUTER_TUTORIAL.md](../../LOLCHAT_COMPUTER_TUTORIAL.md) (Converse, `lol.on` and its events); a person still checks it: HUMAN_TESTS F8–F11.
+> Correction: §12's "only the 5th and later get a 429" is off by one. The farm runs one transcription and keeps 4 waiting
+> (`farm/src/pysvc/stt_server.py`), so the 6th is the first refused.
+> Phase 2 (§13) is not built, and its cloud speech-to-speech engine is dropped (local only). Leftovers (events out to the world while armed, speech to text on the laptop, lesson 15, several voices, a bot that speaks first): [docs/plans/README.md](../../plans/README.md).
+
 > *"I'd like design students to work on voice interaction: the identity of the voice bot, what to
 > show, how the feedback between bot and user works. Use the Computer for this. No Wizard of Oz,
 > no mechanical turk — we want to actually do the thing, a POC."* — the owner (paraphrased from

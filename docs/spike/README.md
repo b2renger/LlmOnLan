@@ -17,7 +17,7 @@ with 32k / 64k / 128k of context each, by vLLM and by llama.cpp, for a short lis
 | `install_vllm.sh` | Installs vLLM into its own venv `~/lol-spike/.venv` (uv; x86_64 or arm64) and pins the CUDA compiler packages FlashInfer's JIT needs. |
 | `download.sh` | Downloads the checkpoints into `~/lol-spike/hf/<name>`. |
 | `serve_vllm.sh` / `stop_vllm.sh` | Start `vllm serve` with a stdin-EOF watchdog, which kills the server's whole process group when its launcher dies; stop it. |
-| `serve_llamacpp.ps1` | Starts the farm's own `llama-server.exe` (b10670) with the farm's argv (`farm/src/llamacpp.js`). Windows. |
+| `serve_llamacpp.ps1` | Starts the Farm app's installed `llama-server.exe` (b10670 for the 2026-10-04 runs; b11836 since farm-v0.0.49; `-Bin` picks another) with the farm's argv (`farm/src/llamacpp.js`). Windows. |
 | `serve_llamacpp.sh` / `stop_llamacpp.sh` | The same on Linux (DGX Spark): the farm's linux-arm64 `llama-server`, same argv, port 8190; stop it. |
 | `runs/vllm_suite.sh` | Quality (thinking on), then chat, agent, cold 32k, chat with thinking off, cold 64k / 128k, then quality (thinking off). |
 | `runs/vllm_extend.sh` | 64–192 users for chat and agent, then follow-ups at 32k / 64k / 128k. Use with `--max-num-seqs 192`. |
@@ -170,7 +170,7 @@ SPIKE_UDS=... bash runs/vllm_all.sh <label> "<exact command>" http://localhost/v
 SPIKE_UDS=... bash runs/followup_levels.sh <label> 120000 4,8,16,24,32 http://localhost/v1 --append
 ```
 
-### llama.cpp (Windows, the farm's b10670 build)
+### llama.cpp (Windows, the Farm app's installed build)
 
 ```powershell
 powershell -File serve_llamacpp.ps1 -Model <gguf> -Parallel 16 -Ctx 2097152 -KvType q8_0 -Log results\logs\<run>.log

@@ -2,7 +2,7 @@
 
 LlmOnLan has **two pieces**:
 
-- **The farm** — the `lol` CLI (or the Farm app) running on one or more **GPU boxes**. It serves the model(s) over the LAN — through **Ollama** by default (`gemma4:12b` with its full **262k context**, vision included), the opt-in **llama.cpp** speed engine, or **vLLM** for many people at once on a big NVIDIA card (Windows with WSL, or Linux such as a DGX Spark; installed and run by the farm), all chosen in the farm's panel — hosts shared **web search**, **document OCR** and **document search** (and, opt-in, **neural voice**), and **broadcasts itself** so clients find it automatically.
+- **The farm** — the `lol` CLI (or the Farm app) running on one or more **GPU boxes**. It serves the model(s) over the LAN — through **Ollama** by default (`gemma4:12b` with its full **262k context**, vision included), the opt-in **llama.cpp** speed engine, or **vLLM** for many people at once on a big NVIDIA card (Windows with WSL, or Linux such as a DGX Spark; installed and run by the farm), all chosen in the farm's panel — hosts shared **web search**, **document OCR** and **document search** (and, opt-in, **neural voice**, **speech to text**, **Classify** and a **message bus** for the Computer), and **broadcasts itself** so clients find it automatically.
 - **The client app** — a desktop app (bundled, unmodified Open WebUI) that people install on their laptops. It **auto-discovers the farm** on the same network — no URL, no config — and keeps all chat data on their own machine.
 
 You set up the farm once per GPU box, and everyone else just installs the client app.
@@ -24,8 +24,9 @@ You set up the farm once per GPU box, and everyone else just installs the client
 | `gemma4:12b` — the chat model everyone gets (vision included; also drives OCR) | ~8 GB |
 | The staged `preinstall` model + its draft module (on by default) | ~8.6 GB |
 | LiteLLM / SearXNG / OCR venvs | ~1 GB |
-| **Total, one time** | **~18 GB, 20–30 min** on a normal office line |
-| *Only if you enable the llama.cpp engine:* its build + CUDA runtime + `.gguf` weights | *+~10 GB, fetched at enable time* |
+| *With an NVIDIA GPU (Windows x64, DGX Spark):* document search — llama.cpp's build (with its CUDA runtime) and EmbeddingGemma 2 | ~1.2 GB |
+| **Total, one time** | **~18 GB (~19 GB with an NVIDIA GPU), 20–30 min** on a normal office line |
+| *Only if you enable the llama.cpp engine:* its `.gguf` weights (and its build + CUDA runtime, unless document search already brought them) | *+~10 GB, fetched at enable time* |
 | *Only if you choose vLLM in the panel (Windows with WSL, or Linux such as a DGX Spark):* vLLM and its GPU libraries, then the model you pick | *~8 GB + the model, about 45 min, when you press Install vLLM* |
 
 Everything is cached afterwards.
@@ -56,9 +57,15 @@ Download the newest **`farm-v…`** build from **[the releases page](https://git
 Run it and follow the wizard; leave the window open — that *is* the farm. Full details:
 [`farm-app/README.md`](../farm-app/README.md).
 
-> **The first run downloads ~18 GB** (see the table above) **plus its own Python/Ollama runtime**. The screen
-> narrates each step and shows download percentages. **Do not press "Start the farm" while a download
-> is running** — that kills it and starts the download over.
+**The farm starts private**: only this computer can use it, and no laptop finds it. To serve the network, open
+⚙ **Settings** ▸ **Share compute with the network** (the farm restarts by itself). Turn on **Launch at login**
+there too, so the farm starts again when someone logs in after the computer restarts.
+
+> **The first run downloads ~18 GB, ~19 GB with an NVIDIA GPU** (see the table above) **plus its own Python/Ollama runtime**. The screen
+> narrates each step and shows download percentages. On a slow line the screen can say the farm stopped making
+> progress while it is still downloading: wait (see [Known rough edges](#known-rough-edges-v1)). Pressing the
+> wizard's **Retry**, **Start the farm** or the top bar's **Start** at that moment stops the farm's run, and a
+> model download it was making can start over from zero.
 
 Then jump to **[§4](#4-a-room-full-of-people-capacity--multiple-gpu-boxes)** if a group will use it —
 the default (gemma4 on Ollama) serves **two people at a time** per box, and that number is a control
@@ -77,7 +84,7 @@ cd LlmOnLan
 - **[Node.js ≥ 20](https://nodejs.org)** (LTS).
 - **[Python 3.10–3.13](https://python.org)** — for the LiteLLM proxy (3.9 is enough for it alone), the **default-on** web search and document OCR (these need 3.10+), and (if you enable it) voice. `lol install` will **not** install Python for you. On Windows, `py -3.12` works after installing Python.
 - **[git](https://git-scm.com)** (you already used it to clone).
-- **[Ollama](https://ollama.com)** and **LiteLLM** are installed **for you** by the next step — and the **llama.cpp** backend too, only if you enable it.
+- **[Ollama](https://ollama.com)** and **LiteLLM** are installed **for you** by the next step — and the **llama.cpp** backend too, only if you enable it (on an NVIDIA box, document search brings llama.cpp's build anyway, see below).
 - **GPU:** the shipped defaults target an **NVIDIA card with ≥ 12 GB VRAM**. The llama.cpp bootstrap is automatic on **Windows x64 + NVIDIA** and on the **DGX Spark** (linux-arm64 — our CI publishes the binary). Anywhere else the farm serves via **Ollama automatically** (no config edit needed); installing llama.cpp yourself and setting `llamacpp.binDir` re-enables the fast engine.
 
 ### Bootstrap (one command)
@@ -92,7 +99,8 @@ This installs the CLI's Node deps, then runs `lol install`, which:
 - creates a local Python venv with **LiteLLM**,
 - **pulls the Ollama models** in your config (`gemma4:12b` by default — the model everyone chats with) — several GB on first run,
 - **fetches the llama.cpp backend** *only if you enabled it* (`llamacpp.enabled: true`) — the pinned
-  `llama-server` build + CUDA runtime + `.gguf` weights — so the first `lol up` doesn't stall on it,
+  `llama-server` build + CUDA runtime + `.gguf` weights — so the first `lol up` doesn't stall on it (on an
+  NVIDIA box, document search below brings the build anyway),
 - sets up **shared web search** (SearXNG) — **on by default**, so every client that connects can search the web with zero setup (off in each chat until the globe button turns it on),
 - sets up **shared document OCR** — **on by default**: scanned PDFs and photographed documents become readable + searchable in every client's chat (a small torch-free Python service that reuses the vision model you already serve),
 - sets up **document search** — **on when the computer has an NVIDIA GPU**: the farm turns the text of the laptops' documents into numbers Open WebUI can search, in any language (EmbeddingGemma 2 on llama.cpp, about 0.6 GB to download and 1.2 GB of GPU memory). The laptops keep what comes back; the farm keeps nothing.
@@ -103,7 +111,7 @@ So a fresh install already gives you a working farm with the model downloaded an
 
 ### Configure (optional: the panel does it once the farm runs)
 
-The defaults already give you a working farm (model + web search). Change them in the farm panel (§5), not in a file: the engine (Ollama, llama.cpp or vLLM), the name users see, people served at once, the context window, the password, the Ollama catalog and the plugins are all there, and the panel writes `farm/lol.config.json` for you (the plugin switches last until the farm restarts). The keys below are the developer reference, for what the panel does not have (ports, several Ollama hosts, coordinator mode); every key is in [`farm/README.md`](../farm/README.md#config--lolconfigjson):
+The defaults already give you a working farm (model + web search). Change them in the farm panel (§5), not in a file: the engine (Ollama, llama.cpp or vLLM), the name users see, people served at once, the context window, the password, the Ollama catalog and the plugins are all there, and the panel writes `farm/lol.config.json` for you (the plugin switches too: they are kept for the next start). The keys below are the developer reference, for what the panel does not have (ports, several Ollama hosts, coordinator mode); every key is in [`farm/README.md`](../farm/README.md#config--lolconfigjson):
 
 ```jsonc
 {
@@ -132,7 +140,7 @@ The defaults already give you a working farm (model + web search). Change them i
 }
 ```
 
-**Web search and document OCR are on by default** on the farm, and **document search** too when it has an NVIDIA GPU (each chat still starts with web search off; the globe button turns it on) — turn any of them on or off in the panel's *Plugins* card (**Enable** / **Disable**); the panel keeps that until the farm restarts (to keep a plugin on or off for good, a developer sets it in the file). **Voice (TTS) is off by default** because its install is multi-GB; turn it on the same way. See the full reference in [`farm/README.md`](../farm/README.md).
+**Web search and document OCR are on by default** on the farm, and **document search** too when it has an NVIDIA GPU (each chat still starts with web search off; the globe button turns it on) — turn any of them on or off in the panel's *Plugins* card (**Enable** / **Disable**); the farm keeps that choice, across restarts too. **Voice (TTS) is off by default** because its install is multi-GB; turn it on the same way. So are **Speech to text** (Open WebUI's microphone and Voice mode, and the Computer's Listen and Converse), **Classify** and the **Message bus**. See the full reference in [`farm/README.md`](../farm/README.md).
 
 ### Run it
 
@@ -165,12 +173,14 @@ engine at a time; the Ollama catalog is standby). Confirm what's actually served
 
 The banner also prints the **admin panel** URL — `http://<box-ip>:41997/lol/admin` — plus an access
 **token** (regenerated each run; set a fixed one with `"admin": { "token": "…" }` in `lol.config.json`).
-From any browser on the LAN, that panel is where the farm is run: which **engine** serves (Ollama,
-llama.cpp or vLLM, which the panel installs and starts itself) and which model it loads, the **name users
-see**, **how many people** it serves at once, the **context window**, the farm **password**, the **Ollama
-catalog** (download / offer / delete), the web search / OCR / document search / voice **plugins**, and who is **connected** right
-now. **Plan capacity ↗** (open without the token, at `/lol/capacity`) says which hardware and model serve how
-many people. Everything except the plugin toggles and the Blender recommendation is kept for the next start.
+From any browser on the LAN, that panel is where the farm is run: a **preset** for the session, which
+**engine** serves (Ollama, llama.cpp or vLLM, which the panel installs and starts itself) and which model it
+loads, the **name users see**, **how many people** it serves at once, the **context window**, the farm
+**password**, the **Ollama catalog** (download / offer / delete), the folder that holds the models (**Model
+storage**), the **plugins** (web search, OCR, document search, voice, speech to text, Classify, the message bus),
+and who is **connected** right now. **Plan capacity ↗** (open without the token, at `/lol/capacity`) says which hardware and model serve how
+many people. Everything except the Blender recommendation is kept for the next start (Ollama's people served
+at once applies after a farm restart).
 
 §5 walks through the common changes.
 > **Firewall:** the first time the farm (and SearXNG/Kokoro) binds to the network, Windows may prompt to allow it — **allow it** so clients can reach it.
@@ -185,9 +195,9 @@ Go to **[the latest release](https://github.com/b2renger/LlmOnLan/releases/lates
 
 - **Windows** — `LlmOnLan-Setup-<version>-windows-x64.exe` (SmartScreen: **More info → Run anyway**).
 - **macOS** — `LlmOnLan-<version>-mac-arm64.dmg` (Apple Silicon) or `…-mac-x64.dmg` (Intel, macOS 14+). First launch: **right-click → Open → Open** (unsigned-app bypass).
-- **Linux** — `LlmOnLan-<version>-linux-x64.AppImage` (or `-linux-arm64`, e.g. DGX Spark) → `chmod +x`; Ubuntu/Mint may need `sudo apt install libfuse2`.
+- **Linux** — `LlmOnLan-<version>-linux-x86_64.AppImage` (or `-linux-arm64.AppImage`, e.g. a DGX Spark) → `chmod +x`; Ubuntu/Mint may need `sudo apt install libfuse2`.
 
-On **first launch** the app downloads the chat engine (Open WebUI, ~700 MB, from GitHub) once. Then it **auto-discovers your farm** on the LAN and drops you into a chat. A farm with **document search** (the first farm update after farm-v0.0.43 brings it; on by default with an NVIDIA GPU) indexes your documents, so nothing more is downloaded for them. On an older farm, Open WebUI's first start downloads its own search model instead (about 92 MB, from huggingface.co); if huggingface.co does not answer (no internet, or a network that blocks it), chat still opens, and a message says document uploads need one start with internet access: quit and reopen the app once the computer is online. It **auto-updates** itself from GitHub Releases after that.
+On **first launch** the app downloads the chat engine (Open WebUI, about 0.8 GB, 1.1–1.3 GB on Linux, from GitHub) once. Then it **auto-discovers your farm** on the LAN and drops you into a chat. A farm with **document search** (farm-v0.0.44 and later; on by default with an NVIDIA GPU) indexes your documents, so nothing more is downloaded for them. On an older farm, Open WebUI's first start downloads its own search model instead (about 92 MB, from huggingface.co); if huggingface.co does not answer (no internet, or a network that blocks it), chat still opens, and a message says document uploads need one start with internet access: quit and reopen the app once the computer is online. It **auto-updates** itself from GitHub Releases after that.
 
 ### Option B — run from source (for developers)
 
@@ -218,25 +228,35 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
 - **The connection pill** (top bar) shows the farm and its free seats (`· 2/3 free`), and how many messages
   are queued at the model when the farm reports it (`· 12 waiting`: a new message waits its turn, so its first
   word is slow). Amber means wait — connecting, every seat busy, messages queued, the farm not responding, or
-  a password needed; red means a problem on the server. Click it for **Servers on your network**: one card per farm (seats, engine and model, plugins,
+  a password needed; red means a problem: "problem on the server" is the farm's (tell the operator), "Error" is
+  Open WebUI on this laptop (its screen has **Retry**). Click it for **Servers on your network**: one card per farm (seats, engine and model, plugins,
   **Manage this farm ↗** for the operator's panel), the password field of a protected farm, add‑by‑address
   and Rescan. **Clicking a card pins that farm**; the **Automatic — least busy farm** row above the cards
   lets the app choose again.
 - **Web search** — if the farm hosts it, it's **off by default; the globe button turns it on for a chat** (in Open WebUI 0.11: **Integrations** under the message box ▸ **Web Search**). Then ask something current and it searches + cites pages.
+  With it on, a message costs the farm about as much work as with it off, but the first word comes a few seconds
+  later (a search takes about 2 s) and the model reads a few thousand more tokens of search results per chat. It
+  stays off by default until it has been checked with a whole class searching from one school network. To have it
+  on in every chat, pick **Always** in Open WebUI's own settings (Interface ▸ **Web Search in Chat**); the client
+  keeps your choice. Clients up to v0.2.7 turned it on for every chat; the first launch of a newer one switches
+  that back off once, and only if you had not changed it.
 - **Today's date** — in Open WebUI, the model is told the date by your system prompt (Settings ▸ General ▸ **System Prompt**), which goes with every message; without it, it assumes an older year. If that prompt is empty, the first launch writes `Today is {{CURRENT_WEEKDAY}} {{CURRENT_DATE}}.` there, once; it is yours to edit or empty, and the app never touches it again. If you wrote your own prompt, add `{{CURRENT_DATE}}` to it.
-- **Voice** — click the microphone to talk (allow the mic prompt the first time). Speech-to-text runs **on your laptop** (Whisper; its first use downloads the model, about 150 MB, from huggingface.co, so it needs internet access once); read-aloud uses the farm's **Kokoro** neural voice if enabled, otherwise your OS voices.
+- **Voice** — click the microphone to talk, or, while the message box is empty, the sound-wave button where **Send** is (**Voice mode**) for a spoken conversation (allow the microphone the first time). Where your words are written down depends on the farm. When its **Speech to text** plugin is on (the panel's *Plugins* card, off by default), each recording goes to the farm, is written down there and dropped; the farm keeps nothing. Otherwise Whisper runs **on your laptop** (its first use downloads the model, about 150 MB, from huggingface.co, so it needs internet access once). Open WebUI keeps its own copy of each recording in your data folder. Read-aloud uses the farm's **Kokoro** neural voice if it is on, otherwise your OS voices.
 - **Documents** — attach a PDF or a photo of a document and ask about it. Scanned pages and images are OCR'd by the farm's vision model; on farms with a large context window (≥ 24k tokens per chat) answers read the whole document; on smaller ones, the 8 most relevant passages. On a farm with **document search**, the farm reads each document for search, in any language (ask in English about a French document), and your laptop keeps the result. The first time a laptop meets such a farm, its documents switch to that model for good, and the app says once how to bring older documents along: in Open WebUI, **Admin Panel ▸ Settings ▸ Documents ▸ Reindex** (next to "Reindex Knowledge and Memory Vectors"); a file attached straight to an older chat is simply attached again. After that, on a farm without document search, uploading a document fails (with a message saying why) rather than mixing two models, and chat works. On an older farm, before any switch, uploads need the search model on your laptop (about 92 MB, downloaded once at a start with internet access); until it is there, the app says so when it opens, and chat works without it.
 - **Where your data lives** — everything sits in one folder on **your** machine (by default
-  `…/LlmOnLan/owui-data` in your user app‑data; Settings ⚙ ▸ **Data location** shows it and can move
+  `…/LlmOnLan/owui-data` in your user app‑data; Preferences (⚙) ▸ **Data location** shows it and can move
   it): Open WebUI's chats, documents and RAG vectors; LOL Vibe's conversations and the Computer's graphs
   with the pictures, PDFs and sounds in them (in its `lol-client` subfolder — the app's own local
   database, so they don't appear in Open WebUI); and the files the Computer's File boxes write
-  (`LOL Studio Projects`). Changing the folder restarts the app: **Move my data** carries all of it,
-  **Start fresh** leaves the old folder as it was. Updating from v0.1.x copies your LOL Vibe history
+  (`LOL Studio Projects`). Changing the folder restarts the app: **Move my data** carries all of it into
+  an empty folder, **Start fresh** leaves the old folder as it was. A folder that already holds something is
+  only offered as it is (**Use this folder**): a move there would write over what it holds, so your current
+  data stays where it is. Updating from v0.1.x copies your LOL Vibe history
   into that folder once, on the first launch, and keeps the old copy in the app's user-data folder as a
   backup. With farm OCR on, an uploaded file's bytes go to the trusted‑LAN farm for text
-  extraction, and with document search, the document's text goes there to be turned into the numbers
-  search uses, which come back to your laptop; the farm keeps nothing of either.
+  extraction; with document search, the document's text goes there to be turned into the numbers
+  search uses, which come back to your laptop; with speech to text, each recording goes there to be written
+  down. The farm keeps none of it.
 - **LOL Vibe** — reopens your last chat on launch. Each reply shows tok/s and time to first token.
   A message's icons (hover one to see what it does): **Regenerate**, **Regenerate with…** (**More creative** /
   **More precise**), **Edit**, **Fork from here**, **Delete from here**, **Keep in context** (always sent, even
@@ -255,32 +275,33 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
   **Code**, the **Changes** and the **History** (go back to any version). A project can be shared read-only on the
   LAN, or pushed to GitHub. The agent is a one-time ~120 MB install from the panel; it only touches files inside its
   project. **Ctrl+1** opens or closes the panel. See [LOLVIBE_IDE_GUIDE.md](LOLVIBE_IDE_GUIDE.md).
+- **The Computer's tool in Open WebUI** — turn on the **LlmOnLan Computer** tool for a chat (**Integrations ▸
+  Tools**, under the message box). Then ask it to build or run a Computer graph, or to write a prompt for one of
+  ComfyQ's image, video or audio workflows (it only writes the text: you paste it into ComfyQ;
+  [how](LOLCHAT_COMPUTER_TUTORIAL.md#write-a-prompt-for-comfyq)). It works on this computer only.
+- **Home Assistant** — Preferences (⚙) ▸ **Home Assistant**: type the address, paste a long-lived token, then
+  **Link**. With the **LlmOnLan Computer** tool on, a chat can then read your home. Commands are a dry run until
+  you click **Allow commands…**, which lists the devices and lasts until the app closes. **Leave web search off in
+  a chat that uses your home**: a web page could steer the model into sending what it read to a web address.
+  Works best with a model that calls tools well (Qwen). See [HOME_ASSISTANT.md](HOME_ASSISTANT.md).
 - **Closing the window quits** — the app asks "Quit LlmOnLan?" first, then stops the chat engine; your seat on
   the farm frees once it has been idle a while. Reopening takes about 12 seconds while Open WebUI starts again
   (about 30 the first time after the computer restarts). If it is much slower, send the operator `boot.log` from
   the app's logs folder (Windows: `%APPDATA%\LlmOnLan\logs`; macOS: `~/Library/Application Support/LlmOnLan/logs`;
   Linux: `~/.config/LlmOnLan/logs`): it lists each step of the start with the seconds since launch.
-- **Updates** — the app updates itself (Settings ▸ Startup & updates). The chat engine is separate:
-  Settings ▸ About ▸ **Check for chat‑engine update** downloads a newer Open WebUI, applied on the next
+- **Updates** — the app updates itself (Preferences (⚙) ▸ Startup & updates). The chat engine is separate:
+  Preferences (⚙) ▸ About ▸ **Check for chat‑engine update** downloads a newer Open WebUI, applied on the next
   launch (**Restart to apply**).
 - **No login, by design** — the chat surface is single‑user with authentication off, because the data is
   already local and per‑machine. Anyone who can use the laptop can read its chats: on a **shared**
   machine, use separate OS accounts.
-- **Web search is off by default; the globe button turns it on for a chat.** With it on, a message costs
-  the farm about as much work as with it off, but the first word comes a few seconds later (a search
-  takes about 2 s) and the model reads a few thousand more tokens of search results per chat. It stays
-  off by default until it has been checked with a whole class searching from one school network. To have
-  it on in every chat, pick **Always** in Open WebUI's own settings (Interface ▸ **Web Search in
-  Chat**); the client keeps your choice.
-  Clients up to v0.2.7 turned it on for every chat; the first launch of a newer one switches that back
-  off once, and only if you had not changed it.
 
 ---
 
 ## Control Blender from the chat (opt-in)
 
 The assistant can drive **Blender running on your own machine** (create objects, run scripts, inspect the
-scene). This is **opt-in, off by default**: turn it on in Settings (⚙) ▸ **Assistant tools** ▸ check
+scene). This is **opt-in, off by default**: turn it on in Preferences (⚙) ▸ **Assistant tools** ▸ check
 **Blender tools**, and the client configures everything else automatically — it runs a local helper and
 registers it with Open WebUI for you. (A farm admin can also **recommend** it to the whole fleet from the
 admin panel; clients that never made an explicit choice then enable it automatically.)
@@ -293,16 +314,22 @@ admin panel; clients that never made an explicit choice then enable it automatic
 **Notes:**
 - **Enabling Blender tools the first time** installs a small local helper (~1 min, needs internet); after that it's instant.
 - It only works while **Blender is open with the MCP server started** — otherwise the tools are listed but a call returns a "can't reach Blender" message.
-- **Port:** the add-on talks on a socket port (default **9876**, shown in its panel). If yours shows a different number, set the same value in Settings (⚙) ▸ **Assistant tools** ▸ **Blender port** — a mismatch here is the usual cause of "could not connect."
-- **Test connection** (Settings ▸ Assistant tools) checks both hops at once: the local helper, and whether Blender is actually listening on the port. Use it to tell "helper not up" from "Blender not started / wrong port."
-- Use a model that's **good at tool calling** (e.g. a Qwen or Llama tool-tuned model). `gemma4:12b` is weak at tools, so results will be hit-or-miss with it. OWUI defaults to **Native** tool calling; if the model chats but never calls a tool, try switching **Function Calling** to **Legacy** (Chat Controls → Advanced Params) — some models served via Ollama need the prompt-based path.
+- **Port:** the add-on talks on a socket port (default **9876**, shown in its panel). If yours shows a different number, set the same value in Preferences (⚙) ▸ **Assistant tools** ▸ **Blender port** — a mismatch here is the usual cause of "could not connect."
+- **Test connection** (Preferences (⚙) ▸ Assistant tools) checks both hops at once: the local helper, and whether Blender is actually listening on the port. Use it to tell "helper not up" from "Blender not started / wrong port."
+- Use a model that's **good at tool calling**. `gemma4:12b` made 95% correct tool calls in a test with 8 tools (2026-09-27, [results](research/agent-spike/RESULTS.md)); Blender's own tools were not measured. If results are hit-or-miss, ask the operator to serve a model that calls tools well (a Qwen, for example). OWUI defaults to **Native** tool calling; if the model chats but never calls a tool, try switching **Function Calling** to **Legacy** (Chat Controls → Advanced Params) — some models served via Ollama need the prompt-based path.
 - **Privacy & safety:** the tool server runs on **localhost only** (never exposed to the LAN) and the Blender helper's telemetry is turned **off**. It can run arbitrary Python inside Blender, so treat it like any automation on your own scene.
 - Changed your mind? Uncheck **Blender tools** in the same place — your explicit choice always wins over a farm recommendation.
 
 ## 4. A room full of people (capacity) & multiple GPU boxes
 
-> ### Serving a group? Check one setting first.
-> Out of the box the farm (gemma4 on Ollama) answers **two requests at a time**; raise it in the panel
+> ### Serving a group? Set the farm up first.
+> **The quickest way: a preset.** The **Presets** card at the top of the panel sets the farm up for a session in
+> one go: **Balanced** (the farm as it ships), or **Documents**, **LOL Vibe** or **Computer**, each picked for this
+> box from measurements, for the most people. **Review…** says why, what would change, what restarts and what must
+> be downloaded first, and changes nothing. **Apply** does it as one job, once any download is done. Anything stays
+> yours to change by hand afterwards. Details: [farm/README.md ▸ Presets](../farm/README.md#presets).
+>
+> By hand: out of the box the farm (gemma4 on Ollama) answers **two requests at a time**; raise it in the panel
 > (the serving engine's section ▸ **People served at once**; on Ollama it applies after a farm restart). On llama.cpp the
 > default is 1, and the slots share one context pool: a person alone gets the whole window. On a big NVIDIA
 > card (an RTX PRO 6000, a DGX Spark), choose **vLLM** in the panel (**Serve with vLLM**): it serves many people at once (48 at 64k on a
@@ -337,7 +364,7 @@ On the llama.cpp engine, shapes that fit (VRAM totals for the shipped quant):
 > box tips into CPU offload: everything gets ~5–10× slower and stays that way (this is
 > [§7 cause 2](#7-if-its-slow)). Pick one before the workshop:
 >
-> - **turn OCR off on this box** — the panel's *Plugins* card ▸ Document OCR ▸ **Disable** (no scanned-document reading; it comes back when the farm restarts);
+> - **turn OCR off on this box** — the panel's *Plugins* card ▸ Document OCR ▸ **Disable** (no scanned-document reading until you **Enable** it again: the switch is kept across restarts);
 > - **give OCR a smaller vision model** — not in the panel yet: a developer sets `ocr.model` ([`farm/README.md`](../farm/README.md));
 > - **run OCR on a second box**;
 > - **or use a ≥ 16 GB card**, where both fit comfortably.
@@ -382,14 +409,25 @@ the next person can pick a different box. Full reference:
 ## 5. Change the model, the name, or the capacity
 
 All of this lives in **one place**: the farm panel. In the Farm app that is the main window; from any
-other machine on the LAN it's `http://<box-ip>:41997/lol/admin` with the token the farm printed. Changes
-apply live *and* are remembered across restarts.
+other machine on the LAN it's `http://<box-ip>:41997/lol/admin` with the token the farm printed. The panel
+applies each change itself, restarting only what it must (on vLLM it asks first), *and* remembers it across
+restarts; only Ollama's people served at once waits for a farm restart.
 
-The panel opens on a **Serving** card that answers the two questions that used to need a config file:
+The panel opens on the **Presets** card ([§4](#4-a-room-full-of-people-capacity--multiple-gpu-boxes)): **Review…**
+then **Apply** sets the farm up for a kind of session, and a setting changed by hand afterwards marks the card *changed*. Then a
+**Serving** card that answers the two questions that used to need a config file:
 what users' model is called, and which engine is behind it. Under it, **one section per engine** — Ollama,
 llama.cpp, vLLM — each opened and closed by its line, which says its state without opening it (*serving*,
 *standby*, *not installed*, *cannot run on this computer* …); the serving one is open. Then **Access**: what every
-engine shares (the name users see, the idle seat, the farm password) and the one **Apply changes**.
+engine shares (the name users see, the idle seat, the farm password) and the one **Apply changes**. Then **Model
+storage**, **Plugins**, **Clients** and **This box**.
+
+**Put the models on another drive.** In *Model storage*, type a folder (or **Browse…** in the Farm app), then
+press **Move here**. The farm copies its models there, checks every copy, switches, and only then deletes the old
+copies. It keeps serving while it copies; at the switch, what uses the files stops for about a minute. An SSD is
+best. On Windows, vLLM's models live in WSL's Linux disk, which
+moves from the vLLM section. Details:
+[farm/README.md ▸ Model storage](../farm/README.md#where-the-models-are-on-disk-model-storage).
 
 **Rename what users see.** On llama.cpp or vLLM: *Access* ▸ **Name users see** → type e.g. `Studio Assistant`
 → Apply changes. On Ollama: the **Rename** button on the model's row.
@@ -474,8 +512,8 @@ engine**; while llama.cpp or vLLM is the engine its line reads *standby*. **Dele
 
 - **Farm app?** It is private until the operator turns on Settings ▸ **Share compute with the network**.
 - **Same Wi-Fi/LAN?** Discovery is automatic. Give it a few seconds after the farm starts.
-- **Managed / school Wi-Fi** often blocks broadcast. The client also **sweeps the subnet** for the farm, and you can **add it by address**: click the connection pill ▸ **Servers on your network** and add the farm's `<box-ip>` there, or use Settings ⚙ ▸ **Connection** ▸ **Add by address**. (To check the laptop can reach it, open `http://<box-ip>:41997/lol/self` in a browser: a page of text about the farm means it answers.)
-- **Different subnets** only work if the network routes between them — otherwise put the boxes and clients on one LAN — or set Settings ▸ Connection ▸ **Search range** to cover the farm's subnet (unicast crosses subnets that block broadcast).
+- **Managed / school Wi-Fi** often blocks broadcast. The client also **sweeps the subnet** for the farm, and you can **add it by address**: click the connection pill ▸ **Servers on your network** and add the farm's `<box-ip>` there, or use Preferences (⚙) ▸ **Connection** ▸ **Add by address**. (To check the laptop can reach it, open `http://<box-ip>:41997/lol/self` in a browser: a page of text about the farm means it answers.)
+- **Different subnets** only work if the network routes between them — otherwise put the boxes and clients on one LAN — or set Preferences (⚙) ▸ Connection ▸ **Search range** to cover the farm's subnet (unicast crosses subnets that block broadcast).
 
 ---
 
@@ -521,7 +559,9 @@ Four behaviors the v1 acceptance audit chose to ship **documented** rather than 
   their chats fail, until each person re-enters the password on the farm's card (click the pill →
   the farm list). The app forgets the stale password by itself; it just can't know the new one.
 - **A hiccuping farm can log a client out of its password** (the client treats "the farm answered
-  but not OK" as "wrong password"). Re-entering the same password fixes it.
+  but not OK" as "wrong password"). Re-entering the same password fixes it. From the next client release,
+  the answer a farm gives while it restarts its proxy (502–504: Apply changes, an engine switch, a model
+  start) keeps the password.
 - **One password per farm.** A fleet of separately-passworded farms means entering each box's
   password by hand, and a coordinator skips passworded peers. To keep automatic spreading on a
   passworded fleet, run it as ONE farm (all boxes in `ollama.hosts`, one password) or
@@ -548,4 +588,4 @@ Terms that show up in the config and in this guide.
 
 ---
 
-For the design rationale, the full config reference, and the development history, see [`README.md`](../README.md), [`farm/README.md`](../farm/README.md), [`docs/archive/plans/implementation_plan.md`](archive/plans/implementation_plan.md), and [`docs/DEVLOG.md`](DEVLOG.md).
+For the design rationale, the full config reference, and the development history, see [`README.md`](../README.md), [`farm/README.md`](../farm/README.md) and [`docs/DEVLOG.md`](DEVLOG.md). Every other document is on the map, [`docs/README.md`](README.md); what a person must still check is in [`docs/HUMAN_TESTS.md`](HUMAN_TESTS.md), and the next work in [`docs/plans/README.md`](plans/README.md).

@@ -1,5 +1,10 @@
 # LOL Chat — the Computer panel (spec delta)
 
+> **Archived 2026-11-05.** The first spec of the Computer, as a panel in a LOL Chat thread (2026-09-16). C1–C3 were built
+> that day; COMPUTER_PLAN.md (2026-09-22) then made it a surface of its own, released in v0.2.0. What the Computer does
+> now: CLAUDE.md (the Computer) and [LOLCHAT_COMPUTER_TUTORIAL.md](../../LOLCHAT_COMPUTER_TUTORIAL.md).
+> Also no longer true below: S2 (the vibecode bench) and S3 (design/board) of the studio plan were never built, the Computer and the IDE took their place, so §8 step 5 will not happen; §3's "no web fetch nodes" is overtaken by the Fetch, Open data and Agent boxes (2026-09-27). Nothing is left.
+
 > *Superseded (2026-09-22) by [COMPUTER_PLAN.md](COMPUTER_PLAN.md). The Computer is its own surface
 > with a library, not a panel in a thread. Kept for its history: §1's reasons and §6's directives
 > still stand. For today's behaviour read [LOLCHAT_COMPUTER_TUTORIAL.md](../../LOLCHAT_COMPUTER_TUTORIAL.md).*

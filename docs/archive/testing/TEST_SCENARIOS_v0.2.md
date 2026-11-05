@@ -1,5 +1,8 @@
 # Test scenarios — LlmOnLan v0.2.x
 
+> **Archived 2026-11-05.** HUMAN_TESTS.md replaced it on 2026-10-09; the tables below map each scenario to its test
+> there (a test since done is in HUMAN_TESTS Part 4, one dropped in Part 5).
+
 > **Moved, 2026-10-09.** Every check of this list that a person still has to do is now in
 > [HUMAN_TESTS.md](../../HUMAN_TESTS.md), grouped by setup, with the release-blocking ones marked ★. This file keeps each
 > scenario's number and where it went, or where it was verified, so old references still lead somewhere. The steps
@@ -13,7 +16,7 @@ in the HUMAN_TESTS test named after it.
 
 | # | Scenario | Status |
 |---|---|---|
-| 1.1 | Client auto-update | → C1 (v0.2.9 → v0.2.10), C5 (from v0.1.45), E1, E3 |
+| 1.1 | Client auto-update | → C1 (the previous release → the release under test), C5 (from v0.1.45), E1, E3 |
 | 1.2 | History survives the update | → C1, C5 |
 | 1.3 | Farm app update (farm-v0.0.39) | superseded: the next update is K1 |
 | 1.4 | The engine update (Open WebUI 0.11.4) | done (dev) 2026-09-27 (NIGHT_LOG); an installed client updates its engine only from About → C3, A1 |
@@ -27,7 +30,7 @@ in the HUMAN_TESTS test named after it.
 | 2.1 | New plugins off by default | → A8 (Document search is on by default since 2026-10-08) |
 | 2.2 | Turning one on does not block the farm | done (dev farm, CLI) 2026-09-27; from the panel → A8 |
 | 2.3 | Password → plugin keys | done (dev) 2026-09-27; the keys changed since (2026-10-04, 10-07) → D14 |
-| 2.4 | Restart keeps working | rewritten: a panel plugin switch lasts only until a restart → D14 |
+| 2.4 | Restart keeps working | rewritten: a panel plugin switch is kept across a restart (since farm-v0.0.50, 2026-10-27) → D14 |
 
 ## 3. The Computer — the new boxes
 
@@ -130,7 +133,7 @@ in the HUMAN_TESTS test named after it.
 
 | # | Scenario | Status |
 |---|---|---|
-| 7e.1 | The Farm app update | → K1 (now 0.0.43 → 0.0.44) |
+| 7e.1 | The Farm app update | → K1 (the previous Farm app → the release under test) |
 | 7e.2 | A card too small | → K5 |
 | 7e.3 | vLLM from nothing, on Windows | → K6; on the PRO 6000 → J1 |
 | 7e.4 | Switch to vLLM and back | → J2 |
@@ -147,7 +150,7 @@ in the HUMAN_TESTS test named after it.
 | # | Scenario | Status |
 |---|---|---|
 | 7f.1 | It is on by itself | → K4 |
-| 7f.2–7f.6 | A laptop with documents; a new one; nothing stays; a farm without it; a password | → I1, I2, I3, I4, I6 |
+| 7f.2–7f.6 | A laptop with documents; a new one; nothing stays; a farm without it; a password | → I1, I2, I3, I4, D14 (I6 merged into it, 2026-11-05) |
 | 7f.7 | Beside vLLM | → J4 |
 | 7f.8 | Many uploads | → I7 |
 

@@ -33,7 +33,8 @@ you don't forget.
     computer-2026-09-24_21-15-03-mark-1.png     the screenshot for marker 1
 ```
 
-That is `C:\Users\<you>\AppData\Roaming\LlmOnLan\logs\computer\`. A dev run
+That is `C:\Users\<you>\AppData\Roaming\LlmOnLan\logs\computer\`. On macOS it is
+`~/Library/Application Support/LlmOnLan/logs/computer/`, on Linux `~/.config/LlmOnLan/logs/computer/`. A dev run
 (`npm run dev` in `shell/`) and the installed client write to the same folder.
 
 Limits, so a switch left on can't fill the disk:
@@ -70,7 +71,8 @@ carries a `readme` with this same key, so a file explains itself.
 | `err.uncaught` `err.rejection` `err.resource` `err.csp` `err.store` | Runtime errors, with message, file:line and stack |
 | `con.error` `con.warn` `con.info` `con.log` | The console |
 | `sbx.state` `sbx.error` `sbx.log` `sbx.log-dropped` `sbx.gone` `sbx.note` | The sandbox that runs p5 / three / HTML: its state, the guest's errors and console (20 lines/s; the lines over that are counted in one `sbx.log-dropped` per second), and its own notices with their level and words (`sbx.note`: a restarted sketch, the pause after three stalls, a library that did not load) |
-| `bus.farm` `bus.gov` `bus.visible` `bus.store` | The farm changed, the seat governor changed, the Computer was shown or hidden |
+| `bus.farm` `bus.gov` `bus.visible` `bus.store` `bus.shown` | The farm changed, the seat governor changed, the window was shown or hidden, the Computer was shown or left |
+| `voice.start` `voice.transcript` `voice.bot.sentence` `voice.interrupted` `voice.ended` … | A Converse box's conversation: each event with its time (a turn heard, written down, answered, spoken, talked over, and why it ended), with the words heard and said clipped to 300 characters. Levels and the streaming answer are only counted, on the `voice.ended` line. Never sound |
 | `perf.frame` | A frame longer than 100 ms, with the three scripts that took longest (file, function, what invoked them). Only while recording: watching frames costs a little on every frame, so an idle recorder does not |
 | `mark` `mark.cancelled` | A bug marked by hand: the note, the screenshot, the whole state and graph, the last run. If the note box is cancelled, no marker is saved: one `mark.cancelled` line names the screenshot already on disk |
 | `main.renderer-gone` `main.unresponsive` `main.responsive` `main.preload-error` | Written by the main process when the page crashed or hung, or its preload script failed, which the page cannot report itself |
@@ -89,7 +91,7 @@ carries a `readme` with this same key, so a file explains itself.
   included). Other fields are summarised once per edit, not per keystroke. The value is clipped to
   600 characters.
 - **Picture, PDF or sound bytes.** A `data:` URI is written as its type and size.
-- **Anything while you're in LOL Chat or Open WebUI.** Interactions are recorded only while the
+- **Anything while you're in LOL Vibe or Open WebUI.** Interactions are recorded only while the
   Computer is on screen. Errors and requests are global, because a bug doesn't care which tab
   you're on.
 

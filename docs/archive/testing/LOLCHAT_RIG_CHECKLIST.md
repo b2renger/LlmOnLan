@@ -1,5 +1,8 @@
 # LOL Chat vNext: rig checklist (a human on real machines)
 
+> **Archived 2026-11-05.** [HUMAN_TESTS.md](../../HUMAN_TESTS.md) replaced it on 2026-10-09; the table below says where
+> each section went there. Nothing open is left here.
+
 This checklist covered what the automated harness cannot prove, for LOL Chat vNext (P0–P2, S0, C1–C3, K3–K7). LOL
 Chat is **LOL Vibe** since 2026-09-27.
 
@@ -25,7 +28,7 @@ Chat is **LOL Vibe** since 2026-09-27.
 | 9 | Recipes and structured output | **Never built** (P4) |
 | 10 | Appearance, input, accessibility, platforms | → **A6** (and A2 for numbered steps, links, a stuck model); macOS and Linux → **E3**; Read aloud **never built** |
 | 11 | Privacy and data locality | nothing on the farm disk → **A7**. **No longer apply:** "zero `/v1/embeddings`" (document search sends document text to the farm since 2026-10-08: **I3**), "history does not move" (it moves, 2026-09-27) |
-| 12, 12.1 | Studio rails | the workbench, testable again through the Project panel → **A7**; vision probe → **A7**; v1 → v2 database on a real profile → **C5**; background lane → **D15**; OneDrive and Show folder → **A7**. **No longer apply:** projects left behind by a move (everything moves), the queue chip (nothing calls it). A developer's: the ask spine's rung, the strict harness flake. **Flag:** `project.json` is refused by the projects API but not by the coding agent's fence (read from the code, HUMAN_TESTS "Questions for the owner" 6) |
+| 12, 12.1 | Studio rails | the workbench, testable again through the Project panel → **A7**; vision probe → **A7**; v1 → v2 database on a real profile → **C5**; background lane → **D15**; OneDrive and Show folder → **A7**. **No longer apply:** projects left behind by a move (everything moves), the queue chip (nothing calls it). A developer's: the ask spine's rung, the strict harness flake. **Flag (fixed 2026-10-09):** `project.json` was refused by the projects API but not by the coding agent's fence; the fence now refuses a write to it and to `.git/` (DEVLOG 2026-10-09 10:59; HUMAN_TESTS G12) |
 | 13 | The Computer (C1) | **Verified:** a program on the first try (the owner, 2026-09-23). The rest → **A11** (a typo, Stop, it survives the app, undo, the farm arriving late, a long answer, a big graph), **A13** (canvas size, keyboard, trackpad), **D15** (the seat belongs to the human) |
 | 14 | The Computer, fanned out (C2) | → **A12**; a colleague's chat → **D15**; a slow machine → **A17**. **No longer apply:** From thread / To thread, the value inspector beside the conversation |
 | 15, 15b | Code, pictures, files, sharing (C3) | **Verified:** Code on a real graph (every ? example on qwen3.8, NIGHT_LOG 2026-09-28 00:36). The rest → **A10**, **A11** (refusals, Tidy, export), **D12** (two machines), **A17** (a laptop GPU). **No longer apply:** Send a model's code to the Computer, a file dropped beside the composer, an export from a From thread part |

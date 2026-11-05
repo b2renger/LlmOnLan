@@ -17,9 +17,12 @@ model**. Your project is a folder on this computer; nothing is kept on the farm.
 4. Type a name and press **New project**. The chat is now tied to that project folder:
    `<your data folder>/LOL Studio Projects/<name>…`.
 
-The model: the agent works best with **qwen3.8** or **nemotron**. When the farm serves one, a project chat starts on
-it. The line under the project's name says whether the chosen model is good at editing code (**gemma4** is not —
-it thinks itself out of room).
+The model: two models were proven with this agent on five real tasks, on the farm's vLLM: **Qwen3.6** (the farm's
+vLLM default; 11 of 15 on 2026-10-23) and **Flint** (13 of 15 on vLLM 0.33.0, 2026-11-02; not on Ollama). The farm's
+**LOL Vibe** preset serves one of them where vLLM is set up. **qwen3.8** and **nemotron** passed a single edit test (3 of 3,
+2026-09-28): when the farm serves one of those two, a project chat starts on it. The line under the project's name
+says how the chosen model did on code edits (**gemma4** is weak: it thinks itself out of room). It does not know
+Qwen3.6 and Flint yet: it calls them untried.
 
 ## 2. Ask
 
@@ -52,7 +55,7 @@ simply done in one turn.
   start its next round, or when it says it is **blocked** (with its reason). The files keep what it did.
 - Each round is a full reply of the model on the farm, and a loop holds your farm seat until it ends.
 - The switch is per project, off by default, and **off again when LlmOnLan closes**: a loop only ever runs because you
-  asked for one. Best with **qwen3.8** (it checks its own work; nemotron did not, in our tests).
+  asked for one. Best with **qwen3.8** (it checks its own work; nemotron did not, in our tests of 2026-09-29).
 
 ### Agents as web pages
 
@@ -77,7 +80,8 @@ add and wire boxes, set them and run them, then read what they gave — for exam
 
 - **Devices stay yours:** anything that would reach a device (a Send box, a USB board) is a **dry run** until *you* arm
   the outputs; while they are armed the agent cannot change or run a graph at all. What only a person chooses — a Fetch
-  address, an Open data link, an Agent's hosts, a board, Listen — the agent cannot set; it says it left it for you.
+  address, an Open data link, an Agent's hosts, a board, Listen, the devices a Home box reads and a Home command's
+  device, action and details — the agent cannot set; it says it left it for you.
 - It all stays on this computer (the Computer answers the agent on 127.0.0.1 only).
 - Per project, off by default, off again when LlmOnLan closes. It combines with **Keep going until done** and
   **Schedule…** — a scheduled loop that checks something with a graph and reports.
@@ -156,7 +160,8 @@ A Gitea on your LAN works the same way (an `https://` address).
 |---|---|
 | *The coding agent is not installed on this computer yet* | Press **Install the coding agent** (the panel). |
 | *No farm is connected* | The pill at the top: pick a farm. |
-| *The model ran out of room before it finished* | Ask for something smaller, or pick qwen3.8 / nemotron. |
+| *The model ran out of room before it finished* | Ask for something smaller, or pick another model: Qwen3.6 or Flint (proven with the agent), or qwen3.8 / nemotron (good at code edits). |
+| *The coding agent cannot work in this folder …* | Windows only: the data folder is on a second drive, a USB stick or a network folder. Move it into your user folder (Preferences ▸ Data location), then send again. |
 | *This file changed since you opened it … so it was not saved* | The agent edited it meanwhile. Copy your changes, click the file in the list (the new version opens), paste them back, **Save**. |
 | *The coding agent stopped before it answered* | Ask again: it restarts, and it gets a short recap of the chat. |
 | *… refused the token* | Make a new token with *Contents: read and write* on that repository, and save it again. |

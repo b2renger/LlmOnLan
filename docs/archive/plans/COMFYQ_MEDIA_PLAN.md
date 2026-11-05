@@ -1,5 +1,11 @@
 # LlmOnLan × ComfyQ — media generation from the chat (DESIGN — not yet built)
 
+> **Archived 2026-11-05, never built.** A design (2026-07-05) for booking ComfyQ jobs from the farm. Something smaller
+> shipped instead on 2026-11-02 (client v0.2.15): two MCP tools that only write a prompt for a ComfyQ workflow
+> (`shell/src/main/comfyqPrompts.ts`; CLAUDE.md, the Computer's MCP server).
+> Stale if it is ever revived: its Open WebUI facts are from the 2026-07-05 pin; its client half writes `ui.toolServers` through the user-settings API, and the owner's rule of 2026-11-05 (no new call into Open WebUI) points to the Computer's MCP server or `TOOL_SERVER_CONNECTIONS` instead; farm changes reach the boxes with a Farm app release (a `farm-v*` tag, installed by hand), not `git pull`; the panel's settings persist to `lol.config.json`; gemma4:12b made 95 % correct tool calls in the agent spike (2026-09-27, docs/research/agent-spike/RESULTS.md), it is not "weak at tools"; its `Co-Authored-By` trailer is out of date.
+> Build it later, keep it parked or drop it: the owner's call, in [docs/plans/README.md](../../plans/README.md).
+
 > **Status: PLANNED, not implemented (recorded 2026-07-05).** This is an approved design captured for a
 > future build — no code exists yet. Owner decisions are locked (see "Decisions locked"). When building,
 > follow the build order in "Execution / operations". Line/route references were verified against the

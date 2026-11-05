@@ -10,8 +10,34 @@
 
 # LlmOnLan — Integration Brief
 
+> **A dated snapshot, plus the pin-bump notes.** The research is of 2026-06-29, on Open WebUI 0.10.1. The NOTEs
+> below record each pin bump since (0.10.2 on 2026-07-01, 0.11.4 on 2026-09-27) and what was checked again;
+> [What to check again at each pin bump](#what-to-check-again-at-each-pin-bump) gathers those checks. The pin and the
+> env have moved since: the pin is `sidecar/OPENWEBUI_VERSION`, and the authoritative env list is
+> `shell/src/main/configBridge.ts`, summed up in CLAUDE.md ▸ *Verified OWUI config surface*. Superseded: §2's
+> admin-REST reconcile (never built: the client uses only Open WebUI's user-settings API), §3's "leave
+> `RAG_EMBEDDING_ENGINE` empty" (true until the farm's document search, 2026-10-08: see its note) and §5's
+> PyInstaller packaging (never built: a standalone CPython, downloaded on first run).
+
 **Project:** Electron client that bundles a pinned, UNMODIFIED Open WebUI and connects it to a LAN LiteLLM + Ollama farm.
 **Brief date basis:** mid-2026 verified findings. Every "exact value" below carries a confidence + source note. Treat anything tagged **medium** or flagged in §7 as guidance to re-verify on the rig.
+
+### What to check again at each pin bump
+
+The upgrade itself is a version bump ([sidecar/README.md](../sidecar/README.md), *The upgrade test*). Then, in the
+new pin's source and on one box:
+
+- every env name `configBridge.ts` sets still exists, with the same meaning; `WHISPER_MODEL_DIR` is still
+  `{CACHE_DIR}/whisper/models`;
+- the user-settings API (`POST /api/v1/users/user/settings/update`) round-trips, and `GET /api/v1/auths/` answers
+  with the token;
+- `TOOL_SERVER_CONNECTIONS` still takes the Computer's `type: "mcp"` entry with `auth_type: "bearer"`;
+- Open WebUI still reads the model list only as its page loads (`app.js` `reloadIfFarmBack`);
+- `hfModelState` still matches the bundled huggingface_hub's local lookup (1.33 at 0.11.4) and the files MiniLM's
+  loader reads;
+- the pinned dependencies the build substitutes (onnxruntime 1.23.2 for darwin-x64) still install;
+- a `DATA_DIR` of the old pin upgrades (its migrations run, a chat and a user setting survive);
+- whether `OPENAI_API_CONFIGS` / `OLLAMA_API_CONFIGS` are parsed from env (the shell sets neither; §2's note).
 
 ---
 
@@ -25,6 +51,10 @@
 | **Default bind** | host `0.0.0.0`, port `8080` |
 | **Override host/port** | CLI flags only: `open-webui serve --host 0.0.0.0 --port 8080`. **The `PORT` env var is NOT honored by `open-webui serve`** — use `--port` |
 
+> **NOTE (2026-07-01, post-brief): the pin moved to 0.10.2** — `sidecar/OPENWEBUI_VERSION` is the
+> single source of truth. The 0.10.1 facts here (Python range, console script, `--port`, license rider,
+> External Document Loader contract) were re-verified to hold on 0.10.2.
+>
 > **NOTE (2026-09-27): bumped to 0.11.4.** The changelog 0.11.0–0.11.4 has no breaking change to any env var or API
 > the shell uses; the standard pip package still pins sentence-transformers 5.5.1, faster-whisper 1.2.1 and
 > onnxruntime 1.26.0 (the darwin-x64 substitution still applies). **Tool servers (2026-09-27):**
@@ -36,11 +66,8 @@
 > `{CACHE_DIR}/whisper/models`. Smoke-tested standalone on this box: a cold boot in 22 s, /api/version 0.11.4,
 > auth off, signin → token, GET /api/v1/auths/ 200, the user-settings write round-trips; and an UPGRADE of a
 > 0.10.2 DATA_DIR (8 alembic migrations, no error) keeps a chat and a user setting written under 0.10.2.
-> Still for the rig: the full client against a real farm on 0.11.4 (RIG_CHECKLIST).
->
-> **NOTE (post-brief):** the live pin has since moved to **0.10.2** — `sidecar/OPENWEBUI_VERSION` is the
-> single source of truth. The 0.10.1 facts here (Python range, console script, `--port`, license rider,
-> External Document Loader contract) were re-verified to hold on 0.10.2.
+> The full client has run on 0.11.4 since (RIG_CHECKLIST's open items moved to HUMAN_TESTS); macOS's microphone
+> and camera are HUMAN_TESTS E2.
 >
 > **NOTE (2026-09-27):** the sidecar bundles standalone **CPython 3.12**, not 3.11
 > (`sidecar/build-sidecar.mjs`), and a packaged client runs `<userData>/sidecar/python launcher.py serve`;
@@ -86,6 +113,9 @@
 ### `*_API_CONFIGS` cannot be set from env
 `OPENAI_API_CONFIGS` / `OLLAMA_API_CONFIGS` (per-connection model restrictions, naming, tags) **always initialize to `{}` and are NOT parsed from env** (issue #19017, closed not-planned; base URL + key DO work from env). Set per-connection model restrictions only via the **admin REST API** or Admin UI.
 > Confidence: **high**. Source: `issues/19017`, `config.py`.
+> *NOTE (2026-11-05): that was 0.10.1. The pinned 0.11.4 parses both from env (its `config.py`, `OLLAMA_API_CONFIGS`
+> and `OPENAI_API_CONFIGS` read with `os.getenv` as JSON objects). The shell sets neither: the simple
+> `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` pair is the whole connection.*
 
 ### Admin REST API — reconcile the connection each launch
 
@@ -113,7 +143,7 @@
 |---|---|---|
 | `DATA_DIR` | `./data` (default) | **Single base dir for ALL local data** — uploads, cache, vector DB, `config.json`, SQLite DB, embedding-model cache. Put on a persistent volume. |
 | `WEBUI_SECRET_KEY` | (set explicitly) | Signs JWTs + encrypts data at rest. `open-webui serve` auto-generates + persists `.webui_secret_key` in CWD; **set it explicitly to a stable value** so tokens survive app re-creation. `openssl rand -hex 32`. |
-| `RAG_EMBEDDING_ENGINE` | **leave empty** | Empty = local SentenceTransformers (in-process). Do NOT set to `ollama`/`openai`. |
+| `RAG_EMBEDDING_ENGINE` | **leave empty** | Empty = local SentenceTransformers (in-process). Do NOT set to `ollama`/`openai`. *NOTE (2026-10-08): a data folder that adopted the farm's document search sets `RAG_EMBEDDING_ENGINE=openai` and `RAG_EMBEDDING_MODEL=embeddinggemma-2` at the farm's service (`configBridge.ts` `EMBEDDING_CONTRACTS`; the text goes to the farm, the vectors stay in `DATA_DIR`); MiniLM is left only for a folder that has not met one.* |
 | `RAG_EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` (default) | Local MiniLM; downloaded from HuggingFace on first use unless cached. |
 | `OFFLINE_MODE` | `true` (optional) | Sets `HF_HUB_OFFLINE=1` — first-party offline switch. **Requires a pre-seeded HF cache** under `DATA_DIR` or first RAG use fails. *NOTE (2026-09-27): the client never sets `OFFLINE_MODE`; it sets `HF_HUB_OFFLINE=1` itself once both models are on disk (`shell/src/main/configBridge.ts` `hfModelsCached`). Verified on 0.10.2: MiniLM loads from the **default HF hub cache** (`~/.cache/huggingface/hub`, `SENTENCE_TRANSFORMERS_HOME` unset), not `DATA_DIR`; faster-whisper downloads to `WHISPER_MODEL_DIR` = `<DATA_DIR>/cache/whisper/models`.* |
 | `WEBUI_AUTH` | `false` (optional, kiosk) | Disables login; auto-creates `admin@localhost`/`admin` on fresh install only. |
@@ -133,7 +163,7 @@ OPENAI_API_KEY=sk-1234
 ENABLE_OLLAMA_API=false
 ENABLE_PERSISTENT_CONFIG=false                       # env stays authoritative
 # (or RESET_CONFIG_ON_START=true once to clear a stale DB URL, then remove)
-RAG_EMBEDDING_ENGINE=                                # empty = local MiniLM
+RAG_EMBEDDING_ENGINE=                                # empty = local MiniLM (until the folder adopts the farm's document search, 2026-10-08)
 WEBUI_SECRET_KEY=<openssl rand -hex 32>
 DATA_DIR=/persistent/volume/data
 ANONYMIZED_TELEMETRY=false
@@ -258,7 +288,7 @@ The CLAUDE.md mentions Electron **^42** (good) and treats `electron-builder` as 
 1. **OWUI 0.10.x is brand-new (shipped 2026-06-29).** Decide v0.10.1 (latest) vs v0.9.6 (settled fallback). Re-check `docs.openwebui.com/license` wording at deploy time.
 2. **`--port` vs `PORT` env** for `open-webui serve` — confirm against `backend/open_webui/__init__.py` at your exact pinned tag.
 3. **Singular vs plural OpenAI env precedence** — set only one pair; verify the config.py reset bug (#19684/#19683) behavior on the pinned release.
-4. **`OPENAI_API_CONFIGS` env-parsing** — still `{}`-only in current config.py; confirm a later release hasn't added parsing on your pin (else use REST/UI for per-connection model limits).
+4. **`OPENAI_API_CONFIGS` env-parsing** — still `{}`-only in current config.py; confirm a later release hasn't added parsing on your pin (else use REST/UI for per-connection model limits). *NOTE (2026-11-05): 0.11.4 parses it, and `OLLAMA_API_CONFIGS` (§2's note); the shell sets neither.*
 5. **`/v1` suffix on the OWUI base URL** — confirm OWUI's URL normalization for your pin; the `/v1`-suffixed base is the safe convention.
 6. **Full air-gap RAG** — confirm `OFFLINE_MODE=true` + a pre-seeded HF/sentence-transformers cache path under `DATA_DIR`; exact cache subpath not fully verified. *NOTE (2026-09-27): answered for 0.10.2 — see the `OFFLINE_MODE` row: MiniLM is in the HF hub cache, Whisper under `<DATA_DIR>/cache/whisper/models`, and the client flips `HF_HUB_OFFLINE` itself (docs review SA-2).*
 7. **`ANONYMIZED_TELEMETRY` effectiveness** — may be a no-op on Chroma ≥1.5.4; confirm bundled Chroma version.

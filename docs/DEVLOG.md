@@ -6,6 +6,62 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-05 (21:31) — A blind review of the whole project: docs sorted, six bugs fixed, the context resynced
+
+The owner: *"review the code base, your context, the documentation and all the plans … if a plan is fully executed
+it should be placed in an archive folder … plans and docs are mixed, it should be sorted … flag inconsistencies (fix
+if it is straightforward), fix the docs, hierarchise what we can do next; update the human tests"*.
+
+**How.** Two workflows. (1) 14 read-only reviewers, one area each (the plans ×3, the docs' structure and links, the
+farm's engines, its services and panel, the client's main, its renderer, packaging and CI, the tests, the human
+tests, the assistant's context, repo hygiene, the guides). They were told to trust no doc and no comment. A skeptic
+re-checked every finding and every archive proposal against the files: 330 findings, 147 confirmed, 179 partly (real,
+with a corrected fix), 4 refuted. A roadmap writer and a completeness critic followed. (2) Ten fixers on disjoint file
+groups, each diff re-checked by a skeptic who re-ran the tests, CLAUDE.md last.
+
+**The docs, sorted** (`f855e00`): `docs/` keeps the living documents; `docs/plans/` the open plans
+(CLOUD_SOURCES_PLAN, IDE_PLAN) and, in its README, the next work in order with every archived plan's leftovers;
+`docs/archive/` what is done: 15 plans in `plans/`, the four replaced checklists in `testing/`, the night logs in
+`logs/`. Each archived file has a header saying what replaced it. `docs/README.md` is the map. 28 files moved, the
+references in 164 files followed. The farm test that skipped when its plan was missing now fails instead, so a move
+cannot switch it off.
+
+**Bugs fixed** (each with a check):
+- *SHM-1, security:* a link Open WebUI opened in a new window became an LlmOnLan window whose microphone, camera and
+  clipboard were granted to any site. Now it goes to the system browser, and the permissions follow the sidecar's
+  origin. Open WebUI's own file pages and its community site stay app windows. xterm's blank-window links in its
+  terminal now open nothing (an owner question).
+- *SHM-2:* a planned LiteLLM restart wiped every laptop's correct farm password.
+- *SHM-3, data loss:* *Move my data* into a folder holding data overwrote that folder's chats.
+- *REN-1:* LOL Vibe schedules over 60 minutes never fired.
+- *FSV-1:* turning a plugin on froze the farm for the length of its install. Voice's is several GB of torch: every
+  stream stalled and the beacon went quiet. The llama.cpp unpack now runs the same awaited way.
+- *PKG-1:* a Farm app built on a dev box shipped that box's models, venvs and `lol.config.json.before-*` backups,
+  which hold the farm password and the admin token.
+- Smaller: the 503 tells starting from stopped; `lol init` and `lol install` write only the name (a full scaffold
+  froze `vllm.version` at 0.30.0); speech to text and Classify compare their key in constant time; the vLLM minimum
+  is rounded up in both places; `shell-settings.json` is written atomically.
+
+**Docs that misled:** README, shell/README, sidecar/README and GETTING_STARTED told people their document text and
+their voice stayed on the laptop. Both can go to the farm, since document search (2026-10-08) and speech to text
+(2026-10-09). The guides also said a plugin switch lasted only until a restart, but it is kept since farm-v0.0.50.
+HUMAN_TESTS was still set on v0.2.10 / farm-v0.0.44: it is rebased on the release under test, with a proposed ★ list,
+a Part 4 of what was done on real machines (RIG_CHECKLIST's ticks included), new tests for today's fixes and the
+features of October, and 133 tests, 23 ★.
+
+**Housekeeping:** 18 stale worktrees removed (4.4 GB). Their 34 `node_modules` junctions were unlinked first, because
+a skeptic's scratch test showed `git worktree remove` deletes through a junction; the main checkout's folders were
+checked before and after. 26 merged local branches deleted. `.gitignore` is free of its BOM and mojibake. The
+assistant's memory was corrected (production vLLM in `~/lol-vllm` run by the Farm app; the test farm's orphan-rule
+trap; the refined local-only rule) and gained "clients on personal computers".
+
+**Checks:** farm 287/287 (exit 0); shell unit 30/30, chat-unit 1940/1940, chat-lint 0; Farm app supervisor 10/10 and
+a packaged dir build without dev-box folders; the link check unchanged. **Not run here (the production box):** e2e.js,
+the CDP harness, vllm-lifecycle.js (WSL), copytree.test.js (Electron). **Left for the owner:** the questions in
+`docs/plans/README.md` §4. A second review round, over the critic's gaps (farm logs, what a rogue farm can make a
+client do, the newest trust boundaries, earlier reviews still open, the Computer's outgoing data, pins and licences,
+accessibility), follows.
+
 ## 2026-11-03 (09:31) — Release Farm app farm-v0.0.51: vLLM 0.33.0, Flint in the vLLM list and LOL Vibe's proven list
 
 The owner: *"Merge, then farm-v0.0.51"* and *"Add it now"* (Flint in `AGENT_PROVEN`, 09:23 below).
@@ -906,7 +962,9 @@ the Ollama app's quit / write / reopen (never against the owner's app). Linux (a
 unit-tested. Note: the Farm app's `supervisor.test.js` polls `127.0.0.1:41997/lol/self` for readiness (read-only),
 which on this box is the live farm; and `vllm-lifecycle.js` starts `lol up` from the worktree, which downloads
 document search's model into `farm/.models` (557 MB) — then `test/run.js`'s *classify + stt start AFTER the farm is
-public* fails (it expects that model absent): delete it after a lifecycle run. HUMAN_TESTS "Questions" 9: answered
+public* fails (it expects that model absent): delete it after a lifecycle run. *(Correction, 2026-11-05: `supervisor.test.js`
+stubs `util`, so it never reaches 41997; and since 600d65f, the same day at 13:25, that `test/run.js` test uses an empty
+temp `llamacpp.binDir`, so nothing needs deleting after a lifecycle run.)* HUMAN_TESTS "Questions" 9: answered
 (below). A folder set by this branch's first build (d8ddb62) has no marker and is said missing: put an empty
 `.lol-storage` in it, or Move here again.
 
@@ -4112,6 +4170,29 @@ harness on slot 1, 371/371 with 0 skipped; `--phase perf` 9/9.
 
 **Needs a real machine** (RIG_CHECKLIST ▸ Data-folder change): the v0.1.45 → v0.2.0 upgrade on a spare
 profile, a Preferences move + relaunch, an unplugged data drive.
+
+## 2026-09-25 (18:03) — The Computer: Live previews, Edit code and `lol.orbit` (COMPUTER_LIVE_PLAN)
+
+*(Written 2026-11-05 from the commits and that day's status report: the log had no entry for this build.)*
+
+The owner asked to edit the p5/three/SVG code by hand and run it again, and for the mouse and keys to reach the sketch
+(a three.js camera that works on the box). Plan: [COMPUTER_LIVE_PLAN.md](archive/plans/COMPUTER_LIVE_PLAN.md) (5cc3d4a,
+16:26); built by two builders, then a critic loop, [COMPUTER_CRITIC_L1.md](reviews/COMPUTER_CRITIC_L1.md) (rounds L1 and
+L2: HAPPY). Commit 12cf37f.
+- **▶ Live / ■ Stop** on p5, three.js and HTML boxes: the code runs for real inside the box, with pointer, wheel and
+  keys going to the sketch. One box is Live at a time, in a second guest frame made by `sandbox/host.mjs` (same runner,
+  CSP, sandbox attributes and watchdog). It pauses off screen, on another surface or in a hidden window, and resumes.
+- **`lol.orbit(camera)`**: a first-party orbit control (drag turns, wheel zooms, right- or Shift-drag pans). The
+  three.js starter and the model's instructions use it, and an `OrbitControls` answer is routed to it.
+- **Edit code** opens a large editor in the drawer: line numbers, Tab/Enter indenting, undo, errors with Go to line,
+  two-way with the box; ▶ Run code or Ctrl+Enter redraws or restarts the Live view.
+- Critic fixes: a drag released over a live frame ends; typing survives a run landing mid-debounce; Live on/off is not
+  an undoable edit; a copy never carries Live.
+
+Gates: chat-unit 1565/0, chat-lint 221/0, chat-scope clean, harness 367/0 and perf 9/9 (before the L2-1 two-liner;
+after it, k11 12/12 and c1 20/20). On the owner's farm (011f867, 18:10): the new instructions on Qwen3.8 drew p5 5/5
+and three.js 4/5. Live by hand was not tried (the client's window was hidden, and Live pauses a hidden window):
+[HUMAN_TESTS.md](HUMAN_TESTS.md) A13.
 
 ## 2026-09-25 (02:05, scheduled) — The Computer perf pass: off-screen boxes stop rendering
 
@@ -8937,7 +9018,7 @@ served model from a farm-served web page, reflected on every connected client wi
 
 **Decision that shaped it — LiteLLM has no live model API here.** Verified against the installed **litellm
 1.90.0**: `POST /model/new` does `if prisma_client is None: raise HTTPException(500, "No DB Connected")`
-([model_management_endpoints.py:1344](../farm/.venv/Lib/site-packages/litellm/proxy/management_endpoints/model_management_endpoints.py)) — the runtime add/delete-model routes **require a Postgres/Prisma DB**, which the config-only workshop farm
+(`litellm/proxy/management_endpoints/model_management_endpoints.py:1344`, litellm 1.90.0, inside the gitignored `farm/.venv`) — the runtime add/delete-model routes **require a Postgres/Prisma DB**, which the config-only workshop farm
 deliberately doesn't run. So changing the served set = **regenerate `config.generated.yaml` + bounce the
 LiteLLM child in place** (`restartProxy`). Brief blip (in-flight requests drop for the few seconds it restarts)
 — acceptable for an infrequent admin action; documented.

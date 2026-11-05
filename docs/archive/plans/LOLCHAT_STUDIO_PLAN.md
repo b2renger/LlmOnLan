@@ -1,5 +1,11 @@
 # LOL Chat Studio: build plan
 
+> **Archived 2026-11-05.** The Studio's build plan (2026-09-16). S0 was built (DEVLOG 2026-09-16) and released in v0.2.0;
+> its workbench now hosts the IDE's Project panel, and §3.4 (the ask spine), §3.5 (the workbench), §3.7 (the sandbox) and
+> §3.8 (the projects API) are still the spec the code comments cite. S1 was replaced by the Computer (LOLCHAT_COMPUTER_SPEC.md, then COMPUTER_PLAN.md); S2 and S3, headed below as if pending, were never built as benches (only S2-U1's sandbox was, for the Computer at C3, 2026-09-16, to §3.7): the Computer and the IDE ([IDE_PLAN.md](../../plans/IDE_PLAN.md)) took their place.
+> §8's release definition is superseded: v0.2.0 and every release since shipped without S1–S3. Of its rig items (§5), S-R2–S-R5 and S-R16–S-R18 moved to HUMAN_TESTS, S-R1 is a developer's check, and S-R6–S-R15 tested benches that were never built.
+> Nothing is left here; whether LOLCHAT_STUDIO_VISION.md's designer and board benches are still wanted is asked in [docs/plans/README.md](../../plans/README.md).
+
 > Status: **executable plan, revision 2** (after the owner settled §7 of the vision document).
 > Date: 2026-09-16. Baseline: `lolchat/vnext` at `4fb3800` plus the landed P0–P2 working tree
 > (P2 landed, fix rounds 1 and 2 green: `chat-unit` 472/0, harness `--strict` 101/0, perf 6/0,

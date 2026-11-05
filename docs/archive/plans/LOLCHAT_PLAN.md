@@ -1,5 +1,11 @@
 # LOL Chat vNext "the Desk": build plan
 
+> **Archived 2026-11-05.** LOL Chat vNext's build plan (2026-09-14): P0–P2 were built (DEVLOG 2026-09-15) and released in
+> v0.2.0, with the addenda S0, C1–C3 and K1–K7. P3 and P4 were cancelled on 2026-09-16 (LOLCHAT_STUDIO_PLAN.md §6, after
+> LOLCHAT_STUDIO_VISION.md): never built, except P4's structured-output spine, built as `app/ask.mjs` + `app/json.mjs`
+> (S0-U2). LOL Chat is LOL Vibe since 2026-09-27; what it does now: CLAUDE.md (the shell). The §1 rules, the §2 harness
+> and the §2.6 freezes (A…BK, K1–K7, KA–KF) are still the contracts the code comments cite. Nothing is left.
+
 > Status: **executable plan, revision 2** (after critic review). Date: 2026-09-14. Baseline: `main` at
 > `4fb3800` (release v0.1.45).
 > - Product decisions: [LOLCHAT_VISION.md](LOLCHAT_VISION.md). Every `F##` / `T#` id comes from there.

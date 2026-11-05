@@ -1,5 +1,11 @@
 # LOL Vibe IDE (P5 v1) — build plan
 
+> **Status (2026-11-05): built and released.** v1 (slices 1–6) in v0.2.3 (2026-09-29); Keep going until done, the
+> schedule, Use the Computer (§6) and agent pages (§5 A) in v0.2.6 (2026-09-30). Still open, and kept in this plan:
+> §3 item 7 (a project's own `.dsh/skills`, pruning old dsh session logs); §5 B's import button (Use the Computer, §6,
+> already lets the agent build graphs in the Computer: the owner says whether the button is still wanted); §5 C
+> (agents as programs: after a measured sandbox review and the owner's decision on a shell).
+
 Owner, 2026-09-28: "yes start the build" (after the P5-0 spike passed — [research/p5-spike/RESULTS.md](../research/p5-spike/RESULTS.md));
 qwen3.8 first, "it should adapt to several models, new models will appear"; git to the real GitHub, not a priority.
 The target is [ECOSYSTEM_PLAN.md §4.3](../archive/plans/ECOSYSTEM_PLAN.md): a lightweight IDE in LOL Vibe, driven by DeepSeek Harness
@@ -34,9 +40,10 @@ controller.generate()  ── project thread? ──┐
 
 - **Data** (invariant #3): projects in `DATA_DIR/LOL Studio Projects/<project>` (the existing projects API);
   `DSH_HOME` = `DATA_DIR/lol-studio/dsh` (dsh's own session logs); skills in `DATA_DIR/skills` (pinned, each with
-  its licence; ponytail seeded on first use). Nothing is stored on the farm.
+  its licence; the bundled ponytail, agent-page and graphify are seeded, and refreshed while a person has not edited
+  them). Nothing is stored on the farm.
 - **Network**: only the farm's `/v1` (the chat completions dsh makes). The Preview's static server listens on
-  127.0.0.1 only; LAN exposure is a later, explicit toggle.
+  127.0.0.1; **Share on the LAN** (slice 6) is a person's per-project switch.
 - **Seats**: dsh's requests come from this machine's IP — the same seat as LOL Vibe. A turn holds the foreground
   slot of LOL Vibe's governor, like any reply (the Stop button works the same).
 - **Models** (`projects/models.mjs`, pure): a per-model profile {maxTokens, edits: good | weak | unknown}. qwen3.8 and
@@ -62,7 +69,7 @@ with the sidecar's own download + unpack). The build boots the runtime before pa
 builds and boots everywhere (initialize in 0.7–7.4 s; win-x64 110 MB, darwin-arm64 115, darwin-x64 119, linux-x64
 131, linux-arm64 133). In the release job the step is non-fatal: a failure costs that OS its runtime, never its
 installers. A project chat starts on a model that is good at edits when the farm serves one (`pickEditor`, never
-over a person's pick), and the panel's model line follows the picker. It reaches clients with the next release; until then, in dev, set
+over a person's pick), and the panel's model line follows the picker. Released in v0.2.3. In dev, set
 `LOL_DSH_DIR` to `shell/dsh/build/dsh-runtime` (its own Node) or to any folder with dsh installed + `LOL_DSH_NODE`.
 
 1. **Main runner** — `src/main/studio.ts`: runtime resolution (`LOL_DSH_DIR` + `LOL_DSH_NODE` in dev; the downloaded
@@ -88,11 +95,18 @@ over a person's pick), and the panel's model line follows the picker. It reaches
    dsh's `workspace-write` confines WRITES only ("preserving the local filesystem's read behavior") — on the real
    runtime the agent read a file outside its project. Now a PreToolUse command hook (dsh-hooks-claude-code, inserted
    by the patch; `FENCE_JS` in studio.ts, run by the runtime's own Node) refuses read/glob/grep/read_image/write/edit
-   outside the project (after links), a climbing glob, and any `sandbox_permissions` request; it denies when unsure,
-   because the bridge fails OPEN. Two Windows traps found on the real runtime: dsh runs hooks through PowerShell, so
-   the command needs `&` and `; exit $LASTEXITCODE` (else a parse error or a 2 turned into 1 = "pass"). Verified:
-   an outside read refused, the secret never reached the model, an inside read works. Cost: ~0.4 s per file tool on
-   Windows. Not yet run on macOS/Linux (bash -c; the plain command): [HUMAN_TESTS.md](../HUMAN_TESTS.md) E4.
+   outside the project (after links), a climbing glob, and any `sandbox_permissions` request wider than the standing
+   `workspace-write` (2026-10-23); it denies when unsure, because the bridge fails OPEN. Two Windows traps found on
+   the real runtime: dsh runs hooks through PowerShell, so the command needs `&` and `; exit $LASTEXITCODE` (else a
+   parse error or a 2 turned into 1 = "pass"). Verified: an outside read refused, the secret never reached the
+   model, an inside read works. Cost: ~0.4 s per file tool on Windows. Not yet run on macOS/Linux (bash -c; the
+   plain command): [HUMAN_TESTS.md](../HUMAN_TESTS.md) E4. Since 2026-10-09 it also refuses a write or edit to
+   `project.json` or anything under `.git/` (reading stays allowed). dsh runs a hook only where its sandbox starts;
+   elsewhere it lets every call through, so on Windows `sandboxBlocked` tries dsh's own runner first, and the agent
+   does not start on a folder whose permissions a person cannot change, such as a second drive or a USB stick
+   (2026-10-23, [HUMAN_TESTS.md](../HUMAN_TESTS.md) G11). A PostToolUse hook (`CHECK_JS`, 2026-09-30) parses each
+   written .js/.mjs/.cjs file or inline `<script>` of an .html with `node:vm` and hands a SyntaxError back to the
+   model.
 7. **Later**: the project's own
    `.dsh/skills`, pruning old dsh session logs.
 
