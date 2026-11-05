@@ -1,4 +1,4 @@
-// The vLLM the farm runs, end to end with a FAKE vLLM (docs/VLLM_MANAGED_PLAN.md §11.3, items 1-11). Opt-in, a few
+// The vLLM the farm runs, end to end with a FAKE vLLM (docs/archive/plans/VLLM_MANAGED_PLAN.md §11.3, items 1-11). Opt-in, a few
 // minutes, no GPU used:
 //
 //   LOL_VLLM_FAKE=1 [LOL_LITELLM=<path to litellm(.exe)>] node test/vllm-lifecycle.js [step numbers...]

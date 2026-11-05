@@ -1,5 +1,5 @@
 // @ts-check
-// Template — Research → problematic (COMPUTER_PLAN §10.5 #1; docs/COMPUTER_REFERENCE_CAPTURE.md
+// Template — Research → problematic (COMPUTER_PLAN §10.5 #1; docs/research/COMPUTER_REFERENCE_CAPTURE.md
 // §1, the owner's OWN museum graph, generalised). K5-U4 owns this file (addendum KE-4). DATA only.
 //
 // The shape is the owner's Graph A + Graph B: ONE topic fans out along five arrows all named

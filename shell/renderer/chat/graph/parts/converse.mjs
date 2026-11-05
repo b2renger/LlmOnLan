@@ -1,5 +1,5 @@
 // @ts-check
-// Converse (docs/COMPUTER_VOICE_PLAN.md) — a spoken conversation with the farm's model, for designing
+// Converse (docs/archive/plans/COMPUTER_VOICE_PLAN.md) — a spoken conversation with the farm's model, for designing
 // voice interaction: the identity of the voice, what the face shows, how the turn-taking feels.
 //
 // A person presses ● Start; the box opens the microphone (graph/parts/capture.mjs, the one door) and

@@ -5,7 +5,7 @@
 (function (root) {
   'use strict';
 
-  // How each LlmOnLan surface loads a farm, as estimator inputs and model needs (multiuser_implementation_plan.md
+  // How each LlmOnLan surface loads a farm, as estimator inputs and model needs (docs/archive/plans/multiuser_implementation_plan.md
   // §1 use cases and §8 profiles; docs/spike/README.md profiles). mode: 'every' = everyone presses Enter together
   // (the first word within 5 s counts), 'steady' = people out of step. thinking multiplies the reply length.
   // budget: 'farm' keeps room for the farm's OCR model on the same card; 'single_user' gives the model all of it.

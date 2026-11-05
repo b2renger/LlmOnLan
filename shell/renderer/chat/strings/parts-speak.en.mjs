@@ -1,5 +1,5 @@
 // @ts-check
-// The Speak box (docs/ECOSYSTEM_PLAN.md v2 §3.3). One file per unit, same namespace: see
+// The Speak box (docs/archive/plans/ECOSYSTEM_PLAN.md v2 §3.3). One file per unit, same namespace: see
 // strings/parts-text.en.mjs for why.
 import { registerStrings } from '../core/i18n.mjs';
 

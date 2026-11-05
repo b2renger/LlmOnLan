@@ -4,9 +4,9 @@ As of 2026-10-04. Covers LlmOnLan client v0.2.7, farm-v0.0.41, Open WebUI **0.11
 still runs 0.10.x sidecars, because engine updates are a person's click).
 
 **Revision 2 (2026-10-04).** v1 was written from the READMEs without the source. v2 is corrected against
-the code by a read-only audit, [docs/reviews/MULTIUSER_PLAN_AUDIT_2026-10-04.md](docs/reviews/MULTIUSER_PLAN_AUDIT_2026-10-04.md),
+the code by a read-only audit, [docs/reviews/MULTIUSER_PLAN_AUDIT_2026-10-04.md](../../reviews/MULTIUSER_PLAN_AUDIT_2026-10-04.md),
 which carries every file:line citation. A critic then weighed it against the product vision,
-[docs/reviews/MULTIUSER_PLAN_CRITIC_2026-10-04.md](docs/reviews/MULTIUSER_PLAN_CRITIC_2026-10-04.md). Its
+[docs/reviews/MULTIUSER_PLAN_CRITIC_2026-10-04.md](../../reviews/MULTIUSER_PLAN_CRITIC_2026-10-04.md). Its
 verified corrections are folded in, and its verdicts sit beside each **DECISION** in §13 (gaps in §13b).
 Items that need an owner decision are marked **DECISION**.
 
@@ -38,7 +38,7 @@ Items that need an owner decision are marked **DECISION**.
 operator to be able to do everything from the app. No config file etc."). The farm installs, starts, sizes, watches
 and stops vLLM from the panel, on Windows (inside WSL2) and on Linux, the DGX Spark included. This replaces the
 2026-09-07 rule and the Spark's recipe with autostart (decision 10). Design and status:
-[docs/VLLM_MANAGED_PLAN.md](docs/VLLM_MANAGED_PLAN.md). The statuses in §2, §5, §12 and §13 follow.
+[docs/archive/plans/VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md). The statuses in §2, §5, §12 and §13 follow.
 
 ---
 
@@ -350,7 +350,7 @@ Items 2–4 cost days, not weeks. Items 1 and 6 cost about a week each (1: measu
   32k/64k/128k per person.
 - **Phase 2:** turn the winning vLLM setup into a farm engine, **sized against what else shares the
   GPU** (ComfyUI, Ollama's OCR). Owner, 2026-10-07: the farm runs it itself, from the panel —
-  [docs/VLLM_MANAGED_PLAN.md](docs/VLLM_MANAGED_PLAN.md).
+  [docs/archive/plans/VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md).
 - **Phase 5,** reshaped: a measured capacity table per box, which is the purchase tool.
 - **Cut:** identity (owner). **Out of scope:** scale-out on the small GPUs (owner). The queue, search
   cost, OCR reserve and TLS are still open (§13).
@@ -775,13 +775,13 @@ the cancel.
 > to do everything from the app. No config file etc.", 2026-10-07). It replaces the 2026-09-07 rule (step 2 below)
 > and the Spark's recipe with autostart (recommended 2026-10-06, chosen by the owner the morning of 2026-10-07,
 > DEVLOG 10:23; §13 decision 10). The design, its build order and its status:
-> [docs/VLLM_MANAGED_PLAN.md](docs/VLLM_MANAGED_PLAN.md). Built on the `vllm-managed` branch on 2026-10-07/08 and
+> [docs/archive/plans/VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md). Built on the `vllm-managed` branch on 2026-10-07/08 and
 > merged into `multiuser-phase0` (8a37e6f), for Farm app farm-v0.0.43:
 > - A: the scripts, the config, the routing and the pure planning;
 > - B: the lifecycle (a boot that never waits, adoption, the watch, the fallback, `lol down`, the download slot);
 > - C: the panel (the engine grid, the vLLM card, Apply with its dry run; no config wording anywhere);
 > - D: the take-over of the operator-run vLLM ("Let the farm run vLLM", Undo), the Farm app's stops, Linux
->   autostart, and the docs (farm/README "vLLM, run by the farm"; docs/PRO6000_VLLM_SWITCH.md Part 2);
+>   autostart, and the docs (farm/README "vLLM, run by the farm"; docs/archive/PRO6000_VLLM_SWITCH.md Part 2);
 > - then two reviews' fixes and their leftovers (2026-10-08). `lol down` stops only the farm's own vLLM. A start
 >   never takes another program's server for vLLM. A C compiler and free disk are checked first. A card too small
 >   (an RTX 4070/4080/4090) is told so before any check. A slow WSL at log on queues the start.
@@ -1098,7 +1098,7 @@ when TTFT p95 < 5 s and 90 % of replies stream at ≥ 15 tok/s. vLLM 0.30, GPU e
 
 **Estimates for cards the studio doesn't own** (2026-10-05, vLLM + Qwen3.6 NVFP4, OCR model on the same
 card, `every turn / steady`). Full specs, prices, the method and its validation are in
-[docs/spike/ESTIMATES_2026-10-05.md](docs/spike/ESTIMATES_2026-10-05.md).
+[docs/spike/ESTIMATES_2026-10-05.md](../../spike/ESTIMATES_2026-10-05.md).
 
 | Card (price in France, VAT incl., card only) | 32k | 64k | 128k | € per person at 32k | Binds first |
 | --- | --- | --- | --- | --- | --- |
@@ -1496,7 +1496,7 @@ vllm serve nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 \
 - vLLM runs there **inside WSL2**. The spike settled the engine (§4a, §8): vLLM beats llama.cpp 24–40× on this
   box. It served vLLM + Qwen3.6 (48 people at 64k) from 2026-10-07 17:48,
   operator-run behind `external`; its Farm app has been stopped since 20:46 that day (vLLM still runs) until
-  farm-v0.0.43's take-over hands it to the farm (docs/PRO6000_VLLM_SWITCH.md Part 2).
+  farm-v0.0.43's take-over hands it to the farm (docs/archive/PRO6000_VLLM_SWITCH.md Part 2).
 - The templates below are the 2026-10-04 proposal (§11's note): the built engine is set from the panel.
 
 Give vLLM 0.82 (~79 GB), leaving ~17 GB for Ollama's OCR and tasks models, or better, an absolute
@@ -1668,7 +1668,7 @@ llama.cpp alternative (Windows or before Phase 2), OWUI chat with Qwen3.8-27B:
   measurements decide.
 
 **DECISIONs for the owner** (no code before an answer). Each carries the **critic's recommendation**
-([docs/reviews/MULTIUSER_PLAN_CRITIC_2026-10-04.md](docs/reviews/MULTIUSER_PLAN_CRITIC_2026-10-04.md)).
+([docs/reviews/MULTIUSER_PLAN_CRITIC_2026-10-04.md](../../reviews/MULTIUSER_PLAN_CRITIC_2026-10-04.md)).
 These are recommendations, not decisions.
 
 1. **Target. ANSWERED (2026-10-04):** scale up on the big boxes (PRO 6000, Sparks), optimising
@@ -1903,8 +1903,8 @@ These are recommendations, not decisions.
 ## 14. Sources
 
 LlmOnLan
-- [docs/reviews/MULTIUSER_PLAN_AUDIT_2026-10-04.md](docs/reviews/MULTIUSER_PLAN_AUDIT_2026-10-04.md): the code audit behind revision 2, with every file:line citation
-- [docs/reviews/MULTIUSER_PLAN_CRITIC_2026-10-04.md](docs/reviews/MULTIUSER_PLAN_CRITIC_2026-10-04.md): the critic's scorecard and recommendations on revision 2
+- [docs/reviews/MULTIUSER_PLAN_AUDIT_2026-10-04.md](../../reviews/MULTIUSER_PLAN_AUDIT_2026-10-04.md): the code audit behind revision 2, with every file:line citation
+- [docs/reviews/MULTIUSER_PLAN_CRITIC_2026-10-04.md](../../reviews/MULTIUSER_PLAN_CRITIC_2026-10-04.md): the critic's scorecard and recommendations on revision 2
 - https://github.com/b2renger/LlmOnLan (README)
 - https://github.com/b2renger/LlmOnLan/blob/main/farm/README.md
 - https://github.com/b2renger/LlmOnLan/releases/tag/v0.2.5 (LOL Vibe coding agent)

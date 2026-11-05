@@ -4,10 +4,10 @@ This checklist covered what the automated harness cannot prove, for LOL Chat vNe
 Chat is **LOL Vibe** since 2026-09-27.
 
 > **Moved, 2026-10-09.** None of its 200 boxes was ever ticked. Every item a person still has to do is now in
-> [HUMAN_TESTS.md](HUMAN_TESTS.md), with today's names (LOL Chat → LOL Vibe, Note → Text, Ask → Instruction, Render →
+> [HUMAN_TESTS.md](../../HUMAN_TESTS.md), with today's names (LOL Chat → LOL Vibe, Note → Text, Ask → Instruction, Render →
 > Preview, the value popover → the drawer on the right, Reveal → Show folder, F1 → any Ollama farm, F2 → a llama.cpp
 > farm with a password). Below, each section says where its items went, which were verified, and which no longer
-> apply. The full old text, with every expected result as first written: `git show 3b8c0c1:docs/LOLCHAT_RIG_CHECKLIST.md`.
+> apply. The full old text, with every expected result as first written: `git show 3b8c0c1:docs/archive/testing/LOLCHAT_RIG_CHECKLIST.md`.
 
 | § | Section | Where it went |
 |---|---|---|

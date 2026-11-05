@@ -1,5 +1,5 @@
 // @ts-check
-// ONE viewer for node-link JSON (owner decision 2026-09-28, docs/NIGHT_LOG_2026-09-28.md 21:30): a
+// ONE viewer for node-link JSON (owner decision 2026-09-28, docs/archive/logs/NIGHT_LOG_2026-09-28.md 21:30): a
 // d3-force drawing of graphify's `graphify-out/graph.json` (networkx node-link: `nodes` + `links`,
 // `hyperedges` ignored) or any `{nodes, edges}` graph. The Computer's Preview draws it in its
 // **Graph** mode; the IDE reuses the same three exports.

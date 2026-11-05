@@ -1,4 +1,4 @@
-// K-9 / K-7 (docs/COMPUTER_LIVE_PLAN.md, builder L): the LIVE guest's bookkeeping in the sandbox
+// K-9 / K-7 (docs/archive/plans/COMPUTER_LIVE_PLAN.md, builder L): the LIVE guest's bookkeeping in the sandbox
 // host, the `release` message, the orbit math the runner inlines, and the Preview's pure pieces.
 // The real guest, with real input, is proven in the browser (harness k11-live-*); what a unit test
 // proves quickly is what the browser would prove slowly:
@@ -431,7 +431,7 @@ export default (test) => {
     assert.equal(undone.parts.find((p) => p.id === 'b').settings.live, true);
   });
 
-  // Converse (docs/COMPUTER_VOICE_PLAN.md K-V7): the face is whatever box is Live.
+  // Converse (docs/archive/plans/COMPUTER_VOICE_PLAN.md K-V7): the face is whatever box is Live.
   test('send(ev) posts one conversation event to the live guest, and nothing once it has ended', async () => {
     const { sb, frames, mount } = setup();
     const h = sb.live({ mount: mount('box'), mode: 'p5', code: 'x', size: { w: 10, h: 10 } });

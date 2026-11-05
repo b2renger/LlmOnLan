@@ -21,7 +21,7 @@
 //    sync, never cached at install, so a panel that registers later simply appears. With the slot
 //    empty — the whole of S0 — there is no rail, no column and no grid change at all.
 //
-// The Computer panel (docs/LOLCHAT_COMPUTER_SPEC.md) is the first real tenant; it registers itself
+// The Computer panel (docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md) is the first real tenant; it registers itself
 // from its own module in the next phase. Nothing here knows what a panel contains.
 
 import { EV } from '../core/events.mjs';
@@ -676,7 +676,7 @@ export function install(app) {
     /** A panel (or a feature) asking the workbench to show it. @param {string} id @param {string} [state] */
     request: (/** @type {string} */ id, /** @type {any} */ state) => open(id, { width: state }),
     /**
-     * A panel binding the open thread to something of its own — the IDE's project (docs/IDE_PLAN.md). Merged into
+     * A panel binding the open thread to something of its own — the IDE's project (docs/plans/IDE_PLAN.md). Merged into
      * the workbench's copy (which every width or tab change rewrites), written AT ONCE (the next message must find
      * it), and told to the live panel through onThread.
      * @param {{projectId?: string|null}} patch

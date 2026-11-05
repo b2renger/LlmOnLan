@@ -4,7 +4,7 @@ LOL Vibe can build small web projects with you: you ask in the chat, a **coding 
 see the result at once. The agent is **DeepSeek Harness** running on this computer, thinking with the **farm's
 model**. Your project is a folder on this computer; nothing is kept on the farm.
 
-*(For the people who build LlmOnLan: the design and the tests are in [IDE_PLAN.md](IDE_PLAN.md).)*
+*(For the people who build LlmOnLan: the design and the tests are in [IDE_PLAN.md](plans/IDE_PLAN.md).)*
 
 ---
 

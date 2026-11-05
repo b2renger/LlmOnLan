@@ -53,7 +53,7 @@ function pushSetupProgress(p: SetupProgress): void { send('setup-progress', p); 
 // --- launch at login -----------------------------------------------------------
 
 // Electron's login item works on Windows and macOS. On Linux it does nothing, so there the Farm app writes an XDG
-// autostart entry for its AppImage, which a graphical login runs (docs/VLLM_MANAGED_PLAN.md §3.13). A box with no
+// autostart entry for its AppImage, which a graphical login runs (docs/archive/plans/VLLM_MANAGED_PLAN.md §3.13). A box with no
 // graphical login keeps `lol up` in a service of its own (farm/README.md).
 function setLoginItem(on: boolean): void {
     if (process.platform !== 'linux') {

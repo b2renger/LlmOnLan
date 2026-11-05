@@ -1,4 +1,4 @@
-# Audit — `multiuser_implementation_plan.md` against the repo (2026-10-04)
+# Audit — `docs/archive/plans/multiuser_implementation_plan.md` against the repo (2026-10-04)
 
 Status: COMPLETE (2026-10-04). Method: three read-only agents (farm · shell + OWUI 0.11.4 source ·
 LOL Vibe + the Computer), each load-bearing claim then re-read by hand. Nothing was run against the
@@ -53,7 +53,7 @@ was changed.
 | llama.cpp "slots × window must fit VRAM up front, so seats stay low (8 on 24 GB at 16k)" | PARTLY | `up.js:719-723`, `snapshot.js:106` | With `kvUnified` + `auto`, the pool is sized from VRAM whatever `parallel` is; slots only lower the *guaranteed floor* (`contextPerSlot = ctx/slots`). "8 on 24 GB" is a README illustration. The real ceiling is the **panel cap of 16** (`up.js:2416`). |
 | External engine | CONFIRMED | `snapshot.js:69-86` (`slotsVerified:false`) | |
 | Routing | PARTLY | `litellm.js:338` (`least-busy`, retries 3, allowed_fails 1, cooldown 60) | Per-box slot affinity **already exists inside llama-server**: `--slot-prompt-similarity 0.4`, `--cache-reuse 256`, `--cache-ram` (`llamacpp.js:188-207`). No cross-box affinity, no overflow tier: confirmed. |
-| Plugins not in the capacity budget | CONFIRMED — and a recorded decision | `perf.js:108`; `admin/index.html:347-350` | Owner audit 2026-08-26 chose **not** to reserve OCR room ("would collapse chat context to nothing … the wrong trade"); ECOSYSTEM_PLAN 2026-09-27 §2.3.1 (`docs/ECOSYSTEM_PLAN.md:80-82`) reopens it. Plan §1.5 must reconcile both. |
+| Plugins not in the capacity budget | CONFIRMED — and a recorded decision | `perf.js:108`; `admin/index.html:347-350` | Owner audit 2026-08-26 chose **not** to reserve OCR room ("would collapse chat context to nothing … the wrong trade"); ECOSYSTEM_PLAN 2026-09-27 §2.3.1 (`docs/archive/plans/ECOSYSTEM_PLAN.md:80-82`) reopens it. Plan §1.5 must reconcile both. |
 | Ops: one long op; no metrics export; bench = N identical chats | CONFIRMED | `selfServer.js` (no `/metrics`), `bench.js:106-109` | Bench is also single-IP → one seat (see §1). |
 | Security: one password, plain HTTP, no revocation, no TLS | CONFIRMED | | Failed `/lol/admin/*` attempts aren't rate-limited; only `/lol/plugin-keys` sleeps 400 ms. |
 | Distribution: ~28 GB per box; each box re-downloads | PARTLY | `up.js:252-283`, `ollama.js:340-347` | Re-download confirmed (no LAN copy). Size is ~18 GB (see §1). |
@@ -109,7 +109,7 @@ of them **today** stops the farm from booting.
 | §1.2: "shell polls `/lol/queue` during a pending request" | WRONG premise | No `webRequest` hook anywhere; `index.ts:601-609` only sets permission handlers on `persist:owui` | The shell cannot see OWUI's requests today. It would need a new main-process observer on the `persist:owui` session. LOL Vibe already has its own seat-wait row (see §5). |
 | §1.3: "abort the upstream fetch on client socket close" | ALREADY IMPLEMENTED (at the gate) | `farm/src/seats.js:136-142` | Unverified: whether **LiteLLM** passes the cancel on to llama-server/Ollama. LiteLLM is unpinned (`commands/install.js:166`). §1.3 becomes "verify, pin LiteLLM". The "drop a seat after 30 s without pings" half is new: presence and seats are not linked. |
 | §1.4: task-model env names | PARTLY | OWUI `config.py:2180-2190,2295-2333`; `utils/task.py:16-27` | For an OpenAI connection the var is **`TASK_MODEL_EXTERNAL`** (`routers/openai.py:732`). The model must be in OWUI's model list, so `assistant-tasks` shows in every person's picker, and if missing OWUI silently uses the chat model (`task.py:18`). Half of 1.4 is already done (see §2). |
-| §1.5: subtract plugins from auto context | Contradicts a recorded decision | `farm/src/admin/index.html:347-350` (audit 2026-08-26); `docs/ECOSYSTEM_PLAN.md:80-82` (2026-09-27) | |
+| §1.5: subtract plugins from auto context | Contradicts a recorded decision | `farm/src/admin/index.html:347-350` (audit 2026-08-26); `docs/archive/plans/ECOSYSTEM_PLAN.md:80-82` (2026-09-27) | |
 | §2: "reuse the external routing path" | CONFIRMED feasible | `litellm.js:195-212` | Phase 2 reverses the **2026-09-07 owner decision** that the farm never manages the external server (`docs/DEVLOG.md:3603-3606`) — needs sign-off. |
 | §2.1: "a `library` list mirrors `llamacpp.library`" | CONFIRMED (it exists) | `config.js:188-241` | |
 | §2.2: `farm/.models/hf/`, `$LOL_PYTHON`, progress | PARTLY | `.models` is flat (`ollama.js:340`); `python.js:28` `LOL_PYTHON`; job progress `up.js:1883-1891` | |

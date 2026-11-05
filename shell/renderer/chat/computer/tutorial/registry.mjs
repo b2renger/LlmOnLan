@@ -14,7 +14,7 @@
 // lesson per capability built since) 7 listen and speak · 8 a picture to a model · 9 act on the world (Send, armed)
 // · 10 hear the world (Trigger) · 11 an agent with tools · 12 open data · then (2026-10-09, docs/HOME_ASSISTANT.md) 13 read
 // the room (the Home box) · 14 switch the home (Home command), with the Morning briefing, Comfort advisor and Energy
-// report templates; then (2026-10-12, docs/COMPUTER_VOICE_PLAN.md §10) the Voice persona template. §10.3's
+// report templates; then (2026-10-12, docs/archive/plans/COMPUTER_VOICE_PLAN.md §10) the Voice persona template. §10.3's
 // "many in, many out" is taught by
 // the Research → problematic template.
 // computer-lessons.test.mjs walks every lesson to its last tick, with and without the farm.

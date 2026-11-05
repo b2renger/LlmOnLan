@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// P5-0 spike (docs/ECOSYSTEM_PLAN.md §4.3): does DeepSeek Harness (dsh) drive a small coding task on the farm's
+// P5-0 spike (docs/archive/plans/ECOSYSTEM_PLAN.md §4.3): does DeepSeek Harness (dsh) drive a small coding task on the farm's
 // models? One headless session per model, each in a fresh project folder, on the plan's task: a three.js page.
 //
 //   node docs/research/p5-spike/run.mjs --dsh-dir <folder where @deepseek-ai/dsh is installed> \

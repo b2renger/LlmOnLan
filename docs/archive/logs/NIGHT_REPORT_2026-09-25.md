@@ -50,7 +50,7 @@ Files go to `%APPDATA%\LlmOnLan\logs\computer\computer-<date>_<time>.jsonl`. A f
 
 It keeps the last ~2000 events in memory, so pressing Record *after* a bug still captures what led
 to it. To hand a log over, say "look at the latest Computer log". The guide is
-[COMPUTER_DEBUG_LOG.md](COMPUTER_DEBUG_LOG.md).
+[COMPUTER_DEBUG_LOG.md](../../COMPUTER_DEBUG_LOG.md).
 
 How it was checked:
 - 9 unit tests;
@@ -82,7 +82,7 @@ How it was checked:
 | R3 | "Happy pending the farm check". 4 minor items | Me |
 | R4 | "Happy pending the farm check". 3 smaller items | Me |
 
-Reports: [reviews/COMPUTER_CRITIC_R1.md](reviews/COMPUTER_CRITIC_R1.md), [R2](reviews/COMPUTER_CRITIC_R2.md), [R3 + R4](reviews/COMPUTER_CRITIC_R3.md).
+Reports: [reviews/COMPUTER_CRITIC_R1.md](../../reviews/COMPUTER_CRITIC_R1.md), [R2](../../reviews/COMPUTER_CRITIC_R2.md), [R3 + R4](../../reviews/COMPUTER_CRITIC_R3.md).
 
 **A second series this morning (you asked for a fresh critic loop):**
 
@@ -92,7 +92,7 @@ Reports: [reviews/COMPUTER_CRITIC_R1.md](reviews/COMPUTER_CRITIC_R1.md), [R2](re
 | S2 | All 16 fixed. 2 new majors: a long input squeezed the answer to 512 tokens, and a run held by an unpressed Button said "Nothing to run". Plus 3 minors | One builder |
 | S3 | **HAPPY.** One small follow-up, fixed | Me |
 
-Reports: [S1](reviews/COMPUTER_CRITIC_S1.md), [S2 + S3](reviews/COMPUTER_CRITIC_S2.md). Commits `06240ff` and `afabd08`. The full harness is 355/0, perf 9/9 and unit tests 1524/0.
+Reports: [S1](../../reviews/COMPUTER_CRITIC_S1.md), [S2 + S3](../../reviews/COMPUTER_CRITIC_S2.md). Commits `06240ff` and `afabd08`. The full harness is 355/0, perf 9/9 and unit tests 1524/0.
 
 ## 4. The perf pass (02:05)
 
@@ -170,7 +170,7 @@ pinned to it. The graph is **"Rig check — gemma4:12b (25 Sept)"**.
 - **Perf:** a 1000-box run still has a 65–71 ms freeze, which is the browser restyling the box
   outlines themselves. The runner's per-step scan of every box is deliberate, and its own header
   forbids changing it.
-- **The rig checklist** ([LOLCHAT_RIG_CHECKLIST.md](LOLCHAT_RIG_CHECKLIST.md) §17, and the gesture
+- **The rig checklist** ([LOLCHAT_RIG_CHECKLIST.md](../testing/LOLCHAT_RIG_CHECKLIST.md) §17, and the gesture
   items) is still yours to tick.
 
 ## Try by hand (5 minutes)

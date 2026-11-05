@@ -1,4 +1,4 @@
-// The Computer as an MCP server (owner, 2026-09-27; docs/ECOSYSTEM_PLAN.md §8c): Open WebUI — or an app
+// The Computer as an MCP server (owner, 2026-09-27; docs/archive/plans/ECOSYSTEM_PLAN.md §8c): Open WebUI — or an app
 // built in LOL Vibe — lists, builds and runs graphs through the Model Context Protocol.
 //
 //   - Streamable HTTP, JSON responses only (no server-sent stream: every tool answers once), on

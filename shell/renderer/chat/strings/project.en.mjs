@@ -1,5 +1,5 @@
 // @ts-check
-// Strings for the Project panel — LOL Vibe's IDE (ui/project-panel.mjs, docs/IDE_PLAN.md).
+// Strings for the Project panel — LOL Vibe's IDE (ui/project-panel.mjs, docs/plans/IDE_PLAN.md).
 import { registerStrings } from '../core/i18n.mjs';
 
 registerStrings('project', {

@@ -1,5 +1,5 @@
 // @ts-check
-// K-9 / K-7 (docs/COMPUTER_LIVE_PLAN.md, builder L): LIVE previews, proven with REAL input.
+// K-9 / K-7 (docs/archive/plans/COMPUTER_LIVE_PLAN.md, builder L): LIVE previews, proven with REAL input.
 //
 // "the key events, or mouse events are not passed on the canvas, for instance in the threejs it
 // would be cool to have a camera control and be sure it works when we interact with the node."

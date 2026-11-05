@@ -105,7 +105,7 @@ async function findSidecarAsset(tagOrLatest: string): Promise<FoundAsset | null>
 }
 
 /** The download URL of one asset on a release of this repo ('latest' or a tag), or null. Also the IDE's
- *  coding-agent runtime (dsh-runtime-<platform>-<arch>.tar.gz, docs/IDE_PLAN.md slice 5). */
+ *  coding-agent runtime (dsh-runtime-<platform>-<arch>.tar.gz, docs/plans/IDE_PLAN.md slice 5). */
 export async function releaseAssetUrl(tagOrLatest: string, name: string): Promise<string | null> {
     const rel = tagOrLatest === 'latest'
         ? await ghJson(`/repos/${REPO}/releases/latest`)

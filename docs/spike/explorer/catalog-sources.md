@@ -88,7 +88,7 @@
 ### Repo (measured or derived by the studio)
 - docs/spike/RESULTS.md: PRO 6000 2026-10-04; DGX Spark 2026-10-05/06. The only measured hardware.
 - docs/spike/ESTIMATES_2026-10-05.md: specs, French prices (LDLC / Materiel.net / PCComponentes / Scan, 2026-10-05) and the budget method.
-- multiuser_implementation_plan.md §9 (2026-10-06): community Spark numbers, cited where reused. §4.3: the Bonsai notes.
+- docs/archive/plans/multiuser_implementation_plan.md §9 (2026-10-06): community Spark numbers, cited where reused. §4.3: the Bonsai notes.
 
 ### Hardware (vendor and retail)
 - NVIDIA DGX Spark page, fetched 2026-10-07: 273 GB/s, 1 PFLOP FP4, CX-7 200 Gbps, 240 W, the 1×/2×/4× size table. https://www.nvidia.com/en-us/products/workstations/dgx-spark/

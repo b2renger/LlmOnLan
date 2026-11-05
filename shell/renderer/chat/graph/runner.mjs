@@ -587,7 +587,7 @@ export function createRunner(o) {
         const res = await fn({
           ...given,
           // A part's own signal (Converse's turn: the person spoke over the answer) aborts the ask
-          // too; Stop still aborts every one (docs/COMPUTER_VOICE_PLAN.md §15).
+          // too; Stop still aborts every one (docs/archive/plans/COMPUTER_VOICE_PLAN.md §15).
           signal: given.signal ? bothSignals(signal, given.signal) : signal,
           priority: 'background',
           cache: given.cache === undefined ? cache : given.cache,

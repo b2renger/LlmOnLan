@@ -164,7 +164,7 @@ export async function runTool(name, args) {
     case 'run_graph': {
       if (!comp.docId()) return no('No graph is open. Use open_graph or new_graph.');
       if (a.from && !comp.doc().parts.some((/** @type {any} */ p) => p.id === a.from)) return no(`No box ${a.from} in the open graph.`);
-      // docs/COMPUTER_VOICE_PLAN.md K-V8: a model never starts a conversation (the box refuses
+      // docs/archive/plans/COMPUTER_VOICE_PLAN.md K-V8: a model never starts a conversation (the box refuses
       // anyway: only a person's ● Start opens the microphone).
       if (a.from && comp.doc().parts.some((/** @type {any} */ p) => p.id === a.from && p.type === 'converse')) return no(CONVERSE_NOTE);
       await comp.run(a.from ? { mode: 'from', seeds: [String(a.from)] } : {});

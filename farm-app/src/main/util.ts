@@ -37,7 +37,7 @@ export function killTree(pid: number | undefined): Promise<void> {
 }
 
 // Kill ONE process, not its tree, and give it no time to clean up. The share toggle restarts the farm and keeps the
-// vLLM it runs (docs/VLLM_MANAGED_PLAN.md §3.12): on Windows vLLM lives under a wsl.exe child of `lol up`, which a
+// vLLM it runs (docs/archive/plans/VLLM_MANAGED_PLAN.md §3.12): on Windows vLLM lives under a wsl.exe child of `lol up`, which a
 // tree-kill would end; on Linux SIGTERM would run `lol up`'s own shutdown, which stops vLLM. reapStaleFarm then ends
 // what `lol up` recorded (LiteLLM, the plugins), and the next `lol up` keeps vLLM running.
 export function killOne(pid: number | undefined): Promise<void> {

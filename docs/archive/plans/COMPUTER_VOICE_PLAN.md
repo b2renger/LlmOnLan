@@ -390,7 +390,7 @@ persona string (strings, not code) is used and the face says so.
 | `graph/parts/creative.mjs` | a "Voice face (p5.js)" preset whose starter is §4's sketch, grown |
 | `test/chat/unit/voice.test.mjs`, `converse-part.test.mjs`, `sandbox-protocol.test.mjs`, `capture.test.mjs`, `ask.test.mjs` | §11 |
 | `test/chat-harness/scenarios/k27-converse.mjs`, `test/mock/services.js` | §11 |
-| `docs/LOLCHAT_COMPUTER_TUTORIAL.md`, `docs/COMPUTER_STATUS.md`, `docs/HUMAN_TESTS.md`, `docs/DEVLOG.md`, `CLAUDE.md` | as usual |
+| `docs/LOLCHAT_COMPUTER_TUTORIAL.md`, `docs/archive/COMPUTER_STATUS.md`, `docs/HUMAN_TESTS.md`, `docs/DEVLOG.md`, `CLAUDE.md` | as usual |
 
 Nothing in `src/main`, nothing on the farm.
 

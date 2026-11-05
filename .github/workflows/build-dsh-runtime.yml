@@ -1,4 +1,4 @@
-# A dry run of the IDE's coding-agent runtime on every client platform (docs/IDE_PLAN.md slice 5).
+# A dry run of the IDE's coding-agent runtime on every client platform (docs/plans/IDE_PLAN.md slice 5).
 #
 # The release job (release.yml) builds dsh-runtime-<platform>-<arch>.tar.gz on each of its machines and uploads it
 # beside the sidecar. This workflow runs the SAME script on the same five machines WITHOUT a release, so a runtime

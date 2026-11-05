@@ -1,6 +1,6 @@
 # P5-0 spike — DeepSeek Harness on the farm (2026-09-28, 11:00–11:42, on the owner's OK)
 
-**Question** (docs/ECOSYSTEM_PLAN.md §4.3): can DeepSeek Harness (`dsh`) be LOL Vibe's coding agent on the farm's
+**Question** (docs/archive/plans/ECOSYSTEM_PLAN.md §4.3): can DeepSeek Harness (`dsh`) be LOL Vibe's coding agent on the farm's
 models? Four exit criteria; below them, the fallback is our own minimal loop.
 
 **Verdict: PASS — all four criteria.** Use `dsh`, driven from the IDE's main process through its SDK (JSON-RPC on

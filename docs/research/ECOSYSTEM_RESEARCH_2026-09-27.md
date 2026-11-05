@@ -1,6 +1,6 @@
 # Ecosystem research: facts behind the 2026-09-27 plan
 
-Written 2026-09-27 for [ECOSYSTEM_PLAN.md](../ECOSYSTEM_PLAN.md). The facts below are checked against the
+Written 2026-09-27 for [ECOSYSTEM_PLAN.md](../archive/plans/ECOSYSTEM_PLAN.md). The facts below are checked against the
 sources named with each item on that date. Where something was measured on this box, the item says so.
 It builds on [COMPUTER_DATA_AND_TRAINING.md](COMPUTER_DATA_AND_TRAINING.md) (2026-09-23), which first
 identified "latya" as **Laya**.

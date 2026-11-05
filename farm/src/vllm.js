@@ -1,4 +1,4 @@
-// vLLM, run BY THE FARM: the fourth engine (owner, 2026-10-07; docs/VLLM_MANAGED_PLAN.md), for many people at
+// vLLM, run BY THE FARM: the fourth engine (owner, 2026-10-07; docs/archive/plans/VLLM_MANAGED_PLAN.md), for many people at
 // once on a big NVIDIA GPU. Shaped like llamacpp.js, except that the farm drives the scripts in farm/vllm instead
 // of re-implementing them: serve.sh starts (daemon mode, the relay, the CUDA shims, the memory guard, the process
 // group), stop.sh stops, install.sh installs and downloads, status.sh reports. On Windows they run inside WSL2.

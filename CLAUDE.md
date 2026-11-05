@@ -20,12 +20,12 @@
 > adds USB serial, the farm's message bus + Trigger, Open data (data.gouv.fr), the Agent box and the Computer as an
 > MCP server; v0.2.2 the bus and MCP hardening, lessons 5–6 and "Ask out loud"; v0.2.3 the IDE (LOL Vibe's Project
 > panel + the coding agent, history, LAN share, GitHub), mic and camera, lessons 7–12, the resume banner and a full
-> review of every in-app text with tooltips; v0.2.4 the project server stops following symbolic links out of a project; v0.2.5 the coding agent compacts on small context windows; v0.2.6 agent loops (Keep going until done, schedules, Use the Computer), agent pages and the syntax check; v0.2.7 Home Assistant — ask, command, and agents that act on the home, reviewed by two critics; v0.2.8 + farm-v0.0.42 the multi-user work (multiuser_implementation_plan.md): the seat gate checks the password before a seat and forwards only the routes clients use, Stop reaches the engine, honest waits on every surface, an external vLLM routed through `hosted_vllm/` with its metrics read, a reply limit and Qwen's presence penalty against runaway replies, web search v2 (off by default, the client's search-and-read service, the date line), the Computer's yes/no decisions think, and the vLLM recipe with autostart; v0.2.9 + farm-v0.0.43: vLLM run by the farm (installed, started, stopped, configured and switched from the panel, and the take-over of an operator-run vLLM), the capacity page with usage scenarios, Open WebUI booting once, and the search model's repair and offline start; v0.2.10 + farm-v0.0.44: document search on the farm (EmbeddingGemma 2, the vectors kept on the laptop), llama.cpp b11512, the Computer's Home and Home command boxes with lessons 13–14 and three home templates, the coding agent kept off a project's `.git/` and `project.json`, and the Farm app's update copied file by file; v0.2.11 + farm-v0.0.45: speech to text on the farm's GPU and Open WebUI's Call mode through it (the voice mode), Gemma 4 12B and Qwen3-Omni in vLLM's list, and the llama.cpp list before a switch; v0.2.12 + farm-v0.0.46: the Computer's Converse box (a real voice loop with a live face, the Voice persona template), the farm's Model storage (one folder for every model, moves checked before any delete, the Ollama app and WSL's disk moved from the panel) and the panel in one section per engine; farm-v0.0.47/48 the moves' fixes for Hugging Face's shared blobs; v0.2.13 + farm-v0.0.49: the coding agent refuses to start where dsh's sandbox cannot run (a data folder on a second drive: the project fence was silently off), the fence accepts the mode the agent runs in, and llama.cpp b11836 (the upstream cancel fix, document search ~2.5x faster, Flint's architecture; Flint evaluated, not adopted); v0.2.14 + farm-v0.0.50: farm presets (Balanced, Documents, LOL Vibe, Computer) picked for the box from the measurements for the most people (a lead under 10 % a tie the better model wins; LOL Vibe among models proven with the coding agent), plugin switches kept across a restart, and the farm's reply limit advertised and used by LOL Vibe's agent; v0.2.15: Open WebUI writes prompts for ComfyQ's workflows (two tools of the Computer's MCP server, pure data from ComfyQ's bundles, never reaching ComfyQ); farm-v0.0.51: vLLM 0.33.0 (Update vLLM built beside the working one, swapped only once it checks), Flint in the vLLM list and in LOL Vibe's proven list (not on Ollama) (docs/DEVLOG.md; what a person must still check: docs/HUMAN_TESTS.md).
+> review of every in-app text with tooltips; v0.2.4 the project server stops following symbolic links out of a project; v0.2.5 the coding agent compacts on small context windows; v0.2.6 agent loops (Keep going until done, schedules, Use the Computer), agent pages and the syntax check; v0.2.7 Home Assistant — ask, command, and agents that act on the home, reviewed by two critics; v0.2.8 + farm-v0.0.42 the multi-user work (docs/archive/plans/multiuser_implementation_plan.md): the seat gate checks the password before a seat and forwards only the routes clients use, Stop reaches the engine, honest waits on every surface, an external vLLM routed through `hosted_vllm/` with its metrics read, a reply limit and Qwen's presence penalty against runaway replies, web search v2 (off by default, the client's search-and-read service, the date line), the Computer's yes/no decisions think, and the vLLM recipe with autostart; v0.2.9 + farm-v0.0.43: vLLM run by the farm (installed, started, stopped, configured and switched from the panel, and the take-over of an operator-run vLLM), the capacity page with usage scenarios, Open WebUI booting once, and the search model's repair and offline start; v0.2.10 + farm-v0.0.44: document search on the farm (EmbeddingGemma 2, the vectors kept on the laptop), llama.cpp b11512, the Computer's Home and Home command boxes with lessons 13–14 and three home templates, the coding agent kept off a project's `.git/` and `project.json`, and the Farm app's update copied file by file; v0.2.11 + farm-v0.0.45: speech to text on the farm's GPU and Open WebUI's Call mode through it (the voice mode), Gemma 4 12B and Qwen3-Omni in vLLM's list, and the llama.cpp list before a switch; v0.2.12 + farm-v0.0.46: the Computer's Converse box (a real voice loop with a live face, the Voice persona template), the farm's Model storage (one folder for every model, moves checked before any delete, the Ollama app and WSL's disk moved from the panel) and the panel in one section per engine; farm-v0.0.47/48 the moves' fixes for Hugging Face's shared blobs; v0.2.13 + farm-v0.0.49: the coding agent refuses to start where dsh's sandbox cannot run (a data folder on a second drive: the project fence was silently off), the fence accepts the mode the agent runs in, and llama.cpp b11836 (the upstream cancel fix, document search ~2.5x faster, Flint's architecture; Flint evaluated, not adopted); v0.2.14 + farm-v0.0.50: farm presets (Balanced, Documents, LOL Vibe, Computer) picked for the box from the measurements for the most people (a lead under 10 % a tie the better model wins; LOL Vibe among models proven with the coding agent), plugin switches kept across a restart, and the farm's reply limit advertised and used by LOL Vibe's agent; v0.2.15: Open WebUI writes prompts for ComfyQ's workflows (two tools of the Computer's MCP server, pure data from ComfyQ's bundles, never reaching ComfyQ); farm-v0.0.51: vLLM 0.33.0 (Update vLLM built beside the working one, swapped only once it checks), Flint in the vLLM list and in LOL Vibe's proven list (not on Ollama) (docs/DEVLOG.md; what a person must still check: docs/HUMAN_TESTS.md).
 > The bullets below describe `main` (= `multiuser-phase0`, 2026-11-02).
 
 The full plan is built, released and in multi-user testing; the dated build log with how
 each piece was tested lives in [docs/DEVLOG.md](docs/DEVLOG.md), what a person must still check in
-[docs/HUMAN_TESTS.md](docs/HUMAN_TESTS.md) (what was verified on real machines: [docs/RIG_CHECKLIST.md](docs/RIG_CHECKLIST.md)),
+[docs/HUMAN_TESTS.md](docs/HUMAN_TESTS.md) (what was verified on real machines: [docs/archive/testing/RIG_CHECKLIST.md](docs/archive/testing/RIG_CHECKLIST.md)),
 and the version‑specific integration facts in [docs/INTEGRATION_BRIEF.md](docs/INTEGRATION_BRIEF.md)
 (a dated snapshot — the pin has since moved). The last full consistency pass (code ↔ in‑app text ↔ these
 docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapshot:
@@ -62,7 +62,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
     which talks raw Ollama).
   - **vLLM — opt-in from the panel (`vllm.enabled`), run BY THE FARM** (owner 2026-10-07, replacing the 2026-09-07
     rule "the farm never installs/starts/restarts an external server" and the 2026-10-06 recipe-plus-autostart;
-    [docs/VLLM_MANAGED_PLAN.md](docs/VLLM_MANAGED_PLAN.md)). For many people on a big NVIDIA GPU (48 at 64k on the
+    [docs/archive/plans/VLLM_MANAGED_PLAN.md](docs/archive/plans/VLLM_MANAGED_PLAN.md)). For many people on a big NVIDIA GPU (48 at 64k on the
     PRO 6000): Windows x64 inside WSL2, Linux x64/arm64. `src/vllm.js` (shaped like `llamacpp.js`; pure planning +
     the process half) drives the scripts in `farm/vllm/` (`serve.sh` with the farm's whole argv in
     `LOL_VLLM_ARGS_B64`, `stop.sh`, `install.sh`, the read-only `status.sh`; on Windows through `wsl.exe` with a
@@ -268,7 +268,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   in `app/ core/ ctx/ net/ render/ state/ ui/ strings/ css/` — farm-direct, tok/s + TTFT per reply, a message
   tree, seat-aware sending, a context meter; history in the renderer's IndexedDB `lol-chat` v2 with a one-way
   import of the v1 `localStorage` history; no RAG, uploads or tools — those P3/P4 plans are NOT BUILT; and
-  since 2026-09-28 the **IDE** (P5 v1, [docs/IDE_PLAN.md](docs/IDE_PLAN.md)): the workbench's **Project** panel binds a
+  since 2026-09-28 the **IDE** (P5 v1, [docs/plans/IDE_PLAN.md](docs/plans/IDE_PLAN.md)): the workbench's **Project** panel binds a
   thread to a folder in `DATA_DIR/LOL Studio Projects/`, and that thread's replies come from **DeepSeek Harness**
   (dsh 0.1.7-rc.2) run by main (`src/main/studio.ts`) over its SDK on its OWN Node (its addon refuses Electron 42),
   with a profile patch written from the current farm: 9 file tools, no shell/web/subagents, no DeepSeek cloud row,
@@ -287,7 +287,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   adapted from Graphify-Labs/graphify v0.9.71, Apache-2.0 + NOTICE: the model writes `graphify-out/graph.json` with
   file tools only — no Python; the panel draws it with the Computer's graph viewer). History = git per project
   (`src/main/projectGit.ts`, isomorphic-git); **Share on the LAN** and **GitHub push/pull** are a person's clicks.
-  **Keep going until done** (2026-09-29, [IDE_PLAN §6](docs/IDE_PLAN.md)): a person's per-project switch (off by
+  **Keep going until done** (2026-09-29, [IDE_PLAN §6](docs/plans/IDE_PLAN.md)): a person's per-project switch (off by
   default, forgotten at restart) that turns on dsh's own goal loop — the model sets a goal, dsh starts round after round
   until the model marks it complete — as ONE reply (`◎ Round n of 10`), ≤ 10 rounds (`GOAL_ROUNDS`), maxTokens 16384,
   lowered on small windows so dsh can still compact (`studio.ts` `agentMaxTokens`); a model `projects/models.mjs` has no
@@ -383,7 +383,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   (exact names, through `io.ts`), `laya`, `answer` — JSON mode through the same ask door, one generation per step on
   the Cap (the plan quotes `1–N` via `mostGenerations`); a failed or malformed step is fed back; the answer carries
   every step and its result; no output tool, never arms), **Converse** (2026-10-12, `graph/parts/converse.mjs` + the pure
-  `graph/voice.mjs`, [docs/COMPUTER_VOICE_PLAN.md](docs/COMPUTER_VOICE_PLAN.md): a spoken conversation with the farm's model, for
+  `graph/voice.mjs`, [docs/archive/plans/COMPUTER_VOICE_PLAN.md](docs/archive/plans/COMPUTER_VOICE_PLAN.md): a spoken conversation with the farm's model, for
   designing voice interaction — a person's **● Start** on THAT box opens the microphone through `capture.mjs`
   `openListening` (the press is Button's registry plus a 15 s freshness, so a queued or stale press asks again; Run all
   never runs it, `manual`; the title-bar ▶, a Trigger, a wave from upstream and MCP `run_graph` are refused); an energy
@@ -479,7 +479,7 @@ docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`. Snapsho
   committed file equal to the generator's output for the commit it names. Also a **? on every box** that opens that box's example (`computer/examples/`: one per ＋
   menu entry, a Sticky with what it does / inputs / output / how to use it next to a working setup, imported
   as a library graph once and reopened after). A run cut short by the app's close is offered again when its graph opens (the **resume banner**, host.mjs: Resume = Run all, only unfinished boxes re-run; Dismiss closes it — 2026-09-28). Docs: [the user tutorial](docs/LOLCHAT_COMPUTER_TUTORIAL.md),
-  [status](docs/COMPUTER_STATUS.md), [plan](docs/COMPUTER_PLAN.md), [live plan](docs/COMPUTER_LIVE_PLAN.md).
+  [status](docs/archive/COMPUTER_STATUS.md), [plan](docs/archive/plans/COMPUTER_PLAN.md), [live plan](docs/archive/plans/COMPUTER_LIVE_PLAN.md).
 - **`sidecar/`** — `build-sidecar` bundles a relocatable standalone CPython 3.12 + OWUI + `launcher.py`;
   `OPENWEBUI_VERSION` is the pin (**OWUI `0.11.4`** since 2026-09-27, Python 3.11/3.12; the bump notes are in INTEGRATION_BRIEF). A packaged client runs
   `<userData>/sidecar/python launcher.py serve`; dev uses `sidecar/.venv`'s `open-webui serve`. NOT bundled
@@ -996,7 +996,7 @@ LlmOnLan/
   .github/workflows/release-farm.yml         # Farm app, on `farm-v*` tags
   .github/workflows/build-llamacpp-arm64.yml # the Spark's llama-server tarball (on a pin bump)
   CLAUDE.md
-  implementation_plan.md
+  docs/archive/plans/implementation_plan.md
 ```
 `sidecar/` must never contain edited Open WebUI source — that enforces invariant #1 structurally.
 

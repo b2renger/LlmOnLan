@@ -71,7 +71,7 @@ function examples() {
         perf: { engine: 'vllm', genTokSec: 48, lastGenTokSec: 50, lastThroughputTokSec: 1210, lastCacheHitRatio: 0.75, lastDraftAcceptRatio: 0.7, kvPoolTokens: 1310720, lastActiveTs: 1790577087000, busySlots: 24, totalSlots: 48, queued: 0, kvUsed: 0.42 },
     };
 
-    // The vLLM the farm runs itself (docs/VLLM_MANAGED_PLAN.md), with the production box's settings: while it
+    // The vLLM the farm runs itself (docs/archive/plans/VLLM_MANAGED_PLAN.md), with the production box's settings: while it
     // starts, the farm stays healthy and says so in `busy` (clients keep their farm and show "Starting vLLM"),
     // then it serves with the seats it resolved.
     const managed = defaultConfig();

@@ -1,6 +1,6 @@
 // @ts-check
 // C2-U3 in Node: the two bridges between the canvas and the conversation — `From thread` and
-// `To thread` (plan §2.6 BH-1/BH-6/BH-7, docs/LOLCHAT_COMPUTER_SPEC.md §3).
+// `To thread` (plan §2.6 BH-1/BH-6/BH-7, docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md §3).
 //
 // What these tests are really about is the pair of promises the bridges make:
 //   - From thread reads the conversation through `repo.getPath()` — the branch the reader is on —

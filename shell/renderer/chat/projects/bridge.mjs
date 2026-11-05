@@ -176,7 +176,7 @@ export function serialDoor() {
 }
 
 /**
- * The IDE's coding agent (src/main/studio.ts, docs/IDE_PLAN.md): a prompt names a project id, a thread, a model and
+ * The IDE's coding agent (src/main/studio.ts, docs/plans/IDE_PLAN.md): a prompt names a project id, a thread, a model and
  * the turn's own id — never a path, a URL or a password (the farm is main's). A turn's records arrive on onEvent,
  * tagged with that id. Every answer is {ok:true,...} or {ok:false, code, message}. null outside the app.
  * @returns {null | {prompt(o: any): Promise<any>, stop(): Promise<any>, status(): Promise<any>,

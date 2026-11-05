@@ -1,5 +1,5 @@
 // @ts-check
-// Fetch (docs/ECOSYSTEM_PLAN.md v2 §4.2) — the Computer's way in for data: ONE GET of an address a
+// Fetch (docs/archive/plans/ECOSYSTEM_PLAN.md v2 §4.2) — the Computer's way in for data: ONE GET of an address a
 // PERSON typed (the box has no input port, so a model can never choose where it reads from). The
 // request runs in the main process (projects/bridge.mjs ioDoor → src/main/io.ts), which refuses
 // this machine, link-local addresses and the farm's ports, and caps the answer at 1 MB of text.

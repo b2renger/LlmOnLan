@@ -1,6 +1,6 @@
 // @ts-check
 // C2 in the real browser: what the CANVAS shows while a graph fans out (plan §2.6 BH-3/BH-4/BH-7,
-// docs/LOLCHAT_COMPUTER_SPEC.md §3-§4). The runner's bookkeeping is proved by c2-fanout; these
+// docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md §3-§4). The runner's bookkeeping is proved by c2-fanout; these
 // scenarios exist for the half a unit test structurally cannot see — what a person looking at the
 // panel is actually told:
 //

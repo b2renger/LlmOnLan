@@ -255,7 +255,7 @@ const OWN_HEADERS = {
 // mid-stream destroys the upstream request so the engine slot frees too.
 // `password` is a thunk like the others: the panel sets the farm password at runtime.
 // `unavailable` (a thunk too) is a sentence while the model cannot answer — the vLLM the
-// farm runs is starting or stopped (docs/VLLM_MANAGED_PLAN.md §3.10) — else null. A
+// farm runs is starting or stopped (docs/archive/plans/VLLM_MANAGED_PLAN.md §3.10) — else null. A
 // generation then gets a 503 with that sentence, after the password check and before a
 // seat: nobody holds a seat for a model that is not there. The model list stays open.
 function startSeatGate({ host, port, upstreamPort, seats, idleReleaseSec, password = () => null, unavailable = () => null, stats = createGateStats() }) {

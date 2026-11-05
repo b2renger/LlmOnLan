@@ -1,5 +1,5 @@
 // @ts-check
-// Converse's arithmetic (docs/COMPUTER_VOICE_PLAN.md, contract K-V1). PURE: no DOM, no clock, no
+// Converse's arithmetic (docs/archive/plans/COMPUTER_VOICE_PLAN.md, contract K-V1). PURE: no DOM, no clock, no
 // network, no audio device — every function takes the time and the samples it works on, so the
 // whole turn-taking can be driven in Node with a script of levels (test/chat/unit/voice.test.mjs).
 //

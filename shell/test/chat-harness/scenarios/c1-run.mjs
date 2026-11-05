@@ -1,6 +1,6 @@
 // @ts-check
 // C1-U3 in the real browser against the real mock farm: the parts and the run engine
-// (plan §2.6 BG-14, docs/LOLCHAT_COMPUTER_SPEC.md §7).
+// (plan §2.6 BG-14, docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md §7).
 //
 // The unit tests prove the runner's bookkeeping against a fake ask spine. These scenarios exist for
 // the things a unit test structurally cannot see: how many requests really leave the window, what

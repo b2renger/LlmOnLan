@@ -1,4 +1,4 @@
-/* computer-converse.css — the Converse box's face (docs/COMPUTER_VOICE_PLAN.md §6): the state with
+/* computer-converse.css — the Converse box's face (docs/archive/plans/COMPUTER_VOICE_PLAN.md §6): the state with
    its dot, the microphone in red while it is open, a level meter, the last exchange, the last turn's
    numbers, ● Start / ■ End, and the knobs. Tokens only (lint rule 3); every element given a
    `display` carries its own [hidden] rule. */

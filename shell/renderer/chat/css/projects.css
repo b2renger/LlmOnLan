@@ -44,7 +44,7 @@
   font-size: 12px;
 }
 
-/* ---- The Project panel: LOL Vibe's IDE (ui/project-panel.mjs, docs/IDE_PLAN.md) ------------------------------ */
+/* ---- The Project panel: LOL Vibe's IDE (ui/project-panel.mjs, docs/plans/IDE_PLAN.md) ------------------------------ */
 .chat-proj { display: flex; flex-direction: column; min-height: 100%; padding: 10px; gap: 8px; box-sizing: border-box; }
 .chat-proj-empty, .chat-proj-main { display: flex; flex-direction: column; gap: 8px; min-height: 0; flex: 1 1 auto; }
 .chat-proj-empty[hidden], .chat-proj-main[hidden] { display: none; }

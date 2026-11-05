@@ -3902,7 +3902,7 @@ test('capacity scenarios: needs filter the models, the picks cover the head coun
     assert.equal(Sc.matchModel(cat, 'assistant'), null);
 });
 
-// ---- vLLM run by the farm (docs/VLLM_MANAGED_PLAN.md §11.1, items 1-14) ------------------------------------
+// ---- vLLM run by the farm (docs/archive/plans/VLLM_MANAGED_PLAN.md §11.1, items 1-14) ------------------------------------
 const V = require('../src/vllm');
 const { engineOf } = require('../src/litellm');
 const FIX = path.join(__dirname, 'fixtures');
@@ -4279,8 +4279,11 @@ test('vLLM decisions: at boot, when it stops answering, and an orphan left by a 
     assert.deepEqual(V.wslAnswer({ code: null, out: '', err: '', timedOut: false, error: 'ENOENT' }), { error: 'no-wsl' });
     assert.equal(wsl('  NAME      STATE           VERSION\n* Ubuntu    Running         2\n', 0)[0].name, 'Ubuntu');
     // The plan says the same rule (§5, boot step 0c-ter b).
-    const plan = path.join(__dirname, '..', '..', 'docs', 'VLLM_MANAGED_PLAN.md');
-    if (fs.existsSync(plan)) {   // a farm-only copy (the Farm app ships farm/ alone) has no docs
+    // The plan is archived (docs/archive/plans/, 2026-11-05). A farm-only copy (the Farm app ships farm/ alone) has no
+    // docs/ at all and skips; a repo that has docs/ but not the plan fails, so a move cannot switch this check off.
+    const plan = path.join(__dirname, '..', '..', 'docs', 'archive', 'plans', 'VLLM_MANAGED_PLAN.md');
+    if (fs.existsSync(path.join(__dirname, '..', '..', 'docs'))) {
+        assert.ok(fs.existsSync(plan), 'VLLM_MANAGED_PLAN.md moved: update this path');
         const step = fs.readFileSync(plan, 'utf8').split('Boot, step 0c-ter')[1].split('\n- c)')[0];
         assert.ok(!/on timeout or error → unavailable/.test(step) && /the start is queued/.test(step) && /too small[^.]*is an answer/.test(step), step);
     }
@@ -5494,14 +5497,14 @@ test('docs: no control character but tab, line feed and carriage return — a Wi
     if (!fs.existsSync(path.join(root, 'docs'))) return;   // a farm-only copy (the Farm app ships farm/ alone)
     const files = fs.readdirSync(path.join(root, 'docs'), { recursive: true }).filter((f) => f.endsWith('.md')).map((f) => path.join('docs', f))
         .concat(['farm/README.md', 'CLAUDE.md']);
-    assert.ok(files.includes(path.join('docs', 'PRO6000_VLLM_SWITCH.md')));
+    assert.ok(files.includes(path.join('docs', 'archive', 'PRO6000_VLLM_SWITCH.md')), 'PRO6000_VLLM_SWITCH.md moved: update this path');
     const bad = [];
     for (const f of files) {
         fs.readFileSync(path.join(root, f), 'utf8').split('\n').forEach((l, i) => { if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(l)) bad.push(`${f}:${i + 1}`); });
     }
     assert.deepEqual(bad, []);
     // The production rollback's path, as PowerShell needs it.
-    assert.ok(fs.readFileSync(path.join(root, 'docs', 'PRO6000_VLLM_SWITCH.md'), 'utf8').includes('$cfg = "$env:APPDATA\\LlmOnLan Farm\\farm\\lol.config.json"'));
+    assert.ok(fs.readFileSync(path.join(root, 'docs', 'archive', 'PRO6000_VLLM_SWITCH.md'), 'utf8').includes('$cfg = "$env:APPDATA\\LlmOnLan Farm\\farm\\lol.config.json"'));
 });
 
 test('admin routes for vLLM: install, the list, the log, the take-over and its Undo, all behind the token, each reaching its control (§3.6)', async () => {
@@ -5541,7 +5544,7 @@ test('admin routes for vLLM: install, the list, the log, the take-over and its U
     } finally { srv.close(); }
 });
 
-// ---- "Let the farm run vLLM": the take-over (docs/VLLM_MANAGED_PLAN.md §9) ------------------------------------------
+// ---- "Let the farm run vLLM": the take-over (docs/archive/plans/VLLM_MANAGED_PLAN.md §9) ------------------------------------------
 // status.sh as it reads production's operator-run vLLM (pgid 401, ~/lol-spike, :8100), its argv from serve.sh itself.
 function prodStatus(over = {}) {
     const root = '/home/ateliernum/lol-spike';

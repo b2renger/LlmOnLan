@@ -66,7 +66,7 @@ function patchSection(configPath, section, patch) {
     });
 }
 
-// The panel's "Let the farm run vLLM" (docs/VLLM_MANAGED_PLAN.md §9): a vLLM the farm routed to as an external
+// The panel's "Let the farm run vLLM" (docs/archive/plans/VLLM_MANAGED_PLAN.md §9): a vLLM the farm routed to as an external
 // server becomes the vllm engine. A copy of the file comes first (the way back: the panel's Undo, or by hand,
 // PRO6000_VLLM_SWITCH.md Part 2), then the vllm block goes in and the external block out (a farm-v0.0.42 refuses a
 // file with a vllm block, so the copy is also what a downgrade needs). → {ok, backup, error}.

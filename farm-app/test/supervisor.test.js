@@ -1,5 +1,5 @@
 // The Farm app's supervisor and its stops, against the COMPILED output (build/main/*.js, `npm run build` first), with
-// stubs: no process is started or killed, no port is touched (docs/VLLM_MANAGED_PLAN.md §3.12, §3.13, §11.1-19).
+// stubs: no process is started or killed, no port is touched (docs/archive/plans/VLLM_MANAGED_PLAN.md §3.12, §3.13, §11.1-19).
 //   - stop() runs `lol down` before the tree-kill (it stops the vLLM the farm runs);
 //   - stop({keepEngine}) (the share toggle) runs no `lol down` and kills only `lol up`'s own pid;
 //   - a crash restart reaps the dead run's processes before the new `lol up`;

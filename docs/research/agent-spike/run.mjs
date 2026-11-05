@@ -1,4 +1,4 @@
-// The P4 agent spike (docs/ECOSYSTEM_PLAN.md §5, §8d): how reliably does the farm's model call tools?
+// The P4 agent spike (docs/archive/plans/ECOSYSTEM_PLAN.md §5, §8d): how reliably does the farm's model call tools?
 // Exit bar: ≥ 80% correct tool calls → the Agent box (P4) and DeepSeek Harness for the IDE (P5); below →
 // the Agent box waits and the IDE uses our own minimal loop.
 //

@@ -4,8 +4,8 @@
 > owner's vision of 2026-09-27.
 > **Built (local `main`, not released):** P1a, P1b, P1c (OWUI 0.11.4), P2 (Listen + Speak), P3a (the Send box
 > and the outputs choke point; serial is P3a-2), each with its tests; the P1+P2 critic's findings are resolved
-> ([reviews/P1P2_CRITIC_2026-09-27.md](reviews/P1P2_CRITIC_2026-09-27.md)). The running log: NIGHT_LOG_2026-09-27.md.
-> The research facts are in [research/ECOSYSTEM_RESEARCH_2026-09-27.md](research/ECOSYSTEM_RESEARCH_2026-09-27.md). This document
+> ([reviews/P1P2_CRITIC_2026-09-27.md](../../reviews/P1P2_CRITIC_2026-09-27.md)). The running log: NIGHT_LOG_2026-09-27.md.
+> The research facts are in [research/ECOSYSTEM_RESEARCH_2026-09-27.md](../../research/ECOSYSTEM_RESEARCH_2026-09-27.md). This document
 > supersedes the forward-looking parts of LOLCHAT_STUDIO_VISION.md and COMPUTER_PLAN.md where they
 > disagree. Their "as built" sections stay true.
 
@@ -252,7 +252,7 @@ Learn shelf**.
 | **P5 Studio IDE** | P5-0 dsh spike → v1 IDE (no shell), local serve, git | build, serve and commit a three.js app from a prompt | <ul><li>dsh churn → pin plus fallback</li><li>shell → none in v1</li><li>Windows paths and ACLs → a rig on a non-admin account</li></ul> |
 | **P6 Home** | Home Assistant through MQTT (comes with P3); lessons 5–12 completed | — | cloud creep → HA local only |
 
-**Status, 2026-09-27 23:30** (details and commits in `docs/NIGHT_LOG_2026-09-27.md`):
+**Status, 2026-09-27 23:30** (details and commits in `docs/archive/logs/NIGHT_LOG_2026-09-27.md`):
 
 | Phase | State | On the Learn shelf |
 |---|---|---|
@@ -262,8 +262,8 @@ Learn shelf**.
 | P3b Triggers | done on main: the farm's message bus (MQTT · WebSocket · OSC), Receive/Send on it, the Trigger box | template *A board on Wi-Fi* |
 | P4 Agents | done on main: the Agent box (JSON mode through the ask door; run_code / fetch on listed hosts / laya / answer); rig: gemma4, qwen3.8, nemotron all correct on a whole-file data.gouv.fr question | template *Ask a dataset* |
 | Owner additions | on main: the Computer as an MCP server (§8c), LOL Chat → LOL Vibe, a ? example per box, **Open data** (data.gouv.fr) + template *Analyse a dataset* | — |
-| P5 Studio IDE | **P5-0 spike PASSED (2026-09-28)**: dsh 0.1.7-rc.2 over its SDK, qwen3.8 / nemotron, no shell — docs/research/p5-spike/RESULTS.md. **v1 released in v0.2.3 (2026-09-29)** ([IDE_PLAN.md](IDE_PLAN.md), [guide](LOLVIBE_IDE_GUIDE.md)): the runner, the agent's replies, the Project panel (Preview · Code · Changes · History), the runtime download (5 platforms), Share on the LAN, git history + GitHub push/pull, the project fence. graphify shipped as a skill + the graph viewer. Still open: agent-skills (source unknown), a way to RUN a project's code (the vision's "autonomous agents" — options A/B/C in IDE_PLAN §5) | — |
-| P6 Home | **v1 on main (2026-09-30)**, owner's choices: ask and command + agents act on the home; Home Assistant's REST API with a person-pasted address and long-lived token; commands only once a person allows them. Three MCP tools answered in main ([HOME_ASSISTANT.md](HOME_ASSISTANT.md)); verified on a private demo Home Assistant with qwen3.8 in Open WebUI and a project's agent. Not built: a Computer box for the home, HA's WebSocket push (MQTT through the farm's bus stays possible) | — |
+| P5 Studio IDE | **P5-0 spike PASSED (2026-09-28)**: dsh 0.1.7-rc.2 over its SDK, qwen3.8 / nemotron, no shell — docs/research/p5-spike/RESULTS.md. **v1 released in v0.2.3 (2026-09-29)** ([IDE_PLAN.md](../../plans/IDE_PLAN.md), [guide](../../LOLVIBE_IDE_GUIDE.md)): the runner, the agent's replies, the Project panel (Preview · Code · Changes · History), the runtime download (5 platforms), Share on the LAN, git history + GitHub push/pull, the project fence. graphify shipped as a skill + the graph viewer. Still open: agent-skills (source unknown), a way to RUN a project's code (the vision's "autonomous agents" — options A/B/C in IDE_PLAN §5) | — |
+| P6 Home | **v1 on main (2026-09-30)**, owner's choices: ask and command + agents act on the home; Home Assistant's REST API with a person-pasted address and long-lived token; commands only once a person allows them. Three MCP tools answered in main ([HOME_ASSISTANT.md](../../HOME_ASSISTANT.md)); verified on a private demo Home Assistant with qwen3.8 in Open WebUI and a project's agent. Not built: a Computer box for the home, HA's WebSocket push (MQTT through the farm's bus stays possible) | — |
 
 Lessons 5 (*code counts, the model names* — the numbers rule) and 6 (*a loop that stops* — gates and ceilings) are
 built (2026-09-28), and so are 7–12 (the night of 2026-09-28: listen and speak, a picture to a model, act on the world, hear the world, an agent with tools, open data) — all released in v0.2.3.
@@ -395,7 +395,7 @@ our own minimal loop (§4.3).
 
 ## 9. Feedback loop
 
-**v1 → critic** ([reviews/ECOSYSTEM_PLAN_CRITIC_2026-09-27.md](reviews/ECOSYSTEM_PLAN_CRITIC_2026-09-27.md))
+**v1 → critic** ([reviews/ECOSYSTEM_PLAN_CRITIC_2026-09-27.md](../../reviews/ECOSYSTEM_PLAN_CRITIC_2026-09-27.md))
 **→ v2 (this).** The critic's verdict: "not tonight as written; yes once must-changes 1–4 are in." All 11
 must-changes were taken; where v2 applies them is listed below.
 

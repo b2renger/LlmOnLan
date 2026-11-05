@@ -4,7 +4,7 @@
 // Reads .lol-runtime.json (written by `lol up`) and tree-kills the recorded pids.
 // Killing the proxy also makes a foreground `lol up` notice and exit. vLLM is not one
 // of those pids: it outlives a crashed farm on purpose (the next `lol up` adopts it,
-// docs/VLLM_MANAGED_PLAN.md D4), so it is stopped here through its own stop.sh — from
+// docs/archive/plans/VLLM_MANAGED_PLAN.md D4), so it is stopped here through its own stop.sh — from
 // the runtime file, or, when that file is gone, from the config.
 
 const log = require('../log');

@@ -39,9 +39,9 @@ const PURE_MODULES = [
     // P4
     'recipes/recipe.mjs',
     // S0 (Studio rails; studio plan §2.1). S1's map/* entries are NOT here — S1 was replaced by
-    // docs/LOLCHAT_COMPUTER_SPEC.md, whose own pure modules are listed at its kickoff.
+    // docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md, whose own pure modules are listed at its kickoff.
     'app/json.mjs', 'app/studio-state.mjs', 'projects/memory.mjs',
-    // C1 (the Computer panel; docs/LOLCHAT_COMPUTER_SPEC.md). The graph ENGINE is pure: the doc
+    // C1 (the Computer panel; docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md). The graph ENGINE is pure: the doc
     // and its mutations, topological order, the stale/run sets, value kinds and the undo stack.
     // graph/{panel,canvas,wires,store,runner}.mjs and graph/parts/* are NOT pure — they render,
     // persist and call the farm.
@@ -79,7 +79,7 @@ const PURE_MODULES = [
     'design/areas.mjs', 'board/select.mjs', 'board/lint.mjs', 'board/scaffold.mjs',
     // Critic R1, Package B: what a wheel, a resize handle, a dropped wire end and Ctrl+C mean.
     'graph/gestures.mjs',
-    // Converse (docs/COMPUTER_VOICE_PLAN.md K-V1): the turn-taking, the turn's sound, the sentence
+    // Converse (docs/archive/plans/COMPUTER_VOICE_PLAN.md K-V1): the turn-taking, the turn's sound, the sentence
     // cutter and the event shape — a conversation is driven in Node through these.
     'graph/voice.mjs',
 ];

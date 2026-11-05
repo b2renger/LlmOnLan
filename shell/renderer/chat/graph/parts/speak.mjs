@@ -1,5 +1,5 @@
 // @ts-check
-// Speak (docs/ECOSYSTEM_PLAN.md v2 §3.3) — says what arrives, out loud, and passes the same text on.
+// Speak (docs/archive/plans/ECOSYSTEM_PLAN.md v2 §3.3) — says what arrives, out loud, and passes the same text on.
 //
 // Two voices, the person picks (or Automatic):
 //   - this computer's own: `speechSynthesis` (a platform feature — the OS voices, offline, nothing

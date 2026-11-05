@@ -23,7 +23,7 @@ self‑updates on mac/win/linux. End‑user flow: install → open → chat. No 
 ## Current status — shipped through v0.1.25 (2026‑07‑05)
 
 **M0–M5 are all shipped; the app is packaged and self‑updating on Windows/macOS/Linux.** This is the
-summary; the blow‑by‑blow (and every bug + fix) lives in [docs/DEVLOG.md](docs/DEVLOG.md).
+summary; the blow‑by‑blow (and every bug + fix) lives in [docs/DEVLOG.md](../../DEVLOG.md).
 
 **Working end‑to‑end**
 - **Small installer** (~97 MB Win) that **downloads the OWUI sidecar on first run** (no longer bundled), then
@@ -186,7 +186,7 @@ concurrency env set; `lol up` only auto‑starts a *local* Ollama, never a remot
 **Layer 2 — across independent farms, across clients (this is the gap).**
 If each GPU box runs its own `lol up`, every box is a *separate* farm with its own LiteLLM + beacon. The client
 picks **one** farm — pinned, else sticky‑current, else **first healthy** (`chooseActive` in
-[shell/src/main/index.ts](shell/src/main/index.ts)) — and sends all its traffic there. There is **no automatic
+[shell/src/main/index.ts](../../../shell/src/main/index.ts)) — and sends all its traffic there. There is **no automatic
 spreading of clients across farms**: if every client discovers farms in the same order, they all land on the
 same "first healthy" one and saturate it while the others sit idle. The only control today is manually pinning
 each client to a different farm.
@@ -247,7 +247,7 @@ fleet with failover (Layer 1). Trade‑off: the coordinator box is a single poin
    `generate_*` tool in OWUI that renders the result inline (OpenAPI tool server on the farm's `:41997` +
    an iframe-HTML media channel). v1 = text-driven; Phase 2 = Flux.2 image editing (with/without a
    reference image). Owner decisions locked (farm-hosted broker, a new `POST /federation/generate` REST
-   route in ComfyQ, text-first). **Full design + build order:** [docs/COMFYQ_MEDIA_PLAN.md](docs/COMFYQ_MEDIA_PLAN.md).
+   route in ComfyQ, text-first). **Full design + build order:** [docs/archive/plans/COMFYQ_MEDIA_PLAN.md](COMFYQ_MEDIA_PLAN.md).
 5. **Voice polish (rest).** Surface the first‑run Whisper download; explore gemma4's native **audio**
    capability for spoken input. (The neural‑TTS half shipped — Kokoro farm plugin, above.)
 6. **Dynamic coordinator membership.** Today the coordinator captures peers at boot (a box added later → restart).

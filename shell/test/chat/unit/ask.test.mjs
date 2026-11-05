@@ -946,7 +946,7 @@ export default (test) => {
     assert.equal(api.mode('gemma4:12b'), 'schema');
   });
 
-  // Converse (docs/COMPUTER_VOICE_PLAN.md K-V5).
+  // Converse (docs/archive/plans/COMPUTER_VOICE_PLAN.md K-V5).
   test('text(): onText sees the answer grow, history becomes messages in order, thinking:false is in the body', async () => {
     const { app } = stubApp();
     const { api } = createAsk(app);

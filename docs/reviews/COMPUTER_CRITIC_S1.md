@@ -322,13 +322,13 @@ removes a box nobody can see.**
   - values open in the chat column;
   - there is one folder per thread;
   - troubleshooting starts with "open a chat".
-- **`docs/COMPUTER_STATUS.md`:**
+- **`docs/archive/COMPUTER_STATUS.md`:**
   - L92: "a pinned seed gives the identical answer twice through LiteLLM" is true on Qwen3.8 only.
   - L166-167 and L200: "a wired Image goes to the farm's vision model (your gemma4:12b)". It goes to
     the box's model, which on Automatic is the farm default, Qwen3.8.
   - L77-79, 278, 287, 290-291: rig steps that assume gemma4.
   - L198: the fourth ceiling is not "a cache salt"; it is `maxActivations` = 2000.
-- **`docs/LOLCHAT_PLAN.md` addenda.** Mark these superseded in place:
+- **`docs/archive/plans/LOLCHAT_PLAN.md` addenda.** Mark these superseded in place:
   - KE-3 L3311-3314: the code rules ride the system message now.
   - KD-6 L3118-3119: "Open live" was not built.
   - KD-4 L3072-3073: a click selects; a double-click edits.
@@ -378,8 +378,8 @@ removes a box nobody can see.**
   - `computer/tutorial/lessons/*.mjs`, including the S1-12 lesson 2 hint
   - `css/graph.css` and `css/computer-*.css`
   - `strings/computer-canvas.en.mjs`: any new canvas words go here, never in a Package A file
-  - `docs/LOLCHAT_COMPUTER_TUTORIAL.md`, `docs/COMPUTER_STATUS.md`, `docs/COMPUTER_DEBUG_LOG.md`
-  - `docs/LOLCHAT_PLAN.md`, for annotations only
+  - `docs/LOLCHAT_COMPUTER_TUTORIAL.md`, `docs/archive/COMPUTER_STATUS.md`, `docs/COMPUTER_DEBUG_LOG.md`
+  - `docs/archive/plans/LOLCHAT_PLAN.md`, for annotations only
   - new file: `shell/test/chat-harness/scenarios/k10-canvas-lessons.mjs`
 - **Acceptance:**
   - `chat-unit`, `chat-lint` and `--phase k8`/`k9`/`k10` green, and `rule 15` (lessons) green.

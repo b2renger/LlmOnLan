@@ -178,7 +178,7 @@
   };
 
   // VOICE-EVENTS BEGIN
-  // Converse's events (docs/COMPUTER_VOICE_PLAN.md K-V2): the host posts `{cmd:'event', ev}` and a
+  // Converse's events (docs/archive/plans/COMPUTER_VOICE_PLAN.md K-V2): the host posts `{cmd:'event', ev}` and a
   // sketch listens with `lol.on(type, fn)` or `lol.on('*', fn)` (each returns an off function).
   // Handlers run in the order they were registered, each in its own try/catch, so a throwing
   // handler is a runtime error on the box and never a dead guest. `lol.voice` is `{state, last}`:

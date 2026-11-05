@@ -1,5 +1,5 @@
 // @ts-check
-// Converse (docs/COMPUTER_VOICE_PLAN.md §11), in the real page on the mock farm. The microphone is
+// Converse (docs/archive/plans/COMPUTER_VOICE_PLAN.md §11), in the real page on the mock farm. The microphone is
 // Chromium's fake device playing chat-harness/mic-fixture.js (1 s of silence, 1.5 s of a speech-like
 // voice, 2 s of silence, looped), so every loop is one turn of "the person's". A live p5 Preview is the
 // face: its sketch logs every conversation event it receives through lol.on, and the scenario reads

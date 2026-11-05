@@ -2,7 +2,7 @@
 
 Everything under `shell/test/chat/`, `shell/test/mock/` and `shell/test/chat-harness/` exists to
 test **LOL Chat vNext** (the Desk) without touching Open WebUI, the live farm, or the owner's real
-client. Plan: `docs/LOLCHAT_PLAN.md` §2 (harness), §2.3 (this mock), §2.6 (the P0 freeze).
+client. Plan: `docs/archive/plans/LOLCHAT_PLAN.md` §2 (harness), §2.3 (this mock), §2.6 (the P0 freeze).
 
 ---
 

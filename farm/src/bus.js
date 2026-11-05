@@ -1,4 +1,4 @@
-// The message bus (docs/ECOSYSTEM_PLAN.md §8d, P3b): the farm as the LAN's meeting point, so a
+// The message bus (docs/archive/plans/ECOSYSTEM_PLAN.md §8d, P3b): the farm as the LAN's meeting point, so a
 // microcontroller and a Computer talk through it with zero setup. Three doors onto ONE in-memory topic
 // space, so an ESP32 on MQTT, a browser on WebSocket and TouchDesigner on OSC see the same messages:
 //   • an MQTT 3.1.1 broker (TCP, bus.mqttPort, default 1883);

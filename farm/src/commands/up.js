@@ -76,7 +76,7 @@ function loopbackPort(baseUrl) {
 // While the farm's vLLM serves, Ollama only reads documents, beside it and in the memory
 // kept for it (vllm.ocrReserveGib, 9 GB): gemma4:12b (vision, ~8 GB) when it is installed
 // on a local host (`installed`, the local /api/tags names), rather than a standby default
-// that may not fit (production's was qwen3.8, 17.7 GB on disk; docs/VLLM_MANAGED_PLAN.md
+// that may not fit (production's was qwen3.8, 17.7 GB on disk; docs/archive/plans/VLLM_MANAGED_PLAN.md
 // §1.4). Only beside vLLM, where that reserve exists: a llama.cpp farm chose its standby
 // default to fit beside llama-server, and an external server's farm keeps its own choice.
 const OCR_BESIDE = 'gemma4:12b';
@@ -262,7 +262,7 @@ function makeRateMeter(smoothing = 0.25) {
     };
 }
 
-// The farm's two slots for long work (docs/VLLM_MANAGED_PLAN.md §3.5).
+// The farm's two slots for long work (docs/archive/plans/VLLM_MANAGED_PLAN.md §3.5).
 // - The JOB slot: what changes what the farm serves (a switch, a restart, an Apply, an Ollama pull). Strictly
 //   one at a time, and its body runs in `serialize`, the one chain every quick admin change takes too: two
 //   proxy restarts interleaving tear the farm down. It rides the snapshot as `busy`, so clients say "switching…".
@@ -725,7 +725,7 @@ async function run(args) {
         }
     }
 
-    // 0c-ter. vLLM run by the farm (docs/VLLM_MANAGED_PLAN.md). The farm's boot never waits for vLLM (D5): the
+    // 0c-ter. vLLM run by the farm (docs/archive/plans/VLLM_MANAGED_PLAN.md). The farm's boot never waits for vLLM (D5): the
     //     proxy, gate, panel and beacon come up in seconds and a start runs as the job "Starting vLLM", during
     //     which the farm stays healthy and says busy (clients keep it), and the gate answers "starting".
     //     a) The orphan rule: a vLLM this farm started (its marker) that still runs from its root while another
@@ -1290,7 +1290,7 @@ async function run(args) {
         await measureVramFreeGb();
     }
 
-    // ---- vLLM, run by the farm: the lifecycle (docs/VLLM_MANAGED_PLAN.md §1.5, §5) --------------------------
+    // ---- vLLM, run by the farm: the lifecycle (docs/archive/plans/VLLM_MANAGED_PLAN.md §1.5, §5) --------------------------
     // vllm.js runs the scripts and decides; this is the glue. Health by phase (§1.5): a PLANNED start (boot, Start,
     // switch, Apply) keeps the farm healthy and says busy, and the gate answers "starting" (clients keep their farm
     // instead of scattering to slower ones); only an unplanned death, the operator's Stop and the memory guard
@@ -4247,7 +4247,7 @@ async function run(args) {
         applyFarmSettings,
         pullOllamaModel,
         removeOllamaModel,
-        // vLLM (docs/VLLM_MANAGED_PLAN.md): the check runs on request only; start and stop are jobs; a download
+        // vLLM (docs/archive/plans/VLLM_MANAGED_PLAN.md): the check runs on request only; start and stop are jobs; a download
         // is in its own slot; Stop on either slot cancels (job/cancel).
         vllmCheck,
         vllmStart,

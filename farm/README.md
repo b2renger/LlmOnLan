@@ -213,7 +213,7 @@ On a big NVIDIA card, vLLM serves far more people than llama.cpp. On the studio'
 a DGX Spark serves 8 at 64k. Since 2026-10-07 vLLM is the farm's third built-in engine (the owner: "I want the farm
 operator to be able to do everything from the app. No config file etc."): the farm installs it, starts it, sizes
 it, watches it and stops it, and the operator does all of it from the panel. The design, with its decisions, is
-[docs/VLLM_MANAGED_PLAN.md](../docs/VLLM_MANAGED_PLAN.md). The farm drives the scripts in `farm/vllm/`
+[docs/archive/plans/VLLM_MANAGED_PLAN.md](../docs/archive/plans/VLLM_MANAGED_PLAN.md). The farm drives the scripts in `farm/vllm/`
 (`serve.sh`, `stop.sh`, `install.sh`, `status.sh`); it does not re-implement them.
 
 **Where it runs:** Windows x64 inside WSL2 (Ubuntu), and Linux x86_64 or arm64 (the DGX Spark), with an NVIDIA GPU
@@ -417,7 +417,7 @@ folder, it is offered too, and the farm then starts vLLM. **Undo** (on the panel
 farm restarts) puts the copy back, removes the marker and routes to the server as before; vLLM keeps running. By
 hand, later: quit the Farm app (which stops vLLM), copy `lol.config.json.before-managed-vllm` over
 `lol.config.json`, remove `<root>/run/managed-by-farm`, and start vLLM the old way
-([docs/PRO6000_VLLM_SWITCH.md](../docs/PRO6000_VLLM_SWITCH.md), Part 2). **A farm-v0.0.42 or older refuses a file
+([docs/archive/PRO6000_VLLM_SWITCH.md](../docs/archive/PRO6000_VLLM_SWITCH.md), Part 2). **A farm-v0.0.42 or older refuses a file
 with a `vllm` block**: put the copy back before installing an older Farm app.
 
 **At login.** The Farm app's Launch at login starts the farm, and the farm starts vLLM (WSL boots in about 5 s,
@@ -425,7 +425,7 @@ then about 1.5 min). On Linux the app writes `~/.config/autostart/llmonlan-farm.
 someone logs in to the desktop. A box nobody logs in to (a headless DGX Spark) gets no farm at boot this way,
 and nothing shipped starts one there yet. Start the farm from a terminal (`node bin/lol.js up --no-pick` in a
 checkout's `farm/`, after `./install.sh`) or from a systemd unit of your own; or keep the operator-run recipe there ([On Linux (DGX Spark)](#on-linux-dgx-spark), `lol-vllm.service`): do not press Let the farm run vLLM, or press Undo; the farm then starts vLLM as usual
-([VLLM_MANAGED_PLAN.md](../docs/VLLM_MANAGED_PLAN.md) R4; whether a Spark logs in by itself is its §11.6, step 9).
+([VLLM_MANAGED_PLAN.md](../docs/archive/plans/VLLM_MANAGED_PLAN.md) R4; whether a Spark logs in by itself is its §11.6, step 9).
 
 ### Why there is a relay
 
@@ -695,7 +695,7 @@ Checked on 2026-10-07 with a stand-in for vLLM (no GPU) on a spare port: the Far
 server answered; the distro and the server were still up 60 s after the script exited, with no other `wsl.exe`;
 `stop.sh` ended the script's `wsl.exe` and the distro stopped 10 s later; a 12 s timeout and a `serve.sh` that
 stopped at once both still started the Farm app. The task runs on the PRO 6000 since 2026-10-07
-([docs/PRO6000_VLLM_SWITCH.md](../docs/PRO6000_VLLM_SWITCH.md)); after the farm takes that vLLM over, it only opens
+([docs/archive/PRO6000_VLLM_SWITCH.md](../docs/archive/PRO6000_VLLM_SWITCH.md)); after the farm takes that vLLM over, it only opens
 the Farm app.
 
 ### On Linux (DGX Spark)
@@ -1853,4 +1853,4 @@ Measured 2026-10-04:
   [#29707](https://github.com/ggml-org/llama.cpp/pull/29707) fixed it in b11769. On the pinned **b11836**
   (2026-10-23, Qwen3.8 UD-IQ2_S) **all 8 paths stop**: streams 17 ms after the abort, non-streaming calls
   0.95–0.99 s after it, the one beside a stream included. The reproduction is in
-  `docs/upstream/LLAMACPP_NONSTREAM_CANCEL.md`.
+  `docs/archive/LLAMACPP_NONSTREAM_CANCEL.md`.

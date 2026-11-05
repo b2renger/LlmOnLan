@@ -58,7 +58,7 @@ const STATIC_MODEL_IDS = [
     // is cut off (finish_reason "length") before it writes a word of the answer — gemma4:12b on the
     // rig, drawing SVG/p5 at max_tokens 4096. The client must fail the box, never keep the thoughts.
     'mock-think-length',
-    // Converse (docs/COMPUTER_VOICE_PLAN.md §11, k27): three short spoken sentences, streamed slowly
+    // Converse (docs/archive/plans/COMPUTER_VOICE_PLAN.md §11, k27): three short spoken sentences, streamed slowly
     // (`state.voiceChunkMs`, default 400 ms apart), so the first is heard before the stream ends. The
     // log entry gets `streamEndedAt` when the last chunk is sent.
     'mock-voice',

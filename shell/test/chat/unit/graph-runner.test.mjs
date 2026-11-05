@@ -778,7 +778,7 @@ export default (test) => {
     assert.deepEqual(records, [null], 'the badge starts empty, not at last run\'s 2/3');
   });
 
-  // Converse (docs/COMPUTER_VOICE_PLAN.md K-V5, §15): the options a streaming conversation needs pass
+  // Converse (docs/archive/plans/COMPUTER_VOICE_PLAN.md K-V5, §15): the options a streaming conversation needs pass
   // through the runner's metered ask, and the PART's own signal (the person spoke over the answer)
   // aborts the ask — the runner used to replace it with the run's, so an interrupted answer went on
   // holding the window's one background lane.

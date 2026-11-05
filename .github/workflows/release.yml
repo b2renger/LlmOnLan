@@ -106,7 +106,7 @@ jobs:
           printf '{"owuiVersion":"%s"}\n' "$ver" > owui-sidecar-manifest.json
           ls -la owui-sidecar-* | cat
 
-      # The IDE's coding agent (docs/IDE_PLAN.md slice 5): a pinned Node + the pinned DeepSeek Harness (npm ci of
+      # The IDE's coding agent (docs/plans/IDE_PLAN.md slice 5): a pinned Node + the pinned DeepSeek Harness (npm ci of
       # shell/dsh's lockfile), as dsh-runtime-<platform>-<arch>.tar.gz. Like the sidecar, NOT in the installer: the
       # client downloads it when a person installs the agent from the Project panel.
       # Never fatal: a runtime that fails to build or boot is simply not uploaded for this OS (the panel then says

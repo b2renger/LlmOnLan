@@ -18,7 +18,7 @@ const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];
 // and the three annotation parts join; Render stays loadable so a C3 graph still opens.
 // K6 kickoff (LOLCHAT_PLAN 2.6 KF-4): Document and Sound join "bring in", right after Image.
 // The Home boxes (docs/HOME_ASSISTANT.md, 2026-10-09) join after Open data; Converse
-// (docs/COMPUTER_VOICE_PLAN.md, 2026-10-12) after the Agent.
+// (docs/archive/plans/COMPUTER_VOICE_PLAN.md, 2026-10-12) after the Agent.
 const PALETTE = ['note', 'ask', 'classify', 'agent', 'converse', 'split', 'repeat', 'filter', 'code', 'collect', 'preview', 'speak', 'send', 'receive', 'trigger', 'file',
     'image', 'document', 'audio', 'fetch', 'opendata', 'home', 'home-command', 'button', 'condition', 'confirm', 'dialog', 'toggle', 'timer',
     'sticky', 'section', 'title'];

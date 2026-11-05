@@ -7,7 +7,7 @@
 // running"). So before (re)starting we read the recorded PIDs and kill whatever's still alive, then drop the stale
 // runtime file. Combined with ensurePluginPorts(), this keeps restarts clean even after an ungraceful exit.
 //
-// It never stops vLLM (docs/VLLM_MANAGED_PLAN.md §3.12): the runtime file records where vLLM lives, not a pid, and the
+// It never stops vLLM (docs/archive/plans/VLLM_MANAGED_PLAN.md §3.12): the runtime file records where vLLM lives, not a pid, and the
 // next `lol up` keeps a vLLM that still runs. Only `lol down` stops it (the Stop button and Quit, through the
 // supervisor's stop()).
 

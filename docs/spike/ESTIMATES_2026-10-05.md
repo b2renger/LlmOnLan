@@ -188,7 +188,7 @@ Seat = one person, counted `every turn / steady`. Estimates use the assumed setu
 
 ## What this changes in the plan and in RESULTS.md
 
-Line numbers are in `multiuser_implementation_plan.md` as it reads now (revision 4).
+Line numbers are in `docs/archive/plans/multiuser_implementation_plan.md` as it reads now (revision 4).
 
 1. **Lines 32 and 1018–1019: "A5500 means… the Blackwell RTX PRO 5000 class".** NVIDIA lists an **RTX PRO 5500 Blackwell** (84 GB, 1,398 GB/s, 600 W, about 2026-09-15). It is the card literally named after the A5500 and the newest, and LDLC lists it at €16,470 TTC. The PRO 5000 also has a 72 GB version. Ask the owner which card he means. The estimates cover all three.
 2. **Lines 1007–1009: "~15 % of its memory bandwidth… about 6 Sparks".**
@@ -219,7 +219,7 @@ Line numbers are in `multiuser_implementation_plan.md` as it reads now (revision
 - Repo: docs/spike/results/*.json, per-level and per-round data via spike_bench.py summarize and runs/round_stats.py (read 2026-10-05)
 - Repo: WSL ~/lol-spike/logs/{qwen36_*,qwen36_seq192*,nemotron_a,qwen38_*,tcpdiag,vllm}.log (vLLM start-up lines: 'GPU KV cache size', 'Model loading took', 'Graph capturing', block sizes, 18.63/50/52/58 GiB pools); du of ~/lol-spike/hf (checkpoint sizes on disk)
 - Repo: farm/README.md:253-287 (48 seats at 64k; the 50 GiB pool; 77,587 MiB peak; the sizing formula); docs/DEVLOG.md:23-34 (2026-10-05: 50 GiB pool, 19.8 GiB free, 88.7%); farm/vllm/serve.sh:82-87
-- Repo: multiuser_implementation_plan.md lines 32, 1002-1009, 1016-1019, 1063-1072, 1117-1123, 1134-1143 (revision 4)
+- Repo: docs/archive/plans/multiuser_implementation_plan.md lines 32, 1002-1009, 1016-1019, 1063-1072, 1117-1123, 1134-1143 (revision 4)
 - NVIDIA RTX PRO 5000 product page: 48 GB / 72 GB GDDR7 ECC, 1,344 GB/s, 2,064 AI TOPS, 300 W, PCIe Gen 5. https://www.nvidia.com/en-us/products/workstations/professional-desktop-gpus/rtx-pro-5000/ (fetched 2026-10-05)
 - NVIDIA RTX PRO 6000 Blackwell Workstation page: 96 GB, 1,792 GB/s, 4,000 AI TOPS, 125 TFLOPS FP32, 600 W. https://www.nvidia.com/en-us/products/workstations/professional-desktop-gpus/rtx-pro-6000/ (fetched 2026-10-05)
 - NVIDIA RTX PRO 5500 page: 84 GB, 1,398 GB/s, up to 600 W, PCIe Gen 5 x16, MIG, 'Coming Soon'. https://www.nvidia.com/en-us/products/workstations/professional-desktop-gpus/rtx-pro-5500/ (fetched 2026-10-05)

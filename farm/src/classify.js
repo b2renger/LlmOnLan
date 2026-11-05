@@ -1,5 +1,5 @@
 // Classify orchestration — the farm's Laya decision model as ONE shared "lol-classify" service
-// (docs/ECOSYSTEM_PLAN.md v2 §3.2). The Computer's Classify box reads `classify` (url + key) from
+// (docs/archive/plans/ECOSYSTEM_PLAN.md v2 §3.2). The Computer's Classify box reads `classify` (url + key) from
 // the beacon snapshot and sends a list of items with ONE `choice` question; the farm answers each
 // with a label and its (uncalibrated) confidence. Mirrors extract.js: the service source is
 // COMMITTED (farm/src/pysvc/classify_server.py); `ensureClassify` only builds a venv + pip-installs.

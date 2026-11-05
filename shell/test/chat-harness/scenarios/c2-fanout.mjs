@@ -1,7 +1,7 @@
 // @ts-check
 // C2-U1 in the real browser against the real mock farm: FAN-OUT, per-item errors, the generation
 // cap and the etiquette that keeps a colleague's chat fast while a graph runs (plan §2.6
-// BH-2/BH-3/BH-4/BH-8, docs/LOLCHAT_COMPUTER_SPEC.md §2-§3).
+// BH-2/BH-3/BH-4/BH-8, docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md §2-§3).
 //
 // The unit tests prove the runner's bookkeeping against a fake spine. These scenarios exist for the
 // one thing a unit test structurally cannot see: how many requests really left the window, and what

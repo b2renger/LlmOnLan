@@ -66,7 +66,7 @@ export async function startRecording(o) {
 }
 
 /**
- * Converse (docs/COMPUTER_VOICE_PLAN.md K-V3): the microphone held open for a conversation, until
+ * Converse (docs/archive/plans/COMPUTER_VOICE_PLAN.md K-V3): the microphone held open for a conversation, until
  * `close()`. A person's ● Start on a Converse box is the only caller; the box closes it at ■ End,
  * Stop, an error, a limit, and when the Computer or the window is no longer shown.
  *

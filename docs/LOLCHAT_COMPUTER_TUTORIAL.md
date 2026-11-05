@@ -14,8 +14,8 @@ its File boxes write, so moving that folder takes all of it along.
 > Rewritten on 2026-09-25 (critic S1-16) to describe the Computer as it is now: its own surface
 > with a library, the ＋ menu's boxes by their current names, pictures, PDFs and sounds in boxes,
 > the drawer on the right, and the Learn shelf. The design is in
-> [COMPUTER_PLAN.md](COMPUTER_PLAN.md); what works today and what does not is in
-> [COMPUTER_STATUS.md](COMPUTER_STATUS.md). Checked against the code again on 2026-09-27 (docs
+> [COMPUTER_PLAN.md](archive/plans/COMPUTER_PLAN.md); what works today and what does not is in
+> [COMPUTER_STATUS.md](archive/COMPUTER_STATUS.md). Checked against the code again on 2026-09-27 (docs
 > review): the view tools, Live pausing, and the boxes and buttons it had left out; and on 2026-09-28
 > with the in-app texts (the v0.2.3 review): lessons 7–12, the Outputs control with a Trigger, the
 > resume banner, tooltips.

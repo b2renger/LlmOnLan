@@ -1,8 +1,8 @@
 # LOL Vibe IDE (P5 v1) — build plan
 
-Owner, 2026-09-28: "yes start the build" (after the P5-0 spike passed — [research/p5-spike/RESULTS.md](research/p5-spike/RESULTS.md));
+Owner, 2026-09-28: "yes start the build" (after the P5-0 spike passed — [research/p5-spike/RESULTS.md](../research/p5-spike/RESULTS.md));
 qwen3.8 first, "it should adapt to several models, new models will appear"; git to the real GitHub, not a priority.
-The target is [ECOSYSTEM_PLAN.md §4.3](ECOSYSTEM_PLAN.md): a lightweight IDE in LOL Vibe, driven by DeepSeek Harness
+The target is [ECOSYSTEM_PLAN.md §4.3](../archive/plans/ECOSYSTEM_PLAN.md): a lightweight IDE in LOL Vibe, driven by DeepSeek Harness
 (dsh) on the farm's models, no shell tool in the first cut, projects in `DATA_DIR/LOL Studio Projects/`.
 
 ## 1. What the probes settled (2026-09-28, 13:25–13:45, a private test farm on 127.0.0.1:4100)
@@ -80,11 +80,11 @@ over a person's pick), and the panel's model line follows the picker. It reaches
 5. **The runtime download** — CI builds `dsh-runtime-<platform>-<arch>.tar.gz` (a pinned Node 24 + `npm ci` from a
    committed lockfile of `@deepseek-ai/dsh@0.1.7-rc.2`) on the client release; the shell fetches it on first use
    (like the sidecar), with progress in the panel.
-6. **Built the night of 2026-09-28** (docs/NIGHT_LOG_2026-09-28.md): **Share on the LAN** (a per-project toggle,
+6. **Built the night of 2026-09-28** (docs/archive/logs/NIGHT_LOG_2026-09-28.md): **Share on the LAN** (a per-project toggle,
    off by default, forgotten at restart, read-only, the Host check extended to this machine's addresses);
    **History** (`src/main/projectGit.ts`, isomorphic-git: a commit per reply and per Save, a line diff, *Go back to
    this version* as a new commit); **GitHub push/pull** (an https remote, a token per host kept with `safeStorage`,
-   fast-forward-only pull). The user guide: [LOLVIBE_IDE_GUIDE.md](LOLVIBE_IDE_GUIDE.md). **The project fence:**
+   fast-forward-only pull). The user guide: [LOLVIBE_IDE_GUIDE.md](../LOLVIBE_IDE_GUIDE.md). **The project fence:**
    dsh's `workspace-write` confines WRITES only ("preserving the local filesystem's read behavior") — on the real
    runtime the agent read a file outside its project. Now a PreToolUse command hook (dsh-hooks-claude-code, inserted
    by the patch; `FENCE_JS` in studio.ts, run by the runtime's own Node) refuses read/glob/grep/read_image/write/edit
@@ -92,7 +92,7 @@ over a person's pick), and the panel's model line follows the picker. It reaches
    because the bridge fails OPEN. Two Windows traps found on the real runtime: dsh runs hooks through PowerShell, so
    the command needs `&` and `; exit $LASTEXITCODE` (else a parse error or a 2 turned into 1 = "pass"). Verified:
    an outside read refused, the secret never reached the model, an inside read works. Cost: ~0.4 s per file tool on
-   Windows. Not yet run on macOS/Linux (bash -c; the plain command): [HUMAN_TESTS.md](HUMAN_TESTS.md) E4.
+   Windows. Not yet run on macOS/Linux (bash -c; the plain command): [HUMAN_TESTS.md](../HUMAN_TESTS.md) E4.
 7. **Later**: the project's own
    `.dsh/skills`, pruning old dsh session logs.
 
@@ -125,7 +125,7 @@ built; the import button later), C only after a measured sandbox review and your
 ## 6. Agent loops — "Keep going until done" (owner, 2026-09-29; built the same day)
 
 The owner asked whether qwen3.8 can run agent LOOPS in the harness we ship. The P5-L spike
-([results](research/p5-loop-spike/RESULTS.md)) answered yes: dsh has its own goal loop (the model creates a goal; dsh
+([results](../research/p5-loop-spike/RESULTS.md)) answered yes: dsh has its own goal loop (the model creates a goal; dsh
 starts round after round until the model marks it complete), which our patch had switched off. Decisions: loops that
 finish a project, watch and act, research and report, and on a schedule; reach = the project's files (+ the Computer
 and devices, later); **only a person starts one**; qwen3.8. Built:

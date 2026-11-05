@@ -548,4 +548,4 @@ Terms that show up in the config and in this guide.
 
 ---
 
-For the design rationale, the full config reference, and the development history, see [`README.md`](../README.md), [`farm/README.md`](../farm/README.md), [`implementation_plan.md`](../implementation_plan.md), and [`docs/DEVLOG.md`](DEVLOG.md).
+For the design rationale, the full config reference, and the development history, see [`README.md`](../README.md), [`farm/README.md`](../farm/README.md), [`docs/archive/plans/implementation_plan.md`](archive/plans/implementation_plan.md), and [`docs/DEVLOG.md`](DEVLOG.md).

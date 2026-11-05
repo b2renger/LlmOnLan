@@ -1,5 +1,5 @@
 // @ts-check
-// Template — Read the news (docs/ECOSYSTEM_PLAN.md v2, P1a: the owner's first goal). DATA only.
+// Template — Read the news (docs/archive/plans/ECOSYSTEM_PLAN.md v2, P1a: the owner's first goal). DATA only.
 //
 // A website → a model writes Laya's question → Laya labels every story → the model gives a second
 // opinion on the ones Laya was unsure of → the code counts → the model chooses the chart → the code

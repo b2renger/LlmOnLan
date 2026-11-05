@@ -232,7 +232,7 @@ function render(s) {
   // Switching backend or model means downloading and reloading gigabytes; without
   // this the panel looked frozen for ten minutes and an operator would reasonably
   // conclude the farm had hung and restart it mid-download.
-  // Two bars (docs/VLLM_MANAGED_PLAN.md §7.3): the JOB (a switch, a start, an Apply,
+  // Two bars (docs/archive/plans/VLLM_MANAGED_PLAN.md §7.3): the JOB (a switch, a start, an Apply,
   // an Ollama pull) and the DOWNLOAD (installing vLLM, a vLLM model), which runs
   // while the farm keeps serving. Each gets Stop when it can be stopped halfway.
   const jobBar = barOf(job, 'job') + barOf(s.download, 'download');
@@ -957,7 +957,7 @@ function wirePresets(s) {
   });
 }
 
-// ---- vLLM, run by the farm (docs/VLLM_MANAGED_PLAN.md §7) -------------------------------------------------------
+// ---- vLLM, run by the farm (docs/archive/plans/VLLM_MANAGED_PLAN.md §7) -------------------------------------------------------
 const ENGINE_LABEL ={ ollama: 'Ollama', 'llama.cpp': 'llama.cpp', llamacpp: 'llama.cpp', vllm: 'vLLM', external: 'External server' };
 const GIB = 2 ** 30;
 

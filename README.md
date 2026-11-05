@@ -49,7 +49,7 @@ so the client sees one OpenAI‑compatible endpoint and never knows which answer
 5. **Upgrading OWUI is a version bump, not a merge** — no LOL code changes.
 
 See [`CLAUDE.md`](CLAUDE.md) for the full invariants, the integration contract, and the design
-rationale, and [`implementation_plan.md`](implementation_plan.md) for the milestone plan.
+rationale, and [`docs/archive/plans/implementation_plan.md`](docs/archive/plans/implementation_plan.md) for the milestone plan.
 
 ## Status
 
@@ -83,7 +83,7 @@ models, toggle the web‑search / voice / OCR plugins, recommend Blender to the 
 [capacity guidance](farm/README.md#multiple-users--capacity) for a room full of people.
 
 Progress, design decisions, and the debugging history are in [`docs/DEVLOG.md`](docs/DEVLOG.md); current
-state + roadmap in [`implementation_plan.md`](implementation_plan.md).
+state + roadmap in [`docs/archive/plans/implementation_plan.md`](docs/archive/plans/implementation_plan.md).
 
 ## Run a farm — the desktop app (recommended, zero setup)
 

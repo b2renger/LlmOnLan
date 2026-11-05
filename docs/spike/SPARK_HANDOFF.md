@@ -11,7 +11,7 @@ multi-user goal (2026-10-04) is **optimisation**: serve the most people at good 
 coding) with a high context, on the **fewest boxes**.
 
 The studio may buy more Sparks, or one or two more RTX PRO 6000-class cards. Your numbers are half of that
-purchase decision. Background: `multiuser_implementation_plan.md` §1b and §4a item 0.6 (the spike spec),
+purchase decision. Background: `docs/archive/plans/multiuser_implementation_plan.md` §1b and §4a item 0.6 (the spike spec),
 §9 (model research) and §11.2/§11.5 (Spark-specific notes).
 
 **The question for this box:** how many people at once at 32k / 64k / 128k context per person, with the

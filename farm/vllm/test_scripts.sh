@@ -140,7 +140,7 @@ t_rewrite() {
   pkill -P $$ -x sleep 2>/dev/null
 }
 
-# ---- run by the farm (docs/VLLM_MANAGED_PLAN.md §3.1) ------------------------------------------------------------
+# ---- run by the farm (docs/archive/plans/VLLM_MANAGED_PLAN.md §3.1) ------------------------------------------------------------
 t_managed() {
   echo "run by the farm: its argv whole, none of serve.sh's defaults, no extra args, the marker written"
   local A=(--served-model-name x-model --max-model-len 4096 --tool-call-parser 'two words' --override-generation-config '{"max_new_tokens": 1024}')

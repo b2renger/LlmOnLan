@@ -2791,7 +2791,7 @@ export function createCanvas(o) {
   const isTyping = (/** @type {any} */ target) => !!(target && target.closest
     && target.closest('input:not([type="checkbox"]), textarea, select, [contenteditable]:not([contenteditable="false"])'));
 
-  /** K-9 (docs/COMPUTER_LIVE_PLAN.md, builder L): is this event aimed at a LIVE preview? Input
+  /** K-9 (docs/archive/plans/COMPUTER_LIVE_PLAN.md, builder L): is this event aimed at a LIVE preview? Input
    * over a live sketch lands in the sketch's own document and never reaches this one; what does
    * reach it there — the live frame element itself, the stage around a scaled frame — must not
    * pan, zoom, drag, marquee-select or fire a canvas shortcut either. The box keeps its title bar,

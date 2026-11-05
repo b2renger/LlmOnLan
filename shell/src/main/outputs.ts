@@ -1,4 +1,4 @@
-// The Computer's outputs to the real world — the ONE choke point (docs/ECOSYSTEM_PLAN.md v2 §3.5, P3a).
+// The Computer's outputs to the real world — the ONE choke point (docs/archive/plans/ECOSYSTEM_PLAN.md v2 §3.5, P3a).
 // Every message a graph sends to a device goes through `send()` here, in the main process, where the
 // safety rules cannot be skipped by a renderer bug or an imported graph:
 //   - DISARMED by default, and disarmed again whenever the window (re)loads: an unarmed send is a DRY

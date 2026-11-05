@@ -131,7 +131,7 @@ export default (test) => {
     assert.equal(specMap().get('condition').thinksFor({ settings: { mode: 'text' } }), false);
     assert.equal(specMap().get('condition').thinksFor({ settings: { mode: 'model' } }), true);
     // §4.2's two scheduler declarations exist and belong to exactly the parts that need them.
-    // Converse (docs/COMPUTER_VOICE_PLAN.md): a conversation is a person's ● Start, never Run all.
+    // Converse (docs/archive/plans/COMPUTER_VOICE_PLAN.md): a conversation is a person's ● Start, never Run all.
     assert.deepEqual(partSpecs().filter((s) => s.manual).map((s) => s.type), ['converse', 'button']);
     assert.deepEqual(partSpecs().filter((s) => s.control).map((s) => s.type),
       ['button', 'condition', 'confirm', 'dialog', 'toggle', 'timer']);

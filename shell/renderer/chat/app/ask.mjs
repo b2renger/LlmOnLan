@@ -42,7 +42,7 @@
 // `cache:false` for anything a reader pressed Retry on — a Retry that replays a cached answer is a
 // lie.
 //
-// Converse (docs/COMPUTER_VOICE_PLAN.md K-V5) adds three options to `text()`, each ignored when
+// Converse (docs/archive/plans/COMPUTER_VOICE_PLAN.md K-V5) adds three options to `text()`, each ignored when
 // absent so every other caller sends exactly what it sent before: `onText(contentSoFar)` (the
 // answer as it streams, from startGeneration's `onTail`; it implies `cache:false` — a replayed answer
 // would never stream), `history: [{role, content}]` (messages before the prompt, oldest first; part

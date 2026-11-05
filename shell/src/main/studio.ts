@@ -1,4 +1,4 @@
-// The IDE's coding agent (docs/IDE_PLAN.md): DeepSeek Harness (dsh) driven over its SDK — JSON-RPC 2.0, one message
+// The IDE's coding agent (docs/plans/IDE_PLAN.md): DeepSeek Harness (dsh) driven over its SDK — JSON-RPC 2.0, one message
 // per line on stdio — from the main process, on dsh's OWN Node (its native addon refuses Electron 42; probe
 // 2026-09-28), with a profile patch written from the current farm before every start.
 //
@@ -22,7 +22,7 @@ import {
     AGENT, PERSON, OID_RE, Commit, FileChange, commitAll, history, changes, restore, getRemote, setRemote, push, pull,
 } from './projectGit';
 
-/** The pinned upstream (the runtime download fetches exactly this; see docs/IDE_PLAN.md §3.5). */
+/** The pinned upstream (the runtime download fetches exactly this; see docs/plans/IDE_PLAN.md §3.5). */
 export const DSH_VERSION = '0.1.7-rc.2';
 
 export type StudioErrCode = 'E_ARGS' | 'E_FARM' | 'E_RUNTIME' | 'E_PROJECT' | 'E_BUSY' | 'E_START';

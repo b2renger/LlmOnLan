@@ -197,7 +197,7 @@ Checked on each project's GitHub and Hugging Face; nothing installed or run.
 The owner: *"I would like OWUI to have a skill or a tool to help write prompts directly for the models supported by
 ComfyQ."* The owner's answers: prompts per workflow only (no storyboards, no jobs), and it must **not** connect to ComfyQ or
 look for any machine — the students paste the prompt into ComfyQ's discovery app. Branch `comfyq-prompts` (from
-`multiuser-phase0` 1728a9c). Not merged, not released. The older plan that books jobs (docs/COMFYQ_MEDIA_PLAN.md) stays
+`multiuser-phase0` 1728a9c). Not merged, not released. The older plan that books jobs (docs/archive/plans/COMFYQ_MEDIA_PLAN.md) stays
 unbuilt.
 
 **The data** — `shell/scripts/gen-comfyq-prompts.cjs <ComfyQ checkout>` reads `workflows/*/*.meta.json` (schema:
@@ -518,7 +518,7 @@ Farm app were never touched, `F:\LlmOnLan` only read.
 - **The cancel test** (`LOL_CANCEL_ENGINE=llamacpp node test/litellm-cancel.js`, Qwen3.8 IQ2_S, LiteLLM 1.90.0): **8 of 8
   paths stop** — streams 17 ms after the abort, non-streaming calls 0.95–0.99 s after it, **the one abandoned while
   someone else streams included (945 ms; b11512: 19.6 s, 2071 tokens)**. README, `litellm.js`, the test's header and
-  `docs/upstream/LLAMACPP_NONSTREAM_CANCEL.md` (fixed upstream, nothing left to post) say so.
+  `docs/archive/LLAMACPP_NONSTREAM_CANCEL.md` (fixed upstream, nothing left to post) say so.
 
 ### Part 2 — Flint beside the live farm (most of its experts in system RAM)
 
@@ -680,7 +680,7 @@ The owner chose (15:04) to ship farm-v0.0.46 together with Converse. Done:
 
 The owner: *"design students working on voice interaction: the identity of the voice bot, what to show, how the
 feedback between bot and user works. Use the Computer for this. No Wizard of Oz … a POC."* Built from
-[COMPUTER_VOICE_PLAN.md](COMPUTER_VOICE_PLAN.md) and the owner's four answers of 12 Oct (the face is whatever Preview is
+[COMPUTER_VOICE_PLAN.md](archive/plans/COMPUTER_VOICE_PLAN.md) and the owner's four answers of 12 Oct (the face is whatever Preview is
 ▶ Live; Interruptible on by default; the transcript kept as the box's value; the app stays English, the template
 carries a French persona with `ff_siwis`). Worktree `converse` from `multiuser-phase0` at `27817c1`; not merged, not
 released.
@@ -1561,7 +1561,7 @@ loopback ports (18181–18196) and my own processes.
 - **The cancel test** (`LOL_CANCEL_ENGINE=llamacpp node test/litellm-cancel.js`, Qwen3.8 IQ2_S): 7 of 8 paths stop.
   The non-streaming call abandoned while someone else streams still runs to its end: released 19.6 s after the
   abort, at 2071 tokens. That is the upstream bug of 2026-10-04; PR #29707 is still open. README, the test's header
-  and `docs/upstream/LLAMACPP_NONSTREAM_CANCEL.md` say b11512 has it too.
+  and `docs/archive/LLAMACPP_NONSTREAM_CANCEL.md` say b11512 has it too.
 
 **Found on the way, not changed:**
 - **`--cache-reuse` does nothing while the vision projector is loaded,** on b10670 too: the log says "cache_reuse
@@ -1683,13 +1683,13 @@ The owner asked on 2026-10-07 at 20:58 to commit and document everything, check 
 - **`build-llamacpp-arm64`** ran on the push to `main` and rebuilt the same pinned b10670 for the Spark: success.
 - **Release notes:** both pages got a "What's new" written for the people who install them, above CI's own text.
 - **Not done, the owner's:**
-  - install farm-v0.0.43 on the PRO 6000, then press **Let the farm run vLLM** (`docs/PRO6000_VLLM_SWITCH.md` Part 2).
+  - install farm-v0.0.43 on the PRO 6000, then press **Let the farm run vLLM** (`docs/archive/PRO6000_VLLM_SWITCH.md` Part 2).
     Its Farm app has been closed since 2026-10-07 20:46, and vLLM keeps running in WSL.
   - the rig checks of TEST_SCENARIOS 7e;
-  - the DGX Spark checklist (`docs/VLLM_MANAGED_PLAN.md` §11.6);
+  - the DGX Spark checklist (`docs/archive/plans/VLLM_MANAGED_PLAN.md` §11.6);
   - whether the panel's Plugins switches should last across a farm restart. Today they don't, so an RTX 5090 keeps
     vLLM only until the next start;
-  - the embeddings decision (`docs/EMBEDDINGS_STUDY.md`: not now).
+  - the embeddings decision (`docs/archive/plans/EMBEDDINGS_STUDY.md`: not now).
 
 ## 2026-10-08 (06:18) — Docs true to the merge: vLLM run by the farm, operators never sent to a file, the v0.2.9 rig list
 
@@ -1725,19 +1725,19 @@ finding was checked against the code first.
   per-boot revision check, `hfModelState`, the repair, the probe and its toast); `TASK_MODEL_PARAMS` and
   `TOOL_SERVER_CONNECTIONS`; why the Blender helper is not set through env (issue #18140); `connectPlan` and
   `reloadIfFarmBack`; `boot.log` to verify a packaged client.
-- **docs/EMBEDDINGS_STUDY.md.** The download fix is done, and described as built (the gentle repair, the probe, the
+- **docs/archive/plans/EMBEDDINGS_STUDY.md.** The download fix is done, and described as built (the gentle repair, the probe, the
   proxy rule); a switch must re-point the MiniLM-specific code and tests.
-- **docs/PRO6000_VLLM_SWITCH.md.** Part 1 marked as history, not to run again; Part 2 waits for farm-v0.0.43, and
+- **docs/archive/PRO6000_VLLM_SWITCH.md.** Part 1 marked as history, not to run again; Part 2 waits for farm-v0.0.43, and
   step 1 holds when the Farm app is already closed.
-- **docs/VLLM_MANAGED_PLAN.md.** Merged, not released; what is left (the release, the production Farm app opened
+- **docs/archive/plans/VLLM_MANAGED_PLAN.md.** Merged, not released; what is left (the release, the production Farm app opened
   again, the take-over and reboot, the Spark, a fresh-PC install, a real vLLM on native Linux).
-- **docs/RIG_CHECKLIST.md.** Two client items: a laptop that cannot reach huggingface.co (and one behind a system
+- **docs/archive/testing/RIG_CHECKLIST.md.** Two client items: a laptop that cannot reach huggingface.co (and one behind a system
   proxy), and a first download cut off.
-- **docs/TEST_SCENARIOS_v0.2.md.** A new section 7e, the v0.2.9 / farm-v0.0.43 rig list (13 checks): the Farm app
+- **docs/archive/testing/TEST_SCENARIOS_v0.2.md.** A new section 7e, the v0.2.9 / farm-v0.0.43 rig list (13 checks): the Farm app
   update and Plan capacity, a card too small, vLLM from nothing on Windows, switch and back, its settings, Stop /
   Start / Quit / Share, Launch at login, the production take-over and reboot, the Spark (§11.6), Open WebUI starting
   once, no huggingface.co, a proxy, a download cut off.
-- **multiuser_implementation_plan.md.** Revision 5 (Phase 2 built as an engine the farm runs). §2, §5, §11, §12 and
+- **docs/archive/plans/multiuser_implementation_plan.md.** Revision 5 (Phase 2 built as an engine the farm runs). §2, §5, §11, §12 and
   §13 follow: decisions 5 and 10 answered (and the Spark's recipe superseded the same day), 0.6 / 1.4 / 1.5 / 2.x /
   5.1–5.4 statuses, the 128k test set in the panel, not by a flag, the vLLM risk as it stands (pinned 0.30.0, no
   Docker fallback, never run on a Spark by the farm), the reply cap the farm passes. The DEVLOG line numbers it
@@ -1782,7 +1782,7 @@ The verifier of the leftovers (verdict ok on d37164a) listed six small things. E
 branch with a test that fails when the fix is taken out: checked in a scratch copy of the tree, one fix reverted at
 a time.
 
-- **The plan's boot rule.** [VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md) §5, "Boot, step 0c-ter" b), still said
+- **The plan's boot rule.** [VLLM_MANAGED_PLAN.md](archive/plans/VLLM_MANAGED_PLAN.md) §5, "Boot, step 0c-ter" b), still said
   "on timeout or error → unavailable". It now gives d37164a's rule: no answer at all queues the start, which checks
   again once the farm is up; a GPU too small is an answer. Test: the decisions test reads that step in the plan.
 - **WSL not ready at log on.** When `wsl -l -v` failed without a list, the farm read it as "WSL has no Ubuntu yet".
@@ -1820,7 +1820,7 @@ plan and WSL, the checklist test for the size and the GPU, the panel test for th
 ## 2026-10-08 (03:57) — vLLM run by the farm: the reviews' leftovers, the live test's two notes, the DGX Spark path, small RTX cards
 
 The fix pass (00:49) read the two reviews' 24 findings cut at 9,000 characters each. Every one was read again in
-full and checked against the code at 8efc9fd, on the `vllm-managed` branch ([VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md),
+full and checked against the code at 8efc9fd, on the `vllm-managed` branch ([VLLM_MANAGED_PLAN.md](archive/plans/VLLM_MANAGED_PLAN.md),
 Build status, "Review leftovers", and §11.6). The owner's priority (2026-10-07): the farm on every OS, Windows with
 RTX cards and the DGX Spark first.
 
@@ -1929,7 +1929,7 @@ checked the 02:02 fix; each found something, fixed in `f130806` and this commit.
 
 ## 2026-10-08 (02:24) — vLLM run by the farm: the live test on the PRO 6000, beside production
 
-The plan's §11.4 ([VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md)), on the `vllm-managed` branch, from 01:00 to 02:07: a
+The plan's §11.4 ([VLLM_MANAGED_PLAN.md](archive/plans/VLLM_MANAGED_PLAN.md)), on the `vllm-managed` branch, from 01:00 to 02:07: a
 real vLLM 0.30.0 with a tiny model (Qwen/Qwen3-0.6B), run by a scratch farm from the worktree, beside the production
 farm, and driven through the admin API the panel calls, as an operator would. Every step passes in the end: step 1
 after a fix (the bug below, 05cf321), steps 5, 9 and 10 after a correction to the test driver itself.
@@ -2064,7 +2064,7 @@ after a fix (the bug below, 05cf321), steps 5, 9 and 10 after a correction to th
 
 **Question.** The owner asked whether Gemma embeddings could be interesting for us. A workflow answered it: the
 models as of October 2026, how Open WebUI 0.11.4 and LlmOnLan use embeddings, a CPU measurement on this box with
-French retrieval sets, a recommendation, and a critic who re-measured. The result is in `docs/EMBEDDINGS_STUDY.md`.
+French retrieval sets, a recommendation, and a critic who re-measured. The result is in `docs/archive/plans/EMBEDDINGS_STUDY.md`.
 - **"Gemma 2 embeddings" is EmbeddingGemma 2, released by Google on 6 October 2026.** Open WebUI 0.11.4 pins
   transformers 5.5.4 and sentence-transformers 5.5.1, and the model needs newer versions, so it can't run in the
   sidecar until Open WebUI raises those pins. On French it is no better than the first EmbeddingGemma.
@@ -2105,7 +2105,7 @@ French retrieval sets, a recommendation, and a critic who re-measured. The resul
 
 Two reviews of slices A-D (lifecycle and safety; panel and compatibility) found two blockers, seven majors and
 about a dozen minors. Every blocker and major is fixed, and the minors that were cheap and certain. On the
-`vllm-managed` branch ([VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md), Build status, "Review fixes").
+`vllm-managed` branch ([VLLM_MANAGED_PLAN.md](archive/plans/VLLM_MANAGED_PLAN.md), Build status, "Review fixes").
 
 - **`lol down` could stop a vLLM the farm does not run** (blocker).
   - The case: production before the take-over. A Download from the vLLM card wrote the operator's folder into the
@@ -2196,7 +2196,7 @@ about a dozen minors. Every blocker and major is fixed, and the minors that were
 
 ## 2026-10-07 (23:09) — vLLM run by the farm, slice D: "Let the farm run vLLM", the Farm app's stops, Linux autostart, the docs
 
-The plan's §12 item 7, on the `vllm-managed` branch ([VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md), Build status). With
+The plan's §12 item 7, on the `vllm-managed` branch ([VLLM_MANAGED_PLAN.md](archive/plans/VLLM_MANAGED_PLAN.md), Build status). With
 it, the production farm can move from its operator-run vLLM to the farm's own with one click, and back.
 
 - **The take-over (§9).**
@@ -2230,7 +2230,7 @@ it, the production farm can move from its operator-run vLLM to the farm's own wi
     - the general vLLM notes moved under it: the relay, thinking, LiteLLM's cost, replies that never end;
     - the recipe is now "External: a vLLM you run yourself", trimmed;
     - the `vllm` and `external` config keys, `lol up`'s order, the admin routes.
-  - docs/PRO6000_VLLM_SWITCH.md Part 2: the steps, the checks, Undo, the rollback by hand, and the downgrade warning
+  - docs/archive/PRO6000_VLLM_SWITCH.md Part 2: the steps, the checks, Undo, the rollback by hand, and the downgrade warning
     (farm-v0.0.42 refuses a file with a `vllm` block).
   - CLAUDE.md: four engines, and the 2026-09-07 rule replaced. Also the multiuser plan's Phase 2 status.
   - The owner's four questions keep their defaults:
@@ -2272,7 +2272,7 @@ it, the production farm can move from its operator-run vLLM to the farm's own wi
 
 ## 2026-10-07 (22:17) — vLLM run by the farm, slice C: the panel, and everything an operator does with vLLM in it
 
-The plan's §12 items 5-6, on the `vllm-managed` branch ([VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md), Build status).
+The plan's §12 items 5-6, on the `vllm-managed` branch ([VLLM_MANAGED_PLAN.md](archive/plans/VLLM_MANAGED_PLAN.md), Build status).
 The panel now offers vLLM as an engine like the others. The operator installs it, downloads models, switches to it
 and back, sets it and starts or stops it there, and reads no config file or key anywhere.
 
@@ -2356,7 +2356,7 @@ and back, sets it and starts or stops it there, and reads no config file or key 
 
 ## 2026-10-07 (21:12) — vLLM run by the farm, slice B: the farm starts, watches, restarts and stops it
 
-The plan's §12 item 4, on the `vllm-managed` branch ([VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md), Build status).
+The plan's §12 item 4, on the `vllm-managed` branch ([VLLM_MANAGED_PLAN.md](archive/plans/VLLM_MANAGED_PLAN.md), Build status).
 A farm whose engine is vLLM now runs it: no panel for it yet (slice 5), but every behaviour below runs and was
 tested end to end against a fake vLLM.
 
@@ -2420,7 +2420,7 @@ tested end to end against a fake vLLM.
 The owner asked for vLLM to be an engine the farm runs, switched to and from in the panel, with no config file
 ("I want the farm operator to be able to do everything from the app"). That replaces the 2026-09-07 rule (the
 farm never starts an external server) and the 2026-10-06 recipe plus autostart. The design, its build order and
-the owner's four questions with their defaults are in [VLLM_MANAGED_PLAN.md](VLLM_MANAGED_PLAN.md):
+the owner's four questions with their defaults are in [VLLM_MANAGED_PLAN.md](archive/plans/VLLM_MANAGED_PLAN.md):
 - the take-over is one click by a person;
 - Stop does not survive a farm restart;
 - an unmeasured card says so, with the Plan capacity link;
@@ -2594,7 +2594,7 @@ people: what hardware, what model, what context"; "vibe-code a three.js XR app w
   file offline.
 ## 2026-10-07 (17:48) — The studio's PRO 6000 farm now serves vLLM: 48 people at 64k instead of 2
 
-The owner gave the go ("we can switch to vllm now"). It was done with `docs/PRO6000_VLLM_SWITCH.md`, while the
+The owner gave the go ("we can switch to vllm now"). It was done with `docs/archive/PRO6000_VLLM_SWITCH.md`, while the
 farm was down, so nobody was cut off.
 
 - **Install:** Farm app farm-v0.0.42 (silent install). Its first launch copied the farm code (0.0.42, with
@@ -2637,9 +2637,9 @@ unit 29, lint 0, and the chat harness 408/408 on a second full run.
 - **`build-llamacpp-arm64`** ran on the push to `main` (because `llamacpp.js` changed) and rebuilt the same pinned
   b10670 for the Spark: success.
 - **What is in it:** the DEVLOG entries from 2026-10-04 11:40 to 2026-10-07 10:23 and the plan,
-  `multiuser_implementation_plan.md` (revision 4 and the statuses).
+  `docs/archive/plans/multiuser_implementation_plan.md` (revision 4 and the statuses).
 - **Next:**
-  - Switch the production PRO 6000 farm to vLLM at a moment the owner picks (`docs/PRO6000_VLLM_SWITCH.md`).
+  - Switch the production PRO 6000 farm to vLLM at a moment the owner picks (`docs/archive/PRO6000_VLLM_SWITCH.md`).
   - Run the rig checks of TEST_SCENARIOS 7d on installed builds.
   - Measure the two linked Sparks once they are cabled, then update the capacity explorer.
 
@@ -3058,7 +3058,7 @@ time where timing mattered; the owner's Farm app came up on this box at ~11:40 a
   carries the exact fix (a deadline + `wait_until`), framed as a router fix and without a reproduction.
   - **Nothing was posted.** llama.cpp forbids AI-written issues and comments, and agent posting
     (CONTRIBUTING AI Usage Policy item 5; AGENTS.md).
-  - **For the owner to post in their own words:** `docs/upstream/LLAMACPP_NONSTREAM_CANCEL.md`, the facts,
+  - **For the owner to post in their own words:** `docs/archive/LLAMACPP_NONSTREAM_CANCEL.md`, the facts,
     the log lines and a stdlib repro script. The farm's notes now point at the PR.
 - **Prices per person for a purchase** (`docs/spike/ESTIMATES_2026-10-05.md`, plan §8). NVIDIA lists a card
   literally named after the A5500: the RTX PRO 5500, 84 GB. The estimates are scaled from the measured PRO
@@ -3250,7 +3250,7 @@ under an external server.
 
 ## 2026-10-04 (18:00) — The owner settles the open multi-user decisions
 
-All recorded in `multiuser_implementation_plan.md` §13 and the sections they touch.
+All recorded in `docs/archive/plans/multiuser_implementation_plan.md` §13 and the sections they touch.
 
 - **Full farm:** the engine queues. With vLLM, seats are set near what the card serves at acceptable
   speed (the spike's latency-bounded count), and vLLM's scheduler queues the rest; the 429 becomes a
@@ -3380,7 +3380,7 @@ a capture.
 
 ## 2026-10-04 (13:39) — Multi-user Phase 0: the seat gate checks the password, stopping a reply reaches the engine, farm restarts stop rebooting clients
 
-Phase 0 of `multiuser_implementation_plan.md` (rev. 3), branch `multiuser-phase0`. No GPU was used: a
+Phase 0 of `docs/archive/plans/multiuser_implementation_plan.md` (rev. 3), branch `multiuser-phase0`. No GPU was used: a
 measurement spike owned the card. Farm `npm test` went from 141 to **146 passed, 0 failed**, including
 `check_services.py`.
 
@@ -3648,7 +3648,7 @@ screen.
 ## 2026-09-29 (16:28) — Keep going until done: agent loops in the IDE, started only by a person
 
 The owner's second answer after the spike: build loops into the IDE ("Keep going until done", qwen3.8), schedules
-after. Built (`bef9f3f`, [IDE_PLAN §6](IDE_PLAN.md), the [guide](LOLVIBE_IDE_GUIDE.md#keep-going-until-done)):
+after. Built (`bef9f3f`, [IDE_PLAN §6](plans/IDE_PLAN.md), the [guide](LOLVIBE_IDE_GUIDE.md#keep-going-until-done)):
 
 - A per-project switch in the Project panel, **off by default and forgotten at restart** (like Share on the LAN).
 - With it on, main starts dsh with its goal loop (never otherwise), `maxTokens` ≥ 16384, and the sentence that makes
@@ -3731,7 +3731,7 @@ test with a real link, 200 before, 404 after); the Laya question names no item (
 one headline baked into the question asked of every story); a free Condition hides the Question it never reads
 (`2500c4f`); a project chat is neither measured nor gated on its history (`f522637`).
 
-**Still for a person on the rig** (docs/TEST_SCENARIOS_v0.2.md): the auto-update from v0.2.2 on each OS; Share on the
+**Still for a person on the rig** (docs/archive/testing/TEST_SCENARIOS_v0.2.md): the auto-update from v0.2.2 on each OS; Share on the
 LAN from a second machine (the Windows firewall prompt); a GitHub push with a real token; lessons 7–10 with a real
 microphone, camera, bus and board.
 
@@ -3799,7 +3799,7 @@ from `shell/dsh/build`), then the dev client on the same profile, with the Compu
 
 ## 2026-09-28 (night) — The IDE shares, remembers and publishes; the project fence
 
-The owner's night brief (docs/NIGHT_LOG_2026-09-28.md): the IDE's LAN serving and git first (isomorphic-git; a
+The owner's night brief (docs/archive/logs/NIGHT_LOG_2026-09-28.md): the IDE's LAN serving and git first (isomorphic-git; a
 per-project LAN toggle, off by default, reset at restart), then lessons 7–12, graphify, documentation.
 
 **Share on the LAN.** A second, read-only listener per project (GET/HEAD, the project folder only) that answers
@@ -3859,7 +3859,7 @@ this app serves on 127.0.0.1), and rule 12 catches any call with `'iframe'` as i
 
 ## 2026-09-28 (afternoon) — LOL Vibe's IDE, v1 slices 1–4: DeepSeek Harness writes a project, the panel shows it
 
-On the owner's "yes start the build" (P5 v1, [docs/IDE_PLAN.md](IDE_PLAN.md)).
+On the owner's "yes start the build" (P5 v1, [docs/plans/IDE_PLAN.md](plans/IDE_PLAN.md)).
 
 **Probes first** (a private test farm on 127.0.0.1:4100, matched to the live farm's context so the shared Ollama
 never reloaded): dsh **refuses Electron 42's Node** (its addon supports Electron 43–45) → it runs on its own Node, as
@@ -3935,14 +3935,14 @@ cap; refused/no device → a code the box words; one frame → a JPEG and the ca
 `recording … .webm`; Take a picture → Capture holds a ≤ 1536 px JPEG and the live view lets the camera go) and the
 52 scenarios that size or read the Sound/Image boxes, the examples and the templates (one caught ● Record pushing the
 takes: line out of the box → the row move above). *Not verifiable here:* the speakers — **3.7b/3.7c** in
-`docs/TEST_SCENARIOS_v0.2.md` are the owner's checks.
+`docs/archive/testing/TEST_SCENARIOS_v0.2.md` are the owner's checks.
 
 ---
 
 ## 2026-09-28 (morning) — Release v0.2.2 + farm-v0.0.41: the critic's last fixes, two lessons, a speech template
 
 On the owner's go (08:27), what the night committed after the v0.2.1 / farm-v0.0.40 tags
-(`docs/NIGHT_LOG_2026-09-27.md`; the rig checklist `docs/TEST_SCENARIOS_v0.2.md` covers it: 3.7b, 3.15, 6.6).
+(`docs/archive/logs/NIGHT_LOG_2026-09-27.md`; the rig checklist `docs/archive/testing/TEST_SCENARIOS_v0.2.md` covers it: 3.7b, 3.15, 6.6).
 
 **Farm.** The message bus, from the pre-release critic's nits (`docs/reviews/POST020_CRITIC_2026-09-27.md`): it hears a
 new farm password at once (not at the next health tick); MQTT replies go through one writer that drops a client
@@ -3965,8 +3965,8 @@ MCP Host check and each bus fix with its own test.
 
 ## 2026-09-28 (night) — Release v0.2.1 + farm-v0.0.40: boards, a message bus, open data, an agent, and Open WebUI driving the Computer
 
-The rest of the night of 2026-09-27 (`docs/NIGHT_LOG_2026-09-27.md`), on the owner's directions; the manual rig
-checklist for all of it is `docs/TEST_SCENARIOS_v0.2.md`.
+The rest of the night of 2026-09-27 (`docs/archive/logs/NIGHT_LOG_2026-09-27.md`), on the owner's directions; the manual rig
+checklist for all of it is `docs/archive/testing/TEST_SCENARIOS_v0.2.md`.
 
 **Client (the Computer).**
 - **USB serial, both ways**: Send by USB serial and a new **Receive** box talk with an Arduino or ESP32 (one line
@@ -4005,8 +4005,8 @@ Open WebUI → MCP from the installed app, the v0.2.0 → v0.2.1 auto-update.
 
 ## 2026-09-27 (evening) — Release v0.2.0 + farm-v0.0.39: the Computer reads, listens, speaks and acts; a ? on every box
 
-The owner's ecosystem vision became `docs/ECOSYSTEM_PLAN.md` v2 (one critic loop, research in
-`docs/research/ECOSYSTEM_RESEARCH_2026-09-27.md`); the night's hand-over log is `docs/NIGHT_LOG_2026-09-27.md`.
+The owner's ecosystem vision became `docs/archive/plans/ECOSYSTEM_PLAN.md` v2 (one critic loop, research in
+`docs/research/ECOSYSTEM_RESEARCH_2026-09-27.md`); the night's hand-over log is `docs/archive/logs/NIGHT_LOG_2026-09-27.md`.
 Everything below is on `main`, tested, and ships in v0.2.0 (client) + farm-v0.0.39 (Farm app).
 
 **Client (the Computer).**
@@ -4844,7 +4844,7 @@ the stickies read as sticky notes in both themes, and the four kind hues are pai
 channel by ≥ 24 in both themes with five distinct glyphs.
 
 Nothing here was run in the real client — the harness drives the renderer, and the box runs a production
-farm. What only the owner can check is in [COMPUTER_STATUS.md](COMPUTER_STATUS.md).
+farm. What only the owner can check is in [COMPUTER_STATUS.md](archive/COMPUTER_STATUS.md).
 
 ---
 
@@ -5219,7 +5219,7 @@ on the rig.
 
 The Computer stops being a panel inside one conversation and becomes a **top-level surface of its
 own**, chosen from the topbar next to Open WebUI and LOL Chat, with a **library of graph documents**
-instead of one graph per chat. Plan: `docs/COMPUTER_PLAN.md` (revision 2) §2 surface plumbing, §3
+instead of one graph per chat. Plan: `docs/archive/plans/COMPUTER_PLAN.md` (revision 2) §2 surface plumbing, §3
 module layout, §11 K1. Three builders in parallel (surface/spine · library/migration · run bar,
 drawer, legacy demotion) plus this landing.
 
@@ -5272,7 +5272,7 @@ sites across 15 scenario files — is now an **alias of `h.computer`**, so every
 the standalone surface through `window.LolComputer.debug.computer` and `#lolcomputer .graph-*`.
 `h.work('computer')` became `h.view('computer')`; `h.ask.log()` merges both surfaces' ask logs.
 This is the one place in this build where frozen guarantees stop being tested, and they are named
-here as `docs/LOLCHAT_PLAN.md` §2.6's single sanctioned exception to *amended, never loosened*:
+here as `docs/archive/plans/LOLCHAT_PLAN.md` §2.6's single sanctioned exception to *amended, never loosened*:
 
 - **BH-1** — `From thread` reads the conversation the reader is looking at.
 - **BH-6** — `To thread` lands in the transcript, safely rendered, and survives a reload.
@@ -5336,8 +5336,8 @@ a real client's own chat graphs.
 The Computer stops needing the model for everything. `Code` runs real JavaScript in a sandbox for
 nothing, `Render` turns a value into a picture, `File` writes into the thread's own project folder,
 a graph leaves the machine as a `.lolgraph.json` and comes back the same graph, and **Tidy** lays a
-mess out left to right. Spec: `docs/LOLCHAT_COMPUTER_SPEC.md` §8 step 4; contracts frozen at the
-kickoff in `docs/LOLCHAT_PLAN.md` §2.6 **BJ**, landing notes in **BK**. Three builders in parallel
+mess out left to right. Spec: `docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md` §8 step 4; contracts frozen at the
+kickoff in `docs/archive/plans/LOLCHAT_PLAN.md` §2.6 **BJ**, landing notes in **BK**. Three builders in parallel
 (sandbox · parts · canvas) plus this landing.
 
 **The sandbox is a module, not a graph feature** (`renderer/chat/sandbox/`, its object frozen as
@@ -5438,7 +5438,7 @@ round trip is asserted to carry **no threadId, no apiKey, no Bearer, no http, no
 real vendored bytes for the first time) · `chat-scope` **clean** · harness `--strict`
 **193 passed / 0 failed** · `--strict --phase perf` **9 passed / 0 failed** (500 parts still pan at
 60 fps with the new parts in the tree). What a harness cannot prove is now in
-`docs/LOLCHAT_RIG_CHECKLIST.md` §15: a real disk, a real second machine, a library drawing with the
+`docs/archive/testing/LOLCHAT_RIG_CHECKLIST.md` §15: a real disk, a real second machine, a library drawing with the
 Wi-Fi **off**, and a `.lolgraph.json` carried between two laptops.
 
 ---
@@ -5595,8 +5595,8 @@ ceiling's banner is a title and a body, and reads correctly in light and dark.
 ## 2026-09-16 — LOL Chat vNext **C2: fan-out, the rest of the parts, and the cap that keeps a colleague's chat fast**
 
 The Computer stops being a three-part demo. One graph now runs over dozens of items, says which of
-them failed, says what it cost, and refuses to spend the farm quietly. Spec: `docs/LOLCHAT_COMPUTER_SPEC.md`
-§2/§3/§8 step 3; contracts frozen at the kickoff in `docs/LOLCHAT_PLAN.md` §2.6 **BH**. Three builders
+them failed, says what it cost, and refuses to spend the farm quietly. Spec: `docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md`
+§2/§3/§8 step 3; contracts frozen at the kickoff in `docs/archive/plans/LOLCHAT_PLAN.md` §2.6 **BH**. Three builders
 in parallel (engine · parts · bridges) plus this landing.
 
 **Fan-out (`graph/fanout.mjs` + a rewritten `graph/runner.mjs`).** A `list` arriving at a port that
@@ -5663,7 +5663,7 @@ later definition had been silently winning.
 **0 ms** longest main-thread block, so per-item patching cost the canvas nothing. Both themes
 photographed and looked at (`c2-shots-{dark,light}-{fan,cap}`).
 
-**Still eyes-on** (see `docs/LOLCHAT_RIG_CHECKLIST.md` §13): a forty-item fan on the real model —
+**Still eyes-on** (see `docs/archive/testing/LOLCHAT_RIG_CHECKLIST.md` §13): a forty-item fan on the real model —
 nobody has yet watched a real fan repaint, or timed one, on a slow machine; whether the cap default of
 50 is the right number for this farm; and `To thread`'s one known gap, below.
 
@@ -5739,7 +5739,7 @@ landing had just fixed, arriving by another door. Rows are now sorted by `update
 
 ## 2026-09-16 — LOL Chat vNext **C1 landed**: the Computer, a visual program beside the chat
 
-Phase C1 of [LOLCHAT_COMPUTER_SPEC.md](LOLCHAT_COMPUTER_SPEC.md) is in the tree and green. Three
+Phase C1 of [LOLCHAT_COMPUTER_SPEC.md](archive/plans/LOLCHAT_COMPUTER_SPEC.md) is in the tree and green. Three
 builders worked in parallel on frozen seams (plan §2.6 **BG**) and the landing wired them together:
 a `computer` panel in the workbench rail that holds a canvas of **parts** wired into a graph, with
 **Run**, **Stop**, undo/redo, pan/zoom/fit, and one graph persisted per thread in the `graphs` store.
@@ -5824,7 +5824,7 @@ chat-column inspector (C2).
 **Gates (slot 0, after every change above):** `chat-unit` **741 passed / 0 failed**, `unit.js`
 **5 passed**, `chat-lint` **0 violations over 107 files**, `chat-scope` **clean**, harness
 `--strict` **139 passed / 0 failed**, `--strict --phase perf` **7 passed / 0 failed**.
-Human-rig items for the Computer are in [LOLCHAT_RIG_CHECKLIST.md](LOLCHAT_RIG_CHECKLIST.md).
+Human-rig items for the Computer are in [LOLCHAT_RIG_CHECKLIST.md](archive/testing/LOLCHAT_RIG_CHECKLIST.md).
 
 ---
 
@@ -5919,7 +5919,7 @@ RIG_CHECKLIST §12.)
 
 ## 2026-09-16 — LOL Chat vNext **S0 landed**: the Studio rails (workbench column, ask spine, projects API)
 
-S0 is the foundation the Computer panel (docs/LOLCHAT_COMPUTER_SPEC.md) and the later benches are
+S0 is the foundation the Computer panel (docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md) and the later benches are
 built on: a workbench column that hosts panels, a one-shot typed model call, and a scratch-projects
 API in main. Three of the four planned units shipped. Gates at slot 0 after the landing:
 `chat-unit` **612 passed / 0 failed** · `unit.js` **5 passed** · `chat-lint` **0 violations over 87
@@ -6091,7 +6091,7 @@ can only match where the shorter one did, so the hits are kept and re-filtered, 
 when the needle is not an extension or the store moved under the cache. A unit case proves narrowing
 and scanning agree on both the rows and the snippet.
 
-**Not done, deliberately** (raised in `docs/LOLCHAT_DISCUSS.md` as D-P2FIX2 for P3): caching the
+**Not done, deliberately** (raised in `docs/archive/plans/LOLCHAT_DISCUSS.md` as D-P2FIX2 for P3): caching the
 built path between previews. The other half of the typing-cost finding wants `controller.preview()`
 to stop re-reading the whole path every 250 ms; that needs a repo write counter the controller can
 key a cache on, which is a §3.4 contract change and not something a fix round should invent under a
@@ -6194,7 +6194,7 @@ committed: the work stays in the working tree.
 
 ## 2026-09-15 — LOL Chat vNext **P2 landed**: the farm is honest about seats and context, and a chat is a tree
 
-Branch `lolchat/vnext`, phase **P2** of [LOLCHAT_PLAN.md](LOLCHAT_PLAN.md) (§4 P2). Eleven new
+Branch `lolchat/vnext`, phase **P2** of [LOLCHAT_PLAN.md](archive/plans/LOLCHAT_PLAN.md) (§4 P2). Eleven new
 feature modules behind the loader rows §2.6 AA froze at the kickoff, all present, so `--strict` is
 green again — and from this phase on `--strict` **and** `--phase perf` are both landing gates.
 
@@ -6292,7 +6292,7 @@ to five times, one per farm tick. D-C5 now records what `<a download>` actually 
 object-URL path IS the real one on Electron 42.5.1/Windows (a 3 kB `.lolchat.json` reached the disk
 and was re-imported), so the `data:` and clipboard fallbacks are shipped but exercised by nothing.
 
-**Rig items added** (§3 and §8 of [LOLCHAT_RIG_CHECKLIST.md](LOLCHAT_RIG_CHECKLIST.md)): a seat wait
+**Rig items added** (§3 and §8 of [LOLCHAT_RIG_CHECKLIST.md](archive/testing/LOLCHAT_RIG_CHECKLIST.md)): a seat wait
 across a thread switch; a seat wait across a QUIT (it must come back interrupted, not waiting); a
 cancelled wait still saying why on screen; and one manual **Import chats…** run, because a native
 file chooser is the one control the harness must never click.
@@ -6721,7 +6721,7 @@ palettes are the ComfyQ tokens. Nothing outside the LOL Chat scope was touched, 
 
 ## 2026-09-15 — LOL Chat vNext P0 landing: rails, mock, harness, markdown core, store
 
-Branch `lolchat/vnext`, phase **P0** of [LOLCHAT_PLAN.md](LOLCHAT_PLAN.md) — the four units landed and
+Branch `lolchat/vnext`, phase **P0** of [LOLCHAT_PLAN.md](archive/plans/LOLCHAT_PLAN.md) — the four units landed and
 the integrator wired and gated them. **Still nothing user-visible:** `index.html`, `styles.css` and
 `app.js` are byte-unchanged, `chat.js` still ships, and `chat/main.mjs` is reached only by the chat
 harness page. P0 buys the rails everything after it stands on.
@@ -6825,7 +6825,7 @@ deleting unreadable history).
 
 ## 2026-09-15 — LOL Chat vNext P0 kickoff: the module rails, frozen
 
-Branch `lolchat/vnext`, phase **P0** of [LOLCHAT_PLAN.md](LOLCHAT_PLAN.md). This is the integrator
+Branch `lolchat/vnext`, phase **P0** of [LOLCHAT_PLAN.md](archive/plans/LOLCHAT_PLAN.md). This is the integrator
 **kickoff**: the contracts the four P0 units code against in parallel. **Nothing user-visible
 changed** — `index.html` still loads the old `chat.js`, and `chat/main.mjs` is reached only by the
 chat harness page (which P0-U2 is building).
@@ -8210,7 +8210,7 @@ connected. And inference through LOL "is not really usable" versus Unsloth Studi
    test pins the contract (64 pass).
 
 3. **The chat surface re-rendered the ENTIRE thread on every streamed token**
-   ([chat.js](../shell/renderer/chat.js)) — O(thread) DOM rebuild per delta, on the same thread as
+   (`shell/renderer/chat.js`, since removed) — O(thread) DOM rebuild per delta, on the same thread as
    the stream reader, so at 100+ tok/s the renderer throttles the stream it is displaying. Now the
    thread renders once per send and only the live row's bodies update, at most once per animation
    frame; auto-scroll only when already at the bottom; the 4-second `publishFarm` tick no longer
@@ -8648,7 +8648,7 @@ client's `v*`/`latest.yml`. **Not yet run:** the packaged installers, a clean-bo
 
 Wrap-up pass: a 9-agent audit checked every claim in every doc file against the
 current source; 48 confirmed discrepancies fixed across README.md, farm/README.md,
-shell/README.md, sidecar/README.md, CLAUDE.md, implementation_plan.md,
+shell/README.md, sidecar/README.md, CLAUDE.md, docs/archive/plans/implementation_plan.md,
 GETTING_STARTED.md, RIG_CHECKLIST.md and INTEGRATION_BRIEF.md. The load-bearing ones:
 
 - **Two copy-paste-breaking config snippets**: `"ocr": { "model": null }` fails zod
@@ -9890,7 +9890,7 @@ Ticks the RIG_CHECKLIST failover item.
 
 ## 2026-06-30 — Rig verification: full chat E2E + document-locality (Playwright)
 
-Two of the biggest open [RIG_CHECKLIST](RIG_CHECKLIST.md) items, verified on the live stack by driving
+Two of the biggest open [RIG_CHECKLIST](archive/testing/RIG_CHECKLIST.md) items, verified on the live stack by driving
 a real OWUI instance (pointed at a running `lol up` farm) with Playwright.
 
 **Full chat end-to-end** ([docs/img/e2e-chat.png](img/e2e-chat.png)) — drove the actual OWUI UI:
@@ -9925,12 +9925,12 @@ real bugs; the genuine ones are fixed (the reviewer's "reviewed-OK / not-a-bug" 
 - **`lol down` orphaned a spawned Ollama (HIGH)** — [up.js](../farm/src/commands/up.js)'s child‑exit
   handler killed `oll.spawnedPids` **without awaiting** before `process.exit`. Now it awaits the kills
   and also tears down the health timer + beacon + self‑server first.
-- **Dead `requiresKey ? null : null` ternary** — [index.ts](../shell/src/main/index.js) cleaned up;
+- **Dead `requiresKey ? null : null` ternary** — [index.ts](../shell/src/main/index.ts) cleaned up;
   documented that keyed farms need a key‑entry UX we haven't built (so we don't send a wrong placeholder).
-- **Discovery kept working after `stop()`** — [discovery.ts](../shell/src/main/discovery.js) added a
+- **Discovery kept working after `stop()`** — [discovery.ts](../shell/src/main/discovery.ts) added a
   `stopped` flag (checked in `sweep`/`pollKnown`/socket message) and tracks the socket‑reconnect timer so
   a stopped Discovery can't re‑emit or leak a bound socket.
-- **No‑farm boot could reach public OpenAI** — [configBridge.ts](../shell/src/main/configBridge.js) now
+- **No‑farm boot could reach public OpenAI** — [configBridge.ts](../shell/src/main/configBridge.ts) now
   sets `ENABLE_OPENAI_API=false` when there's no farm endpoint (privacy intent: only the farm).
 - **Stale webview after a same‑port repoint** — [app.js](../shell/renderer/app.js) forces a webview
   reload on the restarting→ready transition even when the URL is unchanged.
@@ -9957,7 +9957,7 @@ Farm" (active‑farm match intact after the lifecycle rewrite).
 - [`scripts/release.mjs`](../shell/scripts/release.mjs) — `npm version --no-git-tag-version`, then commits
   ONLY the version files, makes an annotated `vX.Y.Z` tag, and pushes `--follow-tags` (the npm‑tagging‑is‑
   unreliable workaround); guarded to `main` + a clean tree. `release:patch|minor|major` scripts.
-- [`updater.ts`](../shell/src/main/updater.js) — **electron‑updater 6.8.9** (a real runtime dep), wired
+- [`updater.ts`](../shell/src/main/updater.ts) — **electron‑updater 6.8.9** (a real runtime dep), wired
   in `index.ts`: checks on launch when enabled + packaged, downloads in the background, installs on quit;
   a no‑op in dev. The Preferences auto‑update toggle starts a check when flipped on.
 - [`.github/workflows/release.yml`](../.github/workflows/release.yml) — on a `v*` tag, matrix
@@ -10036,7 +10036,7 @@ dialog, a manual interaction; the migration core that moves the data is what's u
   discovery) — merges three sources into one farm map: (1) **UDP beacons** on `239.255.43.10:41998`,
   (2) **subnet sweep** probing `GET /lol/self` (the broadcast‑blocked‑LAN fallback), (3) **manual
   add‑by‑address**. Per‑farm staleness/TTL; de‑duped by farm `id` (survives DHCP IP changes).
-- **Auto‑connect** ([index.ts](../shell/src/main/index.js)) — on first run, OWUI's boot waits a short
+- **Auto‑connect** ([index.ts](../shell/src/main/index.ts)) — on first run, OWUI's boot waits a short
   grace period for discovery to surface a farm, then boots **pointed at the reachable LAN address**
   (`http://<reach-host>:<proxyPort>/v1`); `onFarms` keeps it repointed as the LAN changes. Pick logic
   is sticky (pinned choice → current‑if‑good → first healthy) to avoid flapping between equivalents.

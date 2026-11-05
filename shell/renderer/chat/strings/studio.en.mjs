@@ -28,7 +28,7 @@ registerStrings('studio', {
   shortcutCycle: 'Chat / split / panel',
   shortcutPanel: 'Open workbench panel {n}',
 
-  // The Computer was planned as the first workbench panel (docs/LOLCHAT_COMPUTER_SPEC.md). Since K1
+  // The Computer was planned as the first workbench panel (docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md). Since K1
   // it is its own surface (computer/main.mjs) and does not register a panel here; the label is kept.
 
   // The header button. The rail lives INSIDE the workbench column, which is 0px wide while the

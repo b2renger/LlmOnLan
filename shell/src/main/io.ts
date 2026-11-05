@@ -1,4 +1,4 @@
-// The Computer's Fetch box, main-process side (docs/ECOSYSTEM_PLAN.md v2 §4.2). One GET, run here
+// The Computer's Fetch box, main-process side (docs/archive/plans/ECOSYSTEM_PLAN.md v2 §4.2). One GET, run here
 // rather than in the renderer so an open-data API that sends no CORS header still answers. Every
 // rule below exists because a graph is a file anyone can hand you:
 //   - http(s) only, no credentials in the URL (a graph carries no secrets);

@@ -59,7 +59,7 @@ registerStrings('parts', {
   previewGotoHint: 'Select that line in the code',
   previewSvgBroken: 'That SVG does not parse: {reason}.',
 
-  // ---- K-9 (docs/COMPUTER_LIVE_PLAN.md): live previews, Run code, Edit code ------------------
+  // ---- K-9 (docs/archive/plans/COMPUTER_LIVE_PLAN.md): live previews, Run code, Edit code ------------------
   previewLive: '▶ Live',
   previewStop: '■ Stop',
   previewLiveHint: 'Run this sketch for real, right here: the mouse, the wheel and the keys go to it. Esc gives them back.',

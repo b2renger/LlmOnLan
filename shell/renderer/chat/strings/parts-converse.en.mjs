@@ -1,5 +1,5 @@
 // @ts-check
-// The Converse box (docs/COMPUTER_VOICE_PLAN.md). One file per unit, same namespace: see
+// The Converse box (docs/archive/plans/COMPUTER_VOICE_PLAN.md). One file per unit, same namespace: see
 // strings/parts-text.en.mjs for why. The spoken-style rules and the default persona are here, not in
 // code (lint rule 5): they are words a model reads, and a person may want to read them too.
 import { registerStrings } from '../core/i18n.mjs';

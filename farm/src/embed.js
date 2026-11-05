@@ -1,4 +1,4 @@
-// Document search on the farm (owner, 2026-10-08; docs/EMBEDDINGS_STUDY.md): ONE llama-server in embedding mode with
+// Document search on the farm (owner, 2026-10-08; docs/archive/plans/EMBEDDINGS_STUDY.md): ONE llama-server in embedding mode with
 // ONE pinned EmbeddingGemma 2. Open WebUI on each laptop sends the text of a document's pieces (and of a search) here,
 // gets the vectors back and keeps them; this service keeps nothing and never logs a text (llama-server's default log
 // level writes token counts only, and LLAMA_* variables from the box's environment are dropped, so nothing can turn

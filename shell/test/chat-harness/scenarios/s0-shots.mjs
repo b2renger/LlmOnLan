@@ -3,7 +3,7 @@
 // photographed in both themes and checked by machine first (integrator-owned; the P1/P2 equivalents
 // are p1-shots.mjs / p2-shots.mjs).
 //
-// S0 ships no real panel (the Computer panel arrives with docs/LOLCHAT_COMPUTER_SPEC.md), so the
+// S0 ships no real panel (the Computer panel arrives with docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md), so the
 // picture registers one test panel through `app.registry`, exactly as s0-workbench.mjs does. What
 // has to be IN the picture: the rail with its tab selected, the width radios, the grip, a panel body
 // beside a live conversation (split), and the same panel taking the window (work).

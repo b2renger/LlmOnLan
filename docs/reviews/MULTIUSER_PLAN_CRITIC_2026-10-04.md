@@ -1,4 +1,4 @@
-# Critic — `multiuser_implementation_plan.md` revision 2, weighed against the product vision (2026-10-04)
+# Critic — `docs/archive/plans/multiuser_implementation_plan.md` revision 2, weighed against the product vision (2026-10-04)
 
 **Reviewer:** an adversarial critic agent, briefed to distrust the reviser. The same session wrote the
 audit (`MULTIUSER_PLAN_AUDIT_2026-10-04.md`), revision 2 and its "bigger picture" framing. The review was

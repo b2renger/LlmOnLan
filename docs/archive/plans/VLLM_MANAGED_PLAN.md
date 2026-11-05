@@ -189,7 +189,7 @@ into `multiuser-phase0` on 2026-10-08 (8a37e6f). Not released yet: it ships with
     child nor a runtime file); the state is `stopping` while it runs (the window says so, Start waits); closing the
     window goes through Quit, so it stays up until the farm stopped; a second launch meanwhile never touches a
     destroyed window.
-  - docs/PRO6000_VLLM_SWITCH.md Part 2 had its Windows paths' backslashes eaten (form feed and vertical tab bytes);
+  - docs/archive/PRO6000_VLLM_SWITCH.md Part 2 had its Windows paths' backslashes eaten (form feed and vertical tab bytes);
     put back, and a test now refuses control characters in the docs.
   - Tests: lifecycle steps 15-20.
 - **Live test (2026-10-08, §11.4).** A real vLLM 0.30.0 with Qwen3-0.6B, run by a scratch farm beside production,
@@ -240,7 +240,7 @@ into `multiuser-phase0` on 2026-10-08 (8a37e6f). Not released yet: it ships with
   Install from the panel into an empty folder on a fresh Windows PC (WSL from scratch, `build-essential`; the live
   test borrowed production's `.venv`), and a real vLLM run by a farm on native Linux (x86_64 or the Spark).
   *(2026-10-09: released as farm-v0.0.43; the take-over on production is superseded by the clean-state run (§9.6);
-  what is left for a person is in [HUMAN_TESTS.md](HUMAN_TESTS.md): J1 (the install from the panel on the PRO 6000),
+  what is left for a person is in [HUMAN_TESTS.md](../../HUMAN_TESTS.md): J1 (the install from the panel on the PRO 6000),
   K6 (a fresh Windows PC), L2 (the Spark), M1–M2 (reboots).)*
 
 ## 0. Decisions
@@ -685,7 +685,7 @@ externalRefusal's text is in §7.7.
 
 ### 3.15 Docs and text sweep:
 - farm/README.md: a new "vLLM, run by the farm" section (prerequisites, what Install does, where files live, the log, take-over, rollback). The two recipe sections become "External: a vLLM you run yourself", trimmed.
-- docs/PRO6000_VLLM_SWITCH.md: "Part 2: let the farm run it", with the rollback.
+- docs/archive/PRO6000_VLLM_SWITCH.md: "Part 2: let the farm run it", with the rollback.
 - A DEVLOG entry; the CLAUDE.md farm bullet (four engines; the 2026-09-07 rule replaced); the status in multiuser plan §5.
 - The D10 sweep, every operator-facing config wording:
   - index.html 223-224, 262, 272, 588, 783;
@@ -964,7 +964,7 @@ Switching to vLLM refuses up front when it is not installed, the model is not do
   - writeLitellmConfig, with no bounce.
   - vLLM keeps running.
   - Text: "Back as before: the farm routes to vLLM without running it."
-- By hand (docs/PRO6000_VLLM_SWITCH.md, Part 2):
+- By hand (docs/archive/PRO6000_VLLM_SWITCH.md, Part 2):
   1. quit the Farm app (this stops vLLM);
   2. `Copy-Item "$cfg.before-managed-vllm" $cfg -Force`;
   3. `wsl -d Ubuntu -- rm -f /home/ateliernum/lol-spike/run/managed-by-farm`;
@@ -1113,7 +1113,7 @@ Steps:
 
 ### 11.5 Production (§9.6), then later, at a quiet moment, a reboot test: WSL boots, vLLM takes about 1.5 min, clients show "Starting vLLM" and the farm stays healthy.
 
-The production take-over is superseded (§9.6). The reboot test is [HUMAN_TESTS.md](HUMAN_TESTS.md) **M1** (2026-10-09).
+The production take-over is superseded (§9.6). The reboot test is [HUMAN_TESTS.md](../../HUMAN_TESTS.md) **M1** (2026-10-09).
 
 ### 11.6 On a DGX Spark: what only a real one can confirm (the owner, with the Farm app's Linux arm64 AppImage)
 Read, not run (2026-10-08): `install.sh` is the spike's install that ran on the Spark (uv's own Python 3.12, vLLM 0.30.0
@@ -1122,8 +1122,8 @@ memory, sized from `MemAvailable` with the guard's 8 GB, 4 compile jobs and the 
 watch runs whatever the engine; the AppImage carries `farm/vllm` (its scripts LF, run through `bash`). What only a
 Spark can confirm (ten checks: `status.sh`'s lines, the check, the take-over of the recipe's unit, Automatic memory
 and the guard, a first start's compile, the clock under load, a download's Stop, Quit, a reboot, an install into an
-empty folder) is now [HUMAN_TESTS.md](HUMAN_TESTS.md) **L2** and **M2** (2026-10-09). The steps as first written:
-`git show 3b8c0c1:docs/VLLM_MANAGED_PLAN.md`.
+empty folder) is now [HUMAN_TESTS.md](../../HUMAN_TESTS.md) **L2** and **M2** (2026-10-09). The steps as first written:
+`git show 3b8c0c1:docs/archive/plans/VLLM_MANAGED_PLAN.md`.
 
 ## 12. Build order (each slice: tested → DEVLOG → commit and push on the branch)
 1. Scripts: serve.sh (managed mode, the marker, rotation, ~, logged refusals); status.sh; stop.sh (install, group-scoped); install.sh (steps, markers, uv, pgid, the symlink refusal, errors); the start-windows.ps1 exit-0 line. Then §11.2.

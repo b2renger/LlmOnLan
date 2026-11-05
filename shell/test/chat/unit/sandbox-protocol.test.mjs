@@ -177,7 +177,7 @@ export default (test) => {
     assert.equal(/<script\s+src=/i.test(html), false, 'the runner loads a script from disk');
   });
 
-  // Converse (docs/COMPUTER_VOICE_PLAN.md K-V2): the guest's lol.on, exactly as runner.html inlines it.
+  // Converse (docs/archive/plans/COMPUTER_VOICE_PLAN.md K-V2): the guest's lol.on, exactly as runner.html inlines it.
   test('event: a conversation event reaches lol.on(type) and lol.on(\'*\'), in registration order', () => {
     assert.ok(CMDS.includes('event'));
     assert.deepEqual(command('event', 't', { ev: { type: 'turn', state: 'listening' } }), { v: 1, tok: 't', cmd: 'event', ev: { type: 'turn', state: 'listening' } });

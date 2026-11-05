@@ -1,9 +1,9 @@
 # Test scenarios — LlmOnLan v0.2.x
 
 > **Moved, 2026-10-09.** Every check of this list that a person still has to do is now in
-> [HUMAN_TESTS.md](HUMAN_TESTS.md), grouped by setup, with the release-blocking ones marked ★. This file keeps each
+> [HUMAN_TESTS.md](../../HUMAN_TESTS.md), grouped by setup, with the release-blocking ones marked ★. This file keeps each
 > scenario's number and where it went, or where it was verified, so old references still lead somewhere. The steps
-> as they were (v0.2.0 to v0.2.9, §1–§8) are in git: `git show 3b8c0c1:docs/TEST_SCENARIOS_v0.2.md`. No box here was
+> as they were (v0.2.0 to v0.2.9, §1–§8) are in git: `git show 3b8c0c1:docs/archive/testing/TEST_SCENARIOS_v0.2.md`. No box here was
 > ever ticked; the verifications below were recorded in the DEVLOG and the night logs.
 
 "Done (dev)" means checked on a real farm by a dev or packaged client run by an agent; what only a person can add is
@@ -153,4 +153,4 @@ in the HUMAN_TESTS test named after it.
 
 ## 8. After testing
 
-Now the closing note of [HUMAN_TESTS.md](HUMAN_TESTS.md) (turn off the plugins you do not want on for users).
+Now the closing note of [HUMAN_TESTS.md](../../HUMAN_TESTS.md) (turn off the plugins you do not want on for users).

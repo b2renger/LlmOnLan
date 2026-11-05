@@ -44,7 +44,7 @@ export async function transcribe(o) {
       method: 'POST', headers, body: form, signal: ac.signal,
     });
     if (res.status === 401) return { error: 'unauthorized', code: 'unauthorized', status: 401 };
-    // Converse (docs/COMPUTER_VOICE_PLAN.md §5.2.4) waits the farm's Retry-After before its one retry.
+    // Converse (docs/archive/plans/COMPUTER_VOICE_PLAN.md §5.2.4) waits the farm's Retry-After before its one retry.
     if (res.status === 429) return { error: 'busy', code: 'busy', status: 429, retryAfter: Math.max(0, Number(res.headers && res.headers.get('retry-after')) || 0) };
     if (res.status === 413) return { error: 'too big', code: 'too-big', status: 413 };
     if (res.status === 503) return { error: 'loading', code: 'warming', status: 503 };

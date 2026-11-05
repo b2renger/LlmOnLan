@@ -363,7 +363,7 @@ const ExternalSchema = z.object({
     label: z.string().nullable().default(null),
 }).strict();
 
-// vLLM, run BY THE FARM (owner, 2026-10-07; docs/VLLM_MANAGED_PLAN.md): the fourth engine, for many people at
+// vLLM, run BY THE FARM (owner, 2026-10-07; docs/archive/plans/VLLM_MANAGED_PLAN.md): the fourth engine, for many people at
 // once on a big NVIDIA GPU, on Linux or inside WSL2 on Windows. The farm installs it (farm/vllm/install.sh),
 // starts it (serve.sh with the farm's own argv, vllm.js planFor), supervises it and stops it (stop.sh); the
 // operator only ever sees the panel. Everything here is set by the panel; nobody edits the file.
@@ -519,7 +519,7 @@ const TtsSchema = z.object({
     model: z.string().default('kokoro'),               // OWUI AUDIO_TTS_MODEL
 }).strict();
 
-// Classify (docs/ECOSYSTEM_PLAN.md v2 §3.2): the Laya decision model for the Computer's Classify box,
+// Classify (docs/archive/plans/ECOSYSTEM_PLAN.md v2 §3.2): the Laya decision model for the Computer's Classify box,
 // CPU-first. OFF by default: it costs ~0.9 GB of torch + ~0.8 GB of weights and shares the CPU with
 // everything else on the box — measure `lol bench` with it busy before turning it on for a class.
 const ClassifySchema = z.object({
@@ -529,7 +529,7 @@ const ClassifySchema = z.object({
     maxItems: z.number().int().min(1).max(1000).default(200), // items per call
 });
 
-// Speech to text (docs/ECOSYSTEM_PLAN.md v2 §3.3; src/stt.js): faster-whisper for the Computer's Sound box in
+// Speech to text (docs/archive/plans/ECOSYSTEM_PLAN.md v2 §3.3; src/stt.js): faster-whisper for the Computer's Sound box in
 // Listen mode and for Open WebUI's microphone and Call mode on the laptops. OFF by default. 'auto' = the NVIDIA GPU
 // with Whisper large-v3-turbo when this computer has one, else the CPU with "small" (owner, 2026-10-09).
 const SttSchema = z.object({
@@ -549,7 +549,7 @@ const EmbedSchema = z.object({
     port: z.number().int().positive().max(65535).default(8894),
 }).strict();
 
-// The message bus (docs/ECOSYSTEM_PLAN.md §8d, P3b; src/bus.js): an MQTT broker, a WebSocket hub and an
+// The message bus (docs/archive/plans/ECOSYSTEM_PLAN.md §8d, P3b; src/bus.js): an MQTT broker, a WebSocket hub and an
 // OSC relay on one topic space, so boards and Computers on the LAN meet at the farm. Node only, nothing to
 // install. OFF by default: it opens three more ports on the LAN (keyed by the farm password when one is set).
 const BusSchema = z.object({

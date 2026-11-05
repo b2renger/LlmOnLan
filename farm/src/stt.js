@@ -1,4 +1,4 @@
-// STT orchestration — speech to text on the farm as ONE shared "lol-stt" service (docs/ECOSYSTEM_PLAN.md
+// STT orchestration — speech to text on the farm as ONE shared "lol-stt" service (docs/archive/plans/ECOSYSTEM_PLAN.md
 // v2 §3.3). Two clients read `stt` (url + key + model) from the beacon snapshot and send a recording by the
 // OpenAI transcription contract: the Computer's Sound box in Listen mode, and (2026-10-09) Open WebUI on each
 // laptop, whose microphone and Call mode then transcribe here instead of on the laptop's CPU (shell

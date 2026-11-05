@@ -229,7 +229,7 @@ async function mount() {
     const shown = !root.classList.contains('hidden');
     if (shown === wasShown) return;
     wasShown = shown;
-    // K-V10 (docs/COMPUTER_VOICE_PLAN.md): the surface itself was shown or left. `visible` cannot
+    // K-V10 (docs/archive/plans/COMPUTER_VOICE_PLAN.md): the surface itself was shown or left. `visible` cannot
     // say it while a run executes, and a conversation must end (its microphone closes) when nobody
     // is looking at the Computer.
     /** @type {any} */ (app.state).shown = shown;

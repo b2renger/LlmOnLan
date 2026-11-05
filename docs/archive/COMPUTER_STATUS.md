@@ -1,8 +1,8 @@
 # The Computer — status on 27 Sept (merged into main)
 
 > Branch `lolchat/vnext`, merged into `main` on 27 Sept (`811451a`). Every phase of
-> [COMPUTER_PLAN.md](COMPUTER_PLAN.md) through **K6**, plus **K7** (the debug log), the **S1–S3**
-> critic series, **Live previews and Edit code** ([COMPUTER_LIVE_PLAN.md](COMPUTER_LIVE_PLAN.md)) and
+> [COMPUTER_PLAN.md](plans/COMPUTER_PLAN.md) through **K6**, plus **K7** (the debug log), the **S1–S3**
+> critic series, **Live previews and Edit code** ([COMPUTER_LIVE_PLAN.md](plans/COMPUTER_LIVE_PLAN.md)) and
 > the **view tools** (27 Sept) are built. The sections below are newest first; the K6 note that
 > headed this file follows.
 >
@@ -46,7 +46,7 @@ again, or how to run the dev build isolated). The backup from the 21st is still 
 
 Your ask — *"design students working on voice interaction: the identity of the voice bot, what to show, how the
 feedback between bot and user works … no Wizard of Oz, we want to actually do the thing"* — is the **Converse** box
-([COMPUTER_VOICE_PLAN.md](COMPUTER_VOICE_PLAN.md), with your four answers of 12 Oct).
+([COMPUTER_VOICE_PLAN.md](plans/COMPUTER_VOICE_PLAN.md), with your four answers of 12 Oct).
 
 - **＋ Think ▸ Converse.** **● Start** opens the microphone; it hears when you stop talking (an energy detector every
   frame: a room calibration, a noise floor that follows the room, an end-of-turn silence and a sensitivity you set), the
@@ -120,7 +120,7 @@ on disk under the data folder, and nothing under userData).
 ## NEW (afternoon of the 25th) — edit the code by hand, go Live, orbit the camera
 
 Your request: *"edit the code by hand and then rerun … a camera control … when we interact with the
-node."* ([COMPUTER_LIVE_PLAN.md](COMPUTER_LIVE_PLAN.md))
+node."* ([COMPUTER_LIVE_PLAN.md](plans/COMPUTER_LIVE_PLAN.md))
 - **Edit code** on a p5.js / three.js / SVG / HTML / Markdown box opens its code in the drawer on the
   right: a big editor with line numbers, two-way with the box's own field. The box redraws as you
   type; **▶ Run code** or **Ctrl+Enter** redraws it now. **Tab** indents, **Enter** keeps the indent,
@@ -157,7 +157,7 @@ The Computer is about **twice as fast on big graphs**, and panning is smooth. Me
 The cause was the browser restyling and repainting boxes that are off screen. They now skip that
 work until you scroll to them. The perf tests now have tight budgets, so a slow creep fails
 loudly instead of passing quietly. You won't notice anything on a small graph; on a big one,
-pan and zoom should feel instant. Details and before/after: [DEVLOG.md](DEVLOG.md).
+pan and zoom should feel instant. Details and before/after: [DEVLOG.md](../DEVLOG.md).
 
 ## NEW (night of the 24th) — your eight bugs, fixed and checked by a critic until it was happy
 
@@ -217,7 +217,7 @@ Round 4). The harness now drives a **real mouse and keyboard**; about 40 new sce
 - each Write-… preset drew 5 times out of 5 on Qwen3.8. On gemma4:12b, SVG drew 2/5 and p5 1/5
   (its thinking used up the answer budget) — critic S1-3.
 
-The full account of the night is in [NIGHT_REPORT_2026-09-25.md](NIGHT_REPORT_2026-09-25.md).
+The full account of the night is in [NIGHT_REPORT_2026-09-25.md](logs/NIGHT_REPORT_2026-09-25.md).
 
 ## NEW (K7, evening of the 24th) — a debug log you can switch on
 
@@ -238,7 +238,7 @@ next to it. It records:
 
 It also keeps **the few minutes before you pressed the button**, so pressing it *after* you see a
 bug still works. The switch survives a relaunch. Full guide and file format:
-[COMPUTER_DEBUG_LOG.md](COMPUTER_DEBUG_LOG.md). To hand one over, just say "look at the latest
+[COMPUTER_DEBUG_LOG.md](../COMPUTER_DEBUG_LOG.md). To hand one over, just say "look at the latest
 Computer log". The folder is fixed, so I can find it.
 
 ## NEW (K6) — a PDF or a sound file in a box, step by step
@@ -416,7 +416,7 @@ paused sandbox, F from anywhere, the wording above) followed on `lolchat/vnext`.
 ## What only you can check (it needs the real farm and a real window)
 
 The harness drives the renderer, not the whole client, so these needed a person on real hardware. **Moved,
-2026-10-09:** they are now tests in [HUMAN_TESTS.md](HUMAN_TESTS.md), with the rest of the person-only checks:
+2026-10-09:** they are now tests in [HUMAN_TESTS.md](../HUMAN_TESTS.md), with the rest of the person-only checks:
 
 | # | Check | Now |
 |---|---|---|
@@ -433,7 +433,7 @@ The harness drives the renderer, not the whole client, so these needed a person 
 | 11 | Your migrated graphs | A13 |
 | 12 | A loop on the real farm with a colleague chatting | D15 |
 
-The old wording: `git show 3b8c0c1:docs/COMPUTER_STATUS.md`. [COMPUTER_PLAN.md](COMPUTER_PLAN.md) section 13 (the
+The old wording: `git show 3b8c0c1:docs/archive/COMPUTER_STATUS.md`. [COMPUTER_PLAN.md](plans/COMPUTER_PLAN.md) section 13 (the
 fuller rig checklist) moved the same way.
 
 ## If you want the tail finished

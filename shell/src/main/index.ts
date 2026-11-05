@@ -701,7 +701,7 @@ function registerIpc(): void {
     ipcMain.handle('lol:projects:reveal', (_e, id: unknown) => (isStr(id) ? projects().reveal(id) : badArgs));
     ipcMain.handle('lol:projects:open', (_e, id: unknown) => (isStr(id) ? projects().open(id) : badArgs));
     ipcMain.handle('lol:projects:path', (_e, id: unknown) => (isStr(id) ? projects().path(id) : badArgs));
-    // The IDE's coding agent (studio.ts, docs/IDE_PLAN.md): a prompt runs in ONE project folder on the farm's model;
+    // The IDE's coding agent (studio.ts, docs/plans/IDE_PLAN.md): a prompt runs in ONE project folder on the farm's model;
     // its records come back on 'lol:studio:event'. The farm, the password and the paths are main's, never the page's.
     function studio(): Studio {
         if (!studioApi) {

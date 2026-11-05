@@ -1,4 +1,4 @@
-"""lol-classify: the farm's Laya decision model as ONE small service (docs/ECOSYSTEM_PLAN.md v2 §3.2).
+"""lol-classify: the farm's Laya decision model as ONE small service (docs/archive/plans/ECOSYSTEM_PLAN.md v2 §3.2).
 
 The Computer's Classify box sends a list of items and ONE `choice` question; this answers each item
 with the chosen option, its probability, and the full distribution. Laya (convaiinnovations/laya,

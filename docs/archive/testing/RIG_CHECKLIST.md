@@ -2,12 +2,12 @@
 
 What's been verified **single-machine on the dev box** vs. what still needs a **real two-machine LAN,
 real installers, and the actual target OSes**. Everything below the line in each section is the residual
-risk; the build itself is implemented (see [DEVLOG.md](DEVLOG.md)).
+risk; the build itself is implemented (see [DEVLOG.md](../../DEVLOG.md)).
 
-> **2026-10-09:** the open items now live in [HUMAN_TESTS.md](HUMAN_TESTS.md) (the arrow names the test there); this file keeps the
+> **2026-10-09:** the open items now live in [HUMAN_TESTS.md](../../HUMAN_TESTS.md) (the arrow names the test there); this file keeps the
 > verified ones. Two ticked lines below are history: the pin is Open WebUI **0.11.4** now, and since document search
 > (2026-10-08) a farm with it turns document text into vectors (nothing kept), so "zero `/v1/embeddings`" holds only
-> for a data folder still on MiniLM. The old open items' full text: `git show 3b8c0c1:docs/RIG_CHECKLIST.md`.
+> for a data folder still on MiniLM. The old open items' full text: `git show 3b8c0c1:docs/archive/testing/RIG_CHECKLIST.md`.
 
 ## Discovery (two machines, real Wi-Fi)
 - [x] Beacon sent by the farm + received by a listener on the same host (UDP loopback/broadcast).

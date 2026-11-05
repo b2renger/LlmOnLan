@@ -2,7 +2,7 @@
 
 > Status: **executable plan, revision 2** (critic's pass applied — see §15 Revision notes).
 > Date: 2026-09-22. Branch: `lolchat/vnext` at `a474b2c`.
-> Owner's brief (2026-09-22, verbatim in §0.1). Reference images: [COMPUTER_REFERENCE_CAPTURE.md](COMPUTER_REFERENCE_CAPTURE.md).
+> Owner's brief (2026-09-22, verbatim in §0.1). Reference images: [COMPUTER_REFERENCE_CAPTURE.md](../../research/COMPUTER_REFERENCE_CAPTURE.md).
 > Build workflow, gates, harness and conventions: [LOLCHAT_PLAN.md](LOLCHAT_PLAN.md) §0.2, §1, §2, §2.6, §4 — **they apply here unchanged**,
 > and this document is an extension of that plan's §2.6 frozen-contract discipline, not a replacement.
 > What exists today and must be reused: [LOLCHAT_COMPUTER_SPEC.md](LOLCHAT_COMPUTER_SPEC.md) and §2.6 BG/BH/BI/BJ/BK.
@@ -17,7 +17,7 @@
 > [COMPUTER_LIVE_PLAN.md](COMPUTER_LIVE_PLAN.md). Not built: §7.5's Resume banner, §8.5's per-part
 > `?` card (the run bar's single `?` stands in), and §8.4's lesson links (the loop notice offers its
 > lesson button only once `l10-loops` ships, `graph/canvas.mjs` `sayLoopUngated`). What works today
-> is [COMPUTER_STATUS.md](COMPUTER_STATUS.md).*
+> is [COMPUTER_STATUS.md](../COMPUTER_STATUS.md).*
 
 ---
 
@@ -1368,7 +1368,7 @@ shipping with its own brake. 11 exists because this is a **shared** farm and pol
 and it teaches best right after lesson 10 scared them.
 
 **As built (2026-09-28).** 1–3 as above; 4 = *make a picture* (the owner's ask); this table's 4 (*many in, many
-out*) is the *Research → problematic* template; 5 = *code counts, the model names* (docs/ECOSYSTEM_PLAN.md v2,
+out*) is the *Research → problematic* template; 5 = *code counts, the model names* (docs/archive/plans/ECOSYSTEM_PLAN.md v2,
 decision 6: numbers never come from a model); 6 = this table's 10, *a loop that stops* (no farm: a Code box and a
 Toggle; the run's ceiling, then the brake). This table's 5–9 and 11–12 follow when they are written; its 8 (a human
 in the loop) first needs a check that can see a Confirm's Cancel (report.stopped is a stopped RUN).
@@ -1847,8 +1847,8 @@ returning preserves the step and the ticks.
 
 ## 13. Rig checklist — what the owner runs in the morning
 
-**Moved, 2026-10-09:** the person-only items (marked **(C)** here) are tests in [HUMAN_TESTS.md](HUMAN_TESTS.md). The
-forty items as written: `git show 3b8c0c1:docs/COMPUTER_PLAN.md`.
+**Moved, 2026-10-09:** the person-only items (marked **(C)** here) are tests in [HUMAN_TESTS.md](../../HUMAN_TESTS.md). The
+forty items as written: `git show 3b8c0c1:docs/archive/plans/COMPUTER_PLAN.md`.
 
 | Items | What | Now |
 |---|---|---|

@@ -1,5 +1,5 @@
 // @ts-check
-// The IDE's coding-agent runner (src/main/studio.ts; docs/IDE_PLAN.md): the profile patch keeps dsh on the farm with
+// The IDE's coding-agent runner (src/main/studio.ts; docs/plans/IDE_PLAN.md): the profile patch keeps dsh on the farm with
 // no shell, no web and no telemetry; a recorded session projects to small path-relative records; the runner speaks
 // the SDK protocol (against test/mock-dsh.mjs), starts a fresh session with the recap, stops by killing the process,
 // and says why when it cannot start; the Preview server serves the project folder only, to 127.0.0.1 only.

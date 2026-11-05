@@ -13,7 +13,7 @@ const { app, BrowserWindow, ipcMain, session, shell } = require('electron');
 // test pattern for the camera — and no permission prompt, so ● Record and Take a picture run for real (k23).
 app.commandLine.appendSwitch('use-fake-device-for-media-stream');
 app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
-// Converse (docs/COMPUTER_VOICE_PLAN.md §11): the fake microphone plays a WAV instead of its tone — run.js writes a
+// Converse (docs/archive/plans/COMPUTER_VOICE_PLAN.md §11): the fake microphone plays a WAV instead of its tone — run.js writes a
 // speech-like loop (chat-harness/mic-fixture.js) and names it here. Chromium loops the file.
 if (process.env.LOL_HARNESS_MIC_WAV) app.commandLine.appendSwitch('use-file-for-fake-audio-capture', process.env.LOL_HARNESS_MIC_WAV);
 // Nothing a scenario plays reaches the box's speakers (a Converse answer is seconds of sound): the page still
@@ -256,7 +256,7 @@ function wireDebugLog() {
 }
 // ---- /LOL Studio ----
 
-// The IDE's coding agent (docs/IDE_PLAN.md): the REAL createStudio from the compiled main output, over the
+// The IDE's coding agent (docs/plans/IDE_PLAN.md): the REAL createStudio from the compiled main output, over the
 // harness's projects root, with test/mock-dsh.mjs as the runtime (on the harness runner's own Node) — never a real
 // dsh or a real farm. The endpoint only lands in the patch file: the mock never calls it.
 const STUDIO_BUILD = path.join(__dirname, '..', '..', 'build', 'main', 'studio.js');

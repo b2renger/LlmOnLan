@@ -717,7 +717,7 @@ export function installDevlog(o = {}) {
       bus.on(EV.VISIBLE, (/** @type {any} */ p) => log('bus.visible', { visible: p && p.visible, pageVisible: p && p.pageVisible }));
       bus.on(EV.STORE_MODE, (/** @type {any} */ p) => log('bus.store', { mode: p }));
       bus.on(EV.STORE_ERROR, (/** @type {any} */ p) => log('err.store', { op: p && p.op, error: scrub(p && p.error) }));
-      // Converse (docs/COMPUTER_VOICE_PLAN.md §15.10): the conversation's events and timings, never
+      // Converse (docs/archive/plans/COMPUTER_VOICE_PLAN.md §15.10): the conversation's events and timings, never
       // its sound — the box never puts sound on the bus. Levels and the streaming text are counted,
       // and the counts ride the `voice.ended` line.
       bus.on(EV.COMPUTER_SHOWN, (/** @type {any} */ p) => log('bus.shown', { shown: !!(p && p.shown) }));

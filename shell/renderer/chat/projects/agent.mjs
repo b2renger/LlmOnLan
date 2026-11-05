@@ -1,5 +1,5 @@
 // @ts-check
-// A LOL Vibe reply written by the IDE's coding agent (docs/IDE_PLAN.md). The agent — DeepSeek Harness, run by the
+// A LOL Vibe reply written by the IDE's coding agent (docs/plans/IDE_PLAN.md). The agent — DeepSeek Harness, run by the
 // main process in the thread's project folder on the thread's model — answers in records, not tokens; this file
 // turns them into the SAME shape net/run.mjs's startGeneration hands the controller ({done, abort}, onTail /
 // onCheckpoint with {content, reasoning}), so the reply keeps the message tree, the stream view, Stop and the seat.

@@ -1,5 +1,5 @@
 // @ts-check
-// Template — Voice persona (docs/COMPUTER_VOICE_PLAN.md §10, the owner's answers of 2026-10-12). DATA only.
+// Template — Voice persona (docs/archive/plans/COMPUTER_VOICE_PLAN.md §10, the owner's answers of 2026-10-12). DATA only.
 // A persona (in French: a museum guide), a Converse box set to French with Kokoro's French voice, the Voice
 // face p5 sketch to ▶ Live, and an Instruction that reads the conversation and says how to improve the
 // persona. The app stays English; the persona is French. A conversation costs one generation per answered

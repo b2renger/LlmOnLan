@@ -1,4 +1,4 @@
-"""lol-stt: speech to text on the farm, by the OpenAI transcription contract (docs/ECOSYSTEM_PLAN.md v2 §3.3).
+"""lol-stt: speech to text on the farm, by the OpenAI transcription contract (docs/archive/plans/ECOSYSTEM_PLAN.md v2 §3.3).
 
 The Computer's Sound box, in Listen mode, and Open WebUI on each laptop (its microphone and Call mode)
 send a recording and get its words back. faster-whisper (the same library and version Open WebUI uses on

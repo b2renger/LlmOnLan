@@ -33,7 +33,7 @@
         <span class="dot busy"></span>
         <span id="home-live-text">Home commands on</span>
       </button>
-      <!-- Three surfaces since K1 (docs/COMPUTER_PLAN.md §2.1). Every button carries data-view;
+      <!-- Three surfaces since K1 (docs/archive/plans/COMPUTER_PLAN.md §2.1). Every button carries data-view;
            app.js's switch reads that attribute and nothing else, so adding a fourth surface is a
            button plus a section. -->
       <div class="viewseg" id="view-seg" role="group" aria-label="Surface">
@@ -227,7 +227,7 @@
       <p class="chat-fallback">LOL Vibe failed to load — see the developer console.</p>
     </section>
 
-    <!-- The Computer: the third surface (docs/COMPUTER_PLAN.md §2.1). `class="chat-layer"` is
+    <!-- The Computer: the third surface (docs/archive/plans/COMPUTER_PLAN.md §2.1). `class="chat-layer"` is
          LOAD-BEARING, not decoration: css/base.css:19,20,37 publish the shared primitives and,
          critically, `.chat-layer .hidden { display:none !important }` under that class. Without
          it nothing inside this section honours `.hidden`. The skeleton DOM is built at runtime by

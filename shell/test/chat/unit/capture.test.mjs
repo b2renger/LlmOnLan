@@ -109,7 +109,7 @@ export default (test) => {
     });
   });
 
-  // Converse (docs/COMPUTER_VOICE_PLAN.md K-V3): the microphone held for a conversation.
+  // Converse (docs/archive/plans/COMPUTER_VOICE_PLAN.md K-V3): the microphone held for a conversation.
   test('openListening: asks with echo cancellation, takes become Files, close() stops every track and take', async () => {
     const s = stream();
     /** @type {any[]} */ const recorders = [];

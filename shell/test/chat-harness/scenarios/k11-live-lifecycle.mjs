@@ -1,5 +1,5 @@
 // @ts-check
-// K-9 (docs/COMPUTER_LIVE_PLAN.md, builder L): what starts, stops and pauses a live box — with
+// K-9 (docs/archive/plans/COMPUTER_LIVE_PLAN.md, builder L): what starts, stops and pauses a live box — with
 // REAL input wherever a person would act (h.input.*), and the harness's own doors only for what a
 // person does outside the page (hiding the Computer, minimising the window).
 //

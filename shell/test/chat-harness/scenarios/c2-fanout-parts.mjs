@@ -1,6 +1,6 @@
 // @ts-check
 // C2-U2 in the real browser against the real mock farm: the fan-out parts (plan §2.6 BH-13,
-// docs/LOLCHAT_COMPUTER_SPEC.md §3/§7).
+// docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md §3/§7).
 //
 // The unit tests prove the cutting rules and the model mode's bookkeeping against a fake ask spine.
 // These scenarios exist for the things a unit test structurally cannot see: how many requests

@@ -14,7 +14,7 @@
 // Studio plan §3.7. Every timeout, cap and CSP byte lives in ./protocol.mjs so the two sides
 // cannot drift apart.
 //
-// K-9 (docs/COMPUTER_LIVE_PLAN.md): a SECOND guest, the live one — `live({mount, mode, code, size,
+// K-9 (docs/archive/plans/COMPUTER_LIVE_PLAN.md): a SECOND guest, the live one — `live({mount, mode, code, size,
 // inputs})` runs one box's sketch for real inside that box, with real input. Both guests come out
 // of the same `makeFrame`, so "one module makes iframes" (rule 12) still holds, and what contains
 // the live guest is exactly what contains the snapshot guest.
@@ -30,7 +30,7 @@ import '../strings/sandbox.en.mjs';
 /** @typedef {'idle'|'booting'|'ready'|'running'|'stalled'|'disabled'} SandboxState */
 
 /**
- * The IDE's Preview frame (docs/IDE_PLAN.md): a page this app SERVES from a project folder on 127.0.0.1
+ * The IDE's Preview frame (docs/plans/IDE_PLAN.md): a page this app SERVES from a project folder on 127.0.0.1
  * (src/main/studio.ts) — a real web page, not generated code for the opaque guest. It is another origin than this
  * page, so the same-origin policy is its wall (allow-same-origin is ITS origin, never ours); it may use the network
  * like any page the project makes (three.js from a CDN); main's frame veto lets exactly the served origins load.

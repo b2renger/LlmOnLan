@@ -1,6 +1,6 @@
 // @ts-check
 // C1-U3. What every part needs and nothing else: how a part FAILS, and how a GraphValue becomes
-// the text a prompt can carry (plan §2.6 BG-5, docs/LOLCHAT_COMPUTER_SPEC.md §2-§3).
+// the text a prompt can carry (plan §2.6 BG-5, docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md §2-§3).
 //
 // A part fails by THROWING (BG-5): `err.message` is the sentence the canvas shows, and `err.reason`
 // is the machine-readable half the runner reads to tell three different things apart —

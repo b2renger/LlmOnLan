@@ -735,7 +735,7 @@ default today, and the owner's answer would change a line or two.
 ### D-L1: Live checklist (vision C-21)
 
 Each item ships with a fallback. The answers decide the defaults. They are mirrored as **(C-21)** items
-in [LOLCHAT_RIG_CHECKLIST.md](LOLCHAT_RIG_CHECKLIST.md).
+in [LOLCHAT_RIG_CHECKLIST.md](../testing/LOLCHAT_RIG_CHECKLIST.md).
 
 1. Does a trailing assistant message get continued (prefill) on Ollama gemma4 and on llama-server?
    Fallback: the "continue" user turn.

@@ -1,5 +1,5 @@
 // @ts-check
-// Classify (docs/ECOSYSTEM_PLAN.md v2 §3.2) — Laya, the farm's fast decision model, answers ONE
+// Classify (docs/archive/plans/ECOSYSTEM_PLAN.md v2 §3.2) — Laya, the farm's fast decision model, answers ONE
 // multiple-choice question for every item of a list, with a confidence. Not a generation: one
 // forward pass per item on the farm (net/classify.mjs), no prose, no seat.
 //

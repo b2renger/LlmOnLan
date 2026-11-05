@@ -8,7 +8,7 @@
 // farm's unicast discovery endpoint GET /lol/self returning 200. Bounded crash-restart
 // self-heals a transient failure (the dead run's leftovers reaped first). Stop runs
 // `lol down` first, which also stops the vLLM the farm runs; the tree-kill after it is
-// a backstop (docs/VLLM_MANAGED_PLAN.md §3.12).
+// a backstop (docs/archive/plans/VLLM_MANAGED_PLAN.md §3.12).
 
 import { EventEmitter } from 'events';
 import { app } from 'electron';

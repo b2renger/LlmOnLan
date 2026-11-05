@@ -28,7 +28,7 @@ def gguf_gb(rid, name_part):
 SOURCES = {
  "repo-estimates": {"title": "LlmOnLan docs/spike/ESTIMATES_2026-10-05.md (specs, FR prices, per-card estimates)", "url": "docs/spike/ESTIMATES_2026-10-05.md", "date": "2026-10-05/06", "type": "repo"},
  "repo-results": {"title": "LlmOnLan docs/spike/RESULTS.md (PRO 6000 2026-10-04, DGX Spark 2026-10-05/06, measured)", "url": "docs/spike/RESULTS.md", "date": "2026-10-04..06", "type": "repo-measured"},
- "repo-plan-s9": {"title": "LlmOnLan multiuser_implementation_plan.md section 9 (model + Spark seed data, community numbers) and section 4.3 (Bonsai)", "url": "multiuser_implementation_plan.md", "date": "2026-10-06", "type": "repo"},
+ "repo-plan-s9": {"title": "LlmOnLan docs/archive/plans/multiuser_implementation_plan.md section 9 (model + Spark seed data, community numbers) and section 4.3 (Bonsai)", "url": "docs/archive/plans/multiuser_implementation_plan.md", "date": "2026-10-06", "type": "repo"},
  "nv-spark-page": {"title": "NVIDIA DGX Spark product page (specs; 1x/2x/4x model-size table)", "url": "https://www.nvidia.com/en-us/products/workstations/dgx-spark/", "date": "fetched 2026-10-07", "type": "vendor"},
  "nv-spark-stacking": {"title": "NVIDIA DGX Spark User Guide: Spark Stacking (CX-7 ports, 2x PCIe Gen5 x4 per port, up to 3 direct / 4 via switch)", "url": "https://docs.nvidia.com/dgx/dgx-spark/spark-clustering.html", "date": "fetched 2026-10-07", "type": "vendor"},
  "nv-playbook-vllm-multinode": {"title": "build.nvidia.com Spark playbook: vLLM multi-node (TP=2, vllm/vllm-openai:v0.28.0, example nvidia/Qwen3.8-27B-NVFP4)", "url": "https://build.nvidia.com/spark/vllm/multi-node.md", "date": "fetched 2026-10-07", "type": "vendor"},

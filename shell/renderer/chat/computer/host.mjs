@@ -440,7 +440,7 @@ export function createHost(app, els) {
     if (report && report.cycle) clearPresses();
     // And a press its run never reached (Stop, a failed box upstream) dies with that run too: a Trigger
     // or a ▶ a moment later must not find it — above all a Converse box's, which opens the microphone
-    // (docs/COMPUTER_VOICE_PLAN.md, review 2026-10-12, 3).
+    // (docs/archive/plans/COMPUTER_VOICE_PLAN.md, review 2026-10-12, 3).
     for (const seed of Array.isArray(o.seeds) ? o.seeds : []) consumePress(String(seed));
     canvas.setRunning({ running: false, progress: null });
     if (report) {

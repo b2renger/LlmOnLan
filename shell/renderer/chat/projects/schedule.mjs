@@ -1,5 +1,5 @@
 // @ts-check
-// "On a schedule" (owner, 2026-09-29 — agent loops, docs/IDE_PLAN.md §6): a person switches on, per project, a message
+// "On a schedule" (owner, 2026-09-29 — agent loops, docs/plans/IDE_PLAN.md §6): a person switches on, per project, a message
 // LOL Vibe sends by itself every N minutes or every day at a time. The rules are the Trigger box's:
 //   1. only a person switches one on, and it is FORGOTTEN AT RESTART (like Share on the LAN and Keep going): nothing
 //      ever runs because the app was reopened;

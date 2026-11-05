@@ -1,5 +1,5 @@
 // @ts-check
-// The Project panel — LOL Vibe's IDE (docs/IDE_PLAN.md §3.3), the first tenant of the workbench. A thread bound to a
+// The Project panel — LOL Vibe's IDE (docs/plans/IDE_PLAN.md §3.3), the first tenant of the workbench. A thread bound to a
 // project (thread.studio.projectId) is answered by the coding agent in that folder (app/controller.mjs →
 // projects/agent.mjs); the chat's own composer is the prompt. This panel shows the folder: its files, the page
 // running (Preview, served by main on 127.0.0.1 only), a file's code (edit, Save), and what the agent's last reply

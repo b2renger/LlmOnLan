@@ -1,5 +1,5 @@
 // @ts-check
-// The Converse box (docs/COMPUTER_VOICE_PLAN.md §5, §11): whole conversations driven in Node. The loop
+// The Converse box (docs/archive/plans/COMPUTER_VOICE_PLAN.md §5, §11): whole conversations driven in Node. The loop
 // is `converse(deps)`; here every device and door is a fake on ONE virtual clock — a microphone whose
 // level is a script, a speech to text that answers after 200 ms, a model that streams a sentence every
 // 100 ms, a voice that takes 20 ms a character — so the order of events, the interruptions and the

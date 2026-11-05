@@ -381,20 +381,20 @@ Paste the real file.
     (index.ts:508-520), voice is a headline feature, and the locked electron-builder is 26.15.3 (≥ 26.0.13).
     Turn this into a rig check (next bullet).
   - **:23** "Build/run against 3.11". The bundle uses 3.12 (build-sidecar.mjs:25).
-- **docs/RIG_CHECKLIST.md:53-65.** "mac **arm64 only**", the sidecar list, and "Intel Mac: NOT
+- **docs/archive/testing/RIG_CHECKLIST.md:53-65.** "mac **arm64 only**", the sidecar list, and "Intel Mac: NOT
   SUPPORTED" are all stale. Replace with:
   `NSIS (win x64), dmg+zip (mac arm64 + x64), AppImage (linux x64 + arm64); sidecars darwin-arm64, darwin-x64 (onnxruntime 1.23.2 substitution), win32-x64, linux-x64, linux-arm64`,
   plus an unchecked item: `[ ] Intel Mac (macOS 14+): first run downloads the darwin-x64 sidecar; local embeddings + a chat work`.
   - **:120** "the popover shows 'N clients'". Replace with: `the farm card shows seats ("N of M seats free", plus "K connected" when that differs)` (app.js:353-366).
   - Add: `[ ] macOS ad-hoc build: OWUI voice (mic) and camera prompt and work`, and `[ ] Pin a farm, relaunch: one sidecar spawn, no 401` (SA-4).
-- **docs/LOLCHAT_TESTING.md**
+- **docs/archive/testing/LOLCHAT_TESTING.md**
   - **:54 and :165-167.** "once it is pushed" / "Nothing is committed". The branch is committed and
     pushed (39 commits over main). Replace §6's first paragraph with: `The work is committed on \`lolchat/vnext\` and pushed to \`origin/lolchat/vnext\`.`
   - **:59.** Replace with: `Press **LOL Chat** in the topbar's three-way switch.`
   - **:85-86.** "the **Computer** tab in the workbench column … `Ctrl+\` cycles panels". No workbench panel
     is registered anywhere; the Computer is a top-level surface (computer/host.mjs:7; workbench.mjs:380-386).
     Replace with: `Open the **Computer** from the topbar's three-way switch.`
-- **docs/LOLCHAT_PLAN.md:4251.** The heading says "version 1", but `DB_VERSION = 2` (schema.mjs:24, adding
+- **docs/archive/plans/LOLCHAT_PLAN.md:4251.** The heading says "version 1", but `DB_VERSION = 2` (schema.mjs:24, adding
   `graphs` and `projects`). Replace with: `### 3.7 IndexedDB: database \`lol-chat\`, version 2 (v2 = \`graphs\` + \`projects\`, S0)`.
   - **:4262-4268 kv list.** Missing `ui:workWidth`, `ui:workPanel`, `pref:queueMax` and the Computer's
     keys. Point to `core/types.mjs:803` `KV_KEYS` as the authoritative list instead of copying it.
@@ -404,12 +404,12 @@ Paste the real file.
     modules, and `net/extract.mjs` serves only the Computer.
   - **:5857.** "ticks §0–§11". The RIG checklist now runs to §17, and §5 (images/documents/search), §6
     (Blender) and §9 (recipes) test unbuilt features. Replace with: `ticks §0–§4, §7, §8, §10–§17`.
-- **docs/LOLCHAT_VISION.md**
+- **docs/archive/plans/LOLCHAT_VISION.md**
   - Add under B.2: `Shipped (2026-09): P0–P2 + S0; P3/P4 (F50–F52, F70, F72–F74, F80, F90–F91) not built.`
   - **:99 F41.** "another recipe / temperature". Shipped are only "More creative" (1.0) and "More precise"
     (0.2) (`ui/message-actions.mjs:98-103`).
   - **:160 F105.** Now shipped (not an out-of-scope change): the view memory as `localStorage['lol:view']` (app.js:908-915), with a three-way switch, and the other surfaces are usable while OWUI boots (styles.css:339-340).
-- **docs/LOLCHAT_RIG_CHECKLIST.md**
+- **docs/archive/testing/LOLCHAT_RIG_CHECKLIST.md**
   - **:92.** The wrong key `lolchat.threads.v1`; the code uses `lol.chat.threads.v1` (`state/migrate-v0.mjs:29`).
     A tester following it corrupts nothing and so tests nothing.
   - **§5, §6, §9 and :358-359 (read aloud).** These features are not shipped. Mark the items

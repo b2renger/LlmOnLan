@@ -1,6 +1,6 @@
 # Critic review: ECOSYSTEM_PLAN v1 (2026-09-27)
 
-Reviewed: [ECOSYSTEM_PLAN.md](../ECOSYSTEM_PLAN.md) v1, its research note, CLAUDE.md (prime directive, data flow,
+Reviewed: [ECOSYSTEM_PLAN.md](../archive/plans/ECOSYSTEM_PLAN.md) v1, its research note, CLAUDE.md (prime directive, data flow,
 ponytail) and the code the plan leans on: `graph/parts/index.mjs`, `graph/runner.mjs`, `parts/button.mjs`,
 `app/ask.mjs`, `computer/visible.mjs`, `values.mjs`, `serialize.mjs`, `sandbox/libs.mjs`, `test/chat-lint.js`,
 `renderer/index.html` (CSP), `farm/src/plugins/registry.js`, `extract.js`, `snapshot.js`. Read-only; no network.

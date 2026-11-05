@@ -274,7 +274,7 @@ CLAUDE.md never mentions the Computer, and its client description is stale in tw
 >   to `%APPDATA%\LlmOnLan\logs\computer\*.jsonl` (25 MB per file; 15 recordings kept, plus up to 30
 >   with a marked bug; keys redacted; `src/main/debugLog.ts`). Learn shelf: the tour, lessons 1–4 and
 >   2 templates. Docs: [docs/LOLCHAT_COMPUTER_TUTORIAL.md](docs/LOLCHAT_COMPUTER_TUTORIAL.md) (user),
->   [docs/COMPUTER_STATUS.md](docs/COMPUTER_STATUS.md), COMPUTER_PLAN.md, COMPUTER_LIVE_PLAN.md,
+>   [docs/archive/COMPUTER_STATUS.md](docs/archive/COMPUTER_STATUS.md), COMPUTER_PLAN.md, COMPUTER_LIVE_PLAN.md,
 >   COMPUTER_DEBUG_LOG.md.
 
 **Replace line 87-88's sentence** with: *"Three surfaces: OWUI, **LOL Chat** (`renderer/chat/`,

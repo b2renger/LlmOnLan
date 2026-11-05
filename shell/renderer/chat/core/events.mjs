@@ -17,7 +17,7 @@ export const EV = Object.freeze({
   VISIBLE: 'ui:visible',              // {visible, pageVisible}
   // {shown} — the Computer surface itself was shown or left (computer/main.mjs, on every change).
   // VISIBLE cannot say it: `visible` stays true while a run executes (computer/visible.mjs). A
-  // conversation ends on {shown:false} (docs/COMPUTER_VOICE_PLAN.md K-V10).
+  // conversation ends on {shown:false} (docs/archive/plans/COMPUTER_VOICE_PLAN.md K-V10).
   COMPUTER_SHOWN: 'computer:shown',
   // {threadId, created?}  threadId null = no thread / empty view; created:true ONLY from
   // controller.newThread() - a thread nobody has used yet (the model picker writes a held pick

@@ -1,5 +1,5 @@
 // @ts-check
-// LOL Vibe's IDE (docs/IDE_PLAN.md), in the real page with the REAL runner (build/main/studio.js) over the mock dsh
+// LOL Vibe's IDE (docs/plans/IDE_PLAN.md), in the real page with the REAL runner (build/main/studio.js) over the mock dsh
 // (test/mock-dsh.mjs — the SDK's wire and event shapes; it really writes and edits files):
 //   1. The Project panel makes a project and binds the thread to it (thread.studio.projectId).
 //   2. A message in that thread is answered by the agent, in the project folder: the file appears in the panel, the

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Serve a model with vLLM for a LlmOnLan farm. Two ways:
 #
-# - Run by the farm (the `vllm` engine, docs/VLLM_MANAGED_PLAN.md): the farm sets LOL_VLLM_ARGS_B64 (the whole
+# - Run by the farm (the `vllm` engine, docs/archive/plans/VLLM_MANAGED_PLAN.md): the farm sets LOL_VLLM_ARGS_B64 (the whole
 #   `vllm serve` argv after the model, NUL-separated, base64) with LOL_VLLM_DAEMON=1, and nothing below is a
 #   default any more: no built-in flags, no extra args. That start writes $LOL_VLLM_ROOT/run/managed-by-farm,
 #   and from then on a start WITHOUT LOL_VLLM_ARGS_B64 (the old log-on task, lol-vllm.service, a hand) only

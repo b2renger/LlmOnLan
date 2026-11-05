@@ -1,5 +1,5 @@
 'use strict';
-// The harness's microphone (docs/COMPUTER_VOICE_PLAN.md §11): Chromium's fake audio capture reads a WAV
+// The harness's microphone (docs/archive/plans/COMPUTER_VOICE_PLAN.md §11): Chromium's fake audio capture reads a WAV
 // (`--use-file-for-fake-audio-capture`, chat-harness/main.cjs) and loops it. This writes that WAV:
 // 1 s of silence, 1.5 s of something speech-like (a 140 Hz voice with its harmonics, in syllables of
 // a quarter second), 2 s of silence — 4.5 s, looped. Generated at each run, so no binary is committed.

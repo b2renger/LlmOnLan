@@ -3,7 +3,7 @@
 > Status: **executable plan, revision 2** (after critic review). Date: 2026-09-14. Baseline: `main` at
 > `4fb3800` (release v0.1.45).
 > - Product decisions: [LOLCHAT_VISION.md](LOLCHAT_VISION.md). Every `F##` / `T#` id comes from there.
-> - Human verification on real machines: [LOLCHAT_RIG_CHECKLIST.md](LOLCHAT_RIG_CHECKLIST.md).
+> - Human verification on real machines: [LOLCHAT_RIG_CHECKLIST.md](../testing/LOLCHAT_RIG_CHECKLIST.md).
 > - Everything outside LOL Chat's scope: [LOLCHAT_DISCUSS.md](LOLCHAT_DISCUSS.md).
 > - What changed since revision 1 and why: §6.
 >
@@ -1223,7 +1223,7 @@ Written by the S0 integrator at kickoff, 2026-09-16. Precisions and overrides on
 conflicts with `LOLCHAT_STUDIO_PLAN.md` §2–§4 it wins. Everything below is landed in the working
 tree and green (BD-14).
 
-- **BD-1. S1 "the map" is CANCELLED** and replaced by `docs/LOLCHAT_COMPUTER_SPEC.md`. Consequences
+- **BD-1. S1 "the map" is CANCELLED** and replaced by `docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md`. Consequences
   taken at this kickoff, so no unit codes against a dead contract: the registry gains **four** slots,
   not six (`MAP_OPS`/`MAP_NODE_KINDS` are NOT added; the Computer panel declares its own at its own
   kickoff); `core/types.mjs` gains no `MapDoc`/`MapNode`/`MapEdge`; `PURE_MODULES` gains no `map/*`;
@@ -1466,7 +1466,7 @@ Seven review findings; the contract changes they forced. Everything here is FROZ
 ### BG. The C1 (the Computer) kickoff freeze — 2026-09-16
 
 Written by the C1 integrator at kickoff. Precisions and overrides only; where this conflicts with
-`docs/LOLCHAT_COMPUTER_SPEC.md` §2–§4 it wins, and where the spec conflicts with the studio plan the
+`docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md` §2–§4 it wins, and where the spec conflicts with the studio plan the
 spec already won (BD-1). Everything named below is in the working tree and green (BG-14). Three
 builders run in parallel: **C1-U1 (engine, pure) · C1-U2 (canvas + panel) · C1-U3 (parts + runner)**.
 
@@ -2331,7 +2331,7 @@ below is in the working tree and green at slot 0 (BK-9).
 
 ### 2.6.K1 — K1 kickoff freeze (the Computer as a third surface)
 
-*Addendum to §2.6, written at the K1 kickoff (2026-09-22). `docs/COMPUTER_PLAN.md` is authoritative
+*Addendum to §2.6, written at the K1 kickoff (2026-09-22). `docs/archive/plans/COMPUTER_PLAN.md` is authoritative
 for the K-phases; this section freezes the seams BETWEEN the three K1 units and records the two
 places where the plan's own ordering had to be resolved. Everything below is already in the tree —
 a builder can import it, call it and run against it right now.*
@@ -2526,7 +2526,7 @@ existing scenario looks at it.
 
 ### 2.6.K2 — K2 kickoff freeze (arrow labels, the Instruction, the transcript)
 
-*Addendum to §2.6, written at the K2 kickoff (2026-09-23). `docs/COMPUTER_PLAN.md` §5, §6.3, §6.8
+*Addendum to §2.6, written at the K2 kickoff (2026-09-23). `docs/archive/plans/COMPUTER_PLAN.md` §5, §6.3, §6.8
 and §8.1 are authoritative for WHAT K2 builds; this section freezes the seams BETWEEN the three K2
 units and records the four places where the plan named something that did not exist in the tree.
 Everything below is already landed — a builder can import it, call it and run against it right now.
@@ -2739,7 +2739,7 @@ and wiring the phase:
 
 ### K3 addendum — push play, control flow, loops (kickoff, 2026-09-23)
 
-Frozen at the K3 kickoff, after K1/K2 landed. `docs/COMPUTER_PLAN.md` §4, §6.6, §7.3–§7.5, §8.3–§8.4
+Frozen at the K3 kickoff, after K1/K2 landed. `docs/archive/plans/COMPUTER_PLAN.md` §4, §6.6, §7.3–§7.5, §8.3–§8.4
 and §11 K3 are the spec; **this is the contract between the three parallel units**. A unit may ADD
 keys; it may not change a signature here without a contract request at the landing. KA-1..KA-11 and
 KB-1..KB-11 still bind.
@@ -2979,7 +2979,7 @@ is made; nothing else in the tree may ask the question itself.
 ### K4 addendum — text boxes with an input, images, previews, the look (kickoff, 2026-09-23)
 
 Frozen at the K4 kickoff, after K1/K2/K3 landed and the owner ran the Computer against the real
-farm. `docs/COMPUTER_PLAN.md` §6.2, §6.4, §6.5, §6.7, §6.8, §9 and §11 K4 are the spec; **this is
+farm. `docs/archive/plans/COMPUTER_PLAN.md` §6.2, §6.4, §6.5, §6.7, §6.8, §9 and §11 K4 are the spec; **this is
 the contract between the four parallel units**. A unit may ADD keys and exports; it may not change
 a signature here without a contract request at the landing. KA-1..KA-11, KB-1..KB-11 and
 KC-1..KC-22 still bind.
@@ -3172,7 +3172,7 @@ commit; the landing integrator commits the phase once, after every gate is green
 ### K5 addendum — the creative boxes, the grouped ＋ menu, the tutorial (kickoff, 2026-09-23)
 
 Frozen at the K5 kickoff, after K1–K4 landed and the owner ran labelled arrows and an Instruction
-on the real farm. `docs/COMPUTER_PLAN.md` §6, §10 and §11 K5 are the spec **where this addendum
+on the real farm. `docs/archive/plans/COMPUTER_PLAN.md` §6, §10 and §11 K5 are the spec **where this addendum
 does not re-scope them**; this is the contract between the four parallel units. A unit may ADD keys
 and exports; it may not change a signature, a key, a DOM probe or a vocabulary word frozen here
 without a contract request at the landing. KA-1..KA-11, KB-1..KB-11, KC-1..KC-22 and KD-1..KD-11
@@ -3773,7 +3773,7 @@ code, DOM probe or constant changed. Recorded here because later phases inherit 
 > want to be able to record everything in a timestamped file where you can find all the informations
 > needed to fix bugs. We need to log user interactions and all the runtime errors."* — the owner
 
-The owner's guide and the file format are in [COMPUTER_DEBUG_LOG.md](COMPUTER_DEBUG_LOG.md). This entry
+The owner's guide and the file format are in [COMPUTER_DEBUG_LOG.md](../../COMPUTER_DEBUG_LOG.md). This entry
 freezes the contract. KA–KF still bind.
 
 **KG-1. A second main-process carve-out, the same shape as S0.** `shell/src/main/debugLog.ts` is new
@@ -5028,7 +5028,7 @@ Files owned:
    - replace the `#lolchat` inner markup with the fallback `<p class="chat-fallback">` (keep
      `id="lolchat" class="hidden"`);
    - replace `<script src="chat.js">` with `<script type="module" src="chat/main.mjs"></script>`;
-   - add `<link rel="stylesheet" href="chat/chat.css" />` after `styles.css`;
+   - add `<link rel="stylesheet" href="../../chat/chat.css" />` after `styles.css`;
    - the CSP meta is **untouched**.
 2. **`styles.css`:** remove the LOL Chat rules (`#lolchat` … `.chat-form`); keep `.viewtoggle` and
    `.hidden`.

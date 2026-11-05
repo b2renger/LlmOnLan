@@ -13,7 +13,7 @@
 //     closes it;
 //   - that all of this costs the chat nothing while it is closed (the parity scenario).
 //
-// No real panel exists in S0 (the Computer panel arrives with docs/LOLCHAT_COMPUTER_SPEC.md), so
+// No real panel exists in S0 (the Computer panel arrives with docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md), so
 // the panels here are registered from the scenario through `app.registry` — which is also a test of
 // §2.6 AD: the rail is built from the slot AT RENDER TIME, so a panel registered after boot
 // appears without the workbench being told.
@@ -33,7 +33,7 @@ const requireReal = async (/** @type {any} */ h) => {
         if (failed.work) throw new Error(`S0-U1 needs the REAL ui/workbench.mjs: ${failed.work.error}`);
         const app = window.LolChat.app;
         if (!app.work) throw new Error('ui/workbench.mjs loaded but installed nothing (app.work is missing)');
-        // P5 (docs/IDE_PLAN.md) added setStudio: a panel binding the open thread to its project.
+        // P5 (docs/plans/IDE_PLAN.md) added setStudio: a panel binding the open thread to its project.
         const want = ['open', 'close', 'current', 'width', 'panels', 'request', 'on', 'setStudio'];
         const got = Object.keys(app.work).sort();
         if (got.join(',') !== want.slice().sort().join(',')) {

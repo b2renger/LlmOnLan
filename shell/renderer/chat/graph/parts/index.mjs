@@ -73,7 +73,7 @@ import { classifyPart } from './classify.mjs';
 import { agentPart } from './agent.mjs';
 // Ecosystem plan v2 §3.3: says what arrives, with the farm's voice or this computer's.
 import { speakPart } from './speak.mjs';
-// docs/COMPUTER_VOICE_PLAN.md (2026-10-12): a spoken conversation, started only by a person's ● Start.
+// docs/archive/plans/COMPUTER_VOICE_PLAN.md (2026-10-12): a spoken conversation, started only by a person's ● Start.
 import { conversePart } from './converse.mjs';
 // Ecosystem plan v2 §3.5, P3a: outputs to the world, through ONE choke point in main.
 import { sendPart } from './send.mjs';

@@ -215,7 +215,7 @@ this release.
 **Entry and bridge**
 
 - `index.html`: `<script src="chat.js">` → `<script type="module" src="chat/main.mjs">`;
-  `<link rel="stylesheet" href="chat/chat.css">`. `chat.js` is deleted; the LOL Chat section of
+  `<link rel="stylesheet" href="../../chat/chat.css">`. `chat.js` is deleted; the LOL Chat section of
   `styles.css` moves to `chat/chat.css` (`.viewtoggle` and `.hidden` stay in `styles.css`).
 - `<section id="lolchat" class="hidden">` becomes a **mount point** containing only a static fallback
   line ("LOL Chat failed to load — see the developer console"). `main.mjs` builds the UI into it. This

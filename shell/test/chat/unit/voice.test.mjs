@@ -1,5 +1,5 @@
 // @ts-check
-// graph/voice.mjs (docs/COMPUTER_VOICE_PLAN.md K-V1): Converse's arithmetic, driven in Node with
+// graph/voice.mjs (docs/archive/plans/COMPUTER_VOICE_PLAN.md K-V1): Converse's arithmetic, driven in Node with
 // synthetic signals — a script of levels at 60 frames a second stands for a microphone. Every rule of
 // §5.1 has a test here that fails when the rule is taken out: the onset and its back-dating, the
 // end-of-turn knob, the click, the cough, the calibration, the noise floor, the barge-in threshold,

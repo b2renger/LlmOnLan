@@ -42,7 +42,7 @@ if (process.argv.includes('--lol-home=1')) api.home = {
     actions: (id) => ipcRenderer.invoke('lol:home:actions', id),
     command: (req) => ipcRenderer.invoke('lol:home:command', req),
 };
-// The IDE's coding agent (docs/IDE_PLAN.md), the SAME shape as shell/src/preload/index.ts, present only when
+// The IDE's coding agent (docs/plans/IDE_PLAN.md), the SAME shape as shell/src/preload/index.ts, present only when
 // main.cjs wired the real runner over the mock dsh (build/main/studio.js exists).
 if (process.argv.includes('--lol-studio=1')) api.studio = {
     prompt: (o) => ipcRenderer.invoke('lol:studio:prompt', o),

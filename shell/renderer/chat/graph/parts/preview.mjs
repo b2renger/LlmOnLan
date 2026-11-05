@@ -36,7 +36,7 @@
 // WHAT A DRAW LEAVES BEHIND is this module's own `SHOWN` map, keyed by part id: RUNTIME state,
 // deliberately not persisted, which is exactly right for a picture. Preview's `output` is null.
 //
-// LIVE (docs/COMPUTER_LIVE_PLAN.md, K-9, builder L): a p5, three.js or web-page box has a ▶ Live
+// LIVE (docs/archive/plans/COMPUTER_LIVE_PLAN.md, K-9, builder L): a p5, three.js or web-page box has a ▶ Live
 // button. It runs the box's code FOR REAL inside the picture area — in the sandbox host's second,
 // live guest, mounted inside this box so it pans and zooms with the canvas — and the mouse, the
 // wheel and the keys go to the sketch. ONE box is live at a time. It stops on ■ Stop, when another

@@ -39,7 +39,7 @@ single file `build_page.js` writes.
 ## How the scenarios pick
 
 Each scenario is a way people use LlmOnLan, turned into estimator inputs and model needs (from
-`multiuser_implementation_plan.md` §1 and §8, and the spike's profiles):
+`docs/archive/plans/multiuser_implementation_plan.md` §1 and §8, and the spike's profiles):
 
 | Use | Context each | How people work | Reply | Needs |
 |---|---|---|---|---|

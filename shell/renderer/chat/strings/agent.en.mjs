@@ -1,5 +1,5 @@
 // @ts-check
-// Strings for the IDE's coding agent in LOL Vibe (projects/agent.mjs, docs/IDE_PLAN.md): what a reply says about
+// Strings for the IDE's coding agent in LOL Vibe (projects/agent.mjs, docs/plans/IDE_PLAN.md): what a reply says about
 // its steps, and the sentences for a turn that could not run or did not finish.
 import { registerStrings } from '../core/i18n.mjs';
 

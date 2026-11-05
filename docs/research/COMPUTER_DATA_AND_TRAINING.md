@@ -5,8 +5,8 @@
 > with data (csv, json etc.) we could use something like kev or latya to actually train data. This last
 > is a research question: I would like an agent to tinker on that and give us some feedback, pros and
 > cons of implementing this idea. And what it could actually be useful for."*
-> Grounding: [CLAUDE.md](../../CLAUDE.md), [COMPUTER_STATUS.md](../COMPUTER_STATUS.md),
-> [COMPUTER_PLAN.md](../COMPUTER_PLAN.md) §0, §4 and §6, [farm/README.md](../../farm/README.md), and the parts in
+> Grounding: [CLAUDE.md](../../CLAUDE.md), [COMPUTER_STATUS.md](../archive/COMPUTER_STATUS.md),
+> [COMPUTER_PLAN.md](../archive/plans/COMPUTER_PLAN.md) §0, §4 and §6, [farm/README.md](../../farm/README.md), and the parts in
 > `shell/renderer/chat/graph/parts/`. Web sources were checked on 2026-09-23 and are listed at the end.
 
 ---

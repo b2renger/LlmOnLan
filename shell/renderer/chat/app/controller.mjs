@@ -488,7 +488,7 @@ export function createController(app) {
           : (o.parentId === undefined ? target.parentId : o.parentId);
         const path = await repo().getPath(threadId, head || null);
         // A thread bound to a project (thread.studio.projectId) is answered by the IDE's coding agent in that
-        // folder (docs/IDE_PLAN.md): same reply row, same Stop, same seat — a different writer. It keeps its own
+        // folder (docs/plans/IDE_PLAN.md): same reply row, same Stop, same seat — a different writer. It keeps its own
         // history, so no request body is built; a fresh agent session gets a recap of this path instead. Loaded
         // only here, so a broken agent module costs project threads alone.
         const projectId = thread.studio && thread.studio.projectId && mode !== 'continue' ? String(thread.studio.projectId) : '';

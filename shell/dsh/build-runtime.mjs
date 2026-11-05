@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Builds the IDE's coding-agent runtime for THIS machine's platform (docs/IDE_PLAN.md slice 5), the way
+// Builds the IDE's coding-agent runtime for THIS machine's platform (docs/plans/IDE_PLAN.md slice 5), the way
 // sidecar/build-sidecar.mjs builds the chat engine:
 //   shell/dsh/build/dsh-runtime/
 //     node/            an official Node (NODE_VERSION, checked against nodejs.org's SHASUMS256.txt) — dsh's native

@@ -8,7 +8,7 @@
 //
 // AMENDED AT THE K1 LANDING (COMPUTER_PLAN §3.7): the Computer left the workbench, the chat shipped no
 // panel, and this scenario registered a stand-in to keep the MECHANISM tested.
-// AMENDED AT P5 (docs/IDE_PLAN.md): the chat ships a panel again — the IDE's **Project** — so the door is
+// AMENDED AT P5 (docs/plans/IDE_PLAN.md): the chat ships a panel again — the IDE's **Project** — so the door is
 // tested on the real thing: a thread's header names it, opens it, and closes it again.
 
 const FARM_ERRORS = [/Failed to load resource/, /net::ERR_/];

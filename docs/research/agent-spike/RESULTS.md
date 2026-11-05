@@ -1,6 +1,6 @@
 # P4 agent spike — results (2026-09-27, 21:08–21:14, on the owner's OK)
 
-**Question** (docs/ECOSYSTEM_PLAN.md §5, §8d): how reliably does the farm's model call tools? The bar:
+**Question** (docs/archive/plans/ECOSYSTEM_PLAN.md §5, §8d): how reliably does the farm's model call tools? The bar:
 **≥ 80% correct tool calls** → build the Computer's Agent box (P4) and let the IDE (P5) rely on tool calling;
 below → the Agent box waits and the IDE uses small, confirmed steps.
 

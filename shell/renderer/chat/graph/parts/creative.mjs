@@ -35,7 +35,7 @@ export const CREATIVE_PRESET_IDS = Object.freeze([
   'p5', 'three', 'svg', 'html', 'markdown', 'graph',
   'write-p5', 'write-three', 'write-svg', 'write-html',
   'describe-image', 'write-code', 'write-laya',
-  // docs/COMPUTER_VOICE_PLAN.md (2026-10-12): a p5 face for a Converse box (§4's sketch, grown).
+  // docs/archive/plans/COMPUTER_VOICE_PLAN.md (2026-10-12): a p5 face for a Converse box (§4's sketch, grown).
   'voice-face',
 ]);
 
@@ -148,7 +148,7 @@ export const STARTER = Object.freeze({
     '  </ul>',
     '</div>',
   ].join('\n'),
-  // docs/COMPUTER_VOICE_PLAN.md §4: a face for a Converse box. It listens with lol.on(...) — the
+  // docs/archive/plans/COMPUTER_VOICE_PLAN.md §4: a face for a Converse box. It listens with lol.on(...) — the
   // conversation's state, your voice and the bot's — and draws a head that breathes while it
   // listens, closes its eyes while it thinks and moves its mouth with the voice. Without Live (or
   // with no conversation) it draws the head at rest.
@@ -321,7 +321,7 @@ export function creativePresets() {
       settings: { instruction: t('parts.writeLayaAsk'), shape: 'json', schema: LAYA_QUESTION_SCHEMA }, match: { schema: LAYA_QUESTION_SCHEMA },
     },
     {
-      // docs/COMPUTER_VOICE_PLAN.md: a p5 sketch that is a Converse box's face. It matches on its own code
+      // docs/archive/plans/COMPUTER_VOICE_PLAN.md: a p5 sketch that is a Converse box's face. It matches on its own code
       // (edit it and it is a plain p5.js sketch, as describe-image does with its question); a box
       // matching two presets takes the one with more keys (presetOf).
       id: 'voice-face', type: 'preview', group: 'show', order: 815, glyph: '◖',

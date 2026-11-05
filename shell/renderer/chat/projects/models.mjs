@@ -1,5 +1,5 @@
 // @ts-check
-// How much to trust a model with the IDE's edits (docs/IDE_PLAN.md §2; owner: "it should adapt to several models, new
+// How much to trust a model with the IDE's edits (docs/plans/IDE_PLAN.md §2; owner: "it should adapt to several models, new
 // models will appear"). Measured by the P5-0 spike's edit task (docs/research/p5-spike/run.mjs --task edit): "add a
 // speed slider to this page; change nothing else", 3 runs each. A model no one has measured is `unknown`, not bad.
 // Pure: no DOM, no store.

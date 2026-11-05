@@ -1,6 +1,6 @@
 // @ts-check
 // C3-U2 in the real browser: Code, Render and File against the real sandbox, the real projects API
-// and the real mock farm (plan §2.6 BJ-17, docs/LOLCHAT_COMPUTER_SPEC.md §3/§7).
+// and the real mock farm (plan §2.6 BJ-17, docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md §3/§7).
 //
 // The unit tests own the marshalling, the sentences and the SVG sanitiser against fakes. What only
 // these scenarios can show:

@@ -2,7 +2,7 @@
 
 Reviewer scope: `farm/**`, `farm-app/**`, `release-farm.yml`, `build-llamacpp-arm64.yml`; the in-app texts
 (admin panel, Farm app wizard/Settings/status, CLI help and `lol up` messages); the farm parts of CLAUDE.md,
-`farm/README.md`, `farm-app/README.md`, `docs/GETTING_STARTED.md` and `docs/RIG_CHECKLIST.md`.
+`farm/README.md`, `farm-app/README.md`, `docs/GETTING_STARTED.md` and `docs/archive/testing/RIG_CHECKLIST.md`.
 Versions reviewed: `farm-app/package.json` 0.0.38, `farm/package.json` 0.1.0, llama.cpp pin `b10670`.
 Farm unit tests (`node farm/test/run.js`, offline, ephemeral ports): **112 passed**. No farm, app or server was started.
 The implementation is the reference, except where it is a bug. For each bug below, the doc describes the intended behavior.
@@ -188,7 +188,7 @@ The implementation is the reference, except where it is a bug. For each bug belo
 | 381-384, 465 | "the context window is split across slots" · glossary "slot" | `the slots share one context pool; the panel shows the guaranteed share per person` · glossary: `slot (parallel) — one generation the server runs at a time. llama.cpp slots share one context pool by default (kvUnified).` |
 | 411-413 | Cause 1: "The default `llamacpp.parallel: 1`" | `Several people at once, few slots (Ollama default 2 per box, llama.cpp default 1): the rest queue, or get "all seats in use" once every seat is held.` |
 
-### docs/RIG_CHECKLIST.md
+### docs/archive/testing/RIG_CHECKLIST.md
 
 | Line | Stale | Replacement |
 |---|---|---|

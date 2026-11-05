@@ -1,5 +1,5 @@
 // @ts-check
-// Send (docs/ECOSYSTEM_PLAN.md v2 §3.5, P3a) — hands what arrives to a device: OSC, DMX over Art-Net,
+// Send (docs/archive/plans/ECOSYSTEM_PLAN.md v2 §3.5, P3a) — hands what arrives to a device: OSC, DMX over Art-Net,
 // an MQTT publish, a WebSocket message or an HTTP POST. The TARGET is typed by a person in the box's
 // own fields (no wire can choose where a graph sends); only the VALUE comes from the wire.
 //

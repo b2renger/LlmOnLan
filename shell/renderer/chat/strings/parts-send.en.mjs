@@ -1,5 +1,5 @@
 // @ts-check
-// The Send box and the run bar's outputs control (docs/ECOSYSTEM_PLAN.md v2 §3.5, P3a). One file per
+// The Send box and the run bar's outputs control (docs/archive/plans/ECOSYSTEM_PLAN.md v2 §3.5, P3a). One file per
 // unit, same namespace pattern: see strings/parts-text.en.mjs for why.
 import { registerStrings } from '../core/i18n.mjs';
 

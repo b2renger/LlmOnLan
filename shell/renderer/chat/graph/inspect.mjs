@@ -1,5 +1,5 @@
 // @ts-check
-// The chat-column value inspector (plan §2.6 BH-7, docs/LOLCHAT_COMPUTER_SPEC.md §3).
+// The chat-column value inspector (plan §2.6 BH-7, docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md §3).
 //
 // A part's value on the canvas is one line. Clicking it must show the WHOLE thing somewhere a
 // person can actually read — and that place is the conversation column, not a popover over the

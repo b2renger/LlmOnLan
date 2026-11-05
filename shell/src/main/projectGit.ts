@@ -1,4 +1,4 @@
-// A project's history for the IDE (docs/IDE_PLAN.md; owner, 2026-09-28: isomorphic-git — most client PCs have no Git).
+// A project's history for the IDE (docs/plans/IDE_PLAN.md; owner, 2026-09-28: isomorphic-git — most client PCs have no Git).
 // One repository per project folder, a commit per agent reply that changed files and per person's Save, the log, a
 // commit's changes, and "go back to here" as a NEW commit that makes the files what they were then — history is
 // never rewritten, so every step stays recoverable. Only files under the project folder are ever written.

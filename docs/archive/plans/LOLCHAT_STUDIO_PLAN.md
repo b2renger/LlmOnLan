@@ -1906,10 +1906,10 @@ checklist of §8.
 
 ## 5. Rig checklist additions (human tests, real machines, real farm)
 
-**Moved, 2026-10-09** to [HUMAN_TESTS.md](HUMAN_TESTS.md); none was ever ticked. S-R2 → C5, S-R3 → C6, S-R4 → A7,
+**Moved, 2026-10-09** to [HUMAN_TESTS.md](../../HUMAN_TESTS.md); none was ever ticked. S-R2 → C5, S-R3 → C6, S-R4 → A7,
 S-R5 → G3, S-R16 and S-R17 → A5, S-R18 → A6. S-R1 (a security review of the projects change set) is a developer's
 check. S-R6–S-R15 tested the map, sketch and board benches (S1–S3), which were never built: the Computer and the IDE
-took their place. The table as written: `git show 3b8c0c1:docs/LOLCHAT_STUDIO_PLAN.md`.
+took their place. The table as written: `git show 3b8c0c1:docs/archive/plans/LOLCHAT_STUDIO_PLAN.md`.
 
 ---
 

@@ -220,7 +220,7 @@
 
 // ---------------------------------------------------------------------------------------------
 // Studio (S0 kickoff; studio plan §3.3, trimmed to what the Computer + benches actually use —
-// the S1 map typedefs are NOT here, S1 having been replaced by docs/LOLCHAT_COMPUTER_SPEC.md).
+// the S1 map typedefs are NOT here, S1 having been replaced by docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md).
 // ---------------------------------------------------------------------------------------------
 
 /** thread.studio — per-thread workbench state (pure merge/clamp lives in app/studio-state.mjs).
@@ -244,7 +244,7 @@
  */
 
 // ---------------------------------------------------------------------------------------------
-// The Computer panel (C1 kickoff; docs/LOLCHAT_COMPUTER_SPEC.md §2-§4, frozen in §2.6 BG).
+// The Computer panel (C1 kickoff; docs/archive/plans/LOLCHAT_COMPUTER_SPEC.md §2-§4, frozen in §2.6 BG).
 // Nothing here is read by any pre-C1 module: the whole block is additive.
 // ---------------------------------------------------------------------------------------------
 
@@ -940,7 +940,7 @@ export const API_KEYS = Object.freeze({
   sandbox: Object.freeze([
     'mount', 'state', 'ready', 'logs', 'errors', 'runs', 'compute', 'run', 'snapshot', 'params',
     'stop', 'hide', 'destroy', 'on', 'debug',
-    // K-9 (docs/COMPUTER_LIVE_PLAN.md, frozen): the LIVE guest, one box at a time.
+    // K-9 (docs/archive/plans/COMPUTER_LIVE_PLAN.md, frozen): the LIVE guest, one box at a time.
     'live', 'liveNow',
   ]),
 });

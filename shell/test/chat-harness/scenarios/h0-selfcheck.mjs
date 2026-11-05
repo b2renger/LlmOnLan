@@ -75,7 +75,7 @@ export default [
                 studio: window.lol && window.lol.studio ? Object.keys(window.lol.studio) : null,
                 home: window.lol && window.lol.home ? Object.keys(window.lol.home) : null,
             }));
-            // P5 (docs/IDE_PLAN.md): ONE more additive property, `studio` (the IDE's coding agent) — a prompt names a
+            // P5 (docs/plans/IDE_PLAN.md): ONE more additive property, `studio` (the IDE's coding agent) — a prompt names a
             // project, a thread and a model, never a path, a URL or a password.
             h.eq(shape.keys, ['getBlenderConnection', 'projects', 'debugLog', 'io', 'home', 'studio'], 'window.lol exposes more than the real preload');
             // The Home boxes (docs/HOME_ASSISTANT.md, 2026-10-09): the four of the real preload's `home` methods the Computer uses.
