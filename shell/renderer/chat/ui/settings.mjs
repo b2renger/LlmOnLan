@@ -161,7 +161,7 @@ export function install(app) {
 function renderStorage(el, app) {
   const repo = app.repo;
   const mode = (repo && repo.mode) || (app.state && app.state.storeMode) || 'pending';
-  const line = h('p', 'chat-settings-line', t(MODE_LINE[mode] || MODE_LINE.pending));
+  const line = h('p', 'chat-settings-line', repo && repo.writeFailed ? t('library.storeFailing') : t(MODE_LINE[mode] || MODE_LINE.pending));
   line.setAttribute('data-mode', String(mode));
   el.appendChild(line);
 

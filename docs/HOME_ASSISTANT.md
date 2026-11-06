@@ -28,7 +28,8 @@ encrypt (some Linux desktops without a keyring), the token is not kept, and link
 ## Reading is free, commands are a dry run until you allow them
 
 Reading the home is always allowed: the list of devices and sensors, and one entity's state, attributes and
-actions. A model never gets a coordinate: where people are and where the home is (latitude, longitude) are left out.
+actions. A model never gets a coordinate or a street address: latitude, longitude and a phone's geocoded-location sensor are
+left out. It can read a person's state like any other: home, away, or the name of a zone you set in Home Assistant.
 Who is home or away is not: it is what "who is home?" asks.
 
 A **command** is a **dry run** until you click **Allow commands…**. The model is told what it would have done
@@ -95,7 +96,8 @@ holds unchanged and none is copied into the page:
 - **Home** (*bring*, type `home`): reads the devices and sensors a **person** picked (Choose… lists the home; at most
   30). Its value is JSON: `{ home, at, devices: [{ id, name, state, value, unit, attributes, … }], missing }`, the
   attributes without coordinates or places (`HIDDEN_ATTRS`, compared without case: `latitude`, `Location`,
-  `coordinates`…). A **weather** entity also brings its forecast for the next days (`weather.get_forecasts`, a
+  `coordinates`…; a sensor with any of these, or an address, is a place: its state reads `(hidden: a place)`, with no
+  attributes and no past). A **weather** entity also brings its forecast for the next days (`weather.get_forecasts`, a
   read-only action main calls with the entity the person picked), a **calendar** its events of the next 24 hours
   (`/api/calendars/<id>`; summary, times and description, not the place), and "History" (1–168 hours) adds each one's
   past values (`/api/history/period`, at most 240 points per device) — never for `person`, `device_tracker` or `zone`,

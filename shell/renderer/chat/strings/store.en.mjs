@@ -6,4 +6,7 @@ import { registerStrings } from '../core/i18n.mjs';
 registerStrings('store', {
   memory: "History isn't being saved yet — the local database is still opening. Anything you write now is kept and written as soon as it does.",
   memoryFinal: "History can't be saved on this machine — this chat disappears when you quit.",
+  writeFailed: 'Something could not be saved on this computer: {reason}. What you write now may be gone at the next start. Free some space or check the data folder (Preferences ▸ Data location), then export your chats.',
+  diskFull: 'the disk is full',
+  folderSilent: 'the data folder does not answer',
 });

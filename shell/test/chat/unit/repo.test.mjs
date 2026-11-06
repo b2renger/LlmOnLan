@@ -539,6 +539,27 @@ export default (test) => {
     assert.deepEqual([...new Set(errors.map((e) => e.op))].sort(), ['createThread', 'kvSet', 'putMessage']);
   });
 
+  test('repo: a failed write stays visible until a write lands (VIBE-1)', async () => {
+    const bus = createBus();
+    /** @type {string[]} */ const saved = [];
+    bus.on(EV.STORE_SAVED, () => saved.push('saved'));
+    const inner = createMemoryBackend({ kind: 'idb' });
+    let full = true;
+    const backend = { ...inner, async bulk(ops) { if (full) throw Object.assign(new Error('full'), { name: 'QuotaExceededError' }); return inner.bulk(ops); } };
+    const repo = makeRepo(backend, { bus });
+    await repo.ready;
+    assert.equal(repo.writeFailed ?? null, null);
+    await repo.kvSet('k', 1);
+    assert.equal(repo.writeFailed, 'QuotaExceededError');
+    assert.deepEqual(saved, []);
+    full = false;
+    await repo.kvSet('k', 2);
+    assert.equal(repo.writeFailed, null);
+    assert.deepEqual(saved, ['saved'], 'said once');
+    await repo.kvSet('k', 3);
+    assert.deepEqual(saved, ['saved']);
+  });
+
   test('repo: runTx is the one call that reports failure to its caller', async () => {
     const repo = makeRepo(createMemoryBackend({ kind: 'idb' }));
     await repo.ready;

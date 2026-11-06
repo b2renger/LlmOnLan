@@ -42,7 +42,7 @@ export default {
       { id: 'p_view', type: 'preview', x: 1180, y: 450, w: 320, h: 220, settings: { mode: 'markdown' } },
       {
         id: 'n_where', type: 'sticky', x: 400, y: 460, w: 340, h: 200,
-        settings: { colour: 'slate', text: 'What leaves this computer: the reading goes to the farm inside the Instruction’s request, like any text you wire in. Where the home and its people are (coordinates) is never in it.' },
+        settings: { colour: 'slate', text: 'What leaves this computer: the reading goes to the farm inside the Instruction’s request, like any text you wire in. A coordinate or a street address is never in it.' },
       },
       { id: 'n_next', type: 'sticky', x: 800, y: 590, w: 320, h: 120, settings: { colour: 'green', text: 'Next up → 14 · switch the home.' } },
     ],

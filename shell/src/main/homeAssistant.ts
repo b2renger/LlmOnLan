@@ -13,8 +13,9 @@
 //   - never by a model, whatever was allowed: unlock or open a lock, disarm or trigger an alarm, sound a siren, open a
 //     valve (water or gas), open a cover that does not say it is a blind, curtain, shade, shutter, awning or window (it
 //     could be a door, a gate or a garage) — a person does those in Home Assistant;
-//   - never a coordinate: where people and the home are (latitude, longitude…) is not handed to a model, because what a
-//     model reads can leave with its other tools in the same chat (Open WebUI's web search brings `fetch_url`);
+//   - never a coordinate or a street address (latitude, longitude, a phone's geocoded sensor) to a model, because what a
+//     model reads can leave with its other tools in the same chat (Open WebUI's web search brings `fetch_url`). A person's
+//     or a tracker's state stays readable: home, away, or a zone's name;
 //   - at most one command a second per device (a light is not a strobe) and 30 a minute in all;
 //   - the token stays in main (safeStorage, like the IDE's git tokens), is never handed to the page, and never follows a
 //     redirect.
@@ -92,6 +93,15 @@ const HISTORY_BYTES = 8 * 1024 * 1024;
 const HISTORY_TIMEOUT_MS = 20_000;
 /** Where people are: their past is not read (their state now is, like a model's `home_state`). */
 const NO_HISTORY = ['person', 'device_tracker', 'zone'];
+/** Attributes that make a sensor a place, compared without case and with a space as an underscore (the phone apps write
+ * `Postal Code`). A phone's geocoded-location sensor has the street address as its STATE. */
+const PLACE_ATTRS = ['location', 'latitude', 'longitude', 'coordinates', 'thoroughfare', 'locality', 'postal_code'];
+const HIDDEN_PLACE = '(hidden: a place)';
+/** PURE: a sensor that says where something is: its state, its attributes and its past stay out. Only sensors: a person's
+ * or a tracker's state is a zone's name (home, not_home), read like any state, and a calendar's `location` is an event's. */
+export function isPlace(s: State): boolean {
+    return s.entity_id.startsWith('sensor.') && Object.keys(s.attributes || {}).some((k) => PLACE_ATTRS.includes(k.toLowerCase().replace(/[\s-]+/g, '_')));
+}
 
 /** PURE: a Home Assistant address as `scheme://host[:port]`, or null. Home Assistant lives at the root; `/api` is forgiven. */
 export function normaliseUrl(s: string): string | null {
@@ -124,9 +134,10 @@ export function allowedAction(s: State, action: string): boolean {
 }
 
 const nameOf = (s: State) => String(s.attributes?.friendly_name || s.entity_id);
-/** PURE: the attributes a model or a box may read — never a coordinate, a camera's token or the noise; long lists cut. */
+/** PURE: the attributes a model or a box may read — never a coordinate, a street address, a camera's token or the noise; long lists cut. */
 export function cleanAttrs(s: State): Record<string, unknown> {
     const attrs: Record<string, unknown> = {};
+    if (isPlace(s)) return attrs;
     for (const [k, v] of Object.entries(s.attributes || {})) {
         if (HIDDEN_ATTRS.includes(k.toLowerCase())) continue;
         attrs[k] = Array.isArray(v) && v.length > 20 ? [...v.slice(0, 20), `… ${v.length - 20} more`] : v;
@@ -142,6 +153,7 @@ export function thin<T>(list: T[], max = MAX_POINTS): T[] {
 }
 const numberOf = (state: unknown) => (/^-?\d+(\.\d+)?$/.test(String(state ?? '').trim()) ? Number(state) : null);
 const shown = (s: State) => {
+    if (isPlace(s)) return HIDDEN_PLACE;
     const unit = s.attributes?.unit_of_measurement;
     return unit && s.state !== 'unavailable' && s.state !== 'unknown' ? `${s.state} ${unit}` : s.state;
 };
@@ -441,7 +453,7 @@ export function createHome(deps: { store: HomeStore; fetch?: typeof fetch; now?:
     }
 
     /** What a Computer Home box reads: the devices a PERSON picked, now and over their past `hours`. Free, like a
-     * model's reading, and the same attributes (never a coordinate or a place; no past for people). Never throws:
+     * model's reading, and the same attributes (never a coordinate or a place; no past for people or a place). Never throws:
      * {ok:false, code} is nolink, offline, refused, empty, toomuch or busy. */
     async function read(ids: unknown, hours: unknown): Promise<{ ok: true; value: Record<string, unknown> } | { ok: false; code: string; message: string }> {
         const list = [...new Set((Array.isArray(ids) ? ids : []).map((x) => String(x).trim()))].filter((x) => ENTITY.test(x));
@@ -467,8 +479,8 @@ export function createHome(deps: { store: HomeStore; fetch?: typeof fetch; now?:
             for (const id of list) {
                 const s = by.get(id);
                 if (!s) { missing.push(id); continue; }
-                const d: Record<string, any> = { id, name: nameOf(s), state: s.state };
-                const v = numberOf(s.state);
+                const d: Record<string, any> = { id, name: nameOf(s), state: isPlace(s) ? HIDDEN_PLACE : s.state };
+                const v = numberOf(d.state);
                 if (v !== null) d.value = v;
                 if (s.attributes?.unit_of_measurement) d.unit = String(s.attributes.unit_of_measurement);
                 d.attributes = cleanAttrs(s);
@@ -479,7 +491,7 @@ export function createHome(deps: { store: HomeStore; fetch?: typeof fetch; now?:
                 if (domain === 'calendar') { const e = await eventsOf(id, t); if (e) d.events = e; }
                 devices.push(d);
             }
-            const past = devices.filter((d) => histIds.includes(d.id));
+            const past = devices.filter((d) => histIds.includes(d.id) && d.state !== HIDDEN_PLACE);
             if (past.length) {
                 historyAt = now();
                 const start = encodeURIComponent(new Date(t - h * 3_600_000).toISOString());

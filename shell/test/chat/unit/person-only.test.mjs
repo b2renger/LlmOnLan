@@ -120,6 +120,6 @@ export default (test) => {
     assert.ok(canvas.includes('if (foreign && personChoices(payload).length) doc = { ...doc, settings: { ...doc.settings, handed: true } };'));
     const rail = src('computer/tutorial/rail.mjs');
     assert.equal((rail.match(/shipped: true/g) || []).length, 2, 'a template and an example');
-    assert.ok(src('computer/host.mjs').includes("if (!(await handedOk())) { clearPresses(); canvas.announce(t('computer.handedNo')); return null; }"));
+    assert.ok(src('computer/host.mjs').includes("if (handed(session.doc()) && !(await handedOk())) { clearPresses(); canvas.announce(t('computer.handedNo')); return null; }"));
   });
 };

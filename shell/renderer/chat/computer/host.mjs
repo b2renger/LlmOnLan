@@ -457,7 +457,8 @@ export function createHost(app, els) {
       canvas.announce(t('computer.runOutcomeAlready'));
       return { ran: 0, busy: true, merged: 0 };
     }
-    if (!(await handedOk())) { clearPresses(); canvas.announce(t('computer.handedNo')); return null; }
+    // Only a marked graph waits: every other run stays synchronous up to runner.run, or a ▶ in the same tick stops merging.
+    if (handed(session.doc()) && !(await handedOk())) { clearPresses(); canvas.announce(t('computer.handedNo')); return null; }
     canvas.setCapped(null);          // a new run starts with no banner, whatever the last one said
     // The rebuild ladder (C3-U1): three rebuilds in a minute leave the sandbox quiet until an
     // explicit re-arm, and the host cannot tell a human's Run from an automatic re-run — only the

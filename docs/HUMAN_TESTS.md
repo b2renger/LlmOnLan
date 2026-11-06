@@ -72,7 +72,7 @@ been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the 
 | O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 3 | — | 1 h 15 |
 | P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
 | Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q5) | 6 | Q1, Q6 | 2 h 30 |
-| **Total** | | **138** | **25** | about 60–66 h |
+| **Total** | | **139** | **25** | about 60–66 h |
 
 Part 3's measurements (Q4, Q5 step 3, J12–J13 on llama.cpp) are not in these counts: an agent runs them. J16 is
 counted in J, though an agent can run its steps 1–4.
@@ -272,6 +272,17 @@ box whose hosts are filled in; a linked home for the Home line. *Was:* new (revi
 6. In Open WebUI, ask a model with the Computer's tools to run a graph you just imported and never ran. *Pass:* it says a
    person must run it first.
 7. Open a template with a Home box. *Pass:* no question.
+
+### A23 A save that fails says so, and a street address stays out
+*Proves:* LOL Vibe tells you when a reply could not be saved (unit-tested on a fake store), and a phone's address reaches no
+model (unit-tested on a fake home). *Needs:* a data folder on a USB stick for step 1; a home with the phone app's geocoded
+sensor for step 2. *Was:* new (review 2026-11-05).
+
+1. With the data folder on the USB stick, chat, then pull the stick and send a message. *Pass:* a red line says something
+   could not be saved, and Settings says saving failed. Put the stick back, restart: what was saved is there.
+2. In Preferences ▸ Home Assistant link the home, and in Open WebUI ask a model what `sensor.<phone>_geocoded_location` says.
+   *Pass:* it reads `(hidden: a place)`, with no street, postal code or town. Ask where a person is. *Pass:* home, away, or
+   the name of a zone, never coordinates. If you would rather hide that too, tell the plan (README §4).
 
 ### A10 Code, pictures and files
 *Proves:* the sandbox and the File box on a real disk. *Was:* 3.1, 3.5, 3.6, 3.9; LOLCHAT_RIG §15, §15b, §18 (a paused

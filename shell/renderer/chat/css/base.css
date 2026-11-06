@@ -77,7 +77,8 @@
   background: color-mix(in srgb, var(--amber) 14%, var(--surface));
   border-bottom: 1px solid color-mix(in srgb, var(--amber) 35%, var(--border));
 }
-#lolchat .chat-banner > .chat-banner-loader {
+#lolchat .chat-banner > .chat-banner-loader,
+#lolchat .chat-banner > .chat-banner-store-error {
   background: color-mix(in srgb, var(--danger) 14%, var(--surface));
   border-bottom-color: color-mix(in srgb, var(--danger) 35%, var(--border));
 }

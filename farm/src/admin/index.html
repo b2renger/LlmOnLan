@@ -468,13 +468,13 @@ function render(s) {
     // Promoting to default is meaningless while another engine owns the name clients
     // auto-select — so the button is hidden there rather than lying about its effect.
     const defBtn = m.served && !m.isDefault && !standby
-      ? `<button data-dact="default" data-id="${esc(m.id)}" title="Every client auto-selects this model">Make default</button>` : '';
+      ? `<button data-dact="default" data-id="${esc(m.id)}" aria-label="Make ${esc(m.id)} the default" title="Every client auto-selects this model">Make default</button>` : '';
     // Offer/Stop change what OLLAMA serves — meaningless while another engine
     // serves (nothing here is routed), so they are hidden rather than left lying.
     const btn = standby ? '' : (m.served
-      ? `<button class="stop" data-act="stop" data-id="${esc(m.id)}">Stop</button>`
-      : `<button class="start" data-act="start" data-id="${esc(m.id)}">Offer</button>`);
-    const del = isOcr ? '' : `<button class="stop" data-olrm="${esc(m.id)}" title="Delete the weights from this box"${jobRunning ? ' disabled' : ''}>Delete</button>`;
+      ? `<button class="stop" data-act="stop" data-id="${esc(m.id)}" aria-label="Stop ${esc(m.id)}">Stop</button>`
+      : `<button class="start" data-act="start" data-id="${esc(m.id)}" aria-label="Offer ${esc(m.id)}">Offer</button>`);
+    const del = isOcr ? '' : `<button class="stop" data-olrm="${esc(m.id)}" aria-label="Delete ${esc(m.id)}" title="Delete the weights from this box"${jobRunning ? ' disabled' : ''}>Delete</button>`;
     // Each served model can carry its own advertised name (checkpoint id by
     // default, admin-overridable — setModelAlias). Renamed rows lead with the
     // name users see; the checkpoint id moves into the meta line.
@@ -533,8 +533,8 @@ function render(s) {
     const dotCls = 'dot' + (on && p.healthy ? ' served' : '');
     const state = !on ? 'off' : (p.healthy ? 'on' : 'starting…');
     const btn = on
-      ? `<button class="stop" data-pact="disable" data-id="${esc(k)}">Disable</button>`
-      : `<button class="start" data-pact="enable" data-id="${esc(k)}">Enable</button>`;
+      ? `<button class="stop" data-pact="disable" data-id="${esc(k)}" aria-label="Disable ${esc(p.label || k)}">Disable</button>`
+      : `<button class="start" data-pact="enable" data-id="${esc(k)}" aria-label="Enable ${esc(p.label || k)}">Enable</button>`;
     return `<div class="row"><span class="${dotCls}"></span>`
       + `<span><div class="mname">${esc(p.label || k)} <span class="badge">farm</span></div>`
       + `<div class="meta">runs on this box · ${state}</div>${PLUGIN_NOTES[k] ? `<div class="meta">${PLUGIN_NOTES[k]}</div>` : ''}</span>`
@@ -1104,7 +1104,12 @@ function focusKeyOf(a) {
   if (a.id) return '#' + CSS.escape(a.id);
   if (a.tagName === 'SUMMARY' && a.parentElement && a.parentElement.id) return '#' + CSS.escape(a.parentElement.id) + ' > summary';
   const data = a.tagName === 'BUTTON' && [...a.attributes].find((x) => x.name.startsWith('data-'));
-  return data ? `button[${data.name}="${CSS.escape(data.value)}"]` : null;
+  if (!data) return null;
+  // Rows share their action, so a row's button is found by its id: the same row, even after Stop became Offer. The action
+  // alone once put the focus on the first row, and the next Enter stopped the wrong model for everyone.
+  return data.name !== 'data-id' && a.dataset.id != null
+    ? `button[${data.name}][data-id="${CSS.escape(a.dataset.id)}"]`
+    : `button[${data.name}="${CSS.escape(data.value)}"]`;
 }
 
 const isLoopback = (url) => /^https?:\/\/(127\.|localhost[:/]|\[::1\])/i.test(String(url || ''));

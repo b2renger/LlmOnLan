@@ -104,8 +104,8 @@ export function openRepoSync(options = {}) {
 
   /** @param {string} op @param {any} error */
   function fail(op, error) {
-    // Never console.error: a store hiccup must not fail a harness scenario, and the UI hears about
-    // it on the bus.
+    // Never console.error: a store hiccup must not fail a harness scenario. The UI hears about it on
+    // the bus: a failed WRITE is on the banner until a write lands (ui/store-banner.mjs).
     console.warn(`[lolchat] store ${op} failed`, error);
     emit(EV.STORE_ERROR, { op, error });
   }
@@ -116,7 +116,14 @@ export function openRepoSync(options = {}) {
 
   /** @param {string} op @param {() => Promise<any>} fn @returns {Promise<any>} */
   function enqueue(op, fn) {
-    const run = chain.then(fn).catch((err) => { fail(op, err); return undefined; });
+    const run = chain.then(fn).then((value) => {
+      if (api.writeFailed) { api.writeFailed = null; emit(EV.STORE_SAVED); }
+      return value;
+    }, (err) => {
+      api.writeFailed = (err && err.name) || 'Error';   // what the banner and Settings read
+      fail(op, err);
+      return undefined;
+    });
     chain = run.then(() => undefined, () => undefined);
     return run;
   }

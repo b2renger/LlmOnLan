@@ -31,7 +31,10 @@ processed in a cloud; the code follows the ponytail ladder.
    - no search query in the farm's log, and no document left behind when OCR is killed;
    - a device on the LAN can no longer steer a client (plugin addresses stay on the farm's host, a password at its
      address, and a farm you use comes before a stranger);
-   - a graph from a file lists what it reaches before its first run.
+   - a graph from a file lists what it reaches before its first run;
+   - a phone's street address reaches no model;
+   - LOL Vibe says when a save failed;
+   - the panel's keyboard focus stays on its row.
 
    Their person checks are in [HUMAN_TESTS](../HUMAN_TESTS.md): A21, A22, C7, D16, D17, G13, K11, K12, plus C8 and K13.
 2. **The ★ list** in [HUMAN_TESTS](../HUMAN_TESTS.md) (proposed 2026-11-05): agree it, then run it in its order.
@@ -40,9 +43,8 @@ processed in a cloud; the code follows the ponytail ladder.
 4. **Teach the capacity generator Flint** (`docs/spike/explorer/build_measured.py`, then `build_page.js`, then the
    farm tests). Its next run would otherwise drop Flint's measured seats from the capacity page and the presets.
    **S**.
-5. **The review's last high findings:** a phone's street address reaching the model through Home Assistant (TEXT-1), a
-   failed save never shown in LOL Vibe (VIBE-1), keyboard focus landing on the wrong plugin's button (A11Y-01). A WebRTC
-   way out of the Computer's sandbox (EGRESS-02) needs a run in Electron first. **S** each.
+5. **The review's last high finding:** a WebRTC way out of the Computer's sandbox (EGRESS-02) needs a run in Electron
+   first. **S**.
 
 ## 2. Next — the most value for the office
 
@@ -116,6 +118,8 @@ processed in a cloud; the code follows the ponytail ladder.
    - reword invariant #4 to the calls the contract table lists (it says "admin REST API", which the app never uses).
 
 **Choices to make, one line each:**
+- **Privacy:** a person's state (home, away, a zone's name) still reaches a model, and the texts now say so: keep it, or
+  hide it too (TEXT-1; the home templates read it).
 - **The farm:**
   - an OCR upload cap of 100 MB, or another number;
   - FSV-2's progress, (a) or (b);

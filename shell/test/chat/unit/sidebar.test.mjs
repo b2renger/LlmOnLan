@@ -524,6 +524,25 @@ export default (test) => {
     });
   });
 
+  test('store-banner: a failed write is an alert until a write lands, beside the mode\'s own line (VIBE-1)', async () => {
+    await withDom(async (doc) => {
+      const app = fakeApp(doc, fakeRepo(doc, []));
+      app.repo.mode = 'idb';
+      app.repo.writeFailed = 'QuotaExceededError';     // failed before this feature installed
+      installStoreBanner(app);
+      const node = app.els.banner.querySelector('.chat-banner-store-error');
+      assert.ok(node && node.textContent.includes(t('store.diskFull')), 'a feature must READ it, not only subscribe');
+      assert.equal(node.getAttribute('role'), 'alert');
+      app.repo.writeFailed = 'UnknownError';
+      app.bus.emit(EV.STORE_ERROR, { op: 'putMessage' });
+      assert.equal(app.els.banner.querySelectorAll('.chat-banner-store-error').length, 1, 'one node, updated');
+      assert.ok(app.els.banner.querySelector('.chat-banner-store-error').textContent.includes(t('store.folderSilent')));
+      app.repo.writeFailed = null;
+      app.bus.emit(EV.STORE_SAVED);
+      assert.equal(app.els.banner.querySelector('.chat-banner-store-error'), null);
+    });
+  });
+
   test('store-banner: memory → banner, idb → cleared, and only its own node', async () => {
     await withDom(async (doc) => {
       const app = fakeApp(doc, fakeRepo(doc, []));

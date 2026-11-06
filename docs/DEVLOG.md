@@ -6,6 +6,27 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-06 (16:34) — The review's last high findings: an address, a failed save, the panel's focus
+
+- **A phone's street address** (TEXT-1, `homeAssistant.ts`). A geocoded-location sensor has the address as its STATE, so
+  `home_devices`, `home_state` and a Home box handed it to a model. A sensor that holds a place attribute is now a place
+  (`isPlace`): `(hidden: a place)`, no attributes, no past. The review's rule read "any entity with a place attribute",
+  which would also have hidden a person's home/not_home (a person carries latitude) and a calendar's on/off (an event
+  carries `location`): only sensors, and the phone apps' spelling (`Postal Code`) is folded. A person's state stays
+  readable; the four texts that said "never where people are" now say what is true. Whether to hide it is the owner's
+  (plans README §4).
+- **A failed save** (VIBE-1). `repo.writeFailed` holds the error's name until a write lands, and a new `STORE_SAVED` clears it.
+  `store-banner.mjs` keeps its own `role=alert` line beside the mode's, and Settings stops saying "Saved on this computer".
+- **The panel's focus** (A11Y-01, A11Y-21). A row's button is found by its action and its id, so the focus stays on the same
+  row, even once Stop became Offer. It used to land on the first row sharing the action, and the next Enter stopped the wrong
+  model for everyone. Row buttons name their row for a screen reader.
+
+**A regression the harness caught** (`--phase k`, 214 of 216): the `await` the morning's gate added to `start` broke a ▶ pressed
+in the same tick as a run, which stopped merging and was refused as busy. Only a marked graph waits now. Two more failures
+were timing flakes (a write racing a reload): `k1-library-width` and `k3-sched` pass alone, the latter twice.
+
+**Tested:** chat-unit 1955/1955, lint 0, farm 287/287, `k3-sched` and `k28-handed` in Electron. Person's check: HUMAN_TESTS A23.
+
 ## 2026-11-06 (16:24) — A graph from a file lists what it reaches before its first run
 
 The owner's decision of the morning (Q: graph files someone hands you). The review had it twice (OLD-1, EGRESS-01): a file

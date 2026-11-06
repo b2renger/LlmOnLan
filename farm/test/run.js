@@ -5507,6 +5507,14 @@ test('panel sections: the serving one opens by itself, and again when the engine
     // The summary is a <summary>: a button for the keyboard and screen readers; the focus it had comes back after the rebuild.
     assert.ok(/<summary><h2 class="ename">vLLM<\/h2>/.test(p(onOllama)));
     assert.ok(src.includes('const refocus = focusKeyOf(document.activeElement);') && src.includes("if (a.tagName === 'SUMMARY' && a.parentElement && a.parentElement.id)"));
+    // A11Y-01: rows share their action. The focus stays on the same row, even once its Stop became Offer.
+    const body = src.slice(src.indexOf('function focusKeyOf(a) {'), src.indexOf('const isLoopback ='));
+    const keyOf = new Function('app', 'CSS', body + '; return focusKeyOf;')({ contains: () => true }, { escape: (x) => x });
+    const btn = (attrs, dataset = {}) => ({ tagName: 'BUTTON', attributes: Object.entries(attrs).map(([name, value]) => ({ name, value })), dataset });
+    assert.equal(keyOf(btn({ class: 'stop', 'data-pact': 'disable', 'data-id': 'stt' }, { pact: 'disable', id: 'stt' })), 'button[data-pact][data-id="stt"]');
+    assert.equal(keyOf(btn({ 'data-act': 'stop', 'data-id': 'gemma4:12b' }, { act: 'stop', id: 'gemma4:12b' })), 'button[data-act][data-id="gemma4:12b"]');
+    assert.equal(keyOf(btn({ 'data-olrm': 'gemma4:12b' }, {})), 'button[data-olrm="gemma4:12b"]', 'a button with no data-id keeps its value');
+    assert.ok(src.includes('aria-label="Disable ${esc(p.label || k)}"') && src.includes('aria-label="Stop ${esc(m.id)}"'), 'and a screen reader hears which row (A11Y-21)');
 });
 
 test('panel: Access holds what every engine shares (the name users see, the idle seat, the password), the serving section its people and context, and the ONE Apply still sends every field (owner 2026-10-12)', async () => {

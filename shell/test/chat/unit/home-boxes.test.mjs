@@ -186,8 +186,42 @@ export default (test) => {
   });
 
   test('home boxes: attributes hidden without case — a phone\'s Location, a speaker\'s local picture token (review finding 8)', () => {
-    const a = H.cleanAttrs({ entity_id: 'sensor.phone_geocoded', state: '1 Main St', attributes: { Location: [48.85, 2.35], entity_picture_local: '/api/media_player_proxy/x?token=t', Latitude: 1, unit: 'x' } });
+    const a = H.cleanAttrs({ entity_id: 'media_player.tv', state: 'on', attributes: { Location: [48.85, 2.35], entity_picture_local: '/api/media_player_proxy/x?token=t', Latitude: 1, unit: 'x' } });
     assert.deepEqual(a, { unit: 'x' });
+  });
+
+  test('TEXT-1: a phone\'s geocoded sensor is a place: its address reaches no model, by any door, and it has no past', async () => {
+    const geo = { entity_id: 'sensor.phone_geocoded_location', state: '1 Main St, Paris', last_changed: '2026-11-06T10:00:00Z', attributes: { Location: [48.85, 2.35], Thoroughfare: 'Main St', 'Postal Code': '75001', friendly_name: 'Phone' } };
+    const android = { entity_id: 'sensor.pixel_geocoded', state: '2 Rue X', attributes: { 'Sub Thoroughfare': '2', Locality: 'Lyon' } };
+    const person = { entity_id: 'person.alex', state: 'not_home', attributes: { latitude: 48.85, longitude: 2.35, friendly_name: 'Alex' } };
+    const tracker = { entity_id: 'device_tracker.phone', state: 'Office', attributes: { latitude: 1, longitude: 2 } };
+    const event = { entity_id: 'calendar.studio', state: 'on', attributes: { location: 'Room 2', message: 'Crit' } };
+    const temp = { entity_id: 'sensor.salon', state: '21', attributes: { unit_of_measurement: '°C' } };
+    assert.equal(H.isPlace(geo), true);
+    assert.equal(H.isPlace(android), true, 'an address alone is enough, however it is spelled');
+    assert.equal(H.isPlace(person), false, 'a person keeps home, away or a zone');
+    assert.equal(H.isPlace(tracker), false);
+    assert.equal(H.isPlace(event), false, 'a calendar\'s state is on or off');
+    assert.equal(H.isPlace(temp), false);
+    assert.deepEqual(H.cleanAttrs(geo), {}, 'none of the address parts');
+
+    const ha = await fakeHa();
+    ha.states.push(geo, temp);
+    try {
+      const home = await linked(H, ha, null, { now: () => 9_000_000 });
+      const list = (await home.call('home_devices', {})).text;
+      assert.ok(list.includes('sensor.phone_geocoded_location') && list.includes('(hidden: a place)'));
+      assert.ok(!/Main St|75001/.test(list), list);
+      const one = (await home.call('home_state', { entity_id: geo.entity_id })).text;
+      assert.ok(!/Main St|75001|48.85/.test(one), one);
+      assert.equal(JSON.parse(one).state, '(hidden: a place)');
+      const r = await home.read([geo.entity_id, 'sensor.salon'], 24);
+      assert.ok(!/Main St|75001/.test(JSON.stringify(r.value)), JSON.stringify(r.value));
+      assert.equal(r.value.devices[0].value, undefined);
+      const asked = ha.gets.filter((g) => g.startsWith('/api/history'));
+      assert.equal(asked.length, 1);
+      assert.ok(!asked[0].includes('geocoded') && asked[0].includes('sensor.salon'), 'no past of a place, and the other device keeps its own');
+    } finally { await ha.close(); }
   });
 
   test('home boxes: a history answer past its byte cap is refused, not held in main', async () => {

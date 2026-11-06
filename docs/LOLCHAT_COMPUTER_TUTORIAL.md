@@ -628,8 +628,8 @@ address you typed.
 on their state now (a number stays a number, with its unit), a weather's **forecast** for the next days, a calendar's
 **events** of the next 24 hours, and with **History (hours)** each one's values over that many past hours (240 at most
 per device; never where people were; 720 device-hours at most in one read, like 4 devices over a week or 30 over a
-day), for a chart. Reading changes nothing in the home, and where the home or its people are (coordinates, places) is
-never in it. With **no home linked** it hands on the copy it holds (a lesson's, a template's or its last reading) and
+day), for a chart. Reading changes nothing in the home, and a coordinate or a street address is never in it. A person's
+state is: home, away, or the name of a zone. With **no home linked** it hands on the copy it holds (a lesson's, a template's or its last reading) and
 its face says so; a linked home that does not answer, or lacks the devices, is an error that tells you to choose.
 
 **＋ → Show → Home command** tells **one** device to do **one** thing, both chosen in the box (**Choose…**, then the

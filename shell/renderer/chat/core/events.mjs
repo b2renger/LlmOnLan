@@ -32,6 +32,7 @@ export const EV = Object.freeze({
   GOV_CHANGE: 'gov:change',           // {foreground:'idle'|'streaming'|'held', holder}
   STORE_MODE: 'store:mode',           // 'pending'|'idb'|'memory'|'memory-final'  (payload is the bare string)
   STORE_ERROR: 'store:error',         // {op, error}
+  STORE_SAVED: 'store:saved',         // a write landed after a failed one: repo.writeFailed is null again
   BRANCH_SWITCH: 'branch:switch',     // {messageId, dir: -1|1}
   REQUEST_PREVIEW: 'request:preview', // {request: RequestDraft}
 });

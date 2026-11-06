@@ -40,6 +40,7 @@ registerStrings('library', {
   settingsTitle: 'LOL Vibe settings',
   storage: 'Storage',
   storeIdb: 'Saved on this computer',
+  storeFailing: 'Saving failed: see the message at the top',
   storePending: 'Opening the local database…',
   storeMemory: 'Not saved yet — still opening the local database',
   storeMemoryFinal: 'Cannot be saved on this machine',
