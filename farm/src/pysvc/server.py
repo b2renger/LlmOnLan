@@ -269,11 +269,13 @@ def _extract_pdf(src, filename, workdir):
 
 def _extract(body, filename, content_type):
     ext = _ext(filename, content_type)
-    workdir = tempfile.mkdtemp(prefix="lolocr_")
+    # The farm's own folder, emptied at every start and stop (extract.js clearWork): the finally below never runs
+    # when the service is killed mid-document.
+    workdir = tempfile.mkdtemp(prefix="lolocr_", dir=os.environ.get("OCR_WORKDIR") or None)
     src = os.path.join(workdir, "input" + (ext or ".bin"))
-    with open(src, "wb") as f:
-        f.write(body)
     try:
+        with open(src, "wb") as f:
+            f.write(body)
         # Images always go to the vision model — that's the point of OCR here.
         if ext in IMAGE_EXTS:
             return [_page(_ocr_image(src), 1, filename, "vision")]

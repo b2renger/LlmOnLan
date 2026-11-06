@@ -45,6 +45,10 @@ const farmPassword = (c) => (c.proxy && c.proxy.masterKey) || null;
 const DESCRIPTORS = [
     {
         id: 'websearch', label: 'Web search', logPrefix: 'searxng', configKey: 'websearch', healthKey: 'searxngUp', runsOn: 'farm',
+        // An engine's HTTP error is logged with the URL SearXNG asked it, and that URL holds the person's search
+        // ("… for url 'https://www.bing.com/search?q=…'"). The farm keeps no query: the line that says so is dropped,
+        // and the traceback's other lines still name the engine (review 2026-11-05, LOG-1).
+        logSkip: / for url '/,
         enabled: (c) => !!(c.websearch && c.websearch.enabled),
         port: (c) => c.websearch.port,
         installed: () => searxng.installed(),
@@ -88,6 +92,7 @@ const DESCRIPTORS = [
         installed: (c) => extract.installed(c),
         ensure: (c) => extract.ensureExtract(c),
         spawn: (c, ctx) => extract.spawnExtract(c, ctx),
+        afterStop: () => extract.clearWork(),
         stepMessage: (c, ctx) => `OCR: preparing document extraction (port ${c.ocr.port}, model ${ctx.model}) — first run installs it …`,
         waitReady: async (c, ctx) => {
             const ex = await extract.waitForExtract(c.ocr.port, undefined, probeHost(c));
@@ -266,6 +271,7 @@ class FarmService {
         this.up = false;
         this.wasUp = false;
         if (c) await killTree(c.pid);
+        if (this.desc.afterStop) this.desc.afterStop();
     }
 
     // Health-timer re-probe: only advertise while it actually answers (and it came up).

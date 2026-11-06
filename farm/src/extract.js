@@ -16,6 +16,7 @@
 // farm still comes up without OCR.
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
@@ -27,6 +28,7 @@ const IS_WIN = process.platform === 'win32';
 const ROOT = path.join(__dirname, '..', '.extract');   // farm/.extract
 const VENV = path.join(ROOT, 'venv');
 const PYSVC = path.join(__dirname, 'pysvc');            // committed service source
+const WORK = path.join(ROOT, 'work');                  // where the service works on an upload (clearWork)
 const MARKER = path.join(ROOT, '.installed');          // records the installed deps signature
 
 // Light, torch-free base deps (server.py + the vendored OCRProcessor). Docling is
@@ -110,7 +112,22 @@ async function ensureExtract(config) {
 // `import ocr_processor` resolves), bound where config.proxy.host says (the LAN on a
 // shared farm, loopback on a private one — net.serviceHosts). opts = { key, model,
 // ollamaUrl }. `spawnFn` is for tests.
+// The service writes each upload and its page images under WORK and removes them when it is done, in a Python
+// `finally` that a hard kill skips (`lol down`, the plugin switch, a preset, a crash). The farm keeps no document: so
+// WORK is emptied at every start and stop, and at a start the `lolocr_*` folders older versions left in the temp
+// folder go too (review 2026-11-05, LOG-2). A file still held goes at the next start.
+function clearWork({ tempToo = false } = {}) {
+    const drop = (d) => { try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); } catch { /* next start */ } };
+    drop(WORK);
+    if (!tempToo) return;
+    let names = [];
+    try { names = fs.readdirSync(os.tmpdir()); } catch { /* no temp folder to read: nothing to sweep */ }
+    for (const n of names) if (n.startsWith('lolocr_')) drop(path.join(os.tmpdir(), n));
+}
+
 function spawnExtract(config, opts, spawnFn = spawn) {
+    clearWork({ tempToo: true });
+    fs.mkdirSync(WORK, { recursive: true });
     const bind = serviceHosts(config.proxy && config.proxy.host).bind;
     const child = spawnFn(venvPython(), ['-m', 'uvicorn', 'server:app', '--host', bind, '--port', String(config.ocr.port)], {
         cwd: PYSVC,
@@ -121,6 +138,7 @@ function spawnExtract(config, opts, spawnFn = spawn) {
             PYTHONPATH: PYSVC,
             EXTRACT_API_KEY: opts.key,
             EXTRACT_PORT: String(config.ocr.port),
+            OCR_WORKDIR: WORK,
             OCR_MODEL: opts.model || '',
             OCR_OLLAMA_URL: opts.ollamaUrl,
             OCR_FORMAT: config.ocr.format,
@@ -163,4 +181,4 @@ async function extractAlive(port, host = '127.0.0.1') {
     return (await get(`http://${host}:${port}/health`)) === 200;
 }
 
-module.exports = { ensureExtract, spawnExtract, waitForExtract, extractAlive, depsSignature, installed };
+module.exports = { ensureExtract, spawnExtract, waitForExtract, extractAlive, depsSignature, installed, clearWork, WORK };

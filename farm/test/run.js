@@ -2418,6 +2418,12 @@ test('private farm: plugins bind loopback and advertise loopback URLs (FA-4)', (
         assert.equal(s1.calls[0].opts.env.SEARXNG_BIND_ADDRESS, want, `searxng on proxy.host=${proxyHost}`);
         const s2 = spy(); extractMod.spawnExtract(c, { key: 'k', model: 'm', ollamaUrl: 'http://127.0.0.1:11434/api/generate' }, s2);
         assert.equal(hostArg(s2.calls[0].args), want, `ocr on proxy.host=${proxyHost}`);
+        // A kill skips the service's own cleanup, so it works in a folder the farm empties (LOG-2).
+        assert.equal(s2.calls[0].opts.env.OCR_WORKDIR, extractMod.WORK);
+        fs.mkdirSync(path.join(extractMod.WORK, 'lolocr_x'), { recursive: true });
+        fs.writeFileSync(path.join(extractMod.WORK, 'lolocr_x', 'input.pdf'), 'a document');
+        extractMod.clearWork();
+        assert.equal(fs.existsSync(extractMod.WORK), false, 'stopped: no document stays on the farm');
         const s3 = spy(); kokoroMod.spawnKokoro(c, { spawnFn: s3, espeak: '' });
         assert.equal(hostArg(s3.calls[0].args), want, `kokoro on proxy.host=${proxyHost}`);
     }
@@ -2653,6 +2659,11 @@ test('document search: one pinned model, its contract, and llama-server run with
     const skip = makeServices().find((s) => s.id === 'embed').desc.logSkip;
     for (const l of ['0.52.781.843 I slot launch_slot_: id  6 | task 2 | processing task, is_child = 0', '0.01.839.068 I slot      release: id  7 | task 0 | stop processing: n_tokens = 19, truncated = 0', '0.52.781.833 I slot get_availabl: id  6 | task -1 | selected slot by LRU, t_last = -1']) assert.ok(skip.test(l), l);
     for (const l of ['0.04.676.281 E srv    send_error: task id = 10, error: input (3209 tokens) is too large to process. increase the physical batch size (current batch size: 2048)', '0.02.164.612 I srv  llama_server: listening on http://127.0.0.1:18894']) assert.ok(!skip.test(l), l);
+    // SearXNG logs an engine's HTTP error with the URL it asked, the person's search inside: the farm keeps no query.
+    const sx = makeServices().find((s) => s.id === 'websearch').desc.logSkip;
+    assert.ok(sx.test("ERROR:searx.engines.bing: requests exception (search duration : 0.2 s) : Server error '503 Service Unavailable' for url 'https://www.bing.com/search?q=my+salary'"), 'the error line');
+    assert.ok(sx.test("httpx.HTTPStatusError: Client error '400 Bad Request' for url 'https://fr.wikipedia.org/api/rest_v1/page/summary/my%20salary'"), 'the traceback\'s last line');
+    assert.ok(!sx.test('Traceback (most recent call last):') && !sx.test('ERROR:searx.engines.bing: engine timeout'), 'the lines that name the engine stay');
     // The key rides LLAMA_API_KEY; the box's own LLAMA_* variables (which set llama-server's flags) never reach it.
     const calls = [];
     const saved = process.env.LLAMA_ARG_LOG_PROMPTS_DIR;

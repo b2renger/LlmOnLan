@@ -58,6 +58,7 @@ async function run() {
             await killTree(rt.extractPid);
             killed++;
         }
+        require('../extract').clearWork();   // a kill skips the service's own cleanup: no document stays (LOG-2)
         for (const [pid, label] of [[rt.classifyPid, 'Classify'], [rt.sttPid, 'speech to text'], [rt.busPid, 'the message bus'], [rt.embedPid, 'document search']]) {
             if (pid && isAlive(pid)) {
                 log.step(`Stopping ${label} (pid ${pid}) …`);
