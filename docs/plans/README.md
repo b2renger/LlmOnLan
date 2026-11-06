@@ -71,6 +71,9 @@ processed in a cloud; the code follows the ponytail ladder.
 11. **Prune old coding-agent session logs** in `DATA_DIR/lol-studio/dsh` (IDE_PLAN slice 7). **S**.
 12. **The coding agent's fence check on macOS and Linux** (`sandboxBlocked` checks only on Windows). After HUMAN_TESTS
     E4. **M**.
+13. **Measure Ripple-65B Preview**, a dense model tuned for coding: about 4–13 people at 64k on the PRO 6000 by
+    estimate, so a small group's model at best. It needs a vLLM nightly in a root of its own, after Now 3
+    ([the study](../research/RIPPLE_65B_STUDY.md)). **S**, the owner's quiet hour.
 
 ## 3. Later
 
