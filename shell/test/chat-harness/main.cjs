@@ -311,10 +311,13 @@ function createWindow(hasProjects, hasDebugLog, hasIo, hasStudio, hasHome) {
             nodeIntegration: false,
             backgroundThrottling: false,
             preload: path.join(__dirname, 'preload.cjs'),
+            nodeIntegrationInSubFrames: true,   // as the app's window: the preload strips WebRTC from every other frame
             session: chatSession,
             additionalArguments: [hasProjects && '--lol-projects=1', hasDebugLog && '--lol-debuglog=1', hasIo && '--lol-io=1', hasStudio && '--lol-studio=1', hasHome && '--lol-home=1'].filter(Boolean),
         },
     });
+    // As the app's window (src/main/index.ts): no WebRTC route out of this page or any frame in it.
+    win.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
     harnessWin = win;
 
     // ---- LOL Studio (S0) ---- (navigation veto; mirrored in shell/src/main/index.ts)

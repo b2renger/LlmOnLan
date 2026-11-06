@@ -6,6 +6,29 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-06 (16:57) — The Computer's sandbox really has no network now: WebRTC was a way out
+
+The review's EGRESS-02 said WebRTC might escape the sandbox, "not verified at runtime". Measured in a real sandbox in Electron
+(`c3-sandbox-webrtc`): a guest sent 4 UDP packets to an address of its choice, and opened a TCP connection through a TURN server.
+A TURN username can carry whatever a guest read, so a Code box's document or home readings could leave. CLAUDE.md promised "no network".
+
+Each proposed fix was tried, and three did not hold:
+
+| Tried | Result |
+|---|---|
+| `webrtc 'block'` in the runner's CSP | **nothing**: with and without it the packets are the same (a control run). Removed: a rule that does nothing reads as a fence |
+| The review's fix: delete `RTC*` in the runner | an `<iframe srcdoc>` is a fresh realm with its own constructor, and it ran. `frame-src 'none'` does not cover it, and `will-frame-navigate` never fires for it. (An empty `<iframe>` is refused: a cross-origin frame.) |
+| `setWebRTCIPHandlingPolicy('disable_non_proxied_udp')` | stops all UDP, not TURN over TCP |
+| **A preload in every frame** | **0 packets, by any route** |
+
+The fix: `nodeIntegrationInSubFrames` runs the preload in every frame before that frame's scripts, however the frame was made. The
+preload gives the `lol` door only when `process.isMainFrame === true`, so any other answer gives no door, and takes `RTC*` out of every
+other frame through `contextBridge.executeInMainWorld`. The UDP policy stays as the backstop. No Node in any frame.
+
+**Tested:** `--phase c3` 28/28 and `--phase k` 216/216 in Electron (`c3-sandbox-isolation`: `ownLol` still blocked), and the REAL compiled app on a throwaway
+profile, because the harness has its own copy of the preload and a wrong answer there would cost the client its whole bridge: the main
+frame keeps all 44 doors and reads its settings, and a real Code box sees `typeof RTCPeerConnection === 'undefined'`. Chat-unit and lint pass.
+
 ## 2026-11-06 (16:42) — The capacity generator runs again, and keeps Flint
 
 `build_measured.py` no longer ran at all: every vLLM 0.33.0 result parsed as llama.cpp and crashed on `('gemma4', None)`, any model

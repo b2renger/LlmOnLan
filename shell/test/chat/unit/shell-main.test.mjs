@@ -753,6 +753,19 @@ export default (test) => {
   });
 
   // ---------------------------------------------------------------- B-3: a dev build never checks GitHub
+  test('EGRESS-02: every frame runs the preload, the door goes to the main frame alone, and the others lose WebRTC', () => {
+    const preload = fs.readFileSync(path.join(SHELL, 'src', 'preload', 'index.ts'), 'utf8');
+    assert.ok(preload.includes('if (process.isMainFrame === true) contextBridge.exposeInMainWorld(name, api);'), 'fails closed: only a yes opens the door');
+    assert.equal((preload.match(/exposeInMainWorld/g) || []).length, 1, 'one door, behind the check');
+    assert.ok(preload.includes("if (process.isMainFrame !== true) contextBridge.executeInMainWorld({ func: STRIP_WEBRTC });"));
+    assert.ok(preload.includes('/^(webkit)?RTC/.test(name)'));
+    const src = indexSrc();
+    assert.ok(src.includes('nodeIntegrationInSubFrames: true,'), 'or an <iframe srcdoc> keeps a whole WebRTC of its own');
+    assert.ok(src.includes('nodeIntegration: false,'), 'never Node in a frame');
+    assert.ok(src.includes("win.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');"), 'the backstop');
+    assert.ok(!fs.readFileSync(path.join(SHELL, 'renderer', 'chat', 'sandbox', 'runner.html'), 'utf8').includes('webrtc \'block\''), 'measured: Chromium ignores it here, and a rule that does nothing reads as a fence');
+  });
+
   test('PIN-1 + PIN-2: the bundle caps PyAV and decodes a recording, and a rebuilt bundle of the same Open WebUI is offered', () => {
     const REPO = path.join(SHELL, '..');
     const build = fs.readFileSync(path.join(REPO, 'sidecar', 'build-sidecar.mjs'), 'utf8');

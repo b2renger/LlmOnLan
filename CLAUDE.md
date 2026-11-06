@@ -435,7 +435,7 @@ and its next work goes to docs/plans/README.md. Snapshot:
   `GATE_TYPES`). Code/p5/three/HTML run in ONE opaque-origin sandbox iframe (`sandbox/runner.html`,
   `allow-scripts` only, no network, vendored three r160 / p5 / matter, and d3 7.9 (2026-09-27, loaded for code that names
   `d3.`); `sandbox/host.mjs` is the only iframe maker)
-  plus at most one **Live** guest that gets the mouse and keys (`lol.orbit(camera)` is the first-party
+  **WebRTC out** (2026-11-06, not released yet; its CSP never governed WebRTC, and Chromium ignores `webrtc 'block'` here: a guest sent UDP and a TURN TCP connection to an address it chose, and an `<iframe srcdoc>` is a fresh realm): the window has `nodeIntegrationInSubFrames`, so `src/preload/index.ts` runs in every frame before its scripts, gives the `lol` door to the main frame alone (`process.isMainFrame === true`) and strips `RTC*` from every other; `setWebRTCIPHandlingPolicy` is the backstop for UDP; harness `c3-sandbox-webrtc`. Plus at most one **Live** guest that gets the mouse and keys (`lol.orbit(camera)` is the first-party
   camera control); a Preview box's **Edit code** opens a drawer editor. View tools: Select (V) · Hand (H) · − % + Fit,
   answering from anywhere on the Computer, never while typing. What leaves the machine: prompt text and an
   Image's (or a Preview's rendered) pixels inside the Instruction's chat completion to the farm; a Document's PDF bytes to the farm

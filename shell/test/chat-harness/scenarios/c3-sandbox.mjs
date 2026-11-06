@@ -73,6 +73,45 @@ const events = (/** @type {any} */ h) => h.eval(() => /** @type {any} */ (window
 // One string, so what the sandbox is asked to do is readable in one place. Every reach answers
 // "blocked:<reason>" or "allowed:<what came back>" — a probe that throws nothing and returns
 // nothing would otherwise read as a pass.
+import dgram from 'node:dgram';
+import net from 'node:net';
+
+/** WebRTC is outside the CSP: a STUN server's name is a way out for whatever a guest read (review EGRESS-02). */
+const WEBRTC_PROBE = `
+return (async () => {
+const out = {};
+const tryOne = async (key, PC, urls) => {
+  try {
+    if (!PC) { out[key] = 'no constructor'; return; }
+    const pc = new PC({ iceServers: [{ urls, username: 'a', credential: 'b' }] });
+    pc.createDataChannel('x');
+    await pc.setLocalDescription(await pc.createOffer());
+    await new Promise((r) => setTimeout(r, 1500));
+    out[key] = pc.iceGatheringState;
+    pc.close();
+  } catch (e) { out[key] = 'threw ' + (e && e.name); }
+};
+const stun = 'stun:127.0.0.1:' + inputs.port;
+await tryOne('window', self.RTCPeerConnection, stun);
+// A frame with no address is not a navigation, so frame-src does not stop it: a fresh realm, if it has a fresh constructor.
+const f = document.createElement('iframe');
+document.documentElement.appendChild(f);
+out.frame = f.contentWindow ? 'made' : 'none';
+let FramePC = null;
+try { FramePC = f.contentWindow.RTCPeerConnection; } catch (e) { out.frame = 'refused: ' + e.name; }
+await tryOne('blankFrame', FramePC, stun);
+f.remove();
+await tryOne('turnTcp', self.RTCPeerConnection, 'turn:127.0.0.1:' + inputs.tcp + '?transport=tcp');
+// A frame with inline content is a fresh realm that runs its own script, whatever was removed from this one.
+const g = document.createElement('iframe');
+g.srcdoc = '<script>try{const pc=new RTCPeerConnection({iceServers:[{urls:"stun:127.0.0.1:' + inputs.port + '"}]});pc.createDataChannel("x");pc.createOffer().then(o=>pc.setLocalDescription(o));parent.postMessage("srcdoc ran","*")}catch(e){parent.postMessage("srcdoc threw "+e.name,"*")}<\/script>';
+out.srcdoc = await new Promise((res) => { const t = setTimeout(() => res('no answer'), 2000); self.addEventListener('message', (e) => { if (String(e.data).startsWith('srcdoc')) { clearTimeout(t); res(e.data); } }); document.documentElement.appendChild(g); });
+await new Promise((r) => setTimeout(r, 1200));
+g.remove();
+return JSON.stringify(out);
+})();
+`;
+
 const REACH_PROBE = `
 const out = {};
 const sync = (k, fn) => { try { out[k] = 'allowed:' + String(fn()).slice(0, 60); } catch (e) { out[k] = 'blocked:' + (e && e.name ? e.name : String(e)); } };
@@ -179,6 +218,29 @@ export default [
             const after = await h.mock.log({});
             h.eq(after.length, before, 'the mock farm saw no request from the guest');
             await close(h);
+        },
+    },
+
+    {
+        name: 'c3-sandbox-webrtc',
+        allowConsoleErrors: BLOCKED_NOISE,
+        needsMock: true,
+        run: async (/** @type {any} */ h) => {
+            const opened = await open(h, {});
+            h.eq(opened.ok, true, 'the sandbox booted');
+            const udp = dgram.createSocket('udp4');
+            /** @type {string[]} */ const packets = [];
+            udp.on('message', (m, from) => packets.push(`${from.address}:${from.port} ${m.length} B`));
+            await new Promise((/** @type {any} */ r) => udp.bind(0, '127.0.0.1', r));
+            const tcp = net.createServer((c) => { packets.push('tcp connection'); c.destroy(); });
+            await new Promise((/** @type {any} */ r) => tcp.listen(0, '127.0.0.1', r));
+            try {
+                const out = await compute(h, WEBRTC_PROBE, { port: udp.address().port, tcp: /** @type {any} */ (tcp.address()).port }, { timeoutMs: 9000 });
+                h.assert(out.ok, `the probe itself failed to run: ${out.error && out.error.message}`);
+                const seen = JSON.parse(JSON.parse(out.json));
+                h.note(`webrtc: ${JSON.stringify(seen)}, ${packets.length} packets`);
+                h.eq(packets.length, 0, `a guest reached the network over WebRTC: ${packets.join(', ')}`);
+            } finally { udp.close(); tcp.close(); await close(h); }
         },
     },
 

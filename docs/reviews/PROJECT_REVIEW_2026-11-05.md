@@ -22,7 +22,7 @@ says "not verified at runtime" means that: no Electron app could start there.
 
 ## Round 2's findings
 
-21 of 147 are fixed; each fixed one says so. High first, then by area.
+22 of 147 are fixed; each fixed one says so. High first, then by area.
 
 ### High (15)
 
@@ -42,9 +42,8 @@ says "not verified at runtime" means that: no Electron app could start there.
   The OCR service writes each uploaded file to a temp folder, plus each page it renders and preprocesses, and deletes the folder only in a `finally`. The farm stops plugins with a hard kill: `lol down`, the Farm app's Quit or Stop, turning document reading off in Plugins, or a preset's Apply that turns it off. If that kill comes mid-document, the `finally` never runs, and the person's document and its page images stay…
 - **EGRESS-01** — **fixed** (2026-11-06, with OLD-1 (the paste included)) · `shell/renderer/chat/graph/serialize.mjs` · privacy, needs a decision
   A graph file someone hands over keeps every person-only choice except Listen. The Agent's allowed hosts survive import. So do the Home box's devices, the Home command's device, action and details, the Fetch address, the Open data link and the USB board. A pasted selection keeps everything, Listen included. One Run all on such a file can read this person's Home Assistant (devices the file named, calendars included) o…
-- **EGRESS-02** · `shell/renderer/chat/sandbox/runner.html` · security, needs a decision
+- **EGRESS-02** — **fixed** (2026-11-06, measured first; a preload in every frame, not the deletion the review proposed) · `shell/renderer/chat/sandbox/runner.html` · security, needs a decision
   The sandbox's 'no network' rests on CSP connect-src 'none'. Chromium's CSP does not govern WebRTC, and nothing removes RTCPeerConnection from the guest or sets a WebRTC policy. Code a model wrote (Write code, an Agent's run_code) or a shared graph's Code/Preview box could put its inputs (a document's text, home readings) into a STUN/TURN server name and reach any host by DNS and UDP. Not verified at runtime: this ma…
-  *Fix:* 1. Probe first in the chat harness, with three variants: a STUN server (`stun:probe.invalid:3478`), a TURN server over TCP (`turn:probe.invalid:443?transport=tcp`), and both again through `document.body.appendChild(document.createElement('iframe')).contentWindow.RTCPeerConnection`. Watch for DNS and UDP/TCP traffic. 2. If it leaves: add `webrtc 'block'` to runner.html's CSP and to RUNNER_CSP in sandbox/protocol.mjs …
 - **TRUST-1** — **fixed** (2026-11-06) · `shell/src/main/farmSelect.ts` · privacy
   Every plugin address a farm advertises (searxngUrl, ttsUrl, extract.url, stt.url, embed.url, classify.url) is used exactly as given. Nothing checks that it is the farm's own host, or even on the LAN. Open WebUI, main's web search and the Computer then send there an uploaded file's bytes (OCR), each piece of a document's text (document search), microphone and Call mode recordings (speech to text), search queries and …
 - **TRUST-2** — **fixed** (2026-11-06) · `shell/src/main/discovery.ts` · security

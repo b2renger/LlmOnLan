@@ -539,10 +539,15 @@ function createWindow(): void {
             contextIsolation: true,
             nodeIntegration: false,
             webviewTag: true, // the main area embeds OWUI in a <webview>
+            // Runs the preload in every frame of this window, before that frame's scripts: it gives the `lol` door to the
+            // main frame alone, and takes WebRTC out of the others (src/preload/index.ts). NOT Node in a frame.
+            nodeIntegrationInSubFrames: true,
             // LOL Chat + the Computer keep their data in this session: <DATA_DIR>/lol-client.
             ...(clientSes ? { session: clientSes } : {}),
         },
     });
+    // The backstop to the preload: no UDP for WebRTC anywhere in this window. Nothing here uses WebRTC.
+    win.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
     win.removeMenu();
     win.loadFile(path.join(app.getAppPath(), 'renderer', 'index.html'));
     win.webContents.on('did-finish-load', () => { pushSidecarState(); pushHome(); });

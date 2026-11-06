@@ -3,7 +3,22 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 
-contextBridge.exposeInMainWorld('lol', {
+// Every frame of the window runs this file (nodeIntegrationInSubFrames in main's createWindow), and before any script of
+// that frame. So the door goes ONLY to a frame Electron calls the main one, and any other answer gives no door. Every
+// other frame, a sandbox guest and any frame it makes, loses WebRTC here: Chromium's CSP does not govern it, a STUN or
+// TURN server's name is a way out for what a guest read, and an <iframe srcdoc> is a fresh realm no deletion in the
+// guest's own page reaches (measured, harness c3-sandbox-webrtc, review EGRESS-02).
+const STRIP_WEBRTC = (): void => {
+    for (const name of Object.getOwnPropertyNames(window)) {
+        if (/^(webkit)?RTC/.test(name)) delete (window as unknown as Record<string, unknown>)[name];
+    }
+};
+if (process.isMainFrame !== true) contextBridge.executeInMainWorld({ func: STRIP_WEBRTC });
+const expose = (name: string, api: Record<string, unknown>): void => {
+    if (process.isMainFrame === true) contextBridge.exposeInMainWorld(name, api);
+};
+
+expose('lol', {
     // Sidecar (Open WebUI) lifecycle state — push + pull.
     onSidecarState: (cb: (s: unknown) => void) =>
         ipcRenderer.on('sidecar-state', (_e, s) => cb(s)),

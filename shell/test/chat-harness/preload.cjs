@@ -61,4 +61,10 @@ if (process.argv.includes('--lol-studio=1')) api.studio = {
     install: () => ipcRenderer.invoke('lol:studio:install'),
     onEvent: (fn) => { ipcRenderer.on('lol:studio:event', (_e, msg) => fn(msg)); },
 };
-contextBridge.exposeInMainWorld('lol', api);
+// As shell/src/preload/index.ts: every frame runs this file, the door goes to the main frame alone, and any other frame loses WebRTC.
+if (process.isMainFrame === true) contextBridge.exposeInMainWorld('lol', api);
+else {
+    contextBridge.executeInMainWorld({
+        func: () => { for (const name of Object.getOwnPropertyNames(window)) if (/^(webkit)?RTC/.test(name)) delete window[name]; },
+    });
+}
