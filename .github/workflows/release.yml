@@ -95,15 +95,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Pack the sidecar as owui-sidecar-<platform>-<arch>.tar.gz + a tiny manifest
-      # (the OWUI version) for the app's download-on-first-run + OWUI-update flow.
+      # (the OWUI version, and sidecar/BUNDLE_REV for a rebuilt bundle of the same OWUI) for the app's
+      # download-on-first-run + OWUI-update flow.
       - name: Package the OWUI sidecar
         shell: bash
         run: |
           set -e
           plat=$(node -e "process.stdout.write(process.platform+'-'+process.arch)")
           ver=$(tr -d ' \r\n' < sidecar/OPENWEBUI_VERSION)
+          rev=$(tr -d ' \r\n' < sidecar/BUNDLE_REV)
           tar -czf "owui-sidecar-${plat}.tar.gz" -C sidecar/build/sidecar .
-          printf '{"owuiVersion":"%s"}\n' "$ver" > owui-sidecar-manifest.json
+          printf '{"owuiVersion":"%s","bundleRev":"%s"}\n' "$ver" "$rev" > owui-sidecar-manifest.json
           ls -la owui-sidecar-* | cat
 
       # The IDE's coding agent (docs/plans/IDE_PLAN.md slice 5): a pinned Node + the pinned DeepSeek Harness (npm ci of

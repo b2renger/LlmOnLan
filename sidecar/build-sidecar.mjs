@@ -24,6 +24,14 @@ import { execFileSync } from 'child_process';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PY_PREFIX = process.env.LOL_PY_VERSION || '3.12'; // Open WebUI supports 3.11/3.12
 const OWUI_VERSION = fs.readFileSync(path.join(__dirname, 'OPENWEBUI_VERSION'), 'utf8').trim();
+/** A tenth of a second of silence, through the door Open WebUI's transcriber uses. */
+const DECODE_CHECK = `
+import os, tempfile, wave
+from faster_whisper.audio import decode_audio
+p = os.path.join(tempfile.mkdtemp(), 't.wav')
+w = wave.open(p, 'wb'); w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000); w.writeframes(bytes(3200)); w.close()
+assert len(decode_audio(p)) == 1600
+`;
 
 // node platform/arch → python-build-standalone "install_only" asset triple.
 const TRIPLES = {
@@ -140,11 +148,16 @@ async function main() {
     // recent releases make some audio deps optional; install it explicitly so voice
     // mode works fully offline on a closed LAN regardless of OWUI's extras. A no-op
     // ("already satisfied") when OWUI already bundles it.
-    log('pip install faster-whisper (local speech-to-text for voice mode) …');
-    execFileSync(py, ['-m', 'pip', 'install', '--no-warn-script-location', 'faster-whisper'], {
+    // PyAV came in through faster-whisper's `av>=11`, so it was whatever PyPI had on build day, and PyAV 19 (2026-09-29)
+    // dropped an argument faster-whisper 1.2.1 passes: every recording failed on a laptop. Capped here; the decode below
+    // fails the build if a later pin breaks it again, rather than a person's microphone.
+    log('pip install faster-whisper, PyAV below 19 (local speech-to-text for voice mode) …');
+    execFileSync(py, ['-m', 'pip', 'install', '--no-warn-script-location', 'faster-whisper', 'av<19'], {
         stdio: 'inherit',
         env: { ...process.env, PYTHONUTF8: '1' },
     });
+    log('checking that the bundle decodes a recording …');
+    execFileSync(py, ['-c', DECODE_CHECK], { stdio: 'inherit', env: { ...process.env, PYTHONUTF8: '1' } });
 
     // 2b. On Linux, the PyPI `torch` is the CUDA build, which pulls ~3-4 GB of
     // nvidia-*/cuda-toolkit wheels (cudnn, nccl, cublas, …) as DEPENDENCIES —
@@ -177,6 +190,7 @@ async function main() {
     // reads <userData>/sidecar/OPENWEBUI_VERSION).
     fs.copyFileSync(path.join(__dirname, 'launcher.py'), path.join(outDir, 'launcher.py'));
     fs.copyFileSync(path.join(__dirname, 'OPENWEBUI_VERSION'), path.join(outDir, 'OPENWEBUI_VERSION'));
+    fs.copyFileSync(path.join(__dirname, 'BUNDLE_REV'), path.join(outDir, 'BUNDLE_REV'));
 
     fs.rmSync(workDir, { recursive: true, force: true });
 

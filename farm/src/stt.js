@@ -35,7 +35,8 @@ const MARKER = path.join(ROOT, '.installed');
 // operator chose a folder for the farm's models (storage.js).
 const modelsDir = () => require('./storage').sttDir();
 
-// Pinned to what Open WebUI 0.11.4's sidecar runs: faster-whisper 1.2.1, CTranslate2 4.8.2 (CUDA 12) and PyAV 18.1.0.
+// Pinned to what Open WebUI 0.11.4's faster-whisper needs: 1.2.1, CTranslate2 4.8.2 (CUDA 12) and PyAV 18.1.0 (the client's
+// sidecar caps PyAV below 19 for the same reason, sidecar/build-sidecar.mjs).
 // PyAV 19 dropped the `metadata_errors` argument faster-whisper 1.2.1 passes: an unpinned install from 2026-10 on
 // refused every recording ("could not read the audio").
 const FW_VERSION = '1.2.1';

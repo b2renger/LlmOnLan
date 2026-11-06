@@ -22,7 +22,7 @@ says "not verified at runtime" means that: no Electron app could start there.
 
 ## Round 2's findings
 
-19 of 147 are fixed; each fixed one says so. High first, then by area.
+21 of 147 are fixed; each fixed one says so. High first, then by area.
 
 ### High (15)
 
@@ -144,12 +144,10 @@ says "not verified at runtime" means that: no Electron app could start there.
 - **RECIPE-1** · `farm/README.md` · false
   For a headless DGX Spark, which gets no farm at boot, the README offers 'or keep the operator-run recipe there (lol-vllm.service): do not press Let the farm run vLLM, or press Undo; the farm then starts vLLM as usual'. That recipe brings back only vLLM at boot, not the farm. Its own step 4 starts the farm from a terminal or from a desktop autostart file, which needs a desktop log-in. And with the recipe the farm nev…
   *Fix:* In farm/README.md:433, replace 'or from a systemd unit of your own; or keep the operator-run recipe there ([On Linux (DGX Spark)](#on-linux-dgx-spark), `lol-vllm.service`): do not press Let the farm run vLLM, or press Undo; the farm then starts vLLM as usual' with 'or from a systemd unit of your own; the farm then starts vLLM as usual'. Keep the following '([VLLM_MANAGED_PLAN.md](...) R4; ...)' as it is. Then add on…
-- **PIN-1** · `sidecar/build-sidecar.mjs` · bug
+- **PIN-1** — **fixed** (2026-11-06, av<19 and a decode in the build) · `sidecar/build-sidecar.mjs` · bug
   The client's Open WebUI bundle gets whatever PyAV is newest on build day. Every sidecar CI built after 2026-09-29 ships PyAV 19, which faster-whisper 1.2.1 cannot use. Open WebUI's own speech to text on the laptop fails on every recording. That is the path used when the farm does not offer speech to text, which is OFF by default. It covers the microphone button and Call mode.
-  *Fix:* As proposed, but word the stt.js:38 comment like this: 'Pinned: faster-whisper 1.2.1 (Open WebUI 0.11.4's pin), CTranslate2 4.8.2 (CUDA 12 wheels, measured 2026-10-09), PyAV 18.1.0 (PyAV 19 removed av.open's metadata_errors, which faster-whisper 1.2.1 passes; the client's sidecar pins it too, build-sidecar.mjs).'
-- **PIN-2** · `shell/src/main/sidecarManager.ts` · bug, needs a decision
+- **PIN-2** — **fixed** (2026-11-06, sidecar/BUNDLE_REV; offered on a click, the owner's choice) · `shell/src/main/sidecarManager.ts` · bug, needs a decision
   The installed Open WebUI bundle is never replaced while Open WebUI's version stays 0.11.4. This holds even when the bundle is rebuilt with a fix such as PIN-1's PyAV pin. Every client that installed its sidecar after 2026-09-29 keeps PyAV 19 for good, unless a person deletes userData/sidecar by hand.
-  *Fix:* Add a committed file sidecar/SIDECAR_REVISION holding an integer. Set it to 1 with PIN-1's fix, and bump it by hand only when the bundle recipe changes. build-sidecar.mjs copies it next to OPENWEBUI_VERSION in the bundle (beside line 179). release.yml:106 writes {"owuiVersion":"$ver","revision":$(cat sidecar/SIDECAR_REVISION)}. Add bundledSidecarRevision() in paths.ts (a missing file counts as 0). findSidecarAsset a…
 - **PIN-3** · `farm/src/llamacpp.js` · security
   The farm runs the llama.cpp server with no checksum on what it downloaded. That covers ggml-org's Windows zips and our own arm64 tarball, which the workflow re-uploads with --clobber. Document search uses the same build and is 'auto' (on) on every NVIDIA box, so this download runs on most farms.
   *Fix:* 1) build-llamacpp-arm64.yml: at the start of the job, skip the build when the release already holds the asset. For example: gh release view "llamacpp-$LLAMACPP_BUILD" --json assets -q '.assets[].name' | grep -qx "llama-$LLAMACPP_BUILD-bin-linux-cuda-arm64.tar.gz" && exit 0. Drop --clobber at line 105. 2) llamacpp.js: keep files as name strings. Add const SHA256 = { 'llama-b11836-bin-win-cuda-13.4-x64.zip': 'a0ee994a…

@@ -6,6 +6,23 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-06 (16:38) — The laptop's own speech to text works again, and a rebuilt bundle can reach a laptop
+
+**Reproduced first** in a throwaway venv: faster-whisper 1.2.1 with PyAV 19.0.2 gives `TypeError: open() got an unexpected keyword
+argument 'metadata_errors'` on the first recording; with PyAV below 19 it decodes. Every bundle CI built after 2026-09-29 has PyAV
+19, because it came in through `av>=11`, so on a farm without speech to text Open WebUI's microphone and Call mode failed.
+
+- `build-sidecar.mjs` installs `av<19` and then decodes a tenth of a second of silence through `faster_whisper.audio`, the door
+  Open WebUI uses. That check was run on both versions: it passes on 18.1.0 and fails on 19.0.2. The review proposed pinning
+  `faster-whisper==1.2.1` too. That would make a bump of Open WebUI a code change, which invariant #5 forbids, so faster-whisper
+  stays as Open WebUI pins it and the build fails if a future pair breaks.
+- **PIN-2:** an installed bundle was never replaced while Open WebUI's version stayed the same. `sidecar/BUNDLE_REV` (2) goes in the
+  bundle and the manifest, and `offerBundle` offers a different number. The review proposed the release tag as the id, which would
+  have offered a 1 GB download at every release with nothing changed; the number moves only when a bundle must be replaced.
+
+**Tested:** chat-unit 1956/1956, shell 30/30, lint 0, farm 287/287. Not run: a full `build-sidecar` (CI does it at the next tag, and
+now fails there if the decode fails). Person's check: HUMAN_TESTS A18 step 5, on a farm with speech to text off.
+
 ## 2026-11-06 (16:34) — The review's last high findings: an address, a failed save, the panel's focus
 
 - **A phone's street address** (TEXT-1, `homeAssistant.ts`). A geocoded-location sensor has the address as its STATE, so

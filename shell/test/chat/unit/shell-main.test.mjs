@@ -753,6 +753,22 @@ export default (test) => {
   });
 
   // ---------------------------------------------------------------- B-3: a dev build never checks GitHub
+  test('PIN-1 + PIN-2: the bundle caps PyAV and decodes a recording, and a rebuilt bundle of the same Open WebUI is offered', () => {
+    const REPO = path.join(SHELL, '..');
+    const build = fs.readFileSync(path.join(REPO, 'sidecar', 'build-sidecar.mjs'), 'utf8');
+    assert.ok(build.includes("'faster-whisper', 'av<19'], {"), 'PyAV 19 dropped what faster-whisper 1.2.1 passes');
+    assert.ok(build.includes("execFileSync(py, ['-c', DECODE_CHECK]"), 'the build proves a decode');
+    assert.ok(build.includes("path.join(__dirname, 'BUNDLE_REV'), path.join(outDir, 'BUNDLE_REV')"));
+    assert.match(fs.readFileSync(path.join(REPO, 'sidecar', 'BUNDLE_REV'), 'utf8'), /^[0-9]+\n$/);
+    assert.ok(fs.readFileSync(path.join(REPO, '.github', 'workflows', 'release.yml'), 'utf8').includes('"bundleRev":"%s"'));
+    assert.equal(SM.offerBundle('0.11.4', '1', '0.11.4', '2'), true, 'the repaired bundle reaches a laptop with the broken one');
+    assert.equal(SM.offerBundle('0.11.4', '2', '0.11.4', '2'), false, 'one that has it is left alone');
+    assert.equal(SM.offerBundle('0.11.4', '1', '0.11.4', null), false, 'a release from before the number');
+    assert.equal(SM.offerBundle('0.11.4', '2', '0.12.0', '1'), true, 'another Open WebUI, as before');
+    assert.equal(SM.offerBundle('unknown', '1', '0.11.4', '2'), false, 'nothing installed yet: the first run downloads it');
+    assert.equal(SM.offerBundle('0.11.4', '1', null, null), false, 'GitHub could not be read');
+  });
+
   test('B-3 checkOwuiUpdate/downloadOwuiUpdate: a dev build answers at once and stages nothing', async () => {
     resetTrees();
     fakeApp.isPackaged = false;

@@ -16,7 +16,7 @@ import * as https from 'https';
 import { execFile, spawn } from 'child_process';
 import * as os from 'os';
 import { promisify } from 'util';
-import { sidecarRoot, sidecarInstalled, bundledOwuiVersion } from './paths';
+import { sidecarRoot, sidecarInstalled, bundledOwuiVersion, bundledRev } from './paths';
 
 const execFileP = promisify(execFile);
 
@@ -87,7 +87,7 @@ function downloadTo(url: string, dest: string, onBytes?: (recv: number, total: n
 
 // --- release asset lookup ---------------------------------------------------
 
-interface FoundAsset { url: string; owuiVersion: string | null }
+interface FoundAsset { url: string; owuiVersion: string | null; bundleRev: string | null }
 
 async function findSidecarAsset(tagOrLatest: string): Promise<FoundAsset | null> {
     const rel = tagOrLatest === 'latest'
@@ -97,11 +97,16 @@ async function findSidecarAsset(tagOrLatest: string): Promise<FoundAsset | null>
     const asset = rel.assets.find((a: any) => a.name === assetName());
     if (!asset) return null;
     let owuiVersion: string | null = null;
+    let bundleRev: string | null = null;
     const man = rel.assets.find((a: any) => a.name === MANIFEST);
     if (man) {
-        try { owuiVersion = JSON.parse((await httpGet(man.browser_download_url)).body).owuiVersion || null; } catch { /* optional */ }
+        try {
+            const m = JSON.parse((await httpGet(man.browser_download_url)).body);
+            owuiVersion = m.owuiVersion || null;
+            bundleRev = m.bundleRev || null;
+        } catch { /* optional */ }
     }
-    return { url: asset.browser_download_url, owuiVersion };
+    return { url: asset.browser_download_url, owuiVersion, bundleRev };
 }
 
 /** The download URL of one asset on a release of this repo ('latest' or a tag), or null. Also the IDE's
@@ -234,6 +239,12 @@ export async function ensureSidecar(onProgress?: ProgressCb): Promise<{ ok: bool
     }
 }
 
+/** PURE: is the latest release's bundle one to offer? Another Open WebUI, or the same one rebuilt on purpose: a fix to the
+ * bundle changes no Open WebUI version, so a laptop would otherwise keep the broken one for good (review PIN-2). */
+export function offerBundle(current: string, rev: string, latest: string | null, latestRev: string | null): boolean {
+    return !!(latest && current !== 'unknown' && (latest !== current || (latestRev && latestRev !== rev)));
+}
+
 // Is a newer OWUI available on the latest release? `latest: null` means GitHub could not
 // be read (offline, a closed LAN, rate-limited). A dev build never checks: it runs the
 // repo's sidecar/.venv, and a download would stage ~0.8–1.3 GB into a folder nothing uses.
@@ -242,7 +253,7 @@ export async function checkOwuiUpdate(): Promise<{ current: string; latest: stri
     if (!app.isPackaged) return { current, latest: null, updateAvailable: false, error: 'Chat-engine updates only apply to an installed build.' };
     const found = await findSidecarAsset('latest').catch(() => null);
     const latest = found?.owuiVersion || null;
-    return { current, latest, updateAvailable: !!(latest && latest !== current && current !== 'unknown') };
+    return { current, latest, updateAvailable: offerBundle(current, bundledRev(), latest, found?.bundleRev || null) };
 }
 
 // Download the latest OWUI sidecar, STAGED to userData/sidecar.pending — applied

@@ -91,6 +91,12 @@ export function settingsFile(): string {
     return path.join(app.getPath('userData'), 'shell-settings.json');
 }
 
+// Which build of the bundle is installed (sidecar/BUNDLE_REV, raised by hand when a bundle must replace an installed one of
+// the same Open WebUI version). '1' = a bundle from before the file existed.
+export function bundledRev(): string {
+    try { return fs.readFileSync(path.join(sidecarRoot(), 'BUNDLE_REV'), 'utf8').trim() || '1'; } catch { return '1'; }
+}
+
 // The installed Open WebUI version (the pin), read from OPENWEBUI_VERSION. Dev:
 // the repo's sidecar/. Packaged: the downloaded userData/sidecar/. Returns
 // 'unknown' if the sidecar isn't installed yet (pre-first-run download).

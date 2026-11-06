@@ -500,7 +500,7 @@ and its next work goes to docs/plans/README.md. Snapshot:
   [voice plan](docs/archive/plans/COMPUTER_VOICE_PLAN.md), [ecosystem plan](docs/archive/plans/ECOSYSTEM_PLAN.md); a dated
   [status report](docs/archive/COMPUTER_STATUS.md) to 12 Oct; their leftovers go to [docs/plans/README.md](docs/plans/README.md).
 - **`sidecar/`** — `build-sidecar` bundles a relocatable standalone CPython 3.12 + OWUI + `launcher.py`;
-  `OPENWEBUI_VERSION` is the pin (**OWUI `0.11.4`** since 2026-09-27, Python 3.11/3.12; the bump notes, and what to check again at each bump, are in INTEGRATION_BRIEF). A packaged client runs
+  `OPENWEBUI_VERSION` is the pin (**OWUI `0.11.4`** since 2026-09-27, Python 3.11/3.12; the bump notes, and what to check again at each bump, are in INTEGRATION_BRIEF); `BUNDLE_REV` is raised by hand when a fix must replace installed bundles of the same OWUI, and About's check then offers them (2026-11-06, not released yet); the build caps PyAV below 19 and decodes a short recording. A packaged client runs
   `<userData>/sidecar/python launcher.py serve`; dev uses `sidecar/.venv`'s `open-webui serve`. NOT bundled
   into the installer — CI publishes it as `owui-sidecar-<platform>-<arch>.tar.gz` release assets and the
   packaged shell downloads it to `userData/sidecar` on first run (`sidecarManager.ts`); About ▸ "Check for

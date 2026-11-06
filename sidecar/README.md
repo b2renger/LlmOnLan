@@ -6,6 +6,11 @@ that enforces prime‑directive invariant #1 structurally.
 
 ## The pin
 
+`BUNDLE_REV` is the bundle's own number: raise it by one when a fix must replace installed bundles while Open WebUI's
+version stays the same (a laptop keeps its bundle otherwise). The next release's About ▸ *Check for chat-engine update*
+then offers it. PyAV is capped below 19 in `build-sidecar.mjs`, and the build decodes a short recording, so a pin that
+breaks the local transcriber fails the build.
+
 [`OPENWEBUI_VERSION`](OPENWEBUI_VERSION) is the **single source of truth** — currently `0.11.4`
 (Python 3.11/3.12; launched via the `open-webui serve` console entry, not `python -m`). The shell's
 About panel reads this file.

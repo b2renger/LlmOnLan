@@ -349,7 +349,7 @@ prefs.checkOwui.addEventListener('click', async () => {
     if (r.error) { prefs.owuiStatus.textContent = r.error; return; }
     if (!r.latest) { prefs.owuiStatus.textContent = 'Could not reach GitHub to check for a chat-engine update. Check the internet connection and try again.'; return; }
     if (!r.updateAvailable) { prefs.owuiStatus.textContent = `Chat engine is up to date (v${r.current}).`; return; }
-    prefs.owuiStatus.textContent = `v${r.latest} available — downloading…`;
+    prefs.owuiStatus.textContent = r.latest === r.current ? `A repaired v${r.latest} is available — downloading…` : `v${r.latest} available — downloading…`;
     const res = await window.lol.downloadOwuiUpdate();
     if (!res.ok) { prefs.owuiStatus.textContent = 'Download failed: ' + (res.error || 'unknown'); return; }
     prefs.owuiStatus.textContent = `v${res.version || r.latest} downloaded.`;

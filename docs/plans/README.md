@@ -34,9 +34,11 @@ processed in a cloud; the code follows the ponytail ladder.
    - a graph from a file lists what it reaches before its first run;
    - a phone's street address reaches no model;
    - LOL Vibe says when a save failed;
-   - the panel's keyboard focus stays on its row.
+   - the panel's keyboard focus stays on its row;
+   - the laptop's own speech to text works again (a rebuilt bundle, `BUNDLE_REV` 2): a client that has the broken one
+     gets it from About ▸ *Check for chat-engine update*.
 
-   Their person checks are in [HUMAN_TESTS](../HUMAN_TESTS.md): A21, A22, C7, D16, D17, G13, K11, K12, plus C8 and K13.
+   Their person checks are in [HUMAN_TESTS](../HUMAN_TESTS.md): A21, A22, A23, C7, D16, D17, G13, K11, K12, plus A18 step 5, C8 and K13.
 2. **The ★ list** in [HUMAN_TESTS](../HUMAN_TESTS.md) (proposed 2026-11-05): agree it, then run it in its order.
 3. **On the PRO 6000, at a quiet hour:** install farm-v0.0.51, then J14 and J15. J14 is Update vLLM 0.30.0 → 0.33.0,
    which takes it from 32 to 48 people at 64k every turn. J15 is Flint from the panel. **M**, the owner's hour.
@@ -118,6 +120,8 @@ processed in a cloud; the code follows the ponytail ladder.
    - reword invariant #4 to the calls the contract table lists (it says "admin REST API", which the app never uses).
 
 **Choices to make, one line each:**
+- **The chat engine:** a repaired bundle is offered on a click in About, and a laptop that never clicks keeps PyAV 19, so its own
+  speech to text keeps failing on a farm without speech to text. Keep the click, or download it by itself at the next start?
 - **Privacy:** a person's state (home, away, a zone's name) still reaches a model, and the texts now say so: keep it, or
   hide it too (TEXT-1; the home templates read it).
 - **The farm:**
