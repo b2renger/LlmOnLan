@@ -30,8 +30,8 @@ order, [docs/plans/README.md](docs/plans/README.md) (the open plans: [IDE_PLAN](
 built); the version‑specific integration facts, [docs/INTEGRATION_BRIEF.md](docs/INTEGRATION_BRIEF.md) (a dated
 snapshot of 2026-06-29 on 0.10.1, with each pin bump's notes and what to check again at the next). The last full
 consistency pass (code ↔ in‑app text ↔ these docs) is `docs/reviews/DOCS_REVIEW_2026-09-27_{FARM,SHELL,COMPUTER}.md`;
-the review of 2026-11-05 (code, docs, plans, tests) has no report in `docs/reviews/` yet, and its next work goes to
-docs/plans/README.md. Snapshot:
+the review of 2026-11-05 (code, docs, plans, tests) is [docs/reviews/PROJECT_REVIEW_2026-11-05.md](docs/reviews/PROJECT_REVIEW_2026-11-05.md),
+and its next work goes to docs/plans/README.md. Snapshot:
 
 - **`farm/`** — the `lol` CLI (verified end-to-end: `lol up` → real `/v1/chat/completions`; status/down;
   beacon + `/lol/self`). **Four engines behind one LiteLLM endpoint, exactly one serving at a time**
