@@ -257,6 +257,10 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
   extraction; with document search, the document's text goes there to be turned into the numbers
   search uses, which come back to your laptop; with speech to text, each recording goes there to be written
   down. The farm keeps none of it.
+- **Use it on a network you trust.** LlmOnLan finds farms on its own, and a farm cannot prove who it is. So on a network
+  you do not trust, a device could answer as a farm, above all the first time a laptop looks for one. Once a laptop has
+  used a farm, it stays with that one, its password stays at that address, and a farm's services are only ever reached
+  at the farm's own address. If a farm's card asks for a password you already gave, check that its new address is right.
 - **LOL Vibe** — reopens your last chat on launch. Each reply shows tok/s and time to first token.
   A message's icons (hover one to see what it does): **Regenerate**, **Regenerate with…** (**More creative** /
   **More precise**), **Edit**, **Fork from here**, **Delete from here**, **Keep in context** (always sent, even

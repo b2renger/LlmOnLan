@@ -6,6 +6,33 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-06 (09:57) — The review's second round: privacy leaks and LAN steering fixed; the owner's four answers
+
+The owner asked to go slower and lighter on agents (the review cost about 29 million tokens, 167 agents): this was done
+alone, one fix at a time. Round 2's results (152 findings, 51 confirmed, 96 partly, 5 refuted) are saved in
+[reviews/PROJECT_REVIEW_2026-11-05.md](reviews/PROJECT_REVIEW_2026-11-05.md), generated from the results.
+
+**Fixed:**
+- *LOG-1:* SearXNG logged an engine's error with the URL it asked, a person's search inside, and `farm.log` kept it.
+- *LOG-2:* OCR's upload stayed in the temp folder when the service was killed. It now works in `.extract/work`, emptied
+  at every start and stop.
+- *LAN steering (TRUST-1 to -8, SEC-2):* see the commit. In short, everything goes through `Discovery.getFarms`: a plugin
+  address takes the host reached, a beacon is filed under its source, an id repeated from elsewhere changes nothing, a
+  password stays at its address (the owner: yes), and a farm this client trusts comes before a stranger.
+
+**Decided (owner, 2026-11-06):**
+- Q8: register LlmOnLan inside the office's own Microsoft 365 and Google Workspace first. The admin's name is still needed.
+- Q14: no picture block for now; CLOUD_SOURCES_PLAN §6 says what to look at again before this leaves the office.
+- An imported graph lists its person-only settings before its first run (the roadmap's Now 5; not built yet).
+
+**Studied:** Ripple-65B Preview ([research/RIPPLE_65B_STUDY.md](research/RIPPLE_65B_STUDY.md)): one measurement, not a
+switch.
+
+**Checks:** farm 287/287; shell unit 30/30, chat-unit 1945/1945, chat-lint 0. **Not run:** Electron itself, so HUMAN_TESTS
+gains D17 and K12 (★), C8 and K13, which also gather the smaller fixes the first round left without a person's check.
+**What the steering fix does not do:** a new client still takes the first farm it finds, and an open farm proves nothing
+about itself. GETTING_STARTED now says to use LlmOnLan on a network you trust.
+
 ## 2026-11-05 (21:31) — A blind review of the whole project: docs sorted, six bugs fixed, the context resynced
 
 The owner: *"review the code base, your context, the documentation and all the plans … if a plan is fully executed

@@ -45,7 +45,7 @@ a test that sets one seat, kills an engine or restarts the farm on production wh
 | 1 | The PRO 6000, at a quiet moment | install farm-v0.0.51 (J's Build line), **J14**, **P1**, **Q1**, **Q6** | about 2 h | its last recorded Farm app is farm-v0.0.48 with vLLM 0.30.0 (32 people at 64k every turn, against 48 on 0.33.0); the panel by engine (farm-v0.0.46), the presets and the kept plugin switches (farm-v0.0.50) shipped without a person's look |
 | 2 | The K test box | **K1**, **K2** (farm-v0.0.50 → farm-v0.0.51), **K3**, **K4**, **K5** | about 3 h | every operator's update path, over a held file (`serve.sh` changed in farm-v0.0.51); llama.cpp b11836 and document search's first start were never run from an installed Farm app; small cards are told the truth |
 | 3 | A laptop on client v0.2.15, and a fresh one | **A1**, **B1**, **C1** (from v0.2.14), **C2**, **G11**, **I1**–**I4** | about 5 h | day one and the update; G11: the coding agent's fence fails closed (security); I1–I4: the document privacy rule of 2026-10-08 on real laptops |
-| 4 | The first build with the fixes of 2026-11-05 | **A21**, **C7**, **D16**, **G13** (client), **K11** (Farm app) | about 2 h, + 3 h of waiting for G13 | each checks one fix that build brings: Open WebUI's links and the microphone, a move into a folder that holds data, the password through a farm restart, a schedule above an hour, a first plugin install that froze the farm |
+| 4 | The first build with the fixes of 2026-11-05 and 06 | **A21**, **C7**, **D16**, **D17**, **G13** (client), **K11**, **K12** (Farm app) | about 2 h, + 3 h of waiting for G13 | each checks one fix that build brings: Open WebUI's links and the microphone, a move into a folder that holds data, the password through a farm restart, a schedule above an hour, a first plugin install that froze the farm |
 
 **Proposed off the ★:** I5 (the MiniLM path is the fallback of a folder that never met document search); J1 (vLLM has
 been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the owner's question 12); J2–J4
@@ -57,22 +57,22 @@ been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the 
 |---|---|---|---|---|
 | A. One laptop + the PRO 6000, installed builds | 1 laptop, the production farm (A20: a ComfyQ box) | 21 | A1, A21 | A1 1 h; the rest 7–8 h in several sittings |
 | B. A fresh laptop, first install, no internet | a laptop never used, a blocked network, a proxy network, a farm without document search | 6 | B1 | 2 h |
-| C. Upgrades and the data folder | a laptop on the previous release, an old client (the owner's, or v0.1.45 on a spare profile), a spare profile, a USB stick | 7 | C1, C2, C7 | 2 h 45 |
-| D. Two machines, two farms, other subnets | 2 laptops, a second farm, a guest Wi-Fi | 16 | D16 | 4 h 15 |
+| C. Upgrades and the data folder | a laptop on the previous release, an old client (the owner's, or v0.1.45 on a spare profile), a spare profile, a USB stick | 8 | C1, C2, C7 | 2 h 45 |
+| D. Two machines, two farms, other subnets | 2 laptops, a second farm, a guest Wi-Fi | 17 | D16, D17 | 4 h 15 |
 | E. Mac and Linux clients | Apple Silicon + Intel Mac, a Linux PC | 4 | — | 3 h |
 | F. The Computer's devices | mic, webcam, speakers, a headset, OSC tool, Art-Net light, Arduino/ESP32; F11: 5–10 laptops | 11 | — | 6 h (+1 h F11) |
 | G. LOL Vibe's IDE | 1 laptop, a password farm, a GitHub account, a second drive or USB stick (G11) | 13 | G11, G13 | 3 h (+3 h of waiting for G13) |
 | H. Home Assistant on a real home | the office's Home Assistant Green | 4 | — | 2.5 h |
 | I. Document search on the farm | the farm, 2 laptops (one with old documents) | 6 | I1–I4 | 2 h |
 | J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client; J16: 10 laptops | 13 | J14 | about 8 h in several quiet moments (J16 2 h; +45 min if J1's install still runs here) |
-| K. A Windows test box with an RTX card | a non-production RTX PC, the 4070/4080, a PC with no NVIDIA GPU | 11 | K1–K5, K11 | 5 h (+45 min K6) |
+| K. A Windows test box with an RTX card | a non-production RTX PC, the 4070/4080, a PC with no NVIDIA GPU | 13 | K1–K5, K11, K12 | 5 h (+45 min K6) |
 | L. The DGX Spark | a Spark with a screen; L4: a second disk | 4 | — | 4 h (+45 min) |
 | M. Reboot tests | the PRO 6000, the Spark | 2 | — | 1 h each |
 | N. The Farm app on a clean box | a PC with no Ollama or Python, a Mac | 5 | — | 2 h + downloads |
 | O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 3 | — | 1 h 15 |
 | P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
 | Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q5) | 6 | Q1, Q6 | 2 h 30 |
-| **Total** | | **133** | **23** | about 60–66 h |
+| **Total** | | **137** | **25** | about 60–66 h |
 
 Part 3's measurements (Q4, Q5 step 3, J12–J13 on llama.cpp) are not in these counts: an agent runs them. J16 is
 counted in J, though an agent can run its steps 1–4.
@@ -650,6 +650,23 @@ C6, kept apart for its build).
 folder is untouched: go back to it the same way, and everything is there.
 - [ ] Done · Found:
 
+### C8 The review's smaller client fixes
+*Proves:* what the review of 2026-11-05 changed in the client, beyond its own tests. *Needs:* the first client release
+after v0.2.15 (or a candidate of it). *Was:* new (2026-11-06).
+1. With *Install app updates automatically* off, press **Check for app updates**, wait for the download, then Quit and
+   reopen.
+2. With the coding agent in the middle of a reply, move the data folder (Preferences ▸ Data location).
+3. On a first run, read the download overlay.
+4. In Open WebUI: share a tool to the community; open an uploaded file from a chat; use the microphone, Call mode and a
+   copy button.
+5. On a Mac: open a new empty folder in Finder once, then pick it in **Change folder…**.
+
+*Expect:* 1: the old version still runs, and **Restart & install** installs the new one. 2: the move finishes, the old
+folder goes, and the project's files are whole in the new one. 3: it reads *about 0.8 GB, 1.1–1.3 GB on Linux*, beside
+the real MB count. 4: the community page opens in an app window and receives the tool; the file opens in an app window;
+microphone, Call mode and copy work. 5: *Move* is offered (a `.DS_Store` is not data).
+- [ ] Done · Found:
+
 ## D. Two machines, two farms, another subnet, Wi-Fi
 
 **Machines:** two client laptops (A and B), the production farm, a second farm (the 4070 box or the Spark), a
@@ -864,6 +881,21 @@ candidate of it) on both laptops; the second farm on Ollama with a password, nev
 chats answer (no 401). A password typed on a farm card during one of those restarts reads *The farm is restarting: try
 the password again in a few seconds.*, never *not accepted*. Put the people back as they were (on Ollama the count
 applies after a farm restart).
+- [ ] Done · Found:
+
+### D17 ★ A device on the network cannot steer the client
+*Proves:* the client stays with the farm it trusts, and a password stays at its address (before the fixes of 2026-11-06,
+one packet from any device could point a client's chats and documents anywhere). *Needs:* the first client release after
+v0.2.15 (or a candidate of it); two farms, F1 with a password and F2 open, never production; a laptop that has used F1.
+*Was:* new (review 2026-11-05).
+1. With the laptop on F1, start F2 so its card shows it free. Quit and reopen the client, twice.
+2. Stop F1, and watch the pill. Start F1 again.
+3. Click F2's card. Stop nothing; wait a minute. Then choose **Automatic — least busy farm**.
+4. Give F1 another address (another network port, or a new DHCP lease), and wait 15 s.
+
+*Expect:* 1: it stays on F1 each time, though F2 looks freer. 2: it moves to F2, then back to F1 within a minute of F1
+answering (one Open WebUI restart). 3: it stays on F2 while pinned. 4: F1's card reads *This farm now answers at
+<address>. If that is really it, type its password again.*, and it connects only once the password is typed.
 - [ ] Done · Found:
 
 ## E. Mac and Linux clients
@@ -1785,6 +1817,40 @@ down the install time. Document OCR's and web search's first installs were chang
 never ran is at hand, the same holds there.
 - [ ] Done · Found:
 
+### K12 ★ A document and a search leave nothing on the farm
+*Proves:* no document stays on the farm when OCR is stopped mid-way, and no search reaches its log. *Needs:* the first
+Farm app release after farm-v0.0.51. *Was:* new (review 2026-11-05).
+1. From a laptop, upload a long scanned PDF. While its pages are read, turn Document OCR off in the panel's Plugins.
+   Turn it on, upload again, and this time Stop the farm.
+2. Look in the farm's `.extract\work` folder and in the temp folder for `lolocr_*`.
+3. Turn web search on in a chat, and run about 20 searches that hold one rare word. Open `farm.log` (Settings ▸ Open
+   data & logs folder) and search for that word.
+
+*Expect:* 2: `.extract\work` is empty or gone, and no `lolocr_*` folder is left. 3: the word is not there. An engine's
+error may show, without its address.
+- [ ] Done · Found:
+
+### K13 The review's smaller farm fixes
+*Proves:* what the review changed on the farm, beyond its own tests. *Needs:* the first Farm app release after
+farm-v0.0.51. *Was:* new (2026-11-06).
+1. With vLLM serving, press **Stop** in its section, then send a chat. Start it and send one while it starts.
+2. In the llama.cpp section, add by link a `.gguf` from another repo with the same file name as one in the list.
+3. On a CPU-only farm with speech to text installed, press **Review…** on the Computer preset.
+4. Run `lol init` in an empty folder, then `lol up` there on a spare box.
+5. With a password on the farm, use a Sound box with Listen on, Open WebUI's microphone and a Classify box. With Voice
+   already installed, restart the farm and have a reply read aloud (a GPU box and a CPU box).
+6. On a 24 GB, a 16 GB and a 32 GB card, open the panel's vLLM section.
+7. On a dev checkout whose `farm/` holds models and venvs, run `npm run dist` in `farm-app/`. Install it on a spare box,
+   and over a box that already runs the Farm app.
+
+*Expect:* 1: a 503 reading *stopped for now* (code `lol_engine_stopped`, Retry-After 60), then one reading *starting*
+(`lol_engine_starting`, Retry-After 120). 2: refused, *Another model in the list uses a file named …*. 3: it does not
+call speech to text a first install. 4: the file holds only the name, and the farm starts on its defaults. 5: all of it
+still works; no console window flashes during an install. 6: 24 GB refuses with *the smallest needs about 27 GB* and
+offers room with document reading off; 16 GB offers nothing while document search is on; 32 GB offers Gemma 4 12B. 7: the
+new box has no `.models`, `.stt`, `.classify`, `__pycache__` or `lol.config.json.before-*`; the updated box keeps its own.
+- [ ] Done · Found:
+
 ## L. The DGX Spark
 
 **Machine:** a DGX Spark, with a screen. **Build:** the Farm app's Linux arm64 AppImage of the release under test (L3
@@ -2368,7 +2434,7 @@ Open (they keep their numbers; the next-work list, [plans/README.md](plans/READM
    not 8192)? And should the weak-model sentence name what the farm serves instead of *qwen3.8 or nemotron*?
 - **10.** **The ★ list** (proposed 2026-11-05, at the top): is it right? Does a ★ test still block the next release, or does
     ★ now only mean "run first"?
-- **11.** **The build for the fixes of 2026-11-05** (A21, C7, D16, G13, K11): a local build (`npm run dist`) or a
+- **11.** **The build for the fixes of 2026-11-05** (A21, C7, D16, D17, G13, K11, K12): a local build (`npm run dist`) or a
     pre-release tag on GitHub?
 - **12.** **J1:** how did vLLM get into `~/lol-vllm` on the PRO 6000, between DEVLOG 2026-10-09 19:01 and 2026-10-12 16:20?
     If it was the panel's **Install vLLM**, J1 is ticked with the date; if not, "install from nothing" goes to K6.

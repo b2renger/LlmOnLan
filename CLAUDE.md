@@ -864,7 +864,11 @@ mDNS because ComfyQ proved multicast alone is flaky across consumer APs, and thi
   without a verified stored password (re-checked ≤1/min); a pinned, current or last-session farm is used
   anyway, and after a rotated password main drops the stale key and the farm card asks again. A 502–504 (the farm's
   gate while LiteLLM restarts) says nothing about the password, so the stored one is kept (`farmSelect.ts`
-  `passwordVerdict`; 2026-11-05, not released yet).
+  `passwordVerdict`; 2026-11-05, not released yet). What a farm says is not taken on trust (2026-11-06, not released
+  yet): every plugin address takes the host the farm was reached at (`discovery.ts` `onHost` in `getFarms`); a beacon that
+  crossed the network is filed under its source address; another host repeating an id changes nothing while the recorded
+  host answers; a password stays at the address it was typed for (`storedFarmKey`, `farmKeyHosts`), and a farm this client
+  trusts (`knownFarms`: the first it used, or one a person clicked or typed a password for) comes before any stranger.
   `LOL_ENDPOINT` pins an endpoint (dev); `LOL_FED_GROUP/PORT/HTTP_PORT` override the group and ports.
 - **Fallbacks (mirror ComfyQ's controls):** manual add‑by‑address and the subnet sweep ("search range") —
   unicast crosses subnets that block broadcast. There is no baked-in address.
@@ -1065,7 +1069,7 @@ LlmOnLan/
   — after an upgrade from v0.1.x — the old LOL Vibe copy kept as a backup. Outside both, the machine's Hugging Face
   cache (`~/.cache/huggingface`, shared by every data folder) holds MiniLM, the old search model: no user content.
   The app repairs a half-downloaded copy there before the start of a folder still on it.
-- **Over the network (all to the trusted‑LAN farm, which stores nothing):** the chat context per
+- **Over the network (all to the trusted‑LAN farm, which stores nothing; the client trusts its network, so use it on one you trust: a device that answers as a farm gets this list, above all a new client's first farm, but every address stays on the host the chat goes to, 2026-11-06):** the chat context per
   completion (from OWUI, LOL Vibe, or a Computer Instruction — with an Image box's or a Preview's rendered pixels when wired);
   web‑search queries to the farm's SearXNG — since web search v2 sent by this app's main, which then itself
   reads the top pages of each search (up to 6 GETs, to the public internet only, never the LAN; nothing kept),
@@ -1101,8 +1105,8 @@ LlmOnLan/
   (fast-forward only, local work committed first). **Share on the LAN** serves one project read-only to the LAN
   until it is turned off or the app closes. A project's history (`.git`, isomorphic-git) stays in its folder in
   DATA_DIR.
-- **Never sent anywhere:** a document's text for indexing to anyone but the farm in use (its document search; never
-  another farm, never past the LAN), a Computer Sound box's recording unless its Listen switch is on, and telemetry
+- **Never sent anywhere:** a document's text for indexing to anyone but the farm in use (its document search, on the host the chat goes
+  to: an advertised address cannot point elsewhere, `discovery.ts` `onHost`), a Computer Sound box's recording unless its Listen switch is on, and telemetry
   (off).
 - **Planned, not built: a person's own documents in Microsoft 365 or Google** (owner, 2026-11-05,
   [docs/plans/CLOUD_SOURCES_PLAN.md](docs/plans/CLOUD_SOURCES_PLAN.md)): LlmOnLan may read them client side only, when

@@ -203,6 +203,17 @@ pin it. A pinned, current or last-session farm is used anyway, and when a stored
 Apply changes or an engine switch) says nothing about the password, and the client keeps it
 (`farmSelect.ts` `passwordVerdict`).
 
+Anything on the network can answer as a farm, so what it says is not taken on trust (2026-11-06):
+- **Its addresses:** every plugin address keeps its port and path and takes the host the farm was reached at
+  (`discovery.ts` `onHost`, in `getFarms`, the one door main and the renderer read). A beacon that crossed the network is
+  filed under the address it came from.
+- **Its id:** an id is public, so while a farm's host answers, another host repeating its id changes nothing.
+- **Its password:** stays at the address it was typed for (`storedFarmKey`, `farmKeyHosts`); a farm that moved asks again.
+- **Its load:** a farm this client trusts, the first it used or one a person clicked or typed a password for
+  (`knownFarms`, id and address), comes before any stranger. A failover to a stranger goes back once a trusted farm is good.
+
+What this does not do: a new client still takes the first farm it finds, and an open farm proves nothing about itself.
+
 A farm seen under two names (its beacon and a hostname or second IP you added) keeps the address it
 was first reached at while that address answers, so OWUI is not restarted every time the other name
 answers.

@@ -11,7 +11,7 @@ processed in a cloud; the code follows the ponytail ladder.
 
 **The open plans:**
 - [CLOUD_SOURCES_PLAN.md](CLOUD_SOURCES_PLAN.md) — documents from Microsoft 365, Google and synced folders. Nothing
-  built; Q8 and Q14 open.
+  built. It waits on the name of the office's Microsoft 365 and Google Workspace admin.
 - [IDE_PLAN.md](IDE_PLAN.md) — LOL Vibe's IDE. Slice 7 and §5 B/C are open.
 
 ---
@@ -26,15 +26,24 @@ processed in a cloud; the code follows the ponytail ladder.
    - turning a plugin on no longer freezes the farm;
    - the Farm app's installer leaves out a dev box's models, venvs and config backups;
    - the 503 tells *starting* from *stopped*;
-   - `lol init` writes only the name.
+   - `lol init` writes only the name;
+   - no search query in the farm's log, and no document left behind when OCR is killed;
+   - a device on the LAN can no longer steer a client (plugin addresses stay on the farm's host, a password at its
+     address, and a farm you use comes before a stranger).
 
-   Their person checks are in [HUMAN_TESTS](../HUMAN_TESTS.md): A21, C7, D16, G13, K11.
+   Their person checks are in [HUMAN_TESTS](../HUMAN_TESTS.md): A21, C7, D16, D17, G13, K11, K12, plus C8 and K13.
 2. **The ★ list** in [HUMAN_TESTS](../HUMAN_TESTS.md) (proposed 2026-11-05): agree it, then run it in its order.
 3. **On the PRO 6000, at a quiet hour:** install farm-v0.0.51, then J14 and J15. J14 is Update vLLM 0.30.0 → 0.33.0,
    which takes it from 32 to 48 people at 64k every turn. J15 is Flint from the panel. **M**, the owner's hour.
 4. **Teach the capacity generator Flint** (`docs/spike/explorer/build_measured.py`, then `build_page.js`, then the
    farm tests). Its next run would otherwise drop Flint's measured seats from the capacity page and the presets.
    **S**.
+5. **An imported graph lists its person-only settings before its first run** (owner 2026-11-06). Today one Run all on a
+   stranger's graph can read a linked home and hand it to an Agent box. Fetch addresses, Agent hosts, Open data links
+   and Home devices: one confirm that names them all. **S–M**.
+6. **The review's last high findings:** a phone's street address reaching the model through Home Assistant (TEXT-1), a
+   failed save never shown in LOL Vibe (VIBE-1), keyboard focus landing on the wrong plugin's button (A11Y-01). A WebRTC
+   way out of the Computer's sandbox (EGRESS-02) needs a run in Electron first. **S** each.
 
 ## 2. Next — the most value for the office
 
@@ -92,7 +101,7 @@ processed in a cloud; the code follows the ponytail ladder.
   - a notification click brings the window forward (D-C7);
   - a cached thread path (D-V1);
   - the plural string (D-U2).
-- **Online documents, steps 3–8** (the model may look, accounts, writes), after Q8, Q14 and each IT's answers.
+- **Online documents, steps 3–8** (the model may look, accounts, writes), after the admin's name and each IT's answers.
 - **Test hygiene:**
   - retire the old chat-scope gate;
   - `npm test` runs the chat suites;
@@ -103,8 +112,8 @@ processed in a cloud; the code follows the ponytail ladder.
 ## 4. Waiting on the owner
 
 **The ones that unblock the most:**
-1. **Q8 and Q14** of CLOUD_SOURCES_PLAN (who registers LlmOnLan with Microsoft and Google; blocking internet pictures
-   while the model may look). Both are in plain words in its §8.
+1. **Who administers the office's Microsoft 365 and Google Workspace?** LlmOnLan registers there first (Q8, decided
+   2026-11-06), and the online-document accounts start from it.
 2. **The next release and the ★ list** (Now 1–2), and which build tests today's fixes: a local build or a pre-release
    tag.
 3. **A quiet hour on the PRO 6000** (Now 3, then Next 1).
