@@ -1130,4 +1130,4 @@ Qwen3.6's. FP8 at load may cost it a little; nothing here suggests it is better 
 **Not tried:** Clover-35B (its own architecture, not in vLLM 0.33.0), Ripple-65B (needs a nightly), SenseNova-Loop, and everything too
 big for this card (Kimi K3.1, DeepSeek-V4.1-Flash, ERNIE 5.5, Hydrogen). Cold prefill, 128k and the Spark were not measured.
 
-Results: `results/pro6000-vllm033-trial-*`, `results/probes/pro6000-vllm033-{gemma4-26b,nanbeige43-33b,apex-35b}*`.
+Results: `results/pro6000-vllm033-trial-*`, `results/ide/ide-agent-20261106-*`, `results/probes/pro6000-vllm033-{gemma4-26b,nanbeige43-33b,apex-35b}*`.
