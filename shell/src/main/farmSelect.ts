@@ -20,6 +20,20 @@ export function passwordVerdict(status: number): 'accepted' | 'refused' | 'unkno
     return status >= 502 && status <= 504 ? 'unknown' : 'refused';
 }
 
+// The farm password stored for this farm, only at the address it was typed for: an id is public (every beacon carries
+// it), so a password follows no id to another machine. A farm that changed address asks again, and a person's answer
+// is the only thing that moves it. A password saved before this rule (2026-11-06) belongs to the first address that
+// uses it (`bind`: main records it), so an update asks nobody.
+export function storedFarmKey(
+    keys: Record<string, string> | undefined, hosts: Record<string, string> | undefined, f: { id: string; _host?: string },
+): { key: string | null; bind: boolean; moved: boolean } {
+    const key = keys?.[f.id];
+    if (!key) return { key: null, bind: false, moved: false };
+    const host = hosts?.[f.id];
+    if (!host) return { key, bind: !!f._host, moved: false };
+    return host === f._host ? { key, bind: false, moved: false } : { key: null, bind: false, moved: true };
+}
+
 // Load metric for a farm, from the telemetry the beacon already carries. Lower =
 // more free. Slot occupancy beats GPU%: clients/slots is "how many people are ahead
 // of you", where a busy GPU is just a healthy box mid-answer. Old farms without
@@ -46,13 +60,20 @@ export function farmLoad(f: DiscoveredFarm): number {
 // is the coordinators. With no coordinator, the pool is all healthy farms and we
 // balance client-side. One rule cleanly covers both deployment styles.
 export const LOAD_BAND = 15; // farms within 15 util-points of the minimum count as "equally free"
+//
+// A farm this client already trusts (`known`: one it first connected to, or one a person clicked or typed a password
+// for) comes before any other, whatever the others say about their load or about being a coordinator: those are a
+// stranger's own words, and anything on the Wi-Fi can send them.
 export function pickLeastLoaded(
     farms: DiscoveredFarm[], usable: (f: DiscoveredFarm) => boolean, rng: () => number = Math.random,
+    known: (f: DiscoveredFarm) => boolean = () => true,
 ): DiscoveredFarm | null {
     const healthy = farms.filter((x) => x.healthy && !x._stale && usable(x));
     if (!healthy.length) return null;
-    const coordinators = healthy.filter((x) => x.coordinator);
-    const pool = coordinators.length ? coordinators : healthy;
+    const trusted = healthy.filter(known);
+    const candidates = trusted.length ? trusted : healthy;
+    const coordinators = candidates.filter((x) => x.coordinator);
+    const pool = coordinators.length ? coordinators : candidates;
     if (pool.length === 1) return pool[0];
     const min = Math.min(...pool.map(farmLoad));
     const contenders = pool.filter((x) => farmLoad(x) <= min + LOAD_BAND);
@@ -65,6 +86,7 @@ export interface ChooseInput {
     currentEndpoint: string | null;  // the endpoint OWUI was booted with (last session's, on a cold boot)
     usable: (f: DiscoveredFarm) => boolean; // false for a keyed farm we have no password for
     rng?: () => number;
+    known?: (f: DiscoveredFarm) => boolean; // a farm this client trusts (pickLeastLoaded); all of them when absent
 }
 
 // Pick the farm OWUI should use: the user's pinned choice, else the current one
@@ -72,8 +94,11 @@ export interface ChooseInput {
 // least-loaded healthy farm (spreads a fleet of clients across the boxes).
 export function chooseActive(farms: DiscoveredFarm[], o: ChooseInput): DiscoveredFarm | null {
     const good = (x: DiscoveredFarm) => x.healthy && !x._stale;
+    const known = o.known || (() => true);
     if (o.selectedFarmId) { const f = farms.find((x) => x.id === o.selectedFarmId && good(x)); if (f) return f; }
-    if (o.activeFarmId) { const f = farms.find((x) => x.id === o.activeFarmId && good(x)); if (f) return f; }
+    // Sticky, except a failover to a stranger: once a farm this client trusts is good again, it goes back there.
+    const sticky = (f?: DiscoveredFarm) => !!f && (known(f) || !farms.some((x) => good(x) && known(x) && o.usable(x)));
+    if (o.activeFarmId) { const f = farms.find((x) => x.id === o.activeFarmId && good(x)); if (sticky(f)) return f!; }
     // Cold boot on a multi-farm LAN: stay with LAST session's farm while it's
     // healthy. The boot sidecar was already started against its endpoint
     // (lastEndpoint), so re-rolling the load dice here would repoint — a full
@@ -81,9 +106,9 @@ export function chooseActive(farms: DiscoveredFarm[], o: ChooseInput): Discovere
     // first-ever connects and to failover (this farm gone/unhealthy).
     if (o.currentEndpoint) {
         const f = farms.find((x) => good(x) && farmEndpoint(x) === o.currentEndpoint);
-        if (f) return f;
+        if (sticky(f)) return f!;
     }
-    return pickLeastLoaded(farms, o.usable, o.rng);
+    return pickLeastLoaded(farms, o.usable, o.rng, known);
 }
 
 // Everything OWUI is launched with for one farm. `key` is the stored password (null for an

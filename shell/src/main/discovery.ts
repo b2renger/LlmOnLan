@@ -30,6 +30,43 @@ const SCAN_CONCURRENCY = 48;
 const SCAN_TIMEOUT_MS = 1500;
 const MAX_SCAN_HOSTS = 4096;
 const DISCOVERED_TTL = 90_000;  // stop polling an auto-found host unseen this long
+
+// A beacon or a /lol/self answer can come from anything on the network, so its shape is checked once, here. A name
+// that was not a string used to throw in getFarms, on the beacon's and the prune timer's paths: the whole app.
+const isPort = (p: unknown) => Number.isInteger(p) && (p as number) > 0 && (p as number) < 65536;
+const isShort = (s: unknown) => typeof s === 'string' && s.length > 0 && s.length <= 200;
+export function validSnapshot(s: unknown): s is FarmSnapshot {
+    const f = s as { v?: unknown; id?: unknown; name?: unknown; proxyPort?: unknown; httpPort?: unknown; models?: unknown } | null;
+    if (!f || typeof f !== 'object' || f.v == null) return false;
+    if (f.id != null && !isShort(f.id)) return false;
+    if (!isShort(f.name) || !isPort(f.proxyPort) || (f.httpPort != null && !isPort(f.httpPort))) return false;
+    return f.models == null || (Array.isArray(f.models) && f.models.every((m) => m && typeof (m as { id?: unknown }).id === 'string'));
+}
+
+// A farm's plugins run on the farm itself (they bind to its proxy.host), so an address it advertises keeps its scheme,
+// port and path and takes the host we reached the farm at. Nothing a snapshot says can then send a document, a
+// recording, a search or a plugin key to another machine: the host the chat already goes to is the only one. An
+// address that does not parse is dropped, and the plugin reads as off.
+export function onHost(url: unknown, host: string): string | undefined {
+    if (typeof url !== 'string' || !url) return undefined;
+    try {
+        const u = new URL(url);
+        const h = host.includes(':') ? `[${host}]` : host;
+        if (u.hostname === h) return url;
+        const rest = u.pathname === '/' && !url.endsWith('/') ? '' : u.pathname;
+        return `${u.protocol}//${h}${u.port ? `:${u.port}` : ''}${rest}${u.search}`;
+    } catch { return undefined; }
+}
+export function pinAddresses(snap: FarmSnapshot, host: string): FarmSnapshot {
+    const out = { ...snap } as unknown as Record<string, any>;
+    for (const k of ['searxngUrl', 'ttsUrl']) if (out[k]) out[k] = onHost(out[k], host);
+    for (const k of ['extract', 'classify', 'stt', 'embed']) if (out[k] && out[k].url) out[k] = { ...out[k], url: onHost(out[k].url, host) };
+    if (out.bus && typeof out.bus === 'object') {
+        out.bus = { ...out.bus };
+        for (const k of ['ws', 'mqtt', 'osc']) if (out.bus[k]) out.bus[k] = onHost(out.bus[k], host);
+    }
+    return out as unknown as FarmSnapshot;
+}
 // 12 s ≈ two missed active polls (or two missed 5 s beacons), so a farm that
 // dies is flagged in the UI within seconds instead of looking healthy for half
 // a minute. Was 30 s, which outlasted most people's patience with a dead box.
@@ -122,10 +159,10 @@ export class Discovery extends EventEmitter {
         const out: DiscoveredFarm[] = [];
         for (const [, rec] of this.peers) {
             const age = now - rec.lastSeen;
-            out.push({ ...rec.snap, _source: rec.source, _host: rec.host, _lastSeen: rec.lastSeen, _stale: age > STALE_MS });
+            out.push({ ...pinAddresses(rec.snap, rec.host), _source: rec.source, _host: rec.host, _lastSeen: rec.lastSeen, _stale: age > STALE_MS });
         }
         // Healthy + non-stale first, then by name.
-        out.sort((a, b) => (Number(b.healthy && !b._stale) - Number(a.healthy && !a._stale)) || a.name.localeCompare(b.name));
+        out.sort((a, b) => (Number(b.healthy && !b._stale) - Number(a.healthy && !a._stale)) || String(a.name).localeCompare(String(b.name)));
         return out;
     }
 
@@ -176,7 +213,7 @@ export class Discovery extends EventEmitter {
                         const s = JSON.parse(b);
                         // A unicast answer always says whether THIS client holds a seat (merge() keeps it over a beacon).
                         if (s && s.capacity && typeof s.capacity === 'object') s.capacity.mine = s.capacity.mine === true;
-                        resolve(s && s.v != null ? s : null);
+                        resolve(validSnapshot(s) ? s : null);
                     } catch { resolve(null); }
                 });
             });
@@ -194,6 +231,18 @@ export class Discovery extends EventEmitter {
         } catch { return null; }
     }
 
+    // Which host a beacon is filed under. A beacon fans out on every interface, and on a machine
+    // running both client and farm the loopback copies arrive stamped with whatever interface each
+    // send used: on the DGX Spark that included Docker's bridge (172.22.0.1), so the farm's host
+    // flapped against the real LAN IP every tick and each flap restarted Open WebUI (live
+    // 2026-09-03). So a packet from THIS computer is filed under the host it advertises. A packet
+    // that crossed the network is filed under the address it came from: one that claimed any host
+    // it liked could send this client's chats anywhere, past the LAN included.
+    private beaconHost(snap: FarmSnapshot, from: string): string {
+        const local = from.startsWith('127.') || this.localIPv4s().some((i) => i.address === from);
+        return (local && this.endpointHost(snap)) || from;
+    }
+
     // One sighting of a farm. The same farm is routinely seen under TWO names: the beacon files it
     // under the host it advertises, a manual entry or the sweep under the name the user typed or
     // the address that answered (a hostname like studio.local, a secondary IP). Overwriting the
@@ -201,8 +250,9 @@ export class Discovery extends EventEmitter {
     // the OpenAI URL index.ts hands OWUI, and each change restarted the engine — "Reconnecting…"
     // for ever (docs review SA-3; the Docker-bridge fix below was the same failure). So a record
     // KEEPS its host while that host is still answering, and adopts a new one only once the old
-    // one has been quiet for STALE_MS. The snapshot and lastSeen still refresh on every sighting:
-    // the farm is alive whichever name it answered under.
+    // one has been quiet for STALE_MS. Another host's sighting only says the farm is alive: its
+    // snapshot is not taken, because an id is public (every beacon carries it) and anything repeating
+    // one could otherwise mark the farm in use unhealthy or restart Open WebUI at will.
     private merge(snap: FarmSnapshot, host: string, source: PeerRec['source']): void {
         const id = snap.id || `${host}:${snap.proxyPort || ''}`;
         const now = Date.now();
@@ -215,7 +265,7 @@ export class Discovery extends EventEmitter {
         const mine = prev && prev.snap.capacity ? prev.snap.capacity.mine : undefined;
         if (snap.capacity && snap.capacity.mine === undefined && typeof mine === 'boolean') snap = { ...snap, capacity: { ...snap.capacity, mine } };
         if (prev && prev.host !== host && now - prev.hostSeen <= STALE_MS) {
-            this.peers.set(id, { ...prev, snap, lastSeen: now });
+            this.peers.set(id, { ...prev, lastSeen: now });
             return;
         }
         this.peers.set(id, { snap, host, lastSeen: now, hostSeen: now, source });
@@ -287,16 +337,8 @@ export class Discovery extends EventEmitter {
             if (this.stopped) return;
             let snap: FarmSnapshot;
             try { snap = JSON.parse(msg.toString()); } catch { return; }
-            if (!snap || snap.v == null) return;
-            // The farm's ADVERTISED endpoint beats the packet's source address.
-            // A beacon fans out on every interface, and on a machine running both
-            // client and farm the loopback copies arrive stamped with whatever
-            // interface each send used — on the DGX Spark that included Docker's
-            // bridge (172.22.0.1), so the farm's host flapped between that and
-            // the real LAN IP every tick and each flap restarted the OWUI engine
-            // ("Connecting/Reconnecting forever", live 2026-09-03). For packets
-            // that crossed the network the two values are identical anyway.
-            this.merge(snap, this.endpointHost(snap) || rinfo.address, 'beacon');
+            if (!validSnapshot(snap)) return;
+            this.merge(snap, this.beaconHost(snap, rinfo.address), 'beacon');
             this.emitState();
         });
         socket.bind(PORT, () => {

@@ -36,7 +36,7 @@ import {
 import { ShellSettings, DiscoveredFarm, ScanRange, McpoState } from './types';
 import {
     farmEndpoint, chooseActive as pickActive, farmContext, connectPlan, FarmContext,
-    applyPluginKeys, PluginKeyEntry, keepPending, passwordVerdict,
+    applyPluginKeys, PluginKeyEntry, keepPending, passwordVerdict, storedFarmKey,
 } from './farmSelect';
 
 app.setName('LlmOnLan');
@@ -299,9 +299,26 @@ function applyFarmRecommendations(farm: DiscoveredFarm | null): void {
 }
 
 // The stored password for a keyed farm (null when open, or none entered yet).
-function farmKey(f: { id: string; requiresKey?: boolean } | null): string | null {
+function farmKey(f: { id: string; requiresKey?: boolean; _host?: string } | null): string | null {
     if (!f || !f.requiresKey) return null;
-    return loadSettings().farmKeys?.[f.id] || null;
+    const s = loadSettings();
+    const { key, bind } = storedFarmKey(s.farmKeys, s.farmKeyHosts, f);
+    if (bind) updateSettings({ farmKeyHosts: { ...(s.farmKeyHosts || {}), [f.id]: f._host as string } });
+    return key;
+}
+
+// A farm whose password was typed at another address: its card says why it asks again.
+function farmKeyMoved(f: { id: string; requiresKey?: boolean; _host?: string }): boolean {
+    const s = loadSettings();
+    return !!f.requiresKey && storedFarmKey(s.farmKeys, s.farmKeyHosts, f).moved;
+}
+
+// Does this client trust the farm (farmSelect pickLeastLoaded)? The id alone is public, so the address must match.
+function farmKnown(f: DiscoveredFarm): boolean {
+    return loadSettings().knownFarms?.[f.id] === f._host;
+}
+function trustFarm(f: DiscoveredFarm): void {
+    updateSettings({ knownFarms: { ...(loadSettings().knownFarms || {}), [f.id]: f._host } });
 }
 
 // A farm we cannot AUTHENTICATE to is not a candidate for auto-connect —
@@ -327,8 +344,10 @@ function verifyStoredFarmKey(f: DiscoveredFarm, key: string): void {
             if (passwordVerdict(res.status) !== 'refused') return;
             const s = loadSettings();
             const next = { ...(s.farmKeys || {}) };
+            const hosts = { ...(s.farmKeyHosts || {}) };
             delete next[f.id];
-            updateSettings({ farmKeys: next, lastFarmKey: s.lastFarmKey === key ? null : s.lastFarmKey });
+            delete hosts[f.id];
+            updateSettings({ farmKeys: next, farmKeyHosts: hosts, lastFarmKey: s.lastFarmKey === key ? null : s.lastFarmKey });
             if (discovery) onFarms({ farms: discovery.getFarms() });
         })
         .catch(() => { /* unreachable ≠ wrong password — keep the key */ })
@@ -369,6 +388,7 @@ function chooseActive(farms: DiscoveredFarm[]): DiscoveredFarm | null {
         activeFarmId,
         currentEndpoint,
         usable: farmUsable,
+        known: farmKnown,
     });
 }
 
@@ -387,6 +407,9 @@ function currentContext(): FarmContext | null {
 // so a pinned keyed farm cold-booted with the previous farm's password (docs review SA-4).
 function connectTo(chosen: DiscoveredFarm): void {
     setActiveFarm(chosen.id);
+    // The first farm this client ever uses is the one it trusts; after that only a person's click or password adds one,
+    // so a failover to a stranger never makes it known.
+    if (!Object.keys(loadSettings().knownFarms || {}).length) trustFarm(chosen);
     const key = farmKey(chosen as { id: string; requiresKey?: boolean });
     const next = keepPending(farmContext(withPluginKeys(chosen, key), key), chosen, { extract: currentExtract, embed: currentEmbed, stt: currentStt });
     // Persist the whole farm context, not just the endpoint — it seeds the next
@@ -425,7 +448,7 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
         ...payload,
         farms: payload.farms.map((f) => {
             const k = farmKey(f as { id: string; requiresKey?: boolean });
-            return { ...withPluginKeys(f, k), _hasKey: !!k, _key: k };
+            return { ...withPluginKeys(f, k), _hasKey: !!k, _key: k, _keyMoved: farmKeyMoved(f as { id: string; requiresKey?: boolean; _host?: string }) };
         }),
         selectedFarmId: loadSettings().selectedFarmId,
     };
@@ -542,8 +565,11 @@ function createWindow(): void {
     // wave it through. Only the app's own file is allowed, compared after query/hash are stripped.
     const RUNNER_URL = pathToFileURL(path.join(app.getAppPath(), 'renderer', 'chat', 'sandbox', 'runner.html')).href;
     const bareUrl = (u: string) => u.split('#')[0].split('?')[0];
+    // The window itself stays on the app's own page: anywhere else would run with the preload bridge, and with it the
+    // stored farm passwords (review 2026-11-05, TRUST-7).
+    const INDEX_URL = pathToFileURL(path.join(app.getAppPath(), 'renderer', 'index.html')).href;
     win.webContents.on('will-frame-navigate', (e) => {
-        if (e.isMainFrame) return;
+        if (e.isMainFrame) { if (bareUrl(String(e.url || '')) !== INDEX_URL) e.preventDefault(); return; }
         if (bareUrl(String(e.url || '')) === RUNNER_URL) return;
         // The IDE's Preview: a project this app serves on 127.0.0.1 (studio.ts), by exact origin.
         if (studioApi && studioApi.serves(String(e.url || ''))) return;
@@ -626,7 +652,17 @@ function keepOwuiLinks(wc: WebContents): void {
     });
     wc.on('did-create-window', (child) => keepOwuiLinks(child.webContents));
 }
-app.on('web-contents-created', (_e, wc) => { if (wc.getType() === 'webview') keepOwuiLinks(wc); });
+app.on('web-contents-created', (_e, wc) => {
+    if (wc.getType() !== 'webview') return;
+    keepOwuiLinks(wc);
+    // The webview stays on Open WebUI: a window it opened (the community site) keeps window.opener and could otherwise
+    // send it to a look-alike page inside LlmOnLan's window. Any other address goes to the system browser (SEC-2).
+    wc.on('will-navigate', (e) => {
+        if (sameOrigin(e.url, sidecar.getState().url)) return;
+        e.preventDefault();
+        if (/^https?:\/\//i.test(e.url)) shell.openExternal(e.url);
+    });
+});
 
 // Grant the embedded OWUI <webview> the permissions it needs. Electron DENIES these
 // by default for a partition, which is why (a) voice mode silently did nothing —
@@ -945,7 +981,7 @@ function registerIpc(): void {
     ipcMain.handle('get-farms', () => ({
         farms: (discovery?.getFarms() ?? []).map((f) => {
             const k = farmKey(f as { id: string; requiresKey?: boolean });
-            return { ...withPluginKeys(f, k), _hasKey: !!k, _key: k };
+            return { ...withPluginKeys(f, k), _hasKey: !!k, _key: k, _keyMoved: farmKeyMoved(f as { id: string; requiresKey?: boolean; _host?: string }) };
         }),
         manualPeers: discovery?.getManualPeers() ?? [],
         autoScan: discovery?.getAutoScan() ?? true,
@@ -998,7 +1034,8 @@ function registerIpc(): void {
             return { ok: false, error: 'Could not reach the farm to check the password.' };
         }
         const s = loadSettings();
-        updateSettings({ farmKeys: { ...(s.farmKeys || {}), [f.id]: key } });
+        updateSettings({ farmKeys: { ...(s.farmKeys || {}), [f.id]: key }, farmKeyHosts: { ...(s.farmKeyHosts || {}), [f.id]: f._host } });
+        trustFarm(f);
         // Re-run selection so the newly-usable farm connects without another click.
         if (discovery) onFarms({ farms: discovery.getFarms() });
         return { ok: true };
@@ -1171,6 +1208,8 @@ function registerIpc(): void {
     // next boot or failover. Before this, a pin could never be removed (docs review SA-5).
     ipcMain.handle('select-farm', (_e, farmId: string | null) => {
         updateSettings({ selectedFarmId: typeof farmId === 'string' && farmId ? farmId : null });
+        const clicked = discovery?.getFarms().find((f) => f.id === farmId);
+        if (clicked) trustFarm(clicked);   // a person chose it: it is one of this client's farms now
         const chosen = chooseActive(discovery?.getFarms() ?? []);
         if (chosen) connectTo(chosen);
         discovery?.notify(); // the popover re-marks the pinned card / the Automatic row now

@@ -23,6 +23,8 @@ const DEFAULTS: ShellSettings = {
     lastFarmStt: null,
     lastFarmCtxPerSlot: null,
     farmKeys: {},       // per-farm shared passwords (farm id → password)
+    farmKeyHosts: {},   // farm id → the address that password was typed for
+    knownFarms: {},     // farm id → the address of a farm this client trusts
     lastFarmKey: null,
     launchAtLogin: false,
     autoUpdate: true,

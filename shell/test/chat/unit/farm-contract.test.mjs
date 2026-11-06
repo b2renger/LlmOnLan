@@ -70,7 +70,8 @@ export default (test) => {
   /** Every farm the way index.ts gets them: through discovery's merge. */
   function listed() {
     const d = new Discovery(QUIET);
-    farms.forEach(({ snap }, i) => d.merge(JSON.parse(JSON.stringify(snap)), `10.0.0.${i + 1}`, 'scan'));
+    // One host, the one the examples advertise: a plugin's address follows the host a farm was reached at (discovery.ts onHost).
+    farms.forEach(({ snap }) => d.merge(JSON.parse(JSON.stringify(snap)), '10.0.0.5', 'scan'));
     return d.getFarms();
   }
 

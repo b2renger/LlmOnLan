@@ -304,12 +304,13 @@ export default (test) => {
       hosts.push(d.getFarms()[0]._host);
     }
     assert.deepEqual([...new Set(hosts)], ['10.0.0.5'], `the endpoint host alternated: ${hosts.join(' → ')}`);
-    assert.equal(d.getFarms()[0].ts, 5, 'the snapshot itself still refreshes on every sighting');
+    assert.equal(d.getFarms()[0].ts, 4, 'the snapshot is the recorded host\'s: a sighting from another host says only that the farm is alive');
 
     // The first host goes quiet (no sighting under it for longer than STALE_MS): adopt the other one.
     d.peers.get('studio').hostSeen -= 60_000;
     d.merge({ ...snap, ts: 6 }, 'studio.local', 'added');
     assert.equal(d.getFarms()[0]._host, 'studio.local');
+    assert.equal(d.getFarms()[0].ts, 6, 'its snapshot comes with it');
     assert.equal(d.getFarms()[0]._source, 'added', 'the source travels with the host it describes');
     d.merge({ ...snap, ts: 7 }, '10.0.0.5', 'beacon');
     assert.equal(d.getFarms()[0]._host, 'studio.local', 'and now THAT host is the sticky one');
@@ -1737,7 +1738,7 @@ export default (test) => {
     assert.equal(U.sameOrigin('http://127.0.0.1:8080/', null), false, 'Open WebUI not ready: nothing is its own');
     assert.equal(U.sameOrigin(undefined, owui), false);
     const src = indexSrc();
-    assert.ok(src.includes("app.on('web-contents-created', (_e, wc) => { if (wc.getType() === 'webview') keepOwuiLinks(wc); });"),
+    assert.ok(src.includes("if (wc.getType() !== 'webview') return;\n    keepOwuiLinks(wc);"),
       'every webview guest gets a handler: the window\'s own never sees its popups');
     const keep = src.slice(src.indexOf('function keepOwuiLinks'), src.indexOf("app.on('web-contents-created'"));
     assert.ok(keep.includes("if (sameOrigin(url, sidecar.getState().url) || sameOrigin(url, OWUI_COMMUNITY)) return { action: 'allow' };"),
@@ -1752,6 +1753,76 @@ export default (test) => {
     assert.ok(perms.includes('const fromOwui = (url: string | undefined) => sameOrigin(url, sidecar.getState().url);'));
     assert.ok(perms.includes('callback(OWUI_ALLOWED_PERMS.has(permission) && fromOwui(details?.requestingUrl));'), 'the request handler checks the origin');
     assert.ok(perms.includes('setPermissionCheckHandler((_wc, permission, requestingOrigin) => OWUI_ALLOWED_PERMS.has(permission) && fromOwui(requestingOrigin));'), 'and so does the check handler');
+  });
+
+  test('TRUST-1: every address a farm advertises is rebuilt on the host it was reached at', () => {
+    const { onHost, pinAddresses } = require(path.join(BUILD, 'discovery.js'));
+    assert.equal(onHost('http://10.0.0.5:8890', '10.0.0.5'), 'http://10.0.0.5:8890', 'the usual case: not a byte changes');
+    assert.equal(onHost('http://203.0.113.9:8890', '10.0.0.5'), 'http://10.0.0.5:8890', 'another host: replaced, no slash added');
+    assert.equal(onHost('http://203.0.113.9:8880/v1?x=1', '10.0.0.5'), 'http://10.0.0.5:8880/v1?x=1', 'scheme, port, path and query stay');
+    assert.equal(onHost('udp://203.0.113.9:9001', '10.0.0.5'), 'udp://10.0.0.5:9001', 'the bus\'s own schemes too');
+    assert.equal(onHost('http://user:pw@203.0.113.9:81/', 'farm.local'), 'http://farm.local:81/', 'credentials in an address go');
+    assert.equal(onHost('not an address', '10.0.0.5'), undefined, 'one that does not parse reads as off');
+    const far = 'http://evil.example:1';
+    const p = pinAddresses({ v: 1, searxngUrl: far, ttsUrl: far, extract: { url: far, key: 'k' }, classify: { url: far }, stt: { url: far, key: 'k' }, embed: { url: far, key: 'k' }, bus: { ws: 'ws://evil.example:1', mqtt: 'mqtt://evil.example:1', osc: 'udp://evil.example:1' } }, '10.0.0.5');
+    assert.ok(!JSON.stringify(p).includes('evil.example'), JSON.stringify(p));
+    assert.equal(p.extract.key, 'k', 'the rest of a plugin stays');
+    const d = new Discovery({ autoScan: false, scanRange: { base: '10.0', third: [0, 0], fourth: [1, 1] } });
+    d.merge({ v: 1, id: 'f', name: 'F', proxyPort: 4000, embed: { url: far, key: 'k', contract: 'c' } }, '10.0.0.5', 'scan');
+    assert.equal(d.getFarms()[0].embed.url, 'http://10.0.0.5:1', 'through getFarms, the one door main and the renderer read');
+  });
+
+  test('TRUST-2 + TRUST-3: a packet that crossed the network cannot name a host, or swap a farm it does not come from', () => {
+    const d = new Discovery({ autoScan: false, scanRange: { base: '10.0', third: [0, 0], fourth: [1, 1] } });
+    const claim = { v: 1, id: 'real', name: 'Real', proxyPort: 4000, endpoint: 'http://203.0.113.9:4000' };
+    assert.equal(d.beaconHost(claim, '10.0.0.66'), '10.0.0.66', 'filed under where it came from, not where it says');
+    assert.equal(d.beaconHost(claim, '127.0.0.1'), '203.0.113.9', 'from this computer the advertised host stands (the Docker-bridge flap)');
+    d.merge({ v: 1, id: 'real', name: 'Real', proxyPort: 4000, healthy: true, ts: 1 }, '10.0.0.5', 'beacon');
+    d.merge({ v: 1, id: 'real', name: 'Real', proxyPort: 9, healthy: false, requiresKey: true, ts: 2 }, '10.0.0.66', 'beacon');
+    const f = d.getFarms()[0];
+    assert.deepEqual([f._host, f.healthy, f.proxyPort, f.requiresKey, f.ts], ['10.0.0.5', true, 4000, undefined, 1], 'the farm in use stays as it was');
+  });
+
+  test('TRUST-4: a farm password stays at the address it was typed for', () => {
+    const keys = { f: 'pw' };
+    assert.deepEqual(FS.storedFarmKey(keys, { f: '10.0.0.5' }, { id: 'f', _host: '10.0.0.5' }), { key: 'pw', bind: false, moved: false });
+    assert.deepEqual(FS.storedFarmKey(keys, { f: '10.0.0.5' }, { id: 'f', _host: '10.0.0.66' }), { key: null, bind: false, moved: true }, 'another address gets nothing, and the card says why');
+    assert.deepEqual(FS.storedFarmKey(keys, {}, { id: 'f', _host: '10.0.0.5' }), { key: 'pw', bind: true, moved: false }, 'saved before the rule: the first address that uses it keeps it, so an update asks nobody');
+    assert.deepEqual(FS.storedFarmKey({}, {}, { id: 'f', _host: '10.0.0.5' }), { key: null, bind: false, moved: false });
+    const typed = handlerSrc('set-farm-key');
+    assert.ok(typed.includes('farmKeyHosts: { ...(s.farmKeyHosts || {}), [f.id]: f._host }'), 'a typed password records its address');
+    assert.ok(fs.readFileSync(path.join(SHELL, 'renderer', 'app.js'), 'utf8').includes('needsKey && f._keyMoved'), 'and the card asks again, saying why');
+  });
+
+  test('TRUST-6: a farm this client trusts comes before a stranger, whatever the stranger says', () => {
+    const mine = farm({ id: 'mine', capacity: { slots: 2, clients: 2 } });
+    const stranger = farm({ id: 'stranger', coordinator: true, capacity: { slots: 99, clients: 0 } });
+    const known = (f) => f.id === 'mine';
+    const base = { selectedFarmId: null, activeFarmId: null, currentEndpoint: null, usable: () => true, rng: () => 0, known };
+    assert.equal(FS.chooseActive([stranger, mine], base).id, 'mine', 'free and a coordinator, by its own words only');
+    assert.equal(FS.chooseActive([stranger], base).id, 'stranger', 'nothing else is up: better than no farm');
+    assert.equal(FS.chooseActive([stranger, mine], { ...base, activeFarmId: 'stranger' }).id, 'mine', 'a failover goes back once a trusted farm is good');
+    assert.equal(FS.chooseActive([stranger, mine], { ...base, selectedFarmId: 'stranger' }).id, 'stranger', 'a person\'s pin always wins');
+    assert.equal(FS.chooseActive([stranger, mine], { ...base, known: undefined }).id, 'stranger', 'no list: as before');
+  });
+
+  test('TRUST-7 + TRUST-8 + SEC-2: a snapshot is checked, its fields escaped, and neither page leaves its origin', () => {
+    const { validSnapshot } = require(path.join(BUILD, 'discovery.js'));
+    const ok = { v: 1, id: 'f', name: 'F', proxyPort: 4000, httpPort: 41997, models: [{ id: 'm' }] };
+    assert.ok(validSnapshot(ok));
+    assert.ok(validSnapshot({ v: 1, name: 'F', proxyPort: 4000 }), 'the id and the models stay optional here');
+    for (const bad of [null, 'x', { ...ok, v: undefined }, { ...ok, name: 7 }, { ...ok, name: 'n'.repeat(201) }, { ...ok, id: {} }, { ...ok, proxyPort: '1" onmouseover="x' }, { ...ok, proxyPort: 70000 }, { ...ok, httpPort: 'x' }, { ...ok, models: [1] }, { ...ok, models: 'x' }]) {
+      assert.equal(validSnapshot(bad), false, JSON.stringify(bad));
+    }
+    const app = fs.readFileSync(path.join(SHELL, 'renderer', 'app.js'), 'utf8');
+    for (const f of ['esc(f.busy.percent)', 'esc(f.host.vramGb)', 'esc(f.httpPort)', 'esc(f.proxyPort)']) assert.ok(app.includes(f), f);
+    for (const fn of ['unseedWebSearch()', 'seedDateLine()', 'seedBlenderToolServer(url, key)', 'unseedBlenderToolServer()']) {
+      assert.ok(app.includes('async function ' + fn + " {\n  if (!onOwui()) return 'na';"), fn + ': no write with the token off Open WebUI\'s page');
+    }
+    assert.ok(app.includes('async function ensureAuthenticated() {\n  if (!onOwui()) return;'));
+    const src = indexSrc();
+    assert.ok(src.includes("if (e.isMainFrame) { if (bareUrl(String(e.url || '')) !== INDEX_URL) e.preventDefault(); return; }"), 'the window stays on the app\'s own page');
+    assert.ok(src.includes("wc.on('will-navigate', (e) => {\n        if (sameOrigin(e.url, sidecar.getState().url)) return;\n        e.preventDefault();"), 'the webview stays on Open WebUI');
   });
 
   test('SHM-2: a farm restarting its proxy (502-504) keeps a stored password, and a typed one is asked again, not refused', () => {

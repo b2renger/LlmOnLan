@@ -128,6 +128,8 @@ export interface ShellSettings {
     // Per-farm shared passwords (ComfyQ-style), keyed by farm id — entered once
     // in the farm list, verified against the endpoint before being stored.
     farmKeys: Record<string, string>;
+    farmKeyHosts: Record<string, string>; // farm id → the address its password was typed for (farmSelect storedFarmKey)
+    knownFarms: Record<string, string>;   // farm id → the address of a farm this client trusts (pickLeastLoaded)
     lastFarmKey: string | null;        // rides with lastEndpoint for the cold-boot seed
     launchAtLogin: boolean;
     autoUpdate: boolean;

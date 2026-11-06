@@ -550,7 +550,13 @@ let blenderSeeded = false;   // register the Blender tool server with OWUI at mo
 // that fails finds no marker, so it never writes (0.10 would have replaced `ui` with ours).
 // Returns 'set' (wrote: reload, so the SPA's stale settings can't write 'always' back) |
 // 'already' (nothing to do) | 'na' (not authed / the write failed).
+// Is the webview on Open WebUI's own page? Main keeps it there; these writes carry the person's token, so they check too.
+const onOwui = () => {
+  try { return new URL(els.webview.getURL()).origin === new URL(sidecarState.url).origin; } catch { return false; }
+};
+
 async function unseedWebSearch() {
+  if (!onOwui()) return 'na';
   try {
     return await els.webview.executeJavaScript(`(async () => {
       try {
@@ -584,6 +590,7 @@ async function unseedWebSearch() {
 // written (0.10 would replace `ui` with ours); a profile that never saved a setting reads as `null`.
 // Returns 'set' (wrote: reload) | 'already' | 'na' (not authed / the read or the write failed).
 async function seedDateLine() {
+  if (!onOwui()) return 'na';
   try {
     return await els.webview.executeJavaScript(`(async () => {
       try {
@@ -619,6 +626,7 @@ async function seedDateLine() {
 // `!= 'legacy'`), so setting it was a no-op. Runs in the authed webview like
 // unseedWebSearch. Idempotent, keyed by info.id. Returns 'set'|'already'|'na'|'err:<code>'.
 async function seedBlenderToolServer(url, key) {
+  if (!onOwui()) return 'na';
   try {
     return await els.webview.executeJavaScript(`(async () => {
       try {
@@ -660,6 +668,7 @@ async function seedBlenderToolServer(url, key) {
 // Also shifts any higher direct_server indices down by one (removing our entry
 // changes the enabled-server ordering the indices refer to).
 async function unseedBlenderToolServer() {
+  if (!onOwui()) return 'na';
   try {
     return await els.webview.executeJavaScript(`(async () => {
       try {
@@ -711,6 +720,7 @@ async function maybeSeedBlender() {
 }
 
 async function ensureAuthenticated() {
+  if (!onOwui()) return;
   try {
     // 'valid' → reveal. 'invalid' → drop the stale token so the reload re-runs
     // auto-login. 'none'/'pending' → wait for the auto-login token, then reload once.
@@ -975,10 +985,10 @@ function renderPopover() {
     // The in-flight admin job, with its progress — so "the farm went quiet" has a
     // visible reason on the card the user is already looking at.
     const busyLine = f.busy && f.busy.label
-      ? `<div class="farm-hw farm-busy">⏳ ${esc(f.busy.label)}${f.busy.percent != null ? ` · ${f.busy.percent}%` : ''}${f.busy.message ? ` — ${esc(f.busy.message)}` : ''}</div>`
+      ? `<div class="farm-hw farm-busy">⏳ ${esc(f.busy.label)}${f.busy.percent != null ? ` · ${esc(f.busy.percent)}%` : ''}${f.busy.message ? ` — ${esc(f.busy.message)}` : ''}</div>`
       : '';
     const hwLine = (f.host && f.host.gpu)
-      ? `<div class="farm-hw">${esc(f.host.gpu)} · ${f.host.vramGb}GB</div>` : '';
+      ? `<div class="farm-hw">${esc(f.host.gpu)} · ${esc(f.host.vramGb)}GB</div>` : '';
     // Farm plugins that are ON (search / voice / OCR) + client-plugin recommendations.
     const plugs = f.plugins || {};
     const onPlugs = Object.keys(plugs).filter((k) => plugs[k] && plugs[k].enabled)
@@ -988,7 +998,7 @@ function renderPopover() {
     const recs = (f.recommendedClientPlugins || []).map((r) => REC_LABEL[r] || r);
     const recLine = recs.length ? `<div class="farm-hw">recommends: ${esc(recs.join(', '))}</div>` : '';
     // "Manage this farm" opens the farm-served admin page (needs the farm's admin port).
-    const manageBtn = f.httpPort ? `<button class="farm-manage" data-manage="${esc(f._host)}:${f.httpPort}">Manage this farm ↗</button>` : '';
+    const manageBtn = f.httpPort ? `<button class="farm-manage" data-manage="${esc(f._host)}:${esc(f.httpPort)}">Manage this farm ↗</button>` : '';
     // A keyed farm without its password cannot be used — the card itself asks.
     // Verified in the MAIN process against the real endpoint before storing, so a
     // wrong password is a toast, never a stored 401-loop.
@@ -1000,7 +1010,9 @@ function renderPopover() {
       `<span class="dot ${dotCls}"></span>` +
       `<div class="farm-main">` +
         `<div class="farm-name">${esc(f.name)} ${badges}</div>` +
-        `<div class="farm-meta">${esc(f._host)}:${f.proxyPort} · ${esc(models)}</div>` +
+        `<div class="farm-meta">${esc(f._host)}:${esc(f.proxyPort)} · ${esc(models)}</div>` +
+        // Its password was typed at another address, and a password follows no farm to a new one: a person says so.
+        (needsKey && f._keyMoved ? `<div class="farm-hw">This farm now answers at ${esc(f._host)}. If that is really it, type its password again.</div>` : '') +
         keyRow +   // the ONE actionable element on a locked card goes first, not under telemetry
         busyLine +
         capLine +

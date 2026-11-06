@@ -172,7 +172,7 @@ function fakeOwui(version, ui, { token = 't', readFails = false, readNotJson = f
     };
     const window = { localStorage: token ? { token } : {} };
     owui.page = { executeJavaScript: (code) => new Function('window', 'fetch', `return ${code}`)(window, fetch) };
-    const extract = (name) => new Function('els', `${appFunction(name)}; return ${name};`)({ webview: owui.page });
+    const extract = (name) => new Function('els', `const onOwui = () => true; ${appFunction(name)}; return ${name};`)({ webview: owui.page });
     owui.run = extract('unseedWebSearch');
     owui.seedDate = extract('seedDateLine');
     owui.on = () => ((owui.ui || {}).webSearch ?? false) === 'always';
@@ -324,7 +324,7 @@ function fakeShell(owui, { blender = { url: 'http://127.0.0.1:8000', apiKey: 'k'
     const els = { webview: { ...owui.page, reload: () => { sh.reloads++; } } };
     const window = { lol: { getBlenderConnection: async () => blender } };
     const scope = new Function('els', 'window', 'renderSidecar', ...Object.keys(fakes),
-        `${APP_JS.slice(stateStart, stateEnd)}\n${names.map(appFunction).join('\n')}\nreturn { ensureAuthenticated, maybeSeedBlender };`);
+        `const onOwui = () => true;\n${APP_JS.slice(stateStart, stateEnd)}\n${names.map(appFunction).join('\n')}\nreturn { ensureAuthenticated, maybeSeedBlender };`);
     return Object.assign(sh, scope(els, window, () => { sh.renders++; }, ...Object.values(fakes)));
 }
 
