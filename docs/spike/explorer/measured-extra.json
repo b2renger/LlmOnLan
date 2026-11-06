@@ -1,0 +1,248 @@
+[
+ {
+  "id": "pro6000/vllm/flint",
+  "box": "pro6000",
+  "engine": "vllm",
+  "model": "flint",
+  "people": {
+   "followup_32k": {
+    "every": {
+     "pass": 40,
+     "fail": null,
+     "label": "≥ 40",
+     "tested": [
+      8,
+      16,
+      24,
+      32,
+      40
+     ]
+    },
+    "steady": {
+     "pass": 40,
+     "fail": null,
+     "label": "≥ 40",
+     "tested": [
+      8,
+      16,
+      24,
+      32,
+      40
+     ]
+    },
+    "profile": "followup_32k_append"
+   },
+   "followup_64k": {
+    "every": {
+     "pass": 20,
+     "fail": null,
+     "label": "≥ 20",
+     "tested": [
+      4,
+      8,
+      12,
+      16,
+      20
+     ]
+    },
+    "steady": {
+     "pass": 20,
+     "fail": null,
+     "label": "≥ 20",
+     "tested": [
+      4,
+      8,
+      12,
+      16,
+      20
+     ]
+    },
+    "profile": "followup_64k_append"
+   }
+  },
+  "profiles": {
+   "followup_32k_append": {
+    "levels": [
+     {
+      "c": 8,
+      "ttft_p95": 0.4,
+      "dec_p10": 92.77,
+      "r1": {
+       "ttft_p95": 0.4,
+       "dec_p10": 92.2,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.208,
+       "dec_p10": 94.26,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 16,
+      "ttft_p95": 0.682,
+      "dec_p10": 57.57,
+      "r1": {
+       "ttft_p95": 0.684,
+       "dec_p10": 57.33,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.208,
+       "dec_p10": 58.1,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 24,
+      "ttft_p95": 0.941,
+      "dec_p10": 43.65,
+      "r1": {
+       "ttft_p95": 0.944,
+       "dec_p10": 43.59,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.218,
+       "dec_p10": 44.55,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 32,
+      "ttft_p95": 1.205,
+      "dec_p10": 33.82,
+      "r1": {
+       "ttft_p95": 1.214,
+       "dec_p10": 32.92,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.295,
+       "dec_p10": 34.29,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 40,
+      "ttft_p95": 1.585,
+      "dec_p10": 27.01,
+      "r1": {
+       "ttft_p95": 1.589,
+       "dec_p10": 26.78,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.303,
+       "dec_p10": 27.96,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     }
+    ],
+    "source": "docs/spike/results/pro6000-vllm033-farm-flint-nvfp4-gguf__bench__followup-append__think-default__20261102-160240.json"
+   },
+   "followup_64k_append": {
+    "levels": [
+     {
+      "c": 4,
+      "ttft_p95": 0.358,
+      "dec_p10": 101.32,
+      "r1": {
+       "ttft_p95": 0.368,
+       "dec_p10": 100.85,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.2,
+       "dec_p10": 104.14,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 8,
+      "ttft_p95": 0.714,
+      "dec_p10": 61.97,
+      "r1": {
+       "ttft_p95": 0.716,
+       "dec_p10": 61.35,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.236,
+       "dec_p10": 64.84,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 12,
+      "ttft_p95": 0.978,
+      "dec_p10": 47.75,
+      "r1": {
+       "ttft_p95": 0.981,
+       "dec_p10": 47.72,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.297,
+       "dec_p10": 49.22,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 16,
+      "ttft_p95": 1.317,
+      "dec_p10": 34.98,
+      "r1": {
+       "ttft_p95": 1.319,
+       "dec_p10": 34.63,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.33,
+       "dec_p10": 36.61,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 20,
+      "ttft_p95": 1.629,
+      "dec_p10": 31.94,
+      "r1": {
+       "ttft_p95": 1.641,
+       "dec_p10": 32.11,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.301,
+       "dec_p10": 31.86,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     }
+    ],
+    "source": "docs/spike/results/pro6000-vllm033-farm-flint-nvfp4-gguf__bench__followup-append__think-default__20261102-160544.json"
+   }
+  },
+  "note": "vLLM 0.33.0 (2026-11-02, branch vllm-033): RecursiveSI/flint-nvfp4-gguf with the farm's argv, bf16 KV (Flint's vLLM model refuses fp8), a 60 GiB pool = 1,266,476 tokens. The highest levels tested are that pool's limit (41.9 conversations of 30k, 20.4 of 62k); decode p10 there was still 27 and 32 tok/s, so a bigger pool would carry more. Not in catalog.json: no estimate for other boxes.",
+  "cold_prefill_single_user": {}
+ }
+]

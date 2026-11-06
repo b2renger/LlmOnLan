@@ -1,6 +1,6 @@
 // The capacity explorer lives in the farm (farm/src/capacity/, served at /lol/capacity). This writes:
 //  1. farm/src/capacity/measured.json: measured.json trimmed to what the page and the estimator read (the vLLM
-//     configs' follow-up runs and cold prefill), the copy the farm serves;
+//     configs' follow-up runs and cold prefill), plus measured-extra.json (Flint), the copy the farm serves;
 //  2. explorer.html (or the path given): the same page with the catalog, that data and both scripts inlined, one
 //     file with no request anywhere, to share or publish (generated, not committed).
 // Run: node build_page.js [out.html]
@@ -22,7 +22,7 @@ const trimmed = {
     people: Object.fromEntries(followups(c.people)),
     profiles: Object.fromEntries(followups(c.profiles).map(([k, p]) => [k, { levels: (p.levels || []).map(keepLevel) }])),
     cold_prefill_single_user: c.cold_prefill_single_user,
-  })),
+  })).concat(JSON.parse(fs.readFileSync(path.join(here, 'measured-extra.json'), 'utf8'))),
 };
 const data = JSON.stringify(trimmed);
 fs.writeFileSync(path.join(farm, 'measured.json'), data + '\n');

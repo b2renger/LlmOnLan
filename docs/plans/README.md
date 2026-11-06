@@ -42,10 +42,7 @@ processed in a cloud; the code follows the ponytail ladder.
 2. **The ★ list** in [HUMAN_TESTS](../HUMAN_TESTS.md) (proposed 2026-11-05): agree it, then run it in its order.
 3. **On the PRO 6000, at a quiet hour:** install farm-v0.0.51, then J14 and J15. J14 is Update vLLM 0.30.0 → 0.33.0,
    which takes it from 32 to 48 people at 64k every turn. J15 is Flint from the panel. **M**, the owner's hour.
-4. **Teach the capacity generator Flint** (`docs/spike/explorer/build_measured.py`, then `build_page.js`, then the
-   farm tests). Its next run would otherwise drop Flint's measured seats from the capacity page and the presets.
-   **S**.
-5. **The review's last high finding:** a WebRTC way out of the Computer's sandbox (EGRESS-02) needs a run in Electron
+4. **The review's last high finding:** a WebRTC way out of the Computer's sandbox (EGRESS-02) needs a run in Electron
    first. **S**.
 
 ## 2. Next — the most value for the office

@@ -4,7 +4,7 @@ Per-level numbers are the harness's own (spike_bench.summarize_level fields, i.e
 prints); per-round follow-up numbers use the same computation as runs/round_stats.py (spike_bench.pct over ok,
 non-cold requests of one round). Run: python build_measured.py
 """
-import json, glob, os, re, math, sys, csv, datetime as dt
+import json, glob, os, re, math, sys, csv, subprocess, datetime as dt
 from collections import defaultdict
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))   # this checkout
@@ -25,14 +25,20 @@ def r(x, n):
 def parse_label(label):
     box = "pro6000" if label.startswith("pro6000") else "spark"
     engine = "vllm" if "vllm030" in label else "llamacpp"
-    model = ("qwen36" if "qwen36" in label else "nemotron" if "nemotron" in label else "gemma4" if "gemma4" in label
-             else "omni" if "omni" in label else "qwen38")
+    model = next((m for m in ("qwen36", "qwen38", "nemotron", "gemma4", "omni") if m in label), None)
+    if model is None:   # filed under a model it is not, a run would quietly change that model's numbers
+        raise ValueError("a run of no known model: %s (add it, or to NOT_HERE)" % label)
     variant = None
     m = re.search(r"-p(8|16)$", label)
     if m:
         variant = "p" + m.group(1)
     cid = "%s/%s/%s" % (box, engine, model) + ("/" + variant if variant else "")
     return box, engine, model, variant, cid
+
+
+# Runs this table is not built from. vLLM 0.33.0's, the Farm app's and the A/B on the farm's settings are in RESULTS.md, and measured-extra.json carries
+# what the page needs of them. Flint on llama.cpp ran with a model at the side, on a shared GPU.
+NOT_HERE = re.compile(r"vllm033|-shared-llamacpp-|-farm-v0\.0\.|-nvfp4-ab")
 
 
 def ctx_bucket(tokens):
@@ -151,6 +157,8 @@ for f in files:
     d = json.load(open(f, encoding="utf-8"))
     base = os.path.basename(f)
     label = d.get("label") or base.split("__")[0]
+    if NOT_HERE.search(label):
+        continue
     if base.endswith("__kv.json"):
         kvs[parse_label(base.split("__")[0])[4]] = d
         continue
@@ -580,7 +588,7 @@ doc["sources"] = [
         sum(len(v) for v in bench.values()), sum(len(v) for v in quality.values()), len(kvs)),
      "measured": "PRO 6000 2026-10-04; DGX Spark 2026-10-05 13:51 to 2026-10-06 11:37"},
     {"path": "docs/spike/spike_bench.py (pct, summarize_level fields; `summarize` output saved as _summarize.md)", "mtime": mtime(SPIKE + "/spike_bench.py")},
-    {"path": "docs/spike/runs/round_stats.py (per-round computation; output saved as _round_stats.txt)", "mtime": mtime(SPIKE + "/runs/round_stats.py")},
+    {"path": "docs/spike/runs/round_stats.py (per-round computation; run by this script for its check)", "mtime": mtime(SPIKE + "/runs/round_stats.py")},
     {"path": "docs/spike/RESULTS.md (cross-check, hardware facts, correction note)", "mtime": mtime(SPIKE + "/RESULTS.md")},
     {"path": "docs/spike/README.md (harness, profiles, pass rule)", "mtime": mtime(SPIKE + "/README.md")},
     {"path": "docs/spike/ESTIMATES_2026-10-05.md (specs, prices fetched 2026-10-05, KV paging method)", "mtime": mtime(SPIKE + "/ESTIMATES_2026-10-05.md")},
@@ -591,7 +599,10 @@ doc["sources"] = [
 
 # ------------------------------------------------------------------------------------------------ checks
 # (1) the per-round numbers equal runs/round_stats.py's printed output
-rs_txt = open(os.path.join(OUT, "_round_stats.txt"), encoding="utf-8").read()
+followups = sorted({c["runs"][x["run"]]["file"] for c in configs for pid, p in c["profiles"].items()
+                    if pid.startswith("followup") for x in p["levels"]})
+rs_txt = subprocess.run([sys.executable, "runs/round_stats.py"] + ["results/" + f for f in followups], cwd=SPIKE,
+                        capture_output=True, text=True, encoding="utf-8", check=True).stdout
 rs = {}
 cur = None
 for line in rs_txt.splitlines():

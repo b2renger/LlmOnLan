@@ -6,6 +6,20 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-06 (16:42) — The capacity generator runs again, and keeps Flint
+
+`build_measured.py` no longer ran at all: every vLLM 0.33.0 result parsed as llama.cpp and crashed on `('gemma4', None)`, any model
+it did not know was filed as Qwen3.8 (Flint's llama.cpp runs would have changed Qwen3.8's numbers), and its check read a
+`_round_stats.txt` that was never committed. Now `NOT_HERE` names the runs the table is not built from (vLLM 0.33.0, the Farm app's,
+Flint on llama.cpp, and the A/B on the farm's settings, which joined Qwen3.6's table on a first try), an unknown model stops the
+script, and the check runs `round_stats.py` itself. Flint's hand-added point moved to `measured-extra.json`, which `build_page.js` adds.
+
+**Tested:** both scripts ran, 324 round statistics matched with 0 mismatches, and the farm's `measured.json` is the same data apart
+from its stamp. Farm 287/287.
+
+**Left:** the page's numbers are still the spike's vLLM 0.30.0 runs, except Flint's, while the farm ships 0.33.0. The 2026-11-02 runs
+on 0.33.0 are in RESULTS.md, not on the page.
+
 ## 2026-11-06 (16:38) — The laptop's own speech to text works again, and a rebuilt bundle can reach a laptop
 
 **Reproduced first** in a throwaway venv: faster-whisper 1.2.1 with PyAV 19.0.2 gives `TypeError: open() got an unexpected keyword
