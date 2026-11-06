@@ -69,7 +69,7 @@ export default [
                     parts: [{ id: 'legacy-1', type: 'from-thread', x: 40, y: 40, w: 0, h: 0, settings: {} }],
                     wires: [],
                 });
-                const out = await dbg.importText(text, { confirm: false });
+                const out = await dbg.importText(text, { confirm: false, shipped: true });
                 if (!out.ok) throw new Error(`the import refused: ${JSON.stringify(out.errors)}`);
                 return {
                     types: dbg.state().parts.map((/** @type {any} */ p) => p.type),

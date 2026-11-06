@@ -13,6 +13,7 @@
 
 import { normaliseDoc, wireLabel } from './model.mjs';
 import { isValue, facetsOf } from './values.mjs';
+import { personChoices } from './person-only.mjs';
 
 /** @typedef {import('../core/types.mjs').GraphDoc} GraphDoc */
 
@@ -164,7 +165,8 @@ export function toText(doc, o = {}) {
  *               dropped ('part:unknown-type', 'wire:cycle', …), so an import is never silent.
  * @param {any} obj
  * @param {{specs: Map<string, any>, newId: () => string, now?: () => number,
- *   id?: string, threadId?: string|null, values?: boolean}} o
+ *   id?: string, threadId?: string|null, values?: boolean, handed?: boolean}} o `handed`: a file someone
+ *   handed over, not a graph we ship; what only a person chooses then waits for a look before its first run.
  * @returns {{ok: boolean, doc: GraphDoc|null, errors: string[]}}
  */
 export function fromJson(obj, o) {
@@ -228,7 +230,10 @@ export function fromJson(obj, o) {
     view: /** @type {any} */ (obj).view,
   }, { specs, now: () => now });
 
-  return { ok: true, doc, errors: [...errors, ...dropped] };
+  // Set here or dropped here, never read from the file: what a file says about itself decides nothing.
+  const { handed: _fileSaid, ...settings } = /** @type {any} */ (doc).settings;
+  if (o && o.handed && personChoices(doc).length) settings.handed = true;
+  return { ok: true, doc: { ...doc, settings }, errors: [...errors, ...dropped] };
 }
 
 /** Parse a file's TEXT. A JSON syntax error is reported as 'not-json', never thrown at the drop

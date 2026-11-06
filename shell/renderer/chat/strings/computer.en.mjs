@@ -122,6 +122,17 @@ registerStrings('computer', {
   runBarredOne: '1 box was skipped: a box before it closed the way (the grey arrow)',
   runLeftStale: 'boxes changed during the run: {n} — Run all again to update them',
   runMerged: 'Added to the run.',
+  handedTitle: 'Run this graph from a file?',
+  handedBody: 'This graph came from a file, so nobody on this computer chose what it reaches. Run it only if you trust where it came from.\n{list}\nYou will be asked once for this graph.',
+  handedOk: 'Run it',
+  handedNo: 'Not run. Change what you do not want, then run it again.',
+  handedFetch: 'Reads this address: {what}',
+  handedOpendata: 'Reads this dataset: {what}',
+  handedAgent: 'A model may read from these websites: {what}',
+  handedHome: 'Reads these devices of your home: {what}',
+  handedCommand: 'Switches this device of your home: {what}',
+  handedSend: 'Writes to this USB board: {what}',
+  handedReceive: 'Reads this USB board: {what}',
   // Critic S1-1: what a finished run SAYS — one sentence, the same in the bar and the live region
   // (computer/runbar.mjs outcomeOf). A yield is not "up to date": it says why nothing was sent.
   runOutcomeHidden: 'Paused: this window was in the background, so nothing was sent to the farm. Press Run all to carry on.',

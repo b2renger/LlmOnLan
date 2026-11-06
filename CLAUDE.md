@@ -423,7 +423,12 @@ and its next work goes to docs/plans/README.md. Snapshot:
   (*show*); Button, Condition, Confirm, Dialog, Toggle, Timer, **Trigger** (starts runs by itself on a bus message or
   a schedule, ONLY while a person armed the outputs and the Computer is on screen; one run per `gapSec`, latest wins;
   `perHour` runs at most) (*control*); Sticky, Section, Title
-  (*annotate*). Thinking boxes ask the farm **directly** (never through OWUI) on the background lane: one
+  (*annotate*). **A graph that came from a file** (library Import…, a dropped file, Replace from file…, or boxes pasted
+  from elsewhere: a paste this window did not copy) keeps its settings, marked `doc.settings.handed` when it holds
+  anything only a person chooses (`graph/person-only.mjs`; never read from the file); the first run, whichever way it
+  starts (`host.mjs` `createHandedGate`, inside `start`), lists them in one question, and Cancel runs nothing. MCP
+  `run_graph` refuses until a person said yes; shipped templates and examples pass `shipped: true` (owner 2026-11-06,
+  not released yet). Thinking boxes ask the farm **directly** (never through OWUI) on the background lane: one
   request in flight, they yield to a person's chat, and a hidden window sends nothing. Every run is bounded by
   `RUN_LIMITS` (`core/types.mjs`): 8 passes per box, 50 generations (the toolbar **Cap**), 10 min of wall
   clock including waits, 2000 activations; a loop is legal only through a gate box (`topo.mjs`

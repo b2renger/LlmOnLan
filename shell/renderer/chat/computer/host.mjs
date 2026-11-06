@@ -31,6 +31,7 @@ import { readRuns, resumable, settleCrashed } from '../graph/journal.mjs';
 import { pending as pendingParks, cancelAll as cancelParks } from '../graph/parts/control-bus.mjs';
 import { clearPresses, consumePress } from '../graph/parts/button.mjs';
 import { createCanvas } from '../graph/canvas.mjs';
+import { handed, personChoices } from '../graph/person-only.mjs';
 import { exampleByKey, exampleKeyOf } from './examples/index.mjs';
 import { createDocStore, SAVE_DEBOUNCE_MS } from './docstore.mjs';
 import { createSandbox } from '../sandbox/host.mjs';
@@ -64,6 +65,39 @@ async function settled() {
   while (!g.migration && Date.now() < deadline) await sleep(MIGRATION_POLL_MS);
   if (!g.migration) return;
   try { await g.migration; } catch { /* the migration reports its own verdict; we only wait */ }
+}
+
+/** One line of the question, per box type. @type {Record<string, string>} */
+const HANDED_LINE = {
+  fetch: 'computer.handedFetch', opendata: 'computer.handedOpendata', agent: 'computer.handedAgent', home: 'computer.handedHome',
+  'home-command': 'computer.handedCommand', send: 'computer.handedSend', receive: 'computer.handedReceive',
+};
+
+/**
+ * A graph that came from a file: what only a person chooses is listed once, before its first run, whichever way that
+ * run starts (owner 2026-11-06). Run all on a stranger's file could otherwise read a linked home and hand it to an
+ * Agent whose hosts the file named. No answer, no run; a question already open answers no to a second press.
+ * @param {any} session @param {any} app @returns {() => Promise<boolean>} may this run go?
+ */
+export function createHandedGate(session, app) {
+  let asking = false;
+  return async () => {
+    const doc = session.doc();
+    if (!handed(doc)) return true;
+    if (asking) return false;
+    asking = true;
+    const id = session.docId();
+    const list = personChoices(doc).map((c) => '• ' + t(HANDED_LINE[c.type], { what: c.what })).join('\n');
+    const dialogs = app.dialogs;
+    const yes = dialogs && typeof dialogs.confirm === 'function'
+      ? await dialogs.confirm({ title: t('computer.handedTitle'), body: t('computer.handedBody', { list }), ok: t('computer.handedOk'), danger: true })
+      : false;
+    asking = false;
+    if (!yes || session.docId() !== id) return false;
+    const { handed: _seen, ...settings } = session.doc().settings;
+    session.apply({ ...session.doc(), settings }, { label: 'reviewed', undoable: false });
+    return true;
+  };
 }
 
 /**
@@ -393,6 +427,8 @@ export function createHost(app, els) {
   };
   if (surface) surface.addEventListener('keydown', onSurfaceKey);
 
+  const handedOk = createHandedGate(session, app);
+
   /** The Run button, ctrl+enter, the run bar and the debug door all land here.
    * @param {any} [opts] */
   async function start(opts) {
@@ -421,6 +457,7 @@ export function createHost(app, els) {
       canvas.announce(t('computer.runOutcomeAlready'));
       return { ran: 0, busy: true, merged: 0 };
     }
+    if (!(await handedOk())) { clearPresses(); canvas.announce(t('computer.handedNo')); return null; }
     canvas.setCapped(null);          // a new run starts with no banner, whatever the last one said
     // The rebuild ladder (C3-U1): three rebuilds in a minute leave the sandbox quiet until an
     // explicit re-arm, and the host cannot tell a human's Run from an automatic re-run — only the

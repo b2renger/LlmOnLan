@@ -1,5 +1,9 @@
 # Documents from Microsoft 365, Google and synced folders — plan
 
+> **On hold (owner 2026-11-06).** Microsoft 365 is run by the school's IT department, and this feature is a request from
+> the school's administrators: nothing starts before they and IT give the green light. The school has no Google Workspace.
+> The plan stays as it is, for that day.
+
 *Started 2026-11-05 (11:23); the owner's answers the same day (two rounds) are in §0. Nothing is built. The facts in §2 and
 §3 were checked against Open WebUI 0.11.4's source and the two providers' documentation; the rest is a proposal.*
 

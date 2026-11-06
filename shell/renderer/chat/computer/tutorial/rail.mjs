@@ -603,7 +603,7 @@ export function install(app) {
     const tpl = templateById(id);
     if (!tpl) { toast(t('tutorial.notShipped')); return null; }
     if (!app.library || typeof app.library.importText !== 'function') return null;
-    const out = await app.library.importText(JSON.stringify(tpl.doc), { name: tpl.title });
+    const out = await app.library.importText(JSON.stringify(tpl.doc), { name: tpl.title, shipped: true });
     if (!out || !out.ok) return null;
     toast(t('tutorial.templateOpened', { title: tpl.title }));
     return out.id;
@@ -623,7 +623,7 @@ export function install(app) {
     }
     if (!app.library || typeof app.library.importText !== 'function') return null;
     const doc = exampleDoc(ex);
-    const out = await app.library.importText(JSON.stringify(doc), { name: doc.title });
+    const out = await app.library.importText(JSON.stringify(doc), { name: doc.title, shipped: true });
     if (!out || !out.ok) return null;
     progress.examples = { ...(progress.examples && typeof progress.examples === 'object' ? progress.examples : {}), [key]: out.id };
     void save();

@@ -10,8 +10,9 @@ box serves the class (20–30 people, 50 at most) with vLLM; the operator does e
 processed in a cloud; the code follows the ponytail ladder.
 
 **The open plans:**
-- [CLOUD_SOURCES_PLAN.md](CLOUD_SOURCES_PLAN.md) — documents from Microsoft 365, Google and synced folders. Nothing
-  built. It waits on the name of the office's Microsoft 365 and Google Workspace admin.
+- [CLOUD_SOURCES_PLAN.md](CLOUD_SOURCES_PLAN.md) — documents from Microsoft 365 and synced folders. Nothing built, and
+  **on hold** (owner 2026-11-06): a request from the school's administrators; nothing starts before they and IT say go.
+  The school has no Google Workspace.
 - [IDE_PLAN.md](IDE_PLAN.md) — LOL Vibe's IDE. Slice 7 and §5 B/C are open.
 
 ---
@@ -29,19 +30,17 @@ processed in a cloud; the code follows the ponytail ladder.
    - `lol init` writes only the name;
    - no search query in the farm's log, and no document left behind when OCR is killed;
    - a device on the LAN can no longer steer a client (plugin addresses stay on the farm's host, a password at its
-     address, and a farm you use comes before a stranger).
+     address, and a farm you use comes before a stranger);
+   - a graph from a file lists what it reaches before its first run.
 
-   Their person checks are in [HUMAN_TESTS](../HUMAN_TESTS.md): A21, C7, D16, D17, G13, K11, K12, plus C8 and K13.
+   Their person checks are in [HUMAN_TESTS](../HUMAN_TESTS.md): A21, A22, C7, D16, D17, G13, K11, K12, plus C8 and K13.
 2. **The ★ list** in [HUMAN_TESTS](../HUMAN_TESTS.md) (proposed 2026-11-05): agree it, then run it in its order.
 3. **On the PRO 6000, at a quiet hour:** install farm-v0.0.51, then J14 and J15. J14 is Update vLLM 0.30.0 → 0.33.0,
    which takes it from 32 to 48 people at 64k every turn. J15 is Flint from the panel. **M**, the owner's hour.
 4. **Teach the capacity generator Flint** (`docs/spike/explorer/build_measured.py`, then `build_page.js`, then the
    farm tests). Its next run would otherwise drop Flint's measured seats from the capacity page and the presets.
    **S**.
-5. **An imported graph lists its person-only settings before its first run** (owner 2026-11-06). Today one Run all on a
-   stranger's graph can read a linked home and hand it to an Agent box. Fetch addresses, Agent hosts, Open data links
-   and Home devices: one confirm that names them all. **S–M**.
-6. **The review's last high findings:** a phone's street address reaching the model through Home Assistant (TEXT-1), a
+5. **The review's last high findings:** a phone's street address reaching the model through Home Assistant (TEXT-1), a
    failed save never shown in LOL Vibe (VIBE-1), keyboard focus landing on the wrong plugin's button (A11Y-01). A WebRTC
    way out of the Computer's sandbox (EGRESS-02) needs a run in Electron first. **S** each.
 
@@ -57,30 +56,24 @@ processed in a cloud; the code follows the ponytail ladder.
 4. **Tests before a release:** the farm suite, the Farm app's test, and the shell's unit, chat-unit and lint, in
    `release.yml` and `release-farm.yml` (a workflow_dispatch dry run first). No release since v0.2.10 ran its ★ tests,
    so the automatic suites should at least block one. The owner: CI minutes. **M**.
-5. **Online documents, the folder way** (CLOUD_SOURCES_PLAN §7):
-   - checks F1 and F2 (no code; F1's server half is already verified);
-   - step 1: the tutorial page and the note for IT;
-   - step 2: Folders in LlmOnLan.
-
-   It needs a person with an office OneDrive account. **S**, then **M**.
-6. **Slow down wrong admin-token guesses** on `/lol/admin/*` (a delay per 401, as `/lol/plugin-keys` waits 400 ms).
+5. **Slow down wrong admin-token guesses** on `/lol/admin/*` (a delay per 401, as `/lol/plugin-keys` waits 400 ms).
    The token guards the whole panel on a LAN of students. **S**.
-7. **Small hardening:**
+6. **Small hardening:**
    - a main-frame navigation guard on the client's window (`index.ts` returns for the main frame);
    - make the Trigger's gap check and its start record one step (an `await` sits between them);
    - a timeout before a download's first byte in the Farm app's wizard (a server that never answers hangs it).
 
    **S**.
-8. **A plugin's first install shows its progress** (Voice takes about 10 minutes behind a "…"). The owner picks: in
+7. **A plugin's first install shows its progress** (Voice takes about 10 minutes behind a "…"). The owner picks: in
    the download slot, or as a job that tells the laptops the farm is busy. **M**.
-9. **The IDE's model line agrees with the farm's proven list** (`projects/models.mjs` calls Qwen3.6 untried and has
+8. **The IDE's model line agrees with the farm's proven list** (`projects/models.mjs` calls Qwen3.6 untried and has
    no Flint row). The owner: do 11/15 and 13/15 count as good at edits? **S**.
-10. **The client says when a farm is older than it expects.** Farm updates are manual, and older farms refuse newer
-    settings. The owner: the minimum version. **S**.
-11. **Prune old coding-agent session logs** in `DATA_DIR/lol-studio/dsh` (IDE_PLAN slice 7). **S**.
-12. **The coding agent's fence check on macOS and Linux** (`sandboxBlocked` checks only on Windows). After HUMAN_TESTS
+9. **The client says when a farm is older than it expects.** Farm updates are manual, and older farms refuse newer
+   settings. The owner: the minimum version. **S**.
+10. **Prune old coding-agent session logs** in `DATA_DIR/lol-studio/dsh` (IDE_PLAN slice 7). **S**.
+11. **The coding agent's fence check on macOS and Linux** (`sandboxBlocked` checks only on Windows). After HUMAN_TESTS
     E4. **M**.
-13. **Measure Ripple-65B Preview**, a dense model tuned for coding: about 4–13 people at 64k on the PRO 6000 by
+12. **Measure Ripple-65B Preview**, a dense model tuned for coding: about 4–13 people at 64k on the PRO 6000 by
     estimate, so a small group's model at best. It needs a vLLM nightly in a root of its own, after Now 3
     ([the study](../research/RIPPLE_65B_STUDY.md)). **S**, the owner's quiet hour.
 
@@ -101,7 +94,6 @@ processed in a cloud; the code follows the ponytail ladder.
   - a notification click brings the window forward (D-C7);
   - a cached thread path (D-V1);
   - the plural string (D-U2).
-- **Online documents, steps 3–8** (the model may look, accounts, writes), after the admin's name and each IT's answers.
 - **Test hygiene:**
   - retire the old chat-scope gate;
   - `npm test` runs the chat suites;
@@ -112,15 +104,13 @@ processed in a cloud; the code follows the ponytail ladder.
 ## 4. Waiting on the owner
 
 **The ones that unblock the most:**
-1. **Who administers the office's Microsoft 365 and Google Workspace?** LlmOnLan registers there first (Q8, decided
-   2026-11-06), and the online-document accounts start from it.
-2. **The next release and the ★ list** (Now 1–2), and which build tests today's fixes: a local build or a pre-release
+1. **The next release and the ★ list** (Now 1–2), and which build tests today's fixes: a local build or a pre-release
    tag.
-3. **A quiet hour on the PRO 6000** (Now 3, then Next 1).
-4. **May vLLM's own model read documents** instead of a second gemma4:12b? It frees 9 GB, about 14 % more room for
+2. **A quiet hour on the PRO 6000** (Now 3, then Next 1).
+3. **May vLLM's own model read documents** instead of a second gemma4:12b? It frees 9 GB, about 14 % more room for
    conversations (multi-user decision 6). **M**.
-5. **CI minutes for the tests** (Next 4).
-6. **CLAUDE.md:**
+4. **CI minutes for the tests** (Next 4).
+5. **CLAUDE.md:**
    - cut it to about 350 lines, with the details moved to the READMEs and each one checked there first;
    - change it only when a rule, the contract, a port or the map changes;
    - reword invariant #4 to the calls the contract table lists (it says "admin REST API", which the app never uses).
@@ -154,7 +144,6 @@ processed in a cloud; the code follows the ponytail ladder.
   - the designer bench and the board bench: wanted, as skills or boxes, or dropped;
   - IDE §5 B *Open in the Computer*;
   - which agent-skills project.
-- **Online documents:** which formats `docs_save` may write: text only, or real Word files.
 - **ComfyQ:** booking jobs from the chat (images, video, audio). Build it, park it or drop it, now that the prompt
   tools shipped.
 - **Licences:**
@@ -183,6 +172,9 @@ processed in a cloud; the code follows the ponytail ladder.
 
 ## 5. Parked or dropped
 
+- **Online documents** ([CLOUD_SOURCES_PLAN](CLOUD_SOURCES_PLAN.md)): the folder way, then the Microsoft 365 steps, all on
+  hold until the school's administrators and IT give the green light (owner 2026-11-06). The plan keeps its decisions
+  and its open questions, among them which formats `docs_save` may write and who administers Microsoft 365 (IT).
 - **Several boxes behind one endpoint, and cache affinity:** parked until a second PRO-class card ("scale up, not
   out", 2026-10-04).
 - **The small GPUs as farm capacity:** dropped 2026-10-04 (booked for 3D and VR).

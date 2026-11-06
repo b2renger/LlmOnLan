@@ -45,6 +45,7 @@ import '../strings/graph.en.mjs';
 import '../strings/computer.en.mjs';
 import '../strings/parts.en.mjs';
 import '../strings/computer-canvas.en.mjs';
+import { personChoices } from './person-only.mjs';
 
 /** How many per-item failures a part lists before the rest live in the run report (§2.6 BH-3).
  *  A fan of 40 that fails 40 times must not turn one part into a wall of red. */
@@ -1495,10 +1496,14 @@ export function createCanvas(o) {
 
   // ---- clipboard -------------------------------------------------------------------------------
 
+  /** What this window last copied. Anything else on the clipboard came from somewhere else, and is treated as a file. */
+  let copied = '';
+
   function copyText() {
     const ids = session.selected();
     if (!ids.length) return null;
-    return JSON.stringify(toClipboard(session.doc(), ids));
+    copied = JSON.stringify(toClipboard(session.doc(), ids));
+    return copied;
   }
 
   /**
@@ -1510,10 +1515,11 @@ export function createCanvas(o) {
     const payload = fromClipboard(text);
     if (!payload || !hasDoc()) { announce(t('graph.saidNothingToPaste')); return []; }
     let doc = session.doc();
+    const foreign = String(text) !== copied;
     const off = pasteOffset(payload.parts, opt.at || null);
     /** @type {Map<number, string>} */ const minted = new Map();
     for (const p of payload.parts) {
-      /** @type {any} */ const want = { type: p.type, x: snap(p.x + off.dx), y: snap(p.y + off.dy), settings: p.settings };
+      /** @type {any} */ const want = { type: p.type, x: snap(p.x + off.dx), y: snap(p.y + off.dy), settings: foreign && p.type === 'audio' ? { ...p.settings, listen: false } : p.settings };
       if (Number(/** @type {any} */ (p).w) > 0 && Number(/** @type {any} */ (p).h) > 0) {
         want.w = /** @type {any} */ (p).w;
         want.h = /** @type {any} */ (p).h;
@@ -1533,6 +1539,7 @@ export function createCanvas(o) {
     const ids = Array.from(minted.values());
     if (!ids.length) { announce(t('graph.saidNothingToPaste')); return []; }
     const dup = opt.label === 'duplicate';
+    if (foreign && personChoices(payload).length) doc = { ...doc, settings: { ...doc.settings, handed: true } };
     session.apply(doc, { label: dup ? 'duplicate' : 'paste' });
     select(ids, { say: false });
     announce(dup ? t('graph.saidDuplicated', { count: ids.length }) : t('graph.saidPasted', { count: ids.length }));
@@ -1678,7 +1685,7 @@ export function createCanvas(o) {
     }
     const doc = session.doc();
     const out = fromText(text, {
-      specs, newId: app.newId, now: app.now, id: doc.id, threadId: doc.threadId, values: true,
+      specs, newId: app.newId, now: app.now, id: doc.id, threadId: doc.threadId, values: true, handed: !o.shipped,
     });
     if (!out.ok || !out.doc) {
       const message = refusalSentence(out.errors);

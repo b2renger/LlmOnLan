@@ -302,7 +302,7 @@ export function createLibrary(app, els) {
    * REFUSED, not imported with a warning (§7.6): a v3 file carrying a part type this build has
    * never heard of would come in as a subtly broken graph, which is the quiet field-loss the plan
    * bans one level up.
-   * @param {string} text @param {{name?: string}} [o]
+   * @param {string} text @param {{name?: string, shipped?: boolean}} [o] `shipped`: a template or an example of ours
    * @returns {Promise<{ok: boolean, id: string|null, parts: number, wires: number,
    *   errors: string[], message: string}>}
    */
@@ -310,7 +310,7 @@ export function createLibrary(app, els) {
     const nothing = { ok: false, id: null, parts: 0, wires: 0, errors: /** @type {string[]} */ ([]), message: '' };
     const id = app.newId();
     const out = fromText(String(text || ''), {
-      specs, newId: app.newId, now, id, threadId: null, values: true,
+      specs, newId: app.newId, now, id, threadId: null, values: true, handed: !o.shipped,
     });
     if (!out.ok || !out.doc) {
       const newer = (out.errors || []).indexOf('unsupported-version') >= 0;

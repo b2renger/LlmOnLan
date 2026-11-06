@@ -6,6 +6,29 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-06 (16:24) — A graph from a file lists what it reaches before its first run
+
+The owner's decision of the morning (Q: graph files someone hands you). The review had it twice (OLD-1, EGRESS-01): a file
+keeps every setting only a person chooses, so one Run all on a stranger's graph could read a linked home and hand it to an
+Agent box whose hosts the file named. The settings stay in the graph, and the first run asks.
+
+- `graph/person-only.mjs` (new, the list moved out of `mcp-tools.mjs`): `personChoices(doc)` says what a graph reaches, whole
+  and on one line (a host list is never cut short, and control or invisible characters go, so a value cannot draw a list of
+  its own in the question).
+- `fromJson` marks `doc.settings.handed` on the file paths when there is something to list, and never reads the mark from
+  the file. Templates and examples pass `shipped: true`. A paste this window did not copy counts as a file (Listen off, and
+  the mark): the same hole, by the clipboard.
+- `createHandedGate` sits inside `host.mjs` `start`, the one door every run takes (Run all, ▶, a Button, a Trigger, the resume
+  banner). No answer, no run. MCP `run_graph` refuses with a sentence until a person said yes.
+
+**Tested:** 7 unit cases (`person-only.test.mjs`), chat-unit 1952/1952, lint 0, and a real Electron window on the mock farm
+(`k28-handed`): the question lists the address, Cancel has the focus and runs nothing, ▶ takes the same door, a yes is
+asked once, a shipped graph asks nothing. Person's check: HUMAN_TESTS A22. Graphs imported before this version carry no
+mark, so they do not ask.
+
+The owner, the same message: **Microsoft 365 is on hold** until the school's administrators and IT say go, and the school has
+no Google Workspace (CLOUD_SOURCES_PLAN, plans README). For now: consolidate, document, and find better and faster models.
+
 ## 2026-11-06 (09:57) — The review's second round: privacy leaks and LAN steering fixed; the owner's four answers
 
 The owner asked to go slower and lighter on agents (the review cost about 29 million tokens, 167 agents): this was done

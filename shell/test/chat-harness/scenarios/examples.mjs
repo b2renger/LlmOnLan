@@ -84,7 +84,7 @@ async function open(/** @type {any} */ h) {
 async function importExample(h, name) {
     const text = exampleText(name);
     const file = JSON.parse(text);
-    const report = await h.graph.call('importText', text, { confirm: false });
+    const report = await h.graph.call('importText', text, { confirm: false, shipped: true });
     h.eq(report.ok, true, `${name} imported: ${report.message}`);
     h.eq(report.errors.length, 0, `nothing was dropped: ${JSON.stringify(report.errors)}`);
     h.eq(report.parts, file.parts.length, `all ${file.parts.length} parts arrived`);

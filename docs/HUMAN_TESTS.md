@@ -72,7 +72,7 @@ been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the 
 | O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 3 | — | 1 h 15 |
 | P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
 | Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q5) | 6 | Q1, Q6 | 2 h 30 |
-| **Total** | | **137** | **25** | about 60–66 h |
+| **Total** | | **138** | **25** | about 60–66 h |
 
 Part 3's measurements (Q4, Q5 step 3, J12–J13 on llama.cpp) are not in these counts: an agent runs them. J16 is
 counted in J, though an agent can run its steps 1–4.
@@ -256,6 +256,22 @@ the first 200 rows of …*; offline it runs from its copy and says *Offline*. 4:
 (the docs say ≈ 362.7 million: **unconfirmed anywhere, write down the number**); with no hosts, fetch is not offered
 and the answer says it worked from the 200-row sample; the run bar says *1–6 generations*. 5: every step shown.
 - [ ] Done · Found:
+
+### A22 A graph from a file lists what it reaches before its first run
+*Proves:* one Run all on a stranger's file cannot read your home or a private address unseen (the owner's decision of
+2026-11-06; checked in a real window by the harness, on a mock farm). *Needs:* a graph file with a Fetch box and an Agent
+box whose hosts are filled in; a linked home for the Home line. *Was:* new (review 2026-11-05).
+
+1. Import the file (library Import…). Press **Run all**. *Pass:* a question lists the Fetch address and the Agent's hosts,
+   word for word, with Cancel focused.
+2. Press Cancel. *Pass:* no box ran; the status line says it was not run.
+3. Press a box's ▶. *Pass:* the same question. Press **Run it**. *Pass:* the run goes.
+4. Run all again, then close and reopen the app and run again. *Pass:* no second question.
+5. Copy a box out of a template, paste it into the same graph. *Pass:* no question. Paste boxes copied from a file opened in
+   a text editor into another graph. *Pass:* the question, on that graph's next run.
+6. In Open WebUI, ask a model with the Computer's tools to run a graph you just imported and never ran. *Pass:* it says a
+   person must run it first.
+7. Open a template with a Home box. *Pass:* no question.
 
 ### A10 Code, pictures and files
 *Proves:* the sandbox and the File box on a real disk. *Was:* 3.1, 3.5, 3.6, 3.9; LOLCHAT_RIG §15, §15b, §18 (a paused

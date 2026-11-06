@@ -13,6 +13,9 @@
 import { mcpDoor, outputsDoor } from '../projects/bridge.mjs';
 import { EXAMPLES } from './examples/index.mjs';
 import { creativePresets } from '../graph/parts/creative.mjs';
+import { handed, modelSettings, PERSON_ONLY } from '../graph/person-only.mjs';
+
+export { modelSettings, PERSON_ONLY };
 
 /** @typedef {{text: string, isError?: boolean}} ToolOut */
 
@@ -54,28 +57,11 @@ function boxTypes() {
   });
 }
 
-/** Per box type, the settings only a person may set. */
-export const PERSON_ONLY = Object.freeze({
-  fetch: ['url'], opendata: ['link'], agent: ['hosts'], audio: ['listen'],
-  send: ['serialPort', 'serialLabel'], receive: ['serialPort', 'serialLabel'],
-  // The home (docs/HOME_ASSISTANT.md): which devices a Home box reads, and the device, action and details of a Home command.
-  home: ['entities', 'names'], 'home-command': ['entity', 'name', 'action', 'data'],
-});
-
-/** PURE: a model's settings for a box of `type`, without what only a person may set. @param {string} type @param {any} settings */
-export function modelSettings(type, settings) {
-  const drop = /** @type {Record<string, string[]>} */ (PERSON_ONLY)[type] || [];
-  /** @type {Record<string, any>} */ const kept = {};
-  /** @type {string[]} */ const left = [];
-  for (const [k, v] of Object.entries(settings && typeof settings === 'object' ? settings : {})) {
-    if (drop.includes(k)) left.push(k); else kept[k] = v;
-  }
-  return { kept, left };
-}
-
 const LEFT_NOTE = 'left for a person to set in the Computer (only a person chooses where a box reads from, which web hosts an agent may read, a USB board, Listen, and which home devices a box reads or switches)';
 /** What a model is told when it asks to run a Converse box. */
 export const CONVERSE_NOTE = 'A conversation is started by a person, with ● Start on the box: only a person opens the microphone.';
+/** What a model is told about a graph that came from a file and that no person looked at yet. */
+export const HANDED_NOTE = 'This graph came from a file. A person runs it first, with Run all in the Computer, after reading what it reaches.';
 const MUTATING = new Set(['open_graph', 'new_graph', 'add_box', 'connect_boxes', 'set_box', 'run_graph']);
 
 /** Where a new box goes when the model gives no place: right of everything. @param {any} comp */
@@ -167,6 +153,7 @@ export async function runTool(name, args) {
       // docs/archive/plans/COMPUTER_VOICE_PLAN.md K-V8: a model never starts a conversation (the box refuses
       // anyway: only a person's ● Start opens the microphone).
       if (a.from && comp.doc().parts.some((/** @type {any} */ p) => p.id === a.from && p.type === 'converse')) return no(CONVERSE_NOTE);
+      if (handed(comp.doc())) return no(HANDED_NOTE);
       await comp.run(a.from ? { mode: 'from', seeds: [String(a.from)] } : {});
       const until = Date.now() + RUN_WAIT_MS;
       while (comp.running() && Date.now() < until) await new Promise((r) => setTimeout(r, 250));

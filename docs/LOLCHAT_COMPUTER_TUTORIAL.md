@@ -579,6 +579,12 @@ along in a Text box.
 
 ### Data from the web: the Fetch box
 
+**A graph someone hands you asks first.** A graph that came from a file, or boxes pasted from somewhere else, can carry
+addresses and devices that nobody on this computer chose. So the first time it runs, however that run starts, the
+Computer stops and lists them: each Fetch address, Open data link, website an Agent may read, device of your home a box
+reads or switches, and USB board. **Cancel** runs nothing, and you can change the boxes and run again. **Run it** is
+asked once for that graph. A model cannot run such a graph until you have. The templates and examples we ship do not ask.
+
 **＋ → Bring in → Fetch** reads a web address you type: an open API (JSON) or a page. Press ▶: a JSON
 answer flows on as data a **Code** box can pick apart; anything else flows on as text. Only that request
 leaves this computer. The rules, so a graph someone hands you cannot misuse it:
