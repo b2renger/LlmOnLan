@@ -1,0 +1,68 @@
+{
+ "model": "apex-35b",
+ "base": "http://127.0.0.1:8190/v1",
+ "at": "2026-11-06T18:23:47.005Z",
+ "checks": [
+  {
+   "label": "warm-up",
+   "ok": true,
+   "ttft_s": 0.192,
+   "decode_tps": 188.6,
+   "prompt_tokens": 17,
+   "completion_tokens": 64,
+   "text": "The tide rolled in like a slow breath, carrying shells and seaweed up the sandy shore. Waves crashed against the rocks, turning to",
+   "reasoning_chars": 156,
+   "tool_calls": []
+  },
+  {
+   "label": "one stream (512 tokens)",
+   "ok": true,
+   "ttft_s": 0.025,
+   "decode_tps": 186.7,
+   "prompt_tokens": 25,
+   "completion_tokens": 512,
+   "text": "# How a Bicycle Gear System Works\n\nA bicycle gear system transfers your pedaling power to the wheels while allowing you to choose different speed-to-effort ratios. The core components are the chainrings (front gears), the cassette (rear gears), and the chain that connects them.\n\n**The basics:** Your feet push down on the pedals, which rotate the crank arm and the chainring attached to it. The chain, a loop of metal links, wraps around the chainring and pulls the rear cog (one of the gears on the cassette) forward. As the rear cog turns, it rotates your rear wheel, propelling the bicycle forward.\n\n**Why gears matter:** Not every pedal stroke is equally effective—marching up a steep hill needs slow, powerful rotations, while sprinting on flat ground wants to go fast. Gears let you choose. A ",
+   "reasoning_chars": 244,
+   "tool_calls": []
+  },
+  {
+   "label": "picture",
+   "ok": true,
+   "ttft_s": 0.094,
+   "decode_tps": 188.5,
+   "prompt_tokens": 267,
+   "completion_tokens": 104,
+   "text": "The picture contains a red circle on the left, a blue square on the right, and the text \"LOL 42\" in black lettering below the shapes.",
+   "reasoning_chars": 241,
+   "tool_calls": []
+  },
+  {
+   "label": "tool call",
+   "ok": true,
+   "ttft_s": 0.036,
+   "decode_tps": 196.2,
+   "prompt_tokens": 279,
+   "completion_tokens": 60,
+   "text": "",
+   "reasoning_chars": 123,
+   "tool_calls": [
+    {
+     "name": "get_weather",
+     "args": "{\"city\": \"Lyon\"}"
+    }
+   ]
+  },
+  {
+   "label": "sound in a message fr.wav",
+   "ok": false,
+   "status": 400,
+   "error": "{\"error\":{\"message\":\"At most 0 audio(s) may be provided in one prompt. (parameter=audio)\",\"type\":\"BadRequestError\",\"param\":\"audio\",\"code\":400}}"
+  },
+  {
+   "label": "sound in a message en.wav",
+   "ok": false,
+   "status": 400,
+   "error": "{\"error\":{\"message\":\"At most 0 audio(s) may be provided in one prompt. (parameter=audio)\",\"type\":\"BadRequestError\",\"param\":\"audio\",\"code\":400}}"
+  }
+ ]
+}

@@ -3933,8 +3933,13 @@ test('capacity scenarios: needs filter the models, the picks cover the head coun
     const cls = run('class', 'rtx-pro-6000-ws');
     assert.ok(!cls.picks.some((p) => p.hw.id.startsWith('dgx-spark')));
     assert.ok(cls.whyNot.some((w) => w.hw.id === 'dgx-spark' && /not your 30/.test(w.text)), 'why not a Spark');
-    assert.equal(cls.thisFarm.model.id, 'qwen3.6-35b-a3b');
+    // Nothing served yet: both cover 30, both are measured (Gemma 4 26B since 2026-11-06), and the rule takes the higher index,
+    // 46 against 43.4. A farm that serves Qwen3.6 keeps it: the model served comes first when it covers.
+    assert.equal(cls.thisFarm.model.id, 'gemma-4-26b-a4b');
     assert.ok(cls.thisFarm.covers && cls.thisFarm.r.confidence === 'measured');
+    assert.equal(cls.thisFarm.r.people.mid, 40, 'the measured 40, not the 123 the config alone gave');
+    const servedCls = Sc.recommend(E, cat, card('class'), { hwId: 'rtx-pro-6000-ws', servedId: 'qwen3.6-35b-a3b' }).thisFarm;
+    assert.equal(servedCls.model.id, 'qwen3.6-35b-a3b');
     // Vibe-coding with 10 on a Spark farm: this farm falls short (measured 8 at 64k), and says so.
     const xr = run('xr', 'dgx-spark');
     assert.equal(xr.thisFarm.model.id, 'qwen3.6-35b-a3b');

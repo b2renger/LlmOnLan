@@ -24,6 +24,7 @@ with 32k / 64k / 128k of context each, by vLLM and by llama.cpp, for a short lis
 | `runs/vllm_all.sh` | `vllm_suite.sh` followed by `vllm_extend.sh` against one server. |
 | `runs/followup_levels.sh` | Extra follow-up levels, for example with `--append`. |
 | `runs/llamacpp_suite.sh` | The reduced llama.cpp suite. |
+| `runs/trial_serve.sh`, `runs/model_trial.sh` | One new model on trial: served through the farm's `serve.sh` from a root that is not production's, then the gate, a chat sweep and follow-ups at 30k and 62k with `--append` (2026-11-06). Repeat the sweeps near the limit: one passing run is not a result. |
 | `runs/round_stats.py` | Per-turn TTFT and decode statistics from a follow-up result. |
 | `runs/spark_matrix.sh` | DGX Spark: the whole matrix unattended (vLLM ×3 models, then llama.cpp), one engine at a time. `MAX_JOBS=4` for FlashInfer's JIT. |
 | `runs/spark_guard.sh` | DGX Spark: logs temperature/clock/power/memory every 10 s and stops the engine below 8 GB free or at 90 °C (a unified-memory OOM can latch the GB10 at ~700 MHz). |

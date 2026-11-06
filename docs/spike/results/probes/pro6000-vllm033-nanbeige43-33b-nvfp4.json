@@ -1,0 +1,63 @@
+{
+ "model": "nanbeige4.3-33b",
+ "base": "http://127.0.0.1:8190/v1",
+ "at": "2026-11-06T16:45:05.588Z",
+ "checks": [
+  {
+   "label": "warm-up",
+   "ok": true,
+   "ttft_s": 0.106,
+   "decode_tps": 69.8,
+   "prompt_tokens": 39,
+   "completion_tokens": 60,
+   "text": "The sea glimmers under the sunlight.  \nWaves roll gently onto the shore.  \nIt holds mysteries beneath its blue depths.",
+   "reasoning_chars": 134,
+   "tool_calls": []
+  },
+  {
+   "label": "one stream (512 tokens)",
+   "ok": true,
+   "ttft_s": 0.031,
+   "decode_tps": 69.3,
+   "prompt_tokens": 46,
+   "completion_tokens": 478,
+   "text": "A bicycle gear system works by changing the relationship between the chainring in the front and the sprocket in the rear, which adjusts how far the chain pulls the bike forward for each pedal revolution.\n\nThe main components are the chainring attached to the crank, the rear cassette mounted on the wheel hub, and the chain connecting them. When you pedal, the chainring turns the chain. The chain then pulls on one of the rear sprockets, turning the wheel. The bike moves forward because the rear wheel is forced to rotate by this action.\n\nMost bicycles use a derailleur system. The front derailleur moves the chain between different-sized chainrings. Larger chainrings generally provide a lower gear, useful for climbing; smaller chainrings provide a higher gear for faster riding on flat ground. T",
+   "reasoning_chars": 310,
+   "tool_calls": []
+  },
+  {
+   "label": "picture",
+   "ok": false,
+   "status": 400,
+   "error": "{\"error\":{\"message\":\"nanbeige4.3-33b is not a multimodal model\",\"type\":\"BadRequestError\",\"param\":null,\"code\":400}}"
+  },
+  {
+   "label": "tool call",
+   "ok": true,
+   "ttft_s": 0.042,
+   "decode_tps": 72.8,
+   "prompt_tokens": 298,
+   "completion_tokens": 59,
+   "text": "",
+   "reasoning_chars": 107,
+   "tool_calls": [
+    {
+     "name": "get_weather",
+     "args": "{\"city\": \"Lyon\"}"
+    }
+   ]
+  },
+  {
+   "label": "sound in a message fr.wav",
+   "ok": false,
+   "status": 400,
+   "error": "{\"error\":{\"message\":\"nanbeige4.3-33b is not a multimodal model\",\"type\":\"BadRequestError\",\"param\":null,\"code\":400}}"
+  },
+  {
+   "label": "sound in a message en.wav",
+   "ok": false,
+   "status": 400,
+   "error": "{\"error\":{\"message\":\"nanbeige4.3-33b is not a multimodal model\",\"type\":\"BadRequestError\",\"param\":null,\"code\":400}}"
+  }
+ ]
+}

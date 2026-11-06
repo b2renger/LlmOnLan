@@ -244,5 +244,325 @@
   },
   "note": "vLLM 0.33.0 (2026-11-02, branch vllm-033): RecursiveSI/flint-nvfp4-gguf with the farm's argv, bf16 KV (Flint's vLLM model refuses fp8), a 60 GiB pool = 1,266,476 tokens. The highest levels tested are that pool's limit (41.9 conversations of 30k, 20.4 of 62k); decode p10 there was still 27 and 32 tok/s, so a bigger pool would carry more. Not in catalog.json: no estimate for other boxes.",
   "cold_prefill_single_user": {}
+ },
+ {
+  "id": "pro6000/vllm/gemma426",
+  "box": "pro6000",
+  "engine": "vllm",
+  "model": "gemma426",
+  "people": {
+   "followup_32k": {
+    "every": {
+     "pass": 40,
+     "fail": 48,
+     "label": "40",
+     "tested": [
+      8,
+      16,
+      24,
+      32,
+      40,
+      48,
+      64
+     ]
+    },
+    "steady": {
+     "pass": 64,
+     "fail": null,
+     "label": "≥ 64",
+     "tested": [
+      8,
+      16,
+      24,
+      32,
+      40,
+      48,
+      64
+     ]
+    },
+    "profile": "followup_32k_append"
+   },
+   "followup_64k": {
+    "every": {
+     "pass": 20,
+     "fail": 22,
+     "label": "20",
+     "tested": [
+      8,
+      16,
+      20,
+      22,
+      24,
+      26,
+      32
+     ]
+    },
+    "steady": {
+     "pass": 32,
+     "fail": null,
+     "label": "≥ 32",
+     "tested": [
+      8,
+      16,
+      20,
+      22,
+      24,
+      26,
+      32
+     ]
+    },
+    "profile": "followup_64k_append"
+   }
+  },
+  "note": "vLLM 0.33.0 (2026-11-06): nvidia/Gemma-4-26B-A4B-NVFP4 from a scratch root, the farm's Gemma flags, a 60 GiB pool (26 people of 64k), --append. Every level kept passed each time it ran: 48 at 32k and 24 at 64k passed once and failed once.",
+  "profiles": {
+   "followup_32k_append": {
+    "levels": [
+     {
+      "c": 8,
+      "ttft_p95": 2.354,
+      "dec_p10": 96.57,
+      "r1": {
+       "ttft_p95": 2.356,
+       "dec_p10": 87.83,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.123,
+       "dec_p10": 97.81,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 16,
+      "ttft_p95": 1.554,
+      "dec_p10": 73.04,
+      "r1": {
+       "ttft_p95": 1.558,
+       "dec_p10": 57.42,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.147,
+       "dec_p10": 74.66,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 24,
+      "ttft_p95": 2.798,
+      "dec_p10": 35.47,
+      "r1": {
+       "ttft_p95": 3.648,
+       "dec_p10": 31.86,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.192,
+       "dec_p10": 53.42,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 32,
+      "ttft_p95": 4.041,
+      "dec_p10": 34.78,
+      "r1": {
+       "ttft_p95": 4.048,
+       "dec_p10": 30.27,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.194,
+       "dec_p10": 49.18,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 40,
+      "ttft_p95": 3.396,
+      "dec_p10": 32.77,
+      "r1": {
+       "ttft_p95": 3.405,
+       "dec_p10": 32.59,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.257,
+       "dec_p10": 44.48,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 48,
+      "ttft_p95": 7.719,
+      "dec_p10": 22.37,
+      "r1": {
+       "ttft_p95": 8.749,
+       "dec_p10": 21.17,
+       "pass": false
+      },
+      "r2": {
+       "ttft_p95": 0.293,
+       "dec_p10": 40.1,
+       "pass": true
+      },
+      "pass_every": false,
+      "pass_steady": true
+     },
+     {
+      "c": 64,
+      "ttft_p95": 7.959,
+      "dec_p10": 20.23,
+      "r1": {
+       "ttft_p95": 7.973,
+       "dec_p10": 19.34,
+       "pass": false
+      },
+      "r2": {
+       "ttft_p95": 0.272,
+       "dec_p10": 33.67,
+       "pass": true
+      },
+      "pass_every": false,
+      "pass_steady": true
+     }
+    ]
+   },
+   "followup_64k_append": {
+    "levels": [
+     {
+      "c": 8,
+      "ttft_p95": 0.851,
+      "dec_p10": 80.79,
+      "r1": {
+       "ttft_p95": 0.9,
+       "dec_p10": 80.18,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.416,
+       "dec_p10": 84.38,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 16,
+      "ttft_p95": 1.606,
+      "dec_p10": 57.02,
+      "r1": {
+       "ttft_p95": 1.69,
+       "dec_p10": 57.24,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.478,
+       "dec_p10": 57.18,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 20,
+      "ttft_p95": 4.677,
+      "dec_p10": 26.5,
+      "r1": {
+       "ttft_p95": 4.685,
+       "dec_p10": 25.67,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.285,
+       "dec_p10": 36.93,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 22,
+      "ttft_p95": 10.423,
+      "dec_p10": 18.95,
+      "r1": {
+       "ttft_p95": 10.928,
+       "dec_p10": 17.06,
+       "pass": false
+      },
+      "r2": {
+       "ttft_p95": 0.397,
+       "dec_p10": 36.98,
+       "pass": true
+      },
+      "pass_every": false,
+      "pass_steady": true
+     },
+     {
+      "c": 24,
+      "ttft_p95": 25.848,
+      "dec_p10": 11.34,
+      "r1": {
+       "ttft_p95": 27.045,
+       "dec_p10": 10.13,
+       "pass": false
+      },
+      "r2": {
+       "ttft_p95": 0.425,
+       "dec_p10": 36.97,
+       "pass": true
+      },
+      "pass_every": false,
+      "pass_steady": true
+     },
+     {
+      "c": 26,
+      "ttft_p95": 5.64,
+      "dec_p10": 25.29,
+      "r1": {
+       "ttft_p95": 5.651,
+       "dec_p10": 24.66,
+       "pass": false
+      },
+      "r2": {
+       "ttft_p95": 0.497,
+       "dec_p10": 34.82,
+       "pass": true
+      },
+      "pass_every": false,
+      "pass_steady": true
+     },
+     {
+      "c": 32,
+      "ttft_p95": 11.227,
+      "dec_p10": 14.61,
+      "r1": {
+       "ttft_p95": 12.625,
+       "dec_p10": 13.99,
+       "pass": false
+      },
+      "r2": {
+       "ttft_p95": 0.699,
+       "dec_p10": 33.79,
+       "pass": true
+      },
+      "pass_every": false,
+      "pass_steady": true
+     }
+    ]
+   }
+  },
+  "cold_prefill_single_user": {}
  }
 ]

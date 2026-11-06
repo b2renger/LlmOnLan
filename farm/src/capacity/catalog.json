@@ -7271,11 +7271,12 @@
     "head_dim": 512,
     "sliding_window": 1024
    },
-   "kv_bytes_per_token_fp8": 10240,
-   "kv_calc": "5 x 2 x (512+512) = 10,240 B; plus SWA 25 x 8 x 512 x 1,024 = 105 MB per request",
+   "kv_bytes_per_token_fp8": 37464,
+   "kv_calc": "MEASURED, vLLM 0.33.0 on the PRO 6000 (2026-11-06): 1,719,591 tokens in a 60 GiB pool = 37,464 B a token, 26.2 people of 64k. The config alone (5 x 2 x (512+512) = 10,240 B, plus 105 MB per request for its sliding-window layers) gave 70 people: vLLM pages the sliding-window layers per token.",
    "kv_constant_bytes_per_request": 104857600,
    "recurrent_state_bytes": 0,
-   "kv_confidence": "exact from config (global layers use num_global_key_value_heads / global_head_dim)",
+   "kv_confidence": "measured (vLLM 0.33.0 start-up line)",
+   "spike_quality": {"gate": "28-item smoke gate (10 code, 7 exact, 11 tool round-trips)", "pro6000_think_on_off": "26/28 (86k tok) / 28/28 (13k)", "note": "vLLM 0.33.0, 2026-11-06. The coding agent: 12/15, 31 s a task, level with Flint.", "source": "repo-results"},
    "context_native": 262144,
    "context_max": 262144,
    "vision": true,
@@ -7534,7 +7535,7 @@
      }
     }
    },
-   "kv_bytes_per_token_bf16": 20480
+   "kv_bytes_per_token_bf16": 74928
   },
   {
    "id": "gemma-4-12b",

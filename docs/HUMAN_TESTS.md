@@ -1646,6 +1646,7 @@ compares with Qwen3.6.
 - [ ] Done · Found:
 
 ### J16 A class at once: 48 people at 64k through the seat gate, then web search under a burst
+*Since 2026-11-06:* the harness measured Qwen3.6 at 64 people at 64k on Open WebUI's traffic shape (spike/RESULTS.md, *Model trials*). Go on to 56 and 64 here: if they hold through the seat gate, the capacity page moves from 48 to 64.
 *Proves:* the multi-user plan's acceptance through the real seat gate (its §12, docs/archive/plans/multiuser_implementation_plan.md),
 and its decision 4's class-size check, which must pass before web search can be on by default again (DEVLOG
 2026-10-06 10:51). *Needs:* J14 done (vLLM 0.33.0: Automatic gives Qwen3.6 48 people at 64k on this card); a quiet

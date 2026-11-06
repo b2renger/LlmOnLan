@@ -6,6 +6,32 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-06 (20:38) — New models measured: Qwen3.6 serves more than we said, and Gemma 4 26B codes as well as Flint
+
+The owner: find new models for better quality, speed and scale, at a quiet hour. Candidates came from Hugging Face's API (dates, licences,
+`config.json`) and vLLM 0.33.0's own registry rather than from leaderboards, whose dates disagreed. Everything ran from a scratch root;
+production's `~/lol-vllm` was only read, for Qwen3.6's weights. Full method and numbers: [spike/RESULTS.md, *Model trials*](spike/RESULTS.md#model-trials-rtx-pro-6000-2026-11-06).
+
+| Model | Gate on / off | Agent | 32k | 64k | Verdict |
+|---|---|---|---|---|---|
+| Qwen3.6 (default) | 27 / 28 | 7–11/15 | ≥ 128 | **64** | stays the class model |
+| Gemma 4 26B | 26 / 28 | **12/15** | 40 | 20 | a real option for coding |
+| Nanbeige4.3-33B | 27 / 27 | 5/15 | ≥ 18 | ≥ 8 | no: needs a shell, dense |
+| Apex-35B | 24 / 23 | 8/15 | ≥ 96 | ≥ 56 | no: under the gate's floor |
+
+- **Qwen3.6: 64 people at 64k on `--append`,** the shape Open WebUI sends, in both runs, 72 failing. The 48 we quote is the harder
+  replaced-question profile. The capacity page stays at 48 until HUMAN_TESTS J16 confirms it through the seat gate.
+- **The farm's estimate for Gemma 4 26B was wrong by 3.5 times** (70 people at 64k from the config; 26 by vLLM's own line; 20 measured).
+  `catalog.json` now holds the measured 37,464 B a token and `measured-extra.json` the levels that passed each time they ran, so the
+  capacity page says 40 and 20. Its class-of-30 card, with nothing served, now picks Gemma 4 26B by the existing rule (index 46 against
+  43.4); a farm serving Qwen3.6 keeps it. Whether that rule is right is in the plan's §4.
+- **A repeat changed the answer:** Gemma's first 62k sweep passed at 24, its second failed there with a 25.8 s spike. `model_trial.sh` says so.
+
+Gemma 4 26B is NOT added to the farm's list or to LOL Vibe's proven list: those are the owner's, and the question is in the plan's §4.
+
+**Tested:** farm 287/287 with the regenerated page data. New scripts: `docs/spike/runs/trial_serve.sh` (refuses production's root),
+`model_trial.sh`. GPU left idle at 800 MiB, the scratch server stopped, 106 GB in `~/lol-models-scratch`.
+
 ## 2026-11-06 (16:57) — The Computer's sandbox really has no network now: WebRTC was a way out
 
 The review's EGRESS-02 said WebRTC might escape the sandbox, "not verified at runtime". Measured in a real sandbox in Electron

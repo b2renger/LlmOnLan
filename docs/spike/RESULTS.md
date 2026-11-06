@@ -10,7 +10,9 @@ Two boxes, the same harness, the same flags:
   coding agent on five tasks against the farm's Qwen3.6: [Flint](#flint-for-coding-rtx-pro-6000-shared-gpu-2026-10-23);
 - vLLM 0.33.0 on the RTX PRO 6000 (2026-11-02): the list's five models on it, a same-day A/B against 0.30.0, and Flint on
   vLLM with the whole GPU (HUMAN_TESTS J12–J13 on vLLM):
-  [vLLM 0.33.0 and Flint on vLLM](#vllm-0330-and-flint-on-vllm-rtx-pro-6000-2026-11-02), the last section.
+  [vLLM 0.33.0 and Flint on vLLM](#vllm-0330-and-flint-on-vllm-rtx-pro-6000-2026-11-02);
+- three new models, and Qwen3.6 on Open WebUI's traffic shape (2026-11-06):
+  [Model trials](#model-trials-rtx-pro-6000-2026-11-06), the last section.
 
 **Box:** `AN-A6000PRO`: one NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 96 GB (97,887 MiB), sm_120,
 ~1.8 TB/s, driver 596.36 (CUDA 13.2), Windows 11 + WSL2 Ubuntu 26.04 (16 vCPU and 94 GB RAM given to WSL).
@@ -1072,3 +1074,60 @@ list (`AGENT_PROVEN`, not on Ollama), with a capacity catalog entry whose contex
 in bf16; the presets' picks do not change on any card (DEVLOG 2026-11-03). Still unknown: longer work than five small tasks (a real project, Keep going); Flint on a DGX
 Spark (vLLM's standard layers there too); which licence governs the weights (the GGUF metadata says `flint-preview`, the
 cards say Apache 2.0).
+
+# Model trials (RTX PRO 6000, 2026-11-06)
+
+The owner's request: new models for better quality, speed and scale, at a quiet hour. Three candidates, chosen from Hugging Face's
+listings and our own estimator, and the default model again on the traffic shape it really gets.
+
+**How they ran.** The whole GPU; vLLM 0.33.0 from a scratch root (`~/lol-vllm-033`), weights in `~/lol-models-scratch`, through the
+farm's `serve.sh` (`runs/trial_serve.sh`, which refuses production's root) with each family's farm flags, `--max-num-seqs 192`, 64k per
+person. Pool 60 GiB, 48 GiB for Apex (it holds 13 GiB more weights, as a farm's Automatic would give it). `runs/model_trial.sh`: the
+28-item gate with thinking off and on, a chat sweep, then follow-ups at 30k and 62k with `--append`, the shape Open WebUI and LOL Vibe
+send. The coding agent: `ide/run.js`, five tasks × 3, reply room 32,768, the fence on, directly on the relay. A level counts only if it
+passed each time it ran.
+
+| Model | Gate, thinking on / off | Coding agent | People at 32k | People at 64k | One person | Pictures | Licence |
+|---|---|---|---|---|---|---|---|
+| **Qwen3.6 35B-A3B** (default) | 27/28 / 28/28 | 7–11/15 | **≥ 128** | **64** (72 fails) | 187 tok/s | yes | Apache 2.0 |
+| Flint 40B-A2.5B | 25/28 | 12–13/15 | ≥ 40 | ≥ 20 | 177 tok/s | no | unsettled |
+| **Gemma 4 26B-A4B** (new) | 26/28 / 28/28 | **12/15** | **40** (48 passes one run in two) | **20** (24 one in two) | 172 tok/s | yes | Apache 2.0 |
+| Nanbeige4.3-33B (new) | 27/28 / 27/28 | 5/15 | ≥ 18 | ≥ 8 | 69 tok/s | no | Apache 2.0 |
+| Apex-35B-V1.0 (new) | 24/28 / 23/28 | 8/15 | ≥ 96 | ≥ 56 | 187 tok/s | yes | Apache 2.0 |
+
+(Qwen3.6's and Flint's gate and agent rows are from 2026-11-02 and 2026-10-23. ≥ = the highest level tried passed. All on `--append`
+except Qwen3.6's gate and agent, which do not depend on it; Flint's seats are at its memory limit.)
+
+**Qwen3.6 on Open WebUI's traffic: 64 people at 64k, not 48.** The published 48 is the `followup` profile that REPLACES the question,
+which misses the cache. With `--append` on a 60 GiB pool: 48, 56 and 64 passed in both runs (first follow-up TTFT p95 3.6–5.0 s, decode
+p10 17–22 tok/s), 72 failed both (5.3–7.0 s). At 32k, 64, 96 and 128 all passed (4.0 s, 15 tok/s at 128). vLLM counts room for 72.6 people
+at 64k, so throughput sets this limit, not memory. It is one sweep with the harness, not a class: HUMAN_TESTS J16 (through the seat
+gate) should confirm it before the capacity page changes. The page stays at 48 and 96 until then.
+
+**Gemma 4 26B-A4B** (`nvidia/Gemma-4-26B-A4B-NVFP4`, 18.13 GiB loaded, first start 7 min of compiling, later ones 1.5 min).
+- **It is the find of the trial for coding:** 12/15, 31 s a task, 12 steps, level with Flint and above Qwen3.6, against every outside
+  score (its catalog entry says "no strong agentic-coding score", SWE-bench 17.4). Its calls are messy: many rejected arguments
+  (`justification` without `sandbox_permissions`, `exit_plan_mode`) that it recovers from, two t5 runs spent the whole 32,768 on one
+  reply, and two runs went past 75 steps. Its misses: t3 twice (its own tests failing on the real code), t5 once.
+- **The estimate was wrong by 3.5 times.** The catalog's config arithmetic gave 10,240 B a token and 70 people at 64k. vLLM's line:
+  1,719,591 tokens in 60 GiB, 37,464 B a token, 26.2 people. The sliding-window layers are paged per token. Measured: 40 and 20, the
+  catalog now says so.
+- **One passing run is not a result.** The first 62k sweep passed at 24 and failed at 32. The second failed at 24 with a 25.8 s spike,
+  the third failed at 22 and passed at 20. Near the pool's limit it evicts and recomputes. 8 and 16 ran slow once (5.9 s), straight after
+  the 30k sweep, and clean twice.
+- Pictures and tools work; no sound in a message (no audio tower, unlike the 12B).
+
+**Nanbeige4.3-33B** (`webbrain-one/Nanbeige4.3-33B-NVFP4`, a COMMUNITY W4A4 of the Apache 2.0 model; Nanbeige publishes FP8 and INT4).
+A dense 33B at 106,496 B a token in fp8 (52 × 2 × 8 × 128): 604,944 tokens in 60 GiB, 9.2 people of 64k, memory the limit. Its gate is
+as good as Qwen3.6's, at 69 tok/s. The maker's agent scores (Terminal-Bench 2.1 80.9) do not carry over to our agent: 5/15, 5 steps a
+task. It reaches for a shell (`bash`, `run`), which LOL Vibe's agent deliberately has not got, and stops. Its template already keeps past
+thinking, the setting its card asks for. Text only. Not for this farm.
+
+**Apex-35B-V1.0** (BF16 only, `--quantization fp8` at load, about 33 GiB; a retrained Qwen3.6). It keeps Qwen3.6's seats (58 people of 64k
+in 48 GiB; ≥ 56 and ≥ 96 on one run), but the gate fell to 24 and 23 of 28, under the farm's floor of 25, and the agent's 8/15 is
+Qwen3.6's. FP8 at load may cost it a little; nothing here suggests it is better than what it was trained from. Not for this farm.
+
+**Not tried:** Clover-35B (its own architecture, not in vLLM 0.33.0), Ripple-65B (needs a nightly), SenseNova-Loop, and everything too
+big for this card (Kimi K3.1, DeepSeek-V4.1-Flash, ERNIE 5.5, Hydrogen). Cold prefill, 128k and the Spark were not measured.
+
+Results: `results/pro6000-vllm033-trial-*`, `results/probes/pro6000-vllm033-{gemma4-26b,nanbeige43-33b,apex-35b}*`.

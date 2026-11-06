@@ -46,8 +46,12 @@ processed in a cloud; the code follows the ponytail ladder.
 
 ## 2. Next — the most value for the office
 
-1. **The class-size test through the seat gate** (HUMAN_TESTS J16): 48–50 people at 64k, 30 at 128k. It is the only
-   proof of "a class of 50", and the purchase table rests on it. After Now 3. **S**.
+**New models, measured 2026-11-06** ([RESULTS](../spike/RESULTS.md#model-trials-rtx-pro-6000-2026-11-06)): nothing beats Qwen3.6 for a class,
+and it serves more than we said. Gemma 4 26B is a real option for coding. Nanbeige4.3 and Apex-35B are not for this farm.
+
+1. **The class-size test through the seat gate** (HUMAN_TESTS J16): 48–64 people at 64k, 30 at 128k. It is the only
+   proof of "a class of 50", and the purchase table rests on it. The harness measured Qwen3.6 at 64 people on Open WebUI's
+   traffic shape (2026-11-06): if J16 agrees, the capacity page goes from 48 and 96 to 64 and 128. After Now 3. **S**.
 2. **One PDF must not hold the shared GPU:** a page cap and a stop between pages when the client leaves (OCR's
    `pysvc/server.py` reads every page), and an upload cap like speech to text's 25 MB (the owner: 100 MB?). OCR runs
    outside the seat gate. **S**.
@@ -75,7 +79,8 @@ processed in a cloud; the code follows the ponytail ladder.
     E4. **M**.
 12. **Measure Ripple-65B Preview**, a dense model tuned for coding: about 4–13 people at 64k on the PRO 6000 by
     estimate, so a small group's model at best. It needs a vLLM nightly in a root of its own, after Now 3
-    ([the study](../research/RIPPLE_65B_STUDY.md)). **S**, the owner's quiet hour.
+    ([the study](../research/RIPPLE_65B_STUDY.md)). Nanbeige, also dense and tuned for agents with a shell, did 5/15 on our
+    fenced agent: expect the same risk. **S**, the owner's quiet hour.
 
 ## 3. Later
 
@@ -104,13 +109,17 @@ processed in a cloud; the code follows the ponytail ladder.
 ## 4. Waiting on the owner
 
 **The ones that unblock the most:**
-1. **The next release and the ★ list** (Now 1–2), and which build tests today's fixes: a local build or a pre-release
+1. **Gemma 4 26B on the farm?** Measured 2026-11-06: Flint's seats (40 and 20) and coding score (12/15 against 12–13), with pictures
+   and a clear Apache licence where Flint's is unsettled. Add it to vLLM's list and to LOL Vibe's proven list, beside Flint or instead
+   of it? Note that with it measured, the capacity page's class-of-30 card picks it on a PRO 6000 with nothing served yet (index 46
+   against Qwen3.6's 43.4), although Qwen3.6 serves more than twice the people. A farm serving Qwen3.6 keeps it. **S**.
+2. **The next release and the ★ list** (Now 1–2), and which build tests today's fixes: a local build or a pre-release
    tag.
-2. **A quiet hour on the PRO 6000** (Now 3, then Next 1).
-3. **May vLLM's own model read documents** instead of a second gemma4:12b? It frees 9 GB, about 14 % more room for
+3. **A quiet hour on the PRO 6000** (Now 3, then Next 1).
+4. **May vLLM's own model read documents** instead of a second gemma4:12b? It frees 9 GB, about 14 % more room for
    conversations (multi-user decision 6). **M**.
-4. **CI minutes for the tests** (Next 4).
-5. **CLAUDE.md:**
+5. **CI minutes for the tests** (Next 4).
+6. **CLAUDE.md:**
    - cut it to about 350 lines, with the details moved to the READMEs and each one checked there first;
    - change it only when a rule, the contract, a port or the map changes;
    - reword invariant #4 to the calls the contract table lists (it says "admin REST API", which the app never uses).
@@ -158,6 +167,7 @@ processed in a cloud; the code follows the ponytail ladder.
   - pin python-build-standalone for the client's sidecar;
   - commit the spike's vLLM logs.
 - **Housekeeping:**
+  - delete `~/lol-models-scratch` in WSL (106 GB: Gemma 4 26B, Nanbeige, Apex), keeping Gemma if it joins the list;
   - delete `owui-arm.tar.gz` (1.16 GB) and `arm-list.txt` at the repo root, and `shell/webui.db` (an empty dev run of
     2026-08-25);
   - delete the 24 merged branches on GitHub;

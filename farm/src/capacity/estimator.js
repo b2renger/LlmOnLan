@@ -46,7 +46,8 @@
   // Measured on the PRO 6000 alone (2026-10-09, RESULTS.md "Gemma 4 12B and Qwen3-Omni"), not fitted into CAL: their
   // measured cells show as measured; everything else about them (other boxes, other contexts) stays estimated. Flint:
   // vLLM 0.33.0, 2026-11-02 ("vLLM 0.33.0 and Flint on vLLM"), its context in bf16 (the only precision it runs in).
-  const MEASURED_ONLY = { 'gemma-4-12b': 'gemma4', 'qwen3-omni-30b-a3b': 'omni', flint: 'flint' };
+  // Gemma 4 26B: vLLM 0.33.0, 2026-11-06 ("Model trials"), levels that passed each time they ran.
+  const MEASURED_ONLY = { 'gemma-4-12b': 'gemma4', 'qwen3-omni-30b-a3b': 'omni', flint: 'flint', 'gemma-4-26b-a4b': 'gemma426' };
   const BOX = { 'rtx-pro-6000-ws': 'pro6000', 'dgx-spark': 'spark' };
   const CTX = { '32k': 30200, '64k': 62000, '128k': 120100 }; // the spike's follow-up context sizes
 
