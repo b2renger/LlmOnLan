@@ -1463,7 +1463,7 @@ the client first; the ★ ones are as urgent.
 farm-v0.0.49–0.0.51 is not recorded) serving Qwen3.6 on vLLM 0.30.0 from `~/lol-vllm` (since about 2026-10-12: DEVLOG
 2026-10-12 16:20); the models in `F:\LlmOnLan` and Ubuntu's disk in `F:\LlmOnLan\wsl\Ubuntu` (2026-10-13: O1 and O3 in
 Part 4); Gemma 4 12B, Qwen3-Omni and Flint already downloaded in vLLM's `hf/` (DEVLOG 2026-11-02 18:09). **Build:**
-farm-v0.0.51 (the release under test). Install it first (the Farm app's Quit, so `lol down` stops vLLM, then the
+farm-v0.0.52 (the release under test). Install it first (the Farm app's Quit, so `lol down` stops vLLM, then the
 installer) and write what the update did here:
 - [ ] Installed · Found:
 
@@ -1611,7 +1611,7 @@ seconds). Write down the start times and anything that read wrong.
 
 ### J14 ★ Update vLLM from the panel: 0.30.0 → 0.33.0
 *Proves:* the owner's farm moves to vLLM 0.33.0 from the panel alone, and an update that stops half-way leaves 0.30.0
-serving. *Needs:* farm-v0.0.51 installed (J's Build line), the farm on vLLM 0.30.0 (`~/lol-vllm`), a quiet moment of
+serving. *Needs:* farm-v0.0.52 installed (J's Build line), the farm on vLLM 0.30.0 (`~/lol-vllm`), a quiet moment of
 about 45 min. *Was:* new (2026-11-02; checked on a scratch root with `install.sh`, never from the panel).
 1. Open the vLLM section. Read the checklist. In the list, press **Use this** on Flint and answer OK to the question
    (if Flint says it is not downloaded, skip this).
@@ -1675,8 +1675,8 @@ search goes back on by default.
 ## K. A Windows test box with an RTX card (not production)
 
 **Machine:** a Windows PC with an NVIDIA RTX card that is not the production farm; ideally also the studio's 4070
-(12 GB) and 4080 (16 GB), and one PC with no NVIDIA GPU. **Build:** the previous Farm app (today farm-v0.0.50)
-installed first, then the release under test (farm-v0.0.51); K11 needs the first Farm app release after farm-v0.0.51.
+(12 GB) and 4080 (16 GB), and one PC with no NVIDIA GPU. **Build:** the previous Farm app (today farm-v0.0.51)
+installed first, then the release under test (farm-v0.0.52), which K11 and K12 need.
 **Also:** a client laptop on the release under test.
 
 ### K1 ★ The Farm app update keeps everything
@@ -1700,9 +1700,9 @@ farm-v0.0.41 or older: the first line of `farm\.searxng\settings.yml` says *lol-
 ### K2 ★ The update copies over a file something holds
 *Proves:* the file-by-file copy (farm-v0.0.43's update stopped half-way on the PRO 6000). *Was:* DEVLOG 2026-10-08
 12:02 ("Not done yet: the release"). Not covered by the PRO 6000's updates of 2026-10-13: serve.sh and stop.sh did not
-change between farm-v0.0.45 and v0.0.48, so no held file was replaced. `serve.sh` changed in farm-v0.0.51
-(`git diff farm-v0.0.50 farm-v0.0.51 -- farm/vllm`, checked 2026-11-05), so this pair replaces it.
-1. With the previous Farm app (farm-v0.0.50) installed and the Farm app quit, hold serve.sh open from WSL:
+change between farm-v0.0.45 and v0.0.48, so no held file was replaced. `serve.sh` changed in farm-v0.0.51 and again in farm-v0.0.52
+(`git diff farm-v0.0.51 farm-v0.0.52 -- farm/vllm`, checked 2026-11-09), so this pair replaces it.
+1. With the previous Farm app (farm-v0.0.51) installed and the Farm app quit, hold serve.sh open from WSL:
    `wsl -e bash -c 'exec 3< "/mnt/c/Users/<you>/AppData/Roaming/LlmOnLan Farm/farm/vllm/serve.sh"; sleep 900'`
    (leave that window open).
 2. Install the release under test and open it. Then close the WSL window and quit and reopen the Farm app.
@@ -2001,7 +2001,7 @@ plugin process left.
 
 ### N4 The manual update check
 *Proves:* an operator learns of a new Farm app. *Was:* RIG_CHECKLIST "★ Manual update check".
-1. With the previous Farm app (today farm-v0.0.50) installed and *Notify* on, open the app (farm-v0.0.51 is the newest
+1. With the previous Farm app (today farm-v0.0.51) installed and *Notify* on, open the app (farm-v0.0.52 is the newest
    release).
 
 *Expect:* *Version … is available*; Download opens the release page; a client's own update is unaffected.
