@@ -18,6 +18,16 @@ tree (`multiuser-phase0` fast-forwarded into `main`):
 - docs: no broken link outside the archive, the dated reviews and a test fixture; CLAUDE.md's "not released yet" now names the
   release; README, the plan and HUMAN_TESTS' ★ list (four sessions, ★ = run first) follow.
 
+**Released** (both tagged from `main` at `045cb05`, then `multiuser-phase0` fast-forwarded to it):
+- **client v0.2.16** (CI run 42615989391, 38 min, all six jobs green): 27 assets, *Latest*: the five installers and their update feeds,
+  the chat engine for five platforms with `owui-sidecar-manifest.json` = `{"owuiVersion":"0.11.4","bundleRev":"2"}` (the number the
+  automatic repair compares), and the coding agent's runtime for five. Every sidecar job installed PyAV 18.1.0 and ran the new
+  recording check.
+- **Farm app farm-v0.0.52** (CI run 42616036536, ~4 min): 10 assets, a prerelease as before.
+- Release notes: a *What's new* above CI's own text on each.
+- `build-llamacpp-arm64` also ran on the push to `main` (its path filter includes `farm/src/llamacpp.js`, changed on 2026-11-05):
+  it rebuilt the same pinned b11836 for the Spark and replaced that one tarball.
+
 ## 2026-11-09 (12:55) — The owner's four answers: Gemma 4 26B for coding, class cards for people, the engine repairs itself, people in or out
 
 The owner (2026-11-09): yes to Gemma 4 26B in vLLM's list and in Flint's place as LOL Vibe's coding model; yes to class cards that
