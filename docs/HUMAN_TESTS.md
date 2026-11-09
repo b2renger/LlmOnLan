@@ -24,9 +24,9 @@ dropped, and why.
   them (the owner asked for a release to start the tests on, DEVLOG 2026-10-09 14:36), and none of them is ticked yet.
   So most ★ tests now check what people already run; the last group checks the fixes of 2026-11-05 on the build that
   brings them.
-- **"The release under test"** in a Build line is the newest release (today client v0.2.15, Farm app farm-v0.0.51), or
+- **"The release under test"** in a Build line is the newest release (today client v0.2.16, Farm app farm-v0.0.52), or
   a candidate of the next one. Write its version on each test you tick. An update test needs the release before it
-  installed first (today client v0.2.14, Farm app farm-v0.0.50).
+  installed first (today client v0.2.15, Farm app farm-v0.0.51).
 - **A "Needs:" line names the oldest build a test needs** when the feature came after client v0.2.10 / farm-v0.0.44,
   the builds this list was gathered on. A test without one runs on any release since then.
 - **A test that fails** goes in the [DEVLOG](DEVLOG.md), with its id.
@@ -38,14 +38,16 @@ dropped, and why.
 laptops (one fresh); an Apple Silicon Mac, an Intel Mac, a Linux x64 PC; the office's Home Assistant Green. Never run
 a test that sets one seat, kills an engine or restarts the farm on production while people use it.
 
-## The ★ list, in the order to run it (proposed 2026-11-05, to be agreed with the owner)
+## The ★ list, in the order to run it (2026-11-09: the testing phase after client v0.2.16 and Farm app farm-v0.0.52)
+
+The owner released these builds for a phase of human testing (2026-11-09): ★ means *run first*, in this order.
 
 | # | Where | Tests | Time | Why ★ |
 |---|---|---|---|---|
-| 1 | The PRO 6000, at a quiet moment | install farm-v0.0.51 (J's Build line), **J14**, **P1**, **Q1**, **Q6** | about 2 h | its last recorded Farm app is farm-v0.0.48 with vLLM 0.30.0 (32 people at 64k every turn, against 48 on 0.33.0); the panel by engine (farm-v0.0.46), the presets and the kept plugin switches (farm-v0.0.50) shipped without a person's look |
-| 2 | The K test box | **K1**, **K2** (farm-v0.0.50 → farm-v0.0.51), **K3**, **K4**, **K5** | about 3 h | every operator's update path, over a held file (`serve.sh` changed in farm-v0.0.51); llama.cpp b11836 and document search's first start were never run from an installed Farm app; small cards are told the truth |
-| 3 | A laptop on client v0.2.15, and a fresh one | **A1**, **B1**, **C1** (from v0.2.14), **C2**, **G11**, **I1**–**I4** | about 5 h | day one and the update; G11: the coding agent's fence fails closed (security); I1–I4: the document privacy rule of 2026-10-08 on real laptops |
-| 4 | The first build with the fixes of 2026-11-05 and 06 | **A21**, **C7**, **D16**, **D17**, **G13** (client), **K11**, **K12** (Farm app) | about 2 h, + 3 h of waiting for G13 | each checks one fix that build brings: Open WebUI's links and the microphone, a move into a folder that holds data, the password through a farm restart, a schedule above an hour, a first plugin install that froze the farm |
+| 1 | The PRO 6000, at a quiet moment | install farm-v0.0.52 (J's Build line), **J14**, **J15**, **J16**, **P1**, **Q1**, **Q6** | about 4 h | its last recorded Farm app is farm-v0.0.48 with vLLM 0.30.0 (32 people at 64k every turn, against 48 on 0.33.0); the panel by engine (farm-v0.0.46), the presets and the kept plugin switches (farm-v0.0.50) shipped without a person's look |
+| 2 | The K test box | **K1**, **K2** (farm-v0.0.51 → farm-v0.0.52), **K3**, **K4**, **K5**, **K11**, **K12** | about 4 h | every operator's update path, over a held file (`serve.sh` changed in farm-v0.0.51); llama.cpp b11836 and document search's first start were never run from an installed Farm app; small cards are told the truth |
+| 3 | A laptop on client v0.2.15, and a fresh one | **A1**, **B1**, **C1** (from v0.2.15), **C2**, **G11**, **I1**–**I4** | about 5 h | day one and the update; G11: the coding agent's fence fails closed (security); I1–I4: the document privacy rule of 2026-10-08 on real laptops |
+| 4 | The fixes v0.2.16 brings | **A21**, **A22**, **A23**, **A18** step 5, **C7**, **D16**, **D17**, **G13** | about 3 h, + 3 h of waiting for G13 | each checks one fix that build brings: Open WebUI's links and the microphone, a move into a folder that holds data, the password through a farm restart, a schedule above an hour, a first plugin install that froze the farm |
 
 **Proposed off the ★:** I5 (the MiniLM path is the fallback of a folder that never met document search); J1 (vLLM has
 been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the owner's question 12); J2–J4
@@ -281,8 +283,8 @@ sensor for step 2. *Was:* new (review 2026-11-05).
 1. With the data folder on the USB stick, chat, then pull the stick and send a message. *Pass:* a red line says something
    could not be saved, and Settings says saving failed. Put the stick back, restart: what was saved is there.
 2. In Preferences ▸ Home Assistant link the home, and in Open WebUI ask a model what `sensor.<phone>_geocoded_location` says.
-   *Pass:* it reads `(hidden: a place)`, with no street, postal code or town. Ask where a person is. *Pass:* home, away, or
-   the name of a zone, never coordinates. If you would rather hide that too, tell the plan (README §4).
+   *Pass:* it reads `(hidden: a place)`, with no street, postal code or town. Ask where a person is, while their phone is
+   in a zone of your home's (work, a school). *Pass:* `not_home`, never the zone's name or coordinates; at home, `home`.
 
 ### A10 Code, pictures and files
 *Proves:* the sandbox and the File box on a real disk. *Was:* 3.1, 3.5, 3.6, 3.9; LOLCHAT_RIG §15, §15b, §18 (a paused
@@ -572,11 +574,11 @@ finds nothing; for C5 a spare Windows profile; for C6 a USB stick and a second d
 ### C1 ★ The auto-update to the release under test
 *Proves:* installed clients reach the release by themselves. *Was:* 1.1, RIG_CHECKLIST "Auto-update cycle" (never
 logged for v0.2.x), NIGHT_LOG 2026-09-28 "the auto-update … on each OS".
-1. On the previous release (today v0.2.14): Preferences ▸ Startup & updates ▸ **Check for app updates** ▸ **Restart &
+1. On the previous release (today v0.2.15): Preferences ▸ Startup & updates ▸ **Check for app updates** ▸ **Restart &
    install**.
 2. Preferences ▸ About; open LOL Vibe, the Computer, Open WebUI.
 
-*Expect:* silent, no administrator prompt; it restarts as the release under test (today v0.2.15); LOL Vibe's threads,
+*Expect:* silent, no administrator prompt; it restarts as the release under test (today v0.2.16); LOL Vibe's threads,
 the Computer's graphs and Open WebUI's chats are all there; Data location says everything lives in that folder. Then
 on a farm with document search, I1's message (once).
 - [ ] Done · Found:
@@ -934,7 +936,7 @@ the update.
 ### E1 macOS: install, first run, update
 *Proves:* the ad-hoc signed app installs, runs and updates itself. *Was:* RIG_CHECKLIST "Auto-update cycle" (the mac
 retest after the keep-warm fix was never logged, 2026-09-02), "Intel Mac", 1.1.
-1. Install the previous release (today v0.2.14) from the dmg (right-click ▸ Open the first time). First run: the
+1. Install the previous release (today v0.2.15) from the dmg (right-click ▸ Open the first time). First run: the
    engine download, a chat.
 2. Check for app updates ▸ Restart & install.
 3. The same first run on the Intel Mac: attach a document in Open WebUI (on a farm without document search, the
@@ -1155,9 +1157,9 @@ the first client release after v0.2.15). Already checked for real by the agents 
 2026-09-28/29/30, NIGHT_LOG_2026-09-28): the install from the release, a project, a build and an edit, the fence on
 Windows, History's Go back, graphify's graph.json, a Keep-going goal and a one-point-per-round loop, a schedule's runs,
 Use the Computer's Room monitor, an agent page (dice coach). What is left is what only a person sees, and the
-installed build. **Note:** the farm serves Qwen3.6, and its LOL Vibe preset calls Qwen3.6 and Flint proven with the
-coding agent (11/15, 13/15); the model line rates neither good at edits: it reads *Nobody has tried Qwen3.6 … on code
-edits yet* (write down how the agent does with it).
+installed build. **Note:** the farm serves Qwen3.6, and its LOL Vibe preset calls Qwen3.6 and Gemma 4 26B proven with the
+coding agent (11/15, 12/15); the model line rates Gemma 4 26B good at edits and Qwen3.6 not yet: it reads *Nobody has
+tried Qwen3.6 … on code edits yet* (write down how the agent does with it).
 
 ### G1 Install from the installed client, and keep it
 *Proves:* the coding agent installs in a packaged client and stays installed. *Was:* 7b.1 (done from the release by
@@ -1597,7 +1599,7 @@ Qwen3-Omni on vLLM" (measured there with a scratch vLLM, never from the panel of
    repeat 4 and 5.
 7. Back to Qwen3.6 with **Use this**.
 
-*Expect:* step 1: six models (Flint since farm-v0.0.51), Gemma 4 12B and Qwen3-Omni included even on a farm whose list
+*Expect:* step 1: seven models (Flint since farm-v0.0.51, Gemma 4 26B since farm-v0.0.52), Gemma 4 12B and Qwen3-Omni included even on a farm whose list
 an Add, a Remove or a take-over saved before (a model removed by hand stays out). Step 3: Automatic says the measured
 number (Gemma: 16 people at 32k, 8 at 64k on every turn). Step 4: the picture described; Gemma's thinking shows as
 thinking; the weather question gets an answer (Open WebUI sends the Computer's tools with it, so this is a request with
@@ -1625,24 +1627,22 @@ the first start takes longer (kernels compile, up to ~6 min). Step 4: everything
 at 64k. Write down the times.
 - [ ] Done · Found:
 
-### J15 Flint from the panel, for coding
-*Proves:* Flint downloads, serves and behaves in Open WebUI and LOL Vibe through the farm. *Needs:* farm-v0.0.51, J14
-done (vLLM 0.33.0), ~23 GB of disk, a laptop with the coding agent. *Was:* new (2026-11-02; measured from a scratch
-farm, never from the panel).
-1. vLLM section ▸ the list: **Download** Flint (22.9 GB) if it is not downloaded yet (on the PRO 6000 it is since
-   2026-11-02), then **Use this**; wait for the restart.
+### J15 Gemma 4 26B from the panel, for coding
+*Proves:* LOL Vibe's coding model (owner 2026-11-09) downloads, serves and behaves in Open WebUI and LOL Vibe through
+the farm. *Needs:* farm-v0.0.52, J14 done (vLLM 0.33.0), ~19 GB of disk, a laptop with the coding agent. *Was:* Flint's
+test until 2026-11-09 (Gemma 4 26B measured from a scratch root on 2026-11-06, never from the panel).
+1. vLLM section ▸ the list: **Download** Gemma 4 26B-A4B (18.8 GB; on the PRO 6000 a copy is in `~/lol-models-scratch`,
+   which the panel does not see), then **Use this**; wait for the restart (the first start compiles for about 7 minutes).
 2. Open WebUI: three short questions; then one with web search on (*"What is the weather in Lyon today?"*); look at each
    chat's title.
 3. LOL Vibe: a real project, a few tasks of your own (and one with **Keep going until done**).
 4. **Use this** on Qwen3.6 again.
 
-*Expect:* step 1: Automatic says 19 people at 64k on a 60 GiB pool (20 were measured at 62k each; the farm counts the
-whole 64k window, and fewer with document reading's memory kept aside), and the Presets card's LOL Vibe still picks
-Qwen3.6, naming Flint as also proven. Step 2: every answer in the reply, never only in the thinking block (the farm's
-open-think template), titles without a `<think>` block (one may be missing: Flint thinks up to ~900 tokens for one);
-Flint does not see pictures. Step 3: the agent works, slower than Qwen3.6 (about 40 s a small task against 15 s),
-writes and edits files; note any loop (it re-reads and re-checks) and any answer that stays empty. Write down how it
-compares with Qwen3.6.
+*Expect:* step 1: Automatic says about 20 people at 64k (measured: 20 every turn, 24 one run in two; fewer with document
+reading's memory kept aside), and the Presets card's LOL Vibe still picks Qwen3.6, naming Gemma 4 26B as also proven.
+Step 2: answers and titles as with Qwen3.6, and it describes a picture you attach. Step 3: the agent works (about 30 s a
+small task), writes and edits files; it sends many tool calls the agent refuses (a `justification`, `exit_plan_mode`) and
+recovers; note any loop past 75 steps and any reply that runs out of room. Write down how it compares with Qwen3.6.
 - [ ] Done · Found:
 
 ### J16 A class at once: 48 people at 64k through the seat gate, then web search under a burst
@@ -2103,7 +2103,7 @@ new (stub farm + offscreen screenshots, DEVLOG 2026-10-27).
 *Expect:* Balanced = vLLM · Qwen3.6 35B-A3B · 64k · people at once Automatic (about 48, measured); Documents = Qwen3.6
 · 64k (about 63, measured; *a lead of under 10 % is a tie, which the better model wins*; *when everyone asks at the same
 moment, about 48*); LOL Vibe = Qwen3.6 · 64k (about 64; *Picked for the most people among the models proven with the
-IDE's coding agent: 11/15 on its five tasks, on vLLM. Also proven: Flint 40B-A2.5B (13/15 on its five tasks, on vLLM
+IDE's coding agent: 11/15 on its five tasks, on vLLM. Also proven: Gemma 4 26B-A4B (12/15 on its five tasks, on vLLM
 0.33.0).*); Computer = Qwen3.6 · 32k (about 104); nothing to download. The engine, model and plugins in the sections
 did not move; vLLM kept running.
 - [ ] Done · Found:
@@ -2456,12 +2456,9 @@ Open (they keep their numbers; the next-work list, [plans/README.md](plans/READM
 - **3.** **The search-model checks of v0.2.9 (B3–B5) now apply only to a data folder that never met document search.** A
    fresh laptop on an NVIDIA farm never loads MiniLM (I2). Are B3–B5 still worth a session, or only I5?
 - **4.** **"≈ 362.7 million" (Île-de-France, A9):** no doc or result file records it. Confirm the number, or drop it?
-- **5.** **The coding agent's model line rates Qwen3.6 *unknown* and does not know Flint**, though the farm's LOL Vibe preset
-   calls both proven (Qwen3.6 7 to 11 of 15 agent tasks, Flint 13/15). It reads *Nobody has tried … on code edits yet*
-   (G2, J15). Mark both good at edits in `projects/models.mjs` (Flint needs an entry that keeps the farm's reply limit,
-   not 8192)? And should the weak-model sentence name what the farm serves instead of *qwen3.8 or nemotron*?
-- **10.** **The ★ list** (proposed 2026-11-05, at the top): is it right? Does a ★ test still block the next release, or does
-    ★ now only mean "run first"?
+- **5.** **The coding agent's model line rates Qwen3.6 *unknown*** (Gemma 4 26B is *good* since 2026-11-09), though the farm's
+   LOL Vibe preset calls it proven (7 to 11 of 15 agent tasks). Mark it good at edits in `projects/models.mjs`? And should
+   the weak-model sentence name what the farm serves instead of *qwen3.8 or nemotron*?
 - **11.** **The build for the fixes of 2026-11-05** (A21, C7, D16, D17, G13, K11, K12): a local build (`npm run dist`) or a
     pre-release tag on GitHub?
 - **12.** **J1:** how did vLLM get into `~/lol-vllm` on the PRO 6000, between DEVLOG 2026-10-09 19:01 and 2026-10-12 16:20?

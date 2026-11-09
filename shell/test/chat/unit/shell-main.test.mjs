@@ -780,6 +780,13 @@ export default (test) => {
     assert.equal(SM.offerBundle('0.11.4', '2', '0.12.0', '1'), true, 'another Open WebUI, as before');
     assert.equal(SM.offerBundle('unknown', '1', '0.11.4', '2'), false, 'nothing installed yet: the first run downloads it');
     assert.equal(SM.offerBundle('0.11.4', '1', null, null), false, 'GitHub could not be read');
+    // A repaired bundle downloads by itself, once; another Open WebUI waits for a person (owner 2026-11-09).
+    assert.equal(SM.repairWanted({ current: '0.11.4', latest: '0.11.4', updateAvailable: true }, false), true);
+    assert.equal(SM.repairWanted({ current: '0.11.4', latest: '0.11.4', updateAvailable: true }, true), false, 'already staged');
+    assert.equal(SM.repairWanted({ current: '0.11.4', latest: '0.12.0', updateAvailable: true }, false), false, 'a new Open WebUI is a click');
+    assert.equal(SM.repairWanted({ current: '0.11.4', latest: null, updateAvailable: false }, false), false);
+    const src = indexSrc();
+    assert.ok(src.includes('void checkOwuiUpdate().then((r) => (repairWanted(r, updateStaged())'), 'checked a minute after a packaged start');
   });
 
   test('B-3 checkOwuiUpdate/downloadOwuiUpdate: a dev build answers at once and stages nothing', async () => {

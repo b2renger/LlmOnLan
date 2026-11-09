@@ -3897,11 +3897,13 @@ test('capacity scenarios: needs filter the models, the picks cover the head coun
     const run = (id, hwId) => Sc.recommend(E, cat, card(id), { hwId });
     const names = (res) => res.picks.map((p) => `${p.model.id}@${p.hw.id}`);
 
-    // Needs. The coding agent: tool calling and a strong agentic-coding score (Nemotron's SWE-bench Verified 52.8
-    // and Gemma 4 26B's 17.4 are under the bar). A class sends pictures. Long documents: 128k and a good model.
+    // Needs. The coding agent: tool calling and a strong agentic-coding score (Nemotron's SWE-bench Verified 52.8 is under
+    // the bar; Gemma 4 26B's 17.4 is too, but LOL Vibe's own agent passed 12 of 15, which counts, 2026-11-06). A class sends
+    // pictures. Long documents: 128k and a good model.
     const coding = card('xr').need;
     assert.equal(Sc.unmet(model('nemotron-3.5-lightning-30b-a3b'), coding), 'no strong agentic-coding score');
-    assert.equal(Sc.unmet(model('gemma-4-26b-a4b'), coding), 'no strong agentic-coding score');
+    assert.equal(Sc.unmet(model('gemma-4-26b-a4b'), coding), null);
+    assert.equal(Sc.unmet({ ...model('gemma-4-26b-a4b'), quality: model('gemma-4-26b-a4b').quality.filter((q) => !/^LOL Vibe/.test(q.benchmark)) }, coding), 'no strong agentic-coding score', 'without our own run, the outside scores alone would not do');
     assert.equal(Sc.unmet(model('qwen3.6-35b-a3b'), coding), null);
     assert.equal(Sc.unmet(model('qwen3.8-27b'), coding), null);
     assert.equal(Sc.unmet({ ...model('qwen3.6-35b-a3b'), tools: false }, coding), 'no tool calling');
@@ -3933,13 +3935,13 @@ test('capacity scenarios: needs filter the models, the picks cover the head coun
     const cls = run('class', 'rtx-pro-6000-ws');
     assert.ok(!cls.picks.some((p) => p.hw.id.startsWith('dgx-spark')));
     assert.ok(cls.whyNot.some((w) => w.hw.id === 'dgx-spark' && /not your 30/.test(w.text)), 'why not a Spark');
-    // Nothing served yet: both cover 30, both are measured (Gemma 4 26B since 2026-11-06), and the rule takes the higher index,
-    // 46 against 43.4. A farm that serves Qwen3.6 keeps it: the model served comes first when it covers.
-    assert.equal(cls.thisFarm.model.id, 'gemma-4-26b-a4b');
+    // The class card favours people (owner 2026-11-09): Qwen3.6's 96 beat Gemma 4 26B's 40 although Gemma's index is higher
+    // (46 against 43.4); a lead under 10 % would be a tie the better model wins.
+    assert.equal(card('class').prefer, 'people');
+    assert.equal(cls.thisFarm.model.id, 'qwen3.6-35b-a3b');
     assert.ok(cls.thisFarm.covers && cls.thisFarm.r.confidence === 'measured');
-    assert.equal(cls.thisFarm.r.people.mid, 40, 'the measured 40, not the 123 the config alone gave');
-    const servedCls = Sc.recommend(E, cat, card('class'), { hwId: 'rtx-pro-6000-ws', servedId: 'qwen3.6-35b-a3b' }).thisFarm;
-    assert.equal(servedCls.model.id, 'qwen3.6-35b-a3b');
+    const gem = Sc.recommend(E, { ...cat, models: [model('gemma-4-26b-a4b')] }, card('class'), { hwId: 'rtx-pro-6000-ws' }).thisFarm;
+    assert.equal(gem.r.people.mid, 40, 'Gemma 4 26B: the measured 40, not the 123 its config alone gave');
     // Vibe-coding with 10 on a Spark farm: this farm falls short (measured 8 at 64k), and says so.
     const xr = run('xr', 'dgx-spark');
     assert.equal(xr.thisFarm.model.id, 'qwen3.6-35b-a3b');
@@ -4041,6 +4043,7 @@ test('vLLM config: its defaults, the three measured models, and what it refuses 
         ['gemma-4-12b', 'unsloth/gemma-4-12b-it-NVFP4', true, null, 'gemma4'],
         ['qwen3-omni-30b-a3b', 'Qwen/Qwen3-Omni-30B-A3B-Instruct', true, null, 'omni'],
         ['flint', 'RecursiveSI/flint-nvfp4-gguf', false, null, null],
+        ['gemma-4-26b', 'nvidia/Gemma-4-26B-A4B-NVFP4', true, null, 'gemma426'],
     ]);
     assert.equal(v.library[0].args.join(' '), '--kv-cache-dtype fp8 --enable-prefix-caching --mamba-cache-mode align --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_xml', 'the spike\'s flags, as serve.sh runs them');
     assert.ok(defaultConfig().vllm.library[0].args !== v.library[0].args, 'each config gets its own copy of the library');
@@ -4935,9 +4938,9 @@ test('vLLM list, Gemma 4 and Qwen3-Omni (owner 2026-10-09): their flags, their f
     // A list saved before these models existed (an Add, a Remove, a take-over) gets them at the next start; one the
     // operator removed stays out; added back by name it is the built-in entry again.
     const saved = ConfigSchema.parse({ vllm: { library: [lib[0], { id: 'mine', label: 'Mine', folder: 'Mine' }] } }).vllm;
-    assert.deepEqual(saved.library.map((e) => e.id), ['qwen3.6-35b-a3b', 'mine', 'nemotron-3.5-lightning', 'qwen3.8-27b-nvfp4', 'gemma-4-12b', 'qwen3-omni-30b-a3b', 'flint']);
+    assert.deepEqual(saved.library.map((e) => e.id), ['qwen3.6-35b-a3b', 'mine', 'nemotron-3.5-lightning', 'qwen3.8-27b-nvfp4', 'gemma-4-12b', 'qwen3-omni-30b-a3b', 'flint', 'gemma-4-26b']);
     const without = ConfigSchema.parse({ vllm: { library: [lib[0]], removed: ['qwen3-omni-30b-a3b', 'nemotron-3.5-lightning', 'flint'] } }).vllm;
-    assert.deepEqual(without.library.map((e) => e.id), ['qwen3.6-35b-a3b', 'qwen3.8-27b-nvfp4', 'gemma-4-12b']);
+    assert.deepEqual(without.library.map((e) => e.id), ['qwen3.6-35b-a3b', 'qwen3.8-27b-nvfp4', 'gemma-4-12b', 'gemma-4-26b'], 'a built-in added since comes back; a removed one does not');
     const back = V.newLibraryEntry({ repo: 'https://huggingface.co/Qwen/Qwen3-Omni-30B-A3B-Instruct' }, without.library);
     assert.deepEqual(back.entry, omni, 'its own entry, measured flags included');
     assert.ok(ConfigSchema.safeParse({ vllm: { library: [...without.library, back.entry] } }).success);
@@ -5742,14 +5745,14 @@ test('take-over: what it keeps from the server, and when it offers nothing (§9.
     const st = prodStatus(); st.running.argv[0] = '/home/ateliernum/lol-spike/hf/qwen36'; st.models = [{ folder: 'qwen36', gb: 23, partial: false }];
     p = V.takeOverPlan(cp, st, 8100, { answering: true });
     const e = p.block.library.find((x) => x.id === 'qwen3.6-35b-a3b');
-    assert.deepEqual([e.folder, e.presencePenalty, p.block.library.length], ['qwen36', 1.0, 6]);
+    assert.deepEqual([e.folder, e.presencePenalty, p.block.library.length], ['qwen36', 1.0, 7]);
     assert.match(e.note, /Kept as it ran when the farm took it over\.$/);
     assert.equal(toYaml(buildLitellmConfig(loadConfigFrom({ vllm: p.block }))).replace('api_key: sk-lol-vllm', 'api_key: sk-lol-external'), toYaml(buildLitellmConfig(cp)), 'the same routing');
     // A model the list does not have: a new entry with its family's flags.
     const nst = prodStatus(); nst.running.argv = nst.running.argv.map((a) => (a === 'qwen3.6-35b-a3b' ? 'my-qwen' : a));
     const nc = prodExternalConfig(); nc.external.model = 'my-qwen';
     p = V.takeOverPlan(nc, nst, 8100, { answering: true });
-    assert.deepEqual([p.block.model, p.block.library.length, p.block.library[6].id, p.block.library[6].folder, p.block.library[6].vision], ['my-qwen', 7, 'my-qwen', 'Qwen3.6-35B-A3B-NVFP4', true]);
+    assert.deepEqual([p.block.model, p.block.library.length, p.block.library[7].id, p.block.library[7].folder, p.block.library[7].vision], ['my-qwen', 8, 'my-qwen', 'Qwen3.6-35B-A3B-NVFP4', true]);
     // Nothing to offer.
     const none = (why, st2, port = 8100, answering = true, cfg = c) => assert.equal(V.takeOverPlan(cfg, st2, port, { answering }), null, why);
     none('no install in that root', prodStatus({ installs: [] }));
@@ -7145,7 +7148,7 @@ test('presets: the picks for an RTX PRO 6000 with vLLM — the capacity page\'s 
     // LOL Vibe: the model proven with the coding agent, and why not Flint.
     assert.match(picks.vibe.reasons[0], /^Qwen3\.6 35B-A3B · NVFP4 on vLLM, for 10 people at once .*: Covers your 10 with \d+/);
     assert.ok(picks.vibe.estimate.mid >= 48, `about 48–64 coders at 64k: ${picks.vibe.estimate.mid}`);
-    assert.match(picks.vibe.reasons[1], /^Picked for the most people among the models proven with the IDE's coding agent: 11\/15 on its five tasks, on vLLM\. Also proven: Flint 40B-A2\.5B \(13\/15 on its five tasks, on vLLM 0\.33\.0\)\.$/);
+    assert.match(picks.vibe.reasons[1], /^Picked for the most people among the models proven with the IDE's coding agent: 11\/15 on its five tasks, on vLLM\. Also proven: Gemma 4 26B-A4B \(12\/15 on its five tasks, on vLLM 0\.33\.0\)\.$/);
     assert.match(picks.computer.reasons[0], /tool calling, reads images/);
     // Plugins: Vibe gives document reading's memory back; the Computer turns every one on; Balanced = as shipped.
     assert.deepEqual(picks.vibe.plugins, { websearch: true, ocr: false, tts: false, classify: false, stt: false, bus: false });
@@ -7171,7 +7174,7 @@ test('presets: the picks for a DGX Spark, a 24 GB and a 12 GB card, and a box wi
             balanced: 'ollama gemma4:12b auto 2', rag: 'ollama gemma4:12b auto 2', vibe: `llamacpp ${gguf} auto 1`, computer: 'ollama gemma4:12b auto 2',
         }, name);
         // No model proven with the coding agent serves here: LOL Vibe keeps llama.cpp's model, and says so.
-        assert.ok(PR.pickFor('vibe', PR_BOX[name]()).reasons.includes('No model proven with the IDE\'s coding agent is available here: so far only Qwen3.6-35B-A3B (11/15 on its five tasks, on vLLM) and Flint 40B-A2.5B (13/15 on its five tasks, on vLLM 0.33.0) are.'), name);
+        assert.ok(PR.pickFor('vibe', PR_BOX[name]()).reasons.includes('No model proven with the IDE\'s coding agent is available here: so far only Qwen3.6-35B-A3B (11/15 on its five tasks, on vLLM) and Gemma 4 26B-A4B (12/15 on its five tasks, on vLLM 0.33.0) are.'), name);
     }
     // A proven model as Ollama's default: LOL Vibe serves it there rather than llama.cpp's unproven one.
     const olProven = PR_BOX.g12(); olProven.ollama.model = 'qwen3.6:35b';
@@ -7179,15 +7182,18 @@ test('presets: the picks for a DGX Spark, a 24 GB and a 12 GB card, and a box wi
     assert.deepEqual([vibeOl.engine, vibeOl.model, vibeOl.people], ['ollama', 'qwen3.6:35b', 2]);
     assert.equal(vibeOl.reasons[0], 'qwen3.6:35b on Ollama: proven with the IDE\'s coding agent (11/15 on its five tasks, on vLLM).');
     assert.ok(!vibeOl.reasons.some((r) => /No model proven/.test(r)));
-    // Flint (owner 2026-11-03): proven on llama.cpp as on vLLM, but not on Ollama, whose ollama#19191 breaks the agent's reads.
+    // Gemma 4 26B (owner 2026-11-09): proven on llama.cpp as on vLLM, but not on Ollama, whose ollama#19191 breaks the agent's reads.
+    // Flint left the list: no longer proven anywhere.
+    const lcGemma = PR_BOX.g24(); lcGemma.llamacpp = { ...PR_LC, id: 'gemma-4-26b-a4b-ud-q4_k_xl', label: 'gemma-4-26B-A4B-it-UD-Q4_K_XL', model: 'gemma-4-26B-A4B-it-UD-Q4_K_XL.gguf' };
+    const vibeLcGemma = PR.pickFor('vibe', lcGemma);
+    assert.deepEqual([vibeLcGemma.engine, vibeLcGemma.reasons[0]], ['llamacpp', 'gemma-4-26B-A4B-it-UD-Q4_K_XL on llama.cpp: proven with the IDE\'s coding agent (12/15 on its five tasks, on vLLM 0.33.0).']);
+    const olGemma = PR_BOX.g12(); olGemma.llamacpp = { available: false }; olGemma.ollama.model = 'gemma4:26b';
+    const vibeOlGemma = PR.pickFor('vibe', olGemma);
+    assert.equal(vibeOlGemma.engine, 'ollama');
+    assert.ok(vibeOlGemma.reasons.includes('Gemma 4 26B-A4B is proven with the IDE\'s coding agent, but not on Ollama: Ollama turns a whole number from an earlier tool call into text (ollama#19191), and the agent reads files by line numbers.'), JSON.stringify(vibeOlGemma.reasons));
+    assert.ok(vibeOlGemma.reasons.some((r) => /^No model proven/.test(r)));
     const lcFlint = PR_BOX.g24(); lcFlint.llamacpp = { ...PR_LC, id: 'flint-ud-q4_k_xl', label: 'flint-UD-Q4_K_XL', model: 'flint-UD-Q4_K_XL.gguf' };
-    const vibeLcFlint = PR.pickFor('vibe', lcFlint);
-    assert.deepEqual([vibeLcFlint.engine, vibeLcFlint.reasons[0]], ['llamacpp', 'flint-UD-Q4_K_XL on llama.cpp: proven with the IDE\'s coding agent (13/15 on its five tasks, on vLLM 0.33.0).']);
-    const olFlint = PR_BOX.g12(); olFlint.llamacpp = { available: false }; olFlint.ollama.model = 'flint:40b-a2b-qat-int4';
-    const vibeOlFlint = PR.pickFor('vibe', olFlint);
-    assert.equal(vibeOlFlint.engine, 'ollama');
-    assert.ok(vibeOlFlint.reasons.includes('Flint 40B-A2.5B is proven with the IDE\'s coding agent, but not on Ollama: Ollama turns a whole number from an earlier tool call into text (ollama#19191), and the agent reads files by line numbers.'));
-    assert.ok(vibeOlFlint.reasons.some((r) => /^No model proven/.test(r)));
+    assert.ok(!PR.pickFor('vibe', lcFlint).reasons[0].includes('proven with'), 'Flint is not proven any more');
     assert.ok(PR.pickFor('rag', PR_BOX.g24()).reasons.some((r) => /capacity page does not know this GPU/.test(r)));
     // A card the capacity page knows, but for one person (an RTX 5090, 32 GB): Ollama too, and why.
     const g32 = prBox('NVIDIA GeForce RTX 5090', 32, { current: 'gemma-4-12b', library: prLib(['gemma-4-12b']) });

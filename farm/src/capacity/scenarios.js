@@ -45,7 +45,7 @@
   const SCENARIOS = [
     { id: 'rag', use: 'documents', people: 5, title: 'Ask questions about documents (RAG)' },
     { id: 'xr', use: 'coding', people: 10, title: 'Vibe-code a three.js / WebXR app' },
-    { id: 'class', use: 'chat', people: 30, title: 'A class chatting' },
+    { id: 'class', use: 'chat', people: 30, prefer: 'people', title: 'A class chatting' },   // owner 2026-11-09: a class wants seats
     { id: 'workshop', use: 'computer', people: 20, title: 'A Computer workshop (graphs, agents)' },
     { id: 'reports', use: 'long', people: 2, title: 'Long reports and thesis feedback' },
     { id: 'frontier', use: 'frontier', people: 2, title: 'A near-frontier model for 1–2 teachers' },
@@ -58,7 +58,7 @@
     return Object.assign({ use: useId, people: Math.max(1, Math.round(people) || 1), what: u.what, est, need: u.need,
       rank: u.rank, prefer: u.prefer || 'quality' }, extra || {});
   }
-  const card = (s) => scenario(s.use, s.people, s.mode, { id: s.id, title: s.title });
+  const card = (s) => scenario(s.use, s.people, s.mode, { id: s.id, title: s.title, ...(s.prefer ? { prefer: s.prefer } : {}) });
 
   // ---- Model quality
   // score = BenchLM's open-model index (a third-party aggregate, the one scale the catalog has for nearly every model).
@@ -67,7 +67,8 @@
   const good = (m) => (score(m) >= 40 ? 1 : 0);
   // Agentic coding: one of these scores, vendor or third party, at or over its bar (Nemotron 3.5 Lightning's SWE-bench
   // Verified 52.8 is under it, as the spike found: "the model for the Computer, not the coding default").
-  const CODING = [[/^SWE-bench(?! Pro)/i, 60], [/^SWE-bench Pro/i, 45], [/Terminal[- ]Bench/i, 45], [/DeepSWE|FrontierSWE/i, 50]];
+  // Our own: LOL Vibe's coding agent on the spike's five tasks, three runs each (docs/spike/ide), passes out of 15.
+  const CODING = [[/^SWE-bench(?! Pro)/i, 60], [/^SWE-bench Pro/i, 45], [/Terminal[- ]Bench/i, 45], [/DeepSWE|FrontierSWE/i, 50], [/^LOL Vibe's coding agent/i, 10]];
   function codingEvidence(m) {
     for (const [re, bar] of CODING) {
       const q = (m.quality || []).find((x) => re.test(x.benchmark) && x.score >= bar);

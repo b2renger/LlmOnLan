@@ -184,6 +184,9 @@ export default (test) => {
 
   // Owner 2026-10-27: the farm calls every model "assistant", so the IDE could not tell a heavy thinker and gave it 8192.
   test('models: a model with no profile gets the farm\'s own reply limit; a measured one keeps its own', () => {
+    // Gemma 4 26B, the farm's coding model since 2026-11-09, by any of its names; Gemma 4 12B stays weak.
+    for (const name of ['Gemma 4 26B-A4B · NVFP4', 'gemma-4-26b', 'gemma4:26b']) assert.deepEqual(profileFor(name, 8192), { edits: 'good', maxTokens: 32768, measured: '12/15 agent tasks, 2026-11-06' }, name);
+    assert.equal(profileFor('gemma4:12b').edits, 'weak');
     assert.deepEqual(profileFor('Flint-UD-Q4_K_XL', 32768), { edits: 'unknown', maxTokens: 32768, measured: '' }, 'unknown, on a farm that says 32768');
     assert.equal(profileFor('Gemma 4 12B · NVFP4', 32768).maxTokens, 32768, 'vLLM\'s label for a model with no profile');
     assert.equal(profileFor('brand-new:7b', null).maxTokens, 8192, 'a farm that does not say (farm-v0.0.49 and older)');

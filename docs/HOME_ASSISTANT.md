@@ -29,7 +29,7 @@ encrypt (some Linux desktops without a keyring), the token is not kept, and link
 
 Reading the home is always allowed: the list of devices and sensors, and one entity's state, attributes and
 actions. A model never gets a coordinate or a street address: latitude, longitude and a phone's geocoded-location sensor are
-left out. It can read a person's state like any other: home, away, or the name of a zone you set in Home Assistant.
+left out. It can read whether a person or a phone is home: `home` or `not_home`, never the name of a zone (work, a school).
 Who is home or away is not: it is what "who is home?" asks.
 
 A **command** is a **dry run** until you click **Allow commands…**. The model is told what it would have done

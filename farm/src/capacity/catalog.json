@@ -7311,6 +7311,12 @@
    },
    "quality": [
     {
+     "benchmark": "LOL Vibe's coding agent, five tasks × 3 (passes of 15)",
+     "score": 12,
+     "source": "docs/spike/RESULTS.md, Model trials (2026-11-06)",
+     "vendor_reported": false
+    },
+    {
      "benchmark": "GPQA Diamond",
      "score": 82.3,
      "source": "https://huggingface.co/google/gemma-4-26B-A4B-it",

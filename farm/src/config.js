@@ -463,6 +463,14 @@ const VLLM_LIBRARY = [
         catalog: 'flint', measured: 'flint',
         note: 'Recursive’s model for coding agents. Text only, always thinks. Measured: 40 people at 32k, 20 at 64k on an RTX PRO 6000 (its memory is the limit). Needs vLLM 0.33.0.',
     },
+    // Owner 2026-11-09: the coding agent's model, in Flint's place (docs/spike/RESULTS.md "Model trials", 2026-11-06). NVIDIA's own
+    // NVFP4, the Gemma 4 flags; no audio tower, unlike the 12B.
+    {
+        id: 'gemma-4-26b', label: 'Gemma 4 26B-A4B · NVFP4', repo: 'nvidia/Gemma-4-26B-A4B-NVFP4',
+        sizeGb: 18.8, weightsGib: 18.13, vision: true, presencePenalty: null, args: [...GEMMA4_ARGS, ...MM_LIMIT],
+        catalog: 'gemma-4-26b-a4b', measured: 'gemma426',
+        note: 'Google’s Gemma 4 26B, for the coding agent: 12 of 15 of LOL Vibe’s agent tasks, level with Flint. Sees images. Measured: 40 people at 32k, 20 at 64k on an RTX PRO 6000 (its memory is the limit).',
+    },
 ];
 
 const VllmSchema = z.object({

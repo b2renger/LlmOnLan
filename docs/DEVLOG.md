@@ -6,6 +6,26 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-09 (12:55) — The owner's four answers: Gemma 4 26B for coding, class cards for people, the engine repairs itself, people in or out
+
+The owner (2026-11-09): yes to Gemma 4 26B in vLLM's list and in Flint's place as LOL Vibe's coding model; yes to class cards that
+favour people; yes to a chat engine that repairs itself; and, on a person's home state, "what is best?".
+
+- **Gemma 4 26B-A4B in vLLM's list** (`config.js`, the seventh built-in, appended so a saved list gets it at the next start;
+  `measured: 'gemma426'`, so Automatic seats it from the measured levels). **AGENT_PROVEN**: Qwen3.6 and Gemma 4 26B; Flint stays
+  downloadable, no longer proven; not proven on Ollama (ollama#19191). The IDE's model line knows it (`projects/models.mjs`: good
+  at edits, 32,768 a reply, as measured).
+- **The capacity page:** the class card prefers people, so Qwen3.6's 96 beat Gemma's 40 again whatever the index says; without it
+  the Balanced preset, built from that card, would have moved a PRO 6000 to Gemma once it joined the list. The coding card counts
+  LOL Vibe's own agent runs (`CODING`, 10 of 15), so it no longer turns Gemma away for its outside SWE-bench of 17.4.
+- **The chat engine repairs itself:** a minute after a packaged start, a rebuilt bundle of the SAME Open WebUI downloads into
+  `sidecar.pending` and applies at the next start (`repairWanted`); one download at a time, shared with About's button; another
+  Open WebUI version stays a click.
+- **A person's state** (the owner asked what is best): `home` or `not_home`, never a zone's name. Whether people are in is what the
+  home templates use; a zone called work or a school says where someone is (`readableState`).
+
+**Tested:** farm 287/287, Farm app 9 + 3, chat-unit 1957/1957 with the new cases, shell 30/30, lint 0.
+
 ## 2026-11-06 (20:38) — New models measured: Qwen3.6 serves more than we said, and Gemma 4 26B codes as well as Flint
 
 The owner: find new models for better quality, speed and scale, at a quiet hour. Candidates came from Hugging Face's API (dates, licences,

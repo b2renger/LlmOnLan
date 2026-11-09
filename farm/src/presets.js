@@ -65,13 +65,13 @@ function gateWorst(m) {
 // syntax check) on the five tasks of docs/spike/ide. The estimator has no agent data, so this list is the proof, by
 // catalog id. Qwen3.6: 11/15 (docs/spike/RESULTS.md, "The coding agent: five tasks, Flint vs Qwen3.6", 2026-10-23, on
 // the farm's vLLM). Qwen3.8 and Nemotron passed only the P5-0 spike's single edit task (docs/research/p5-spike, 3/3 each on
-// Ollama), never the five. Flint (owner 2026-11-03): 13/15 on the farm's vLLM 0.33.0 with the open-think template the list
-// uses (2026-11-02, RESULTS "vLLM 0.33.0 and Flint on vLLM"; 8/10 on llama.cpp given 32k replies, 2026-10-23), for 20
-// people at 62k each on the PRO 6000 against Qwen3.6's 48, so the most-people rule still picks Qwen3.6 there.
-const AGENT_PROVEN = { 'qwen3.6-35b-a3b': '11/15 on its five tasks, on vLLM', flint: '13/15 on its five tasks, on vLLM 0.33.0' };
-// An engine a proven model does NOT do the agent's job on. Flint on Ollama: ollama#19191 turns an earlier tool call's
-// integer into "30000.0", and the agent's read takes offset/limit (RESULTS 2026-11-02).
-const NOT_PROVEN_ON = { flint: ['ollama'] };
+// Ollama), never the five. Gemma 4 26B (owner 2026-11-09, in Flint's place): 12/15 on the farm's vLLM 0.33.0 (RESULTS "Model
+// trials", 2026-11-06), level with Flint's 12-13 with pictures and a clear licence, for 20 people at 62k on the PRO 6000
+// against Qwen3.6's 48, so the most-people rule still picks Qwen3.6 there. Flint stays in vLLM's list, no longer proven here.
+const AGENT_PROVEN = { 'qwen3.6-35b-a3b': '11/15 on its five tasks, on vLLM', 'gemma-4-26b-a4b': '12/15 on its five tasks, on vLLM 0.33.0' };
+// An engine a proven model does NOT do the agent's job on. Ollama: ollama#19191 turns an earlier tool call's integer into
+// "30000.0", and the agent's read takes offset/limit (RESULTS 2026-11-02, with Flint).
+const NOT_PROVEN_ON = { 'gemma-4-26b-a4b': ['ollama'] };
 const provenText = (id) => `${S.modelName(CATALOG.models.find((m) => m.id === id))} (${AGENT_PROVEN[id]})`;
 const PROVEN_TEXT = (() => { const t = Object.keys(AGENT_PROVEN).map(provenText); return `${t.join(' and ')} ${t.length > 1 ? 'are' : 'is'}`; })();
 const provenOf = (served, engine) => {

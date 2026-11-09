@@ -256,9 +256,26 @@ export async function checkOwuiUpdate(): Promise<{ current: string; latest: stri
     return { current, latest, updateAvailable: offerBundle(current, bundledRev(), latest, found?.bundleRev || null) };
 }
 
+/** PURE: download by itself? Only a REPAIRED bundle of the Open WebUI already installed (sidecar/BUNDLE_REV), and only once:
+ * another Open WebUI stays a person's click in About (owner 2026-11-09). */
+export function repairWanted(check: { current: string; latest: string | null; updateAvailable: boolean }, staged: boolean): boolean {
+    return !staged && check.updateAvailable && check.latest === check.current;
+}
+
+/** A downloaded engine waits in sidecar.pending for the next start. */
+export const updateStaged = (): boolean => fs.existsSync(pendingDir());
+
+let staging: Promise<{ ok: boolean; version?: string; error?: string }> | null = null;
+
 // Download the latest OWUI sidecar, STAGED to userData/sidecar.pending — applied
 // on the next launch by applyPendingSidecar() (so a running OWUI isn't disturbed).
-export async function downloadOwuiUpdate(onProgress?: ProgressCb): Promise<{ ok: boolean; version?: string; error?: string }> {
+// One download at a time: About's click and the automatic repair share it.
+export function downloadOwuiUpdate(onProgress?: ProgressCb): Promise<{ ok: boolean; version?: string; error?: string }> {
+    if (!staging) staging = stageLatest(onProgress).finally(() => { staging = null; });
+    return staging;
+}
+
+async function stageLatest(onProgress?: ProgressCb): Promise<{ ok: boolean; version?: string; error?: string }> {
     if (!app.isPackaged) return { ok: false, error: 'Chat-engine updates only apply to an installed build.' };
     try {
         onProgress?.({ phase: 'check', message: 'Checking for a newer chat engine…' });

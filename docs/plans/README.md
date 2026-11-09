@@ -47,7 +47,7 @@ processed in a cloud; the code follows the ponytail ladder.
 ## 2. Next — the most value for the office
 
 **New models, measured 2026-11-06** ([RESULTS](../spike/RESULTS.md#model-trials-rtx-pro-6000-2026-11-06)): nothing beats Qwen3.6 for a class,
-and it serves more than we said. Gemma 4 26B is a real option for coding. Nanbeige4.3 and Apex-35B are not for this farm.
+and it serves more than we said. Gemma 4 26B is LOL Vibe's coding model since 2026-11-09 (owner), in Flint's place. Nanbeige4.3 and Apex-35B are not for this farm.
 
 1. **The class-size test through the seat gate** (HUMAN_TESTS J16): 48–64 people at 64k, 30 at 128k. It is the only
    proof of "a class of 50", and the purchase table rests on it. The harness measured Qwen3.6 at 64 people on Open WebUI's
@@ -70,8 +70,8 @@ and it serves more than we said. Gemma 4 26B is a real option for coding. Nanbei
    **S**.
 7. **A plugin's first install shows its progress** (Voice takes about 10 minutes behind a "…"). The owner picks: in
    the download slot, or as a job that tells the laptops the farm is busy. **M**.
-8. **The IDE's model line agrees with the farm's proven list** (`projects/models.mjs` calls Qwen3.6 untried and has
-   no Flint row). The owner: do 11/15 and 13/15 count as good at edits? **S**.
+8. **The IDE's model line agrees with the farm's proven list** (`projects/models.mjs` calls Qwen3.6 untried; Gemma 4 26B
+   is good there since 2026-11-09). The owner: does Qwen3.6's 7–11/15 count as good at edits? **S**.
 9. **The client says when a farm is older than it expects.** Farm updates are manual, and older farms refuse newer
    settings. The owner: the minimum version. **S**.
 10. **Prune old coding-agent session logs** in `DATA_DIR/lol-studio/dsh` (IDE_PLAN slice 7). **S**.
@@ -109,26 +109,18 @@ and it serves more than we said. Gemma 4 26B is a real option for coding. Nanbei
 ## 4. Waiting on the owner
 
 **The ones that unblock the most:**
-1. **Gemma 4 26B on the farm?** Measured 2026-11-06: Flint's seats (40 and 20) and coding score (12/15 against 12–13), with pictures
-   and a clear Apache licence where Flint's is unsettled. Add it to vLLM's list and to LOL Vibe's proven list, beside Flint or instead
-   of it? Note that with it measured, the capacity page's class-of-30 card picks it on a PRO 6000 with nothing served yet (index 46
-   against Qwen3.6's 43.4), although Qwen3.6 serves more than twice the people. A farm serving Qwen3.6 keeps it. **S**.
-2. **The next release and the ★ list** (Now 1–2), and which build tests today's fixes: a local build or a pre-release
+1. **The next release and the ★ list** (Now 1–2), and which build tests today's fixes: a local build or a pre-release
    tag.
-3. **A quiet hour on the PRO 6000** (Now 3, then Next 1).
-4. **May vLLM's own model read documents** instead of a second gemma4:12b? It frees 9 GB, about 14 % more room for
+2. **A quiet hour on the PRO 6000** (Now 3, then Next 1).
+3. **May vLLM's own model read documents** instead of a second gemma4:12b? It frees 9 GB, about 14 % more room for
    conversations (multi-user decision 6). **M**.
-5. **CI minutes for the tests** (Next 4).
-6. **CLAUDE.md:**
+4. **CI minutes for the tests** (Next 4).
+5. **CLAUDE.md:**
    - cut it to about 350 lines, with the details moved to the READMEs and each one checked there first;
    - change it only when a rule, the contract, a port or the map changes;
    - reword invariant #4 to the calls the contract table lists (it says "admin REST API", which the app never uses).
 
 **Choices to make, one line each:**
-- **The chat engine:** a repaired bundle is offered on a click in About, and a laptop that never clicks keeps PyAV 19, so its own
-  speech to text keeps failing on a farm without speech to text. Keep the click, or download it by itself at the next start?
-- **Privacy:** a person's state (home, away, a zone's name) still reaches a model, and the texts now say so: keep it, or
-  hide it too (TEXT-1; the home templates read it).
 - **The farm:**
   - an OCR upload cap of 100 MB, or another number;
   - FSV-2's progress, (a) or (b);

@@ -11,6 +11,8 @@ const KNOWN = [
   { re: /^qwen3\.8/i, edits: 'good', maxTokens: 8192, measured: '3/3 edits, 2026-09-28' },
   { re: /^nemotron/i, edits: 'good', maxTokens: 8192, measured: '3/3 edits, 2026-09-28' },
   { re: /^ornith/i, edits: 'unknown', maxTokens: 8192, measured: '2/3 edits, 2026-09-28' },
+  // Gemma 4 26B, the farm's coding model since 2026-11-09: two of its passing runs needed most of 32,768 (RESULTS "Model trials").
+  { re: /^gemma[ -]?4[ :-]?26b/i, edits: 'good', maxTokens: 32768, measured: '12/15 agent tasks, 2026-11-06' },
   { re: /^gemma4/i, edits: 'weak', maxTokens: 4096, measured: '1/3 edits: it thinks itself out of budget, 2026-09-28' },
   // The farm's vLLM default, as its list names it ("Qwen3.6 35B-A3B · NVFP4"): never near 8192 a reply (DEVLOG 2026-10-23).
   { re: /^qwen3\.6/i, edits: 'unknown', maxTokens: 8192, measured: '15 agent tasks, none cut at 8192, 2026-10-23' },

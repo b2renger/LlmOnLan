@@ -31,7 +31,7 @@ import { withComfyq } from './comfyqPrompts';
 import { setComputerMcp } from './configBridge';
 import {
     ensureSidecar, applyPendingSidecar, isSidecarInstalled,
-    checkOwuiUpdate, downloadOwuiUpdate, SidecarProgress, releaseAssetUrl, installFrom,
+    checkOwuiUpdate, downloadOwuiUpdate, repairWanted, updateStaged, SidecarProgress, releaseAssetUrl, installFrom,
 } from './sidecarManager';
 import { ShellSettings, DiscoveredFarm, ScanRange, McpoState } from './types';
 import {
@@ -1339,6 +1339,15 @@ app.whenReady().then(async () => {
     if (OWUI_ENABLED && app.isPackaged && !isSidecarInstalled()) {
         const res = await ensureSidecar(pushSidecarInstall);
         if (!res.ok) return; // install-error overlay stays up; "Retry" re-runs install-sidecar
+    }
+    // A repaired chat engine installs itself (owner 2026-11-09): a minute after the start, a rebuilt bundle of the same Open
+    // WebUI is downloaded and applies at the next start; a laptop that never opens About kept a broken one for good.
+    if (OWUI_ENABLED && app.isPackaged) {
+        setTimeout(() => {
+            void checkOwuiUpdate().then((r) => (repairWanted(r, updateStaged())
+                ? downloadOwuiUpdate((p) => { if (win && !win.isDestroyed()) win.webContents.send('owui-update-progress', p); })
+                : null)).catch(() => null);
+        }, 60_000);
     }
 
     // Decide the initial endpoint. If none known, give discovery a short grace

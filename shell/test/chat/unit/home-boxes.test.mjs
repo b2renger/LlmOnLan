@@ -199,7 +199,14 @@ export default (test) => {
     const temp = { entity_id: 'sensor.salon', state: '21', attributes: { unit_of_measurement: '°C' } };
     assert.equal(H.isPlace(geo), true);
     assert.equal(H.isPlace(android), true, 'an address alone is enough, however it is spelled');
-    assert.equal(H.isPlace(person), false, 'a person keeps home, away or a zone');
+    assert.equal(H.isPlace(person), false, 'a person is not a place sensor');
+    // Whether people are in, never where (owner 2026-11-09): a zone's own name reads not_home.
+    assert.equal(H.readableState(person), 'not_home');
+    assert.equal(H.readableState({ ...person, state: 'home' }), 'home');
+    assert.equal(H.readableState(tracker), 'not_home', 'a tracker in a zone called Office');
+    assert.equal(H.readableState({ ...tracker, state: 'unavailable' }), 'unavailable');
+    assert.equal(H.readableState(temp), '21', 'anything else as it is');
+    assert.equal(H.readableState(geo), '(hidden: a place)');
     assert.equal(H.isPlace(tracker), false);
     assert.equal(H.isPlace(event), false, 'a calendar\'s state is on or off');
     assert.equal(H.isPlace(temp), false);

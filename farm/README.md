@@ -278,6 +278,7 @@ tools and see pictures where they can, with gate scores within a point or two of
 | Gemma 4 12B (`unsloth/gemma-4-12b-it-NVFP4`, 9.3 GB) | yes | yes | 16 at 32k, 8 at 64k on an RTX PRO 6000 (≥ 64 / ≥ 48 once the first follow-up is past) |
 | Qwen3-Omni 30B-A3B (`Qwen/Qwen3-Omni-30B-A3B-Instruct`, 70.5 GB, FP8 at load) | yes | yes, and writes down speech | 20 at 32k, 10 at 64k on an RTX PRO 6000 in a 30 GiB pool: its memory binds first (~30 / ~14 on a PRO 6000 of its own) |
 | Flint 40B-A2.5B (`RecursiveSI/flint-nvfp4-gguf` + `RecursiveSI/flint`'s config, 22.9 GB) | no | no | 40 at 32k, 20 at 64k on an RTX PRO 6000, its memory the limit (bf16 context only) |
+| Gemma 4 26B-A4B (`nvidia/Gemma-4-26B-A4B-NVFP4`, 18.8 GB; since 2026-11-09) | yes | no | 40 at 32k, 20 at 64k on an RTX PRO 6000, its memory the limit; LOL Vibe's coding model (12/15 on its agent tasks) |
 
 **Flint** is one GGUF file (its NVFP4 weights, served weight-only) that takes its config and tokenizer from the BF16
 repo: Download fetches the GGUF repo into `hf/flint-nvfp4-gguf/` and only the BF16 repo's json and chat template (never
@@ -1079,11 +1080,11 @@ can run:
   not read images: documents reach it as text, and scanned pages go through document reading (OCR), a model of its own.
 - **LOL Vibe's list** (`AGENT_PROVEN`): models proven with the IDE's own coding agent on its five tasks
   (`docs/spike/ide`); the estimator has no agent data. Qwen3.6 (11/15, `docs/spike/RESULTS.md`, *The coding agent: five
-  tasks*) and, since 2026-11-03, **Flint**: on the farm's vLLM 0.33.0 (2026-11-02) it passed 12/15 and 13/15 of the five
-  tasks against Qwen3.6's 7/15 and 9/15 the same day. Not on Ollama (ollama#19191 turns an earlier tool call's whole
-  number into text, and the agent reads files by line numbers): a farm whose Ollama serves Flint is told so. The rule
-  still picks Qwen3.6 on every card the capacity page knows: it serves the most people (48 at 64k on the PRO 6000,
-  Flint 20). Qwen3.8 27B and Nemotron passed only the P5-0 spike's single edit task.
+  tasks*) and, since 2026-11-09 (owner), **Gemma 4 26B** in Flint's place: on the farm's vLLM 0.33.0 (2026-11-06) it passed
+  12/15 of the five tasks, level with Flint's 12–13, with pictures and a clear licence (Flint stays in vLLM's list, no longer
+  proven). Not on Ollama (ollama#19191 turns an earlier tool call's whole number into text, and the agent reads files by
+  line numbers): a farm whose Ollama serves it is told so. The rule still picks Qwen3.6 on every card the capacity page
+  knows: it serves the most people (48 at 64k on the PRO 6000, Gemma 20). Qwen3.8 27B and Nemotron passed only the P5-0 spike's single edit task.
 - **Elsewhere** (a GeForce card, which the capacity page counts as one person's; a GPU it does not know; no vLLM):
   Ollama's default model with Automatic context and its 2 at once, except **LOL Vibe**, which serves a proven model when
   llama.cpp's or Ollama's is one, else llama.cpp's model (Qwen3.8 27B UD-IQ2_S by default) when llama.cpp can run here,
@@ -1435,7 +1436,7 @@ nothing. Shape:
             "port": 8100, "alias": "assistant", "model": "qwen3.6-35b-a3b",   // a list id
             "contextLength": 65536, "parallel": "auto", "maxNumSeqs": "auto",
             "kvCacheGib": "auto", "ocrReserveGib": 9, "marginPct": 8, "minFreeGb": "auto",
-            "version": "0.33.0", "extraArgs": [], "library": [ /* the six models of the list */ ] },
+            "version": "0.33.0", "extraArgs": [], "library": [ /* the seven models of the list */ ] },
                                                //   a list entry may be { "path": "/mnt/f/models/x" }: a folder used where it is
   "storage": { "dir": null,                    // the panel's "Keep everything here": one folder for the farm's models
                "ollama": null },               //   (null = farm/.models, farm/.stt/models, Ollama's own place);

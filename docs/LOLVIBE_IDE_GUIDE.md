@@ -160,7 +160,7 @@ A Gitea on your LAN works the same way (an `https://` address).
 |---|---|
 | *The coding agent is not installed on this computer yet* | Press **Install the coding agent** (the panel). |
 | *No farm is connected* | The pill at the top: pick a farm. |
-| *The model ran out of room before it finished* | Ask for something smaller, or pick another model: Qwen3.6 or Flint (proven with the agent), or qwen3.8 / nemotron (good at code edits). |
+| *The model ran out of room before it finished* | Ask for something smaller, or pick another model: Qwen3.6 or Gemma 4 26B (proven with the agent), or qwen3.8 / nemotron (good at code edits). |
 | *The coding agent cannot work in this folder …* | Windows only: the data folder is on a second drive, a USB stick or a network folder. Move it into your user folder (Preferences ▸ Data location), then send again. |
 | *This file changed since you opened it … so it was not saved* | The agent edited it meanwhile. Copy your changes, click the file in the list (the new version opens), paste them back, **Save**. |
 | *The coding agent stopped before it answered* | Ask again: it restarts, and it gets a short recap of the chat. |

@@ -73,7 +73,7 @@ and its next work goes to docs/plans/README.md. Snapshot:
     never `busy`, resumable), installs **vLLM 0.33.0** (`vllm.version`; branch `vllm-033`, 2026-11-02: the five models
     below checked on it, Qwen3.6 48 people at 64k every turn against 0.30.0's 32 the same day; an install of another
     version is offered **Update vLLM**, never run by itself, which builds the new version in `.venv-next` and swaps it in
-    only once its check passed, so a stopped or failed update leaves the old one serving), keeps a list of six models (Download / Use this / Remove / Add by Hugging Face name):
+    only once its check passed, so a stopped or failed update leaves the old one serving), keeps a list of seven models (Download / Use this / Remove / Add by Hugging Face name):
     the spike's three NVFP4 models and, since 2026-10-09 (branch `vllm-models`), two that hear sound in a
     chat message (`audio`, the snapshot's `backend.audio`; vLLM's sound extras, `vllm[audio]` in `install.sh`, an
     older install offered Update vLLM): **Gemma 4 12B** (`unsloth/gemma-4-12b-it-NVFP4`, 9.25 GiB, vLLM's
@@ -87,7 +87,10 @@ and its next work goes to docs/plans/README.md. Snapshot:
     context only, so 40 people at 32k / 20 at 64k on the PRO 6000, its memory the limit (catalog `flint`, `kv_bf16_only`:
     the measured 50,869 B a token, so Automatic seats 19 at a whole 64k on a 60 GiB pool, fewer on a smaller one); `openThink`: `install.sh` writes
     a copy of its template whose answer opens a think block, else vLLM's `glm47` parser read a direct answer as thinking;
-    `alwaysThinks`: the route drops `chat_template_kwargs`, which leaked its `<think>` into titles). A list saved before
+    `alwaysThinks`: the route drops `chat_template_kwargs`, which leaked its `<think>` into titles); and since 2026-11-09 (owner)
+    **Gemma 4 26B-A4B** (`nvidia/Gemma-4-26B-A4B-NVFP4`, 18.1 GiB, the Gemma 4 flags, pictures, no audio tower; 40 people at
+    32k / 20 at 64k on the PRO 6000, its memory the limit: vLLM pages its sliding-window layers per token, 37,464 B measured
+    against the config's 10,240; 12/15 on LOL Vibe's agent tasks, docs/spike/RESULTS.md *Model trials*). A list saved before
     a version added models gets them at the next start, except the ids in `vllm.removed` (a Remove of a built-in);
     and sets people at once, context per person and GPU memory for conversations
     (Automatic: measured seats capped by what the pool holds; the pool from free memory less the model, ~4 GB,
@@ -173,17 +176,18 @@ and its next work goes to docs/plans/README.md. Snapshot:
     the capacity explorer with this farm's box and model marked, and usage scenarios (documents for 5, vibe-coding
     for 10, a class of 30, …) whose picks come from the spike's measurements and the calibrated estimator
     (`scenarios.js`; the GeForce cards count as one-person boxes; the model served now comes first when it covers; a card
-    that prefers people counts a lead under 10 % as a tie the better model wins, `morePeople`, 2026-10-27).
+    that prefers people counts a lead under 10 % as a tie the better model wins, `morePeople`, 2026-10-27; the class card
+    prefers people, owner 2026-11-09; the coding card counts LOL Vibe's own agent runs as evidence, `CODING`).
   - **Presets** (owner 2026-10-27, `src/presets.js` + `up.js` `makePresets`, the panel's Presets card; branches `presets`
     and `presets-users`, released in farm-v0.0.50): one per session — **Balanced** (the default, the farm as it ships:
     vLLM's shipped model and context (the card's best vLLM pick when that one is not in the list or does not fit) where
     vLLM is set up on a GPU the capacity page knows, else Ollama's default model,
     so a farm serving llama.cpp switches to Ollama; the shipped plugins), **Documents** (`rag`: the MOST PEOPLE at 64k among models good enough for documents — `GATE_FLOOR`, 25/28
     or more on every run of the spike's check — document reading on), **LOL Vibe** (`vibe`: the most people at 64k among
-    models PROVEN WITH THE IDE'S CODING AGENT — `AGENT_PROVEN`: Qwen3.6, 11/15 on the five tasks, and since 2026-11-03
-    (owner) Flint, 13/15 on the farm's vLLM 0.33.0 against Qwen3.6's 7–9/15 the same day — not on Ollama, whose
+    models PROVEN WITH THE IDE'S CODING AGENT — `AGENT_PROVEN`: Qwen3.6, 11/15 on the five tasks, and since 2026-11-09
+    (owner, in Flint's place: Flint stays in vLLM's list) Gemma 4 26B, 12/15 on the farm's vLLM 0.33.0 — not on Ollama, whose
     ollama#19191 breaks the agent's reads (`NOT_PROVEN_ON`); the most-people rule still picks Qwen3.6 on every card the
-    capacity page knows (48 against Flint's 20 on the PRO 6000) — document reading off), **Computer** (the most
+    capacity page knows (48 against Gemma's 20 on the PRO 6000) — document reading off), **Computer** (the most
     people at 32k among models that see pictures and do tools well, every plugin on). Picked for THIS box by `scenarios.js`
     `recommend()` (the capacity page's cards, the spike's measurements, the estimator; never copied), only among what it
     can run: vLLM's list where vLLM is set up on a GPU the capacity page knows for a group (people at once and memory
@@ -480,7 +484,9 @@ and its next work goes to docs/plans/README.md. Snapshot:
   `scene.apply`, `play_media`, `send_command` reach past the device — a security review found the first, 2026-09-30); never unlock/open a
   lock, disarm/trigger an alarm, sound a siren, open a valve, or open a cover unless HA says it is a blind/curtain/shade/shutter/awning/window;
   helpers/number/select stay commandable and the dialog says a switch, button, helper, scene or script does whatever the home wired;
-  never a coordinate to a model (`HIDDEN_ATTRS`: latitude/longitude/gps_accuracy/altitude, a camera's token); a redirect is refused, never
+  never a coordinate to a model (`HIDDEN_ATTRS`: latitude/longitude/gps_accuracy/altitude, a camera's token), never a street
+  address (a sensor with a place attribute reads `(hidden: a place)`, `isPlace`), and a person's or a tracker's state reads
+  home or not_home, never a zone's name (`readableState`, owner 2026-11-09); a redirect is refused, never
   followed; a command unconfirmed in 20 s is "sent, not confirmed" (HA shields the call, so it may still run); ≤ 1/s per device and 30/min.
   The MCP composition is `withHome()` (tested through `handleRpc`). The Computer's Home boxes reach the same module through
   `lol:home:read/entities/actions/command` (`projects/bridge.mjs` `homeDoor`); tests `home-boxes.test.mjs` (main),
@@ -500,7 +506,7 @@ and its next work goes to docs/plans/README.md. Snapshot:
   [voice plan](docs/archive/plans/COMPUTER_VOICE_PLAN.md), [ecosystem plan](docs/archive/plans/ECOSYSTEM_PLAN.md); a dated
   [status report](docs/archive/COMPUTER_STATUS.md) to 12 Oct; their leftovers go to [docs/plans/README.md](docs/plans/README.md).
 - **`sidecar/`** — `build-sidecar` bundles a relocatable standalone CPython 3.12 + OWUI + `launcher.py`;
-  `OPENWEBUI_VERSION` is the pin (**OWUI `0.11.4`** since 2026-09-27, Python 3.11/3.12; the bump notes, and what to check again at each bump, are in INTEGRATION_BRIEF); `BUNDLE_REV` is raised by hand when a fix must replace installed bundles of the same OWUI, and About's check then offers them (2026-11-06, not released yet); the build caps PyAV below 19 and decodes a short recording. A packaged client runs
+  `OPENWEBUI_VERSION` is the pin (**OWUI `0.11.4`** since 2026-09-27, Python 3.11/3.12; the bump notes, and what to check again at each bump, are in INTEGRATION_BRIEF); `BUNDLE_REV` is raised by hand when a fix must replace installed bundles of the same OWUI, and a packaged client downloads one by itself a minute after its start, applied at the next (`repairWanted`, owner 2026-11-09; another OWUI stays About's click; not released yet); the build caps PyAV below 19 and decodes a short recording. A packaged client runs
   `<userData>/sidecar/python launcher.py serve`; dev uses `sidecar/.venv`'s `open-webui serve`. NOT bundled
   into the installer — CI publishes it as `owui-sidecar-<platform>-<arch>.tar.gz` release assets and the
   packaged shell downloads it to `userData/sidecar` on first run (`sidecarManager.ts`); About ▸ "Check for
@@ -755,7 +761,7 @@ default, which froze them, an old `vllm.version` among them):
                 "parallel": 1, "kvUnified": true,// one KV pool shared by the slots; false = hard split
                 "kvCacheType": "q4_0", "mtp": false, "cacheRam": "auto" },   // mtp needs UD-Q2_K_XL+
   "vllm": { "enabled": false, "root": null,      // OPT-IN from the panel: vLLM run by the farm (in WSL2 on Windows)
-            "port": 8100, "alias": "assistant", "model": "qwen3.6-35b-a3b",   // a list id (six built in: farm/README.md)
+            "port": 8100, "alias": "assistant", "model": "qwen3.6-35b-a3b",   // a list id (seven built in: farm/README.md)
             "contextLength": 65536, "parallel": "auto", "kvCacheGib": "auto" },
   "external": { "enabled": false, "alias": "assistant", "baseUrl": "http://127.0.0.1:8000/v1",
                 "contextLength": 32768, "parallel": 4 },   // a server the farm does not run; DECLARED values
