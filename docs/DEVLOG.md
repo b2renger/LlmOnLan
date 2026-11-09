@@ -6,6 +6,18 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-09 (13:14) — Release client v0.2.16 and Farm app farm-v0.0.52, for a phase of human testing
+
+The owner: *"document, review, release to enable a phase of human testing… everything in sync"*. Before the tags, on the merged
+tree (`multiuser-phase0` fast-forwarded into `main`):
+- client: `npm run build`, chat-unit 1957/1957, lint 0, shell 30/30, and the **whole Electron harness, 413/413** (the live half of
+  `k26-home` skipped: no demo home up);
+- farm: `test/run.js` 287/287, `vllm/test_scripts.sh` 129/0 and `LOL_VLLM_FAKE=1 test/vllm-lifecycle.js` 172/0 in WSL (production's root untouched, its own check);
+- Farm app: `npm test` 9 + 3;
+- PyAV 18.1.0, which the sidecar build now requires, has abi3 wheels for every platform CI builds;
+- docs: no broken link outside the archive, the dated reviews and a test fixture; CLAUDE.md's "not released yet" now names the
+  release; README, the plan and HUMAN_TESTS' ★ list (four sessions, ★ = run first) follow.
+
 ## 2026-11-09 (12:55) — The owner's four answers: Gemma 4 26B for coding, class cards for people, the engine repairs itself, people in or out
 
 The owner (2026-11-09): yes to Gemma 4 26B in vLLM's list and in Flint's place as LOL Vibe's coding model; yes to class cards that

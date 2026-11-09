@@ -14,12 +14,13 @@
 
 ---
 
-## Build status (2026-11-05) — released: client `v0.2.15` (OWUI `0.11.4`) · Farm app `farm-v0.0.51`
+## Build status (2026-11-09) — released: client `v0.2.16` (OWUI `0.11.4`) · Farm app `farm-v0.0.52`
 
 > What each release brought, from v0.2.0 on: the DEVLOG's release entries ([docs/DEVLOG.md](docs/DEVLOG.md), headed
 > "Release …"; v0.2.5 is in its 2026-09-29 afternoon entry, farm-v0.0.47 and 0.0.48 in its 2026-10-13 ones).
-> `main` = the last release (farm-v0.0.51, 2026-11-03); work goes on `multiuser-phase0` and its feature branches.
-> The bullets below describe `main`, plus the fixes of 2026-11-05 on `multiuser-phase0`, each marked "not released yet".
+> `main` = the last release (client v0.2.16 and Farm app farm-v0.0.52, 2026-11-09, a release for a phase of human
+> testing); work goes on `multiuser-phase0` and its feature branches. The bullets below describe `main`; a change from 2026-11-05
+> on names the release that brought it.
 
 The full plan is built, released and in multi-user testing. Where to look: the map of the docs,
 [docs/README.md](docs/README.md); the dated build log with how each piece was tested, [docs/DEVLOG.md](docs/DEVLOG.md);
@@ -97,7 +98,7 @@ and its next work goes to docs/plans/README.md. Snapshot:
     9 GB for OCR, document search's 1.5 GB while it is not running yet and an 8 % margin, never `--gpu-memory-utilization`) under the one Apply, which dry-runs and
     confirms only a restart. The boot never waits for it: a PLANNED start keeps the farm healthy + `busy`
     "Starting vLLM" and the gate answers 503 `lol_engine_starting` (503 `lol_engine_stopped` while it is stopped:
-    2026-11-05, not released yet); an unplanned death, Stop and the memory guard
+    2026-11-05, farm-v0.0.52); an unplanned death, Stop and the memory guard
     make it unhealthy. Three missed answers → look; one restart; a second stop in 5 min → Ollama with the reason.
     Stopped on purpose only (`lol down`, Ctrl-C, the Farm app's Quit/Stop, Stop, a switch, a restarting Apply);
     a crash of `lol up` or the Farm app leaves it running and the next `lol up` ADOPTS it when its SETTINGS match
@@ -432,14 +433,14 @@ and its next work goes to docs/plans/README.md. Snapshot:
   anything only a person chooses (`graph/person-only.mjs`; never read from the file); the first run, whichever way it
   starts (`host.mjs` `createHandedGate`, inside `start`), lists them in one question, and Cancel runs nothing. MCP
   `run_graph` refuses until a person said yes; shipped templates and examples pass `shipped: true` (owner 2026-11-06,
-  not released yet). Thinking boxes ask the farm **directly** (never through OWUI) on the background lane: one
+  v0.2.16). Thinking boxes ask the farm **directly** (never through OWUI) on the background lane: one
   request in flight, they yield to a person's chat, and a hidden window sends nothing. Every run is bounded by
   `RUN_LIMITS` (`core/types.mjs`): 8 passes per box, 50 generations (the toolbar **Cap**), 10 min of wall
   clock including waits, 2000 activations; a loop is legal only through a gate box (`topo.mjs`
   `GATE_TYPES`). Code/p5/three/HTML run in ONE opaque-origin sandbox iframe (`sandbox/runner.html`,
   `allow-scripts` only, no network, vendored three r160 / p5 / matter, and d3 7.9 (2026-09-27, loaded for code that names
   `d3.`); `sandbox/host.mjs` is the only iframe maker)
-  **WebRTC out** (2026-11-06, not released yet; its CSP never governed WebRTC, and Chromium ignores `webrtc 'block'` here: a guest sent UDP and a TURN TCP connection to an address it chose, and an `<iframe srcdoc>` is a fresh realm): the window has `nodeIntegrationInSubFrames`, so `src/preload/index.ts` runs in every frame before its scripts, gives the `lol` door to the main frame alone (`process.isMainFrame === true`) and strips `RTC*` from every other; `setWebRTCIPHandlingPolicy` is the backstop for UDP; harness `c3-sandbox-webrtc`. Plus at most one **Live** guest that gets the mouse and keys (`lol.orbit(camera)` is the first-party
+  **WebRTC out** (2026-11-06, v0.2.16; its CSP never governed WebRTC, and Chromium ignores `webrtc 'block'` here: a guest sent UDP and a TURN TCP connection to an address it chose, and an `<iframe srcdoc>` is a fresh realm): the window has `nodeIntegrationInSubFrames`, so `src/preload/index.ts` runs in every frame before its scripts, gives the `lol` door to the main frame alone (`process.isMainFrame === true`) and strips `RTC*` from every other; `setWebRTCIPHandlingPolicy` is the backstop for UDP; harness `c3-sandbox-webrtc`. Plus at most one **Live** guest that gets the mouse and keys (`lol.orbit(camera)` is the first-party
   camera control); a Preview box's **Edit code** opens a drawer editor. View tools: Select (V) · Hand (H) · − % + Fit,
   answering from anywhere on the Computer, never while typing. What leaves the machine: prompt text and an
   Image's (or a Preview's rendered) pixels inside the Instruction's chat completion to the farm; a Document's PDF bytes to the farm
@@ -506,7 +507,7 @@ and its next work goes to docs/plans/README.md. Snapshot:
   [voice plan](docs/archive/plans/COMPUTER_VOICE_PLAN.md), [ecosystem plan](docs/archive/plans/ECOSYSTEM_PLAN.md); a dated
   [status report](docs/archive/COMPUTER_STATUS.md) to 12 Oct; their leftovers go to [docs/plans/README.md](docs/plans/README.md).
 - **`sidecar/`** — `build-sidecar` bundles a relocatable standalone CPython 3.12 + OWUI + `launcher.py`;
-  `OPENWEBUI_VERSION` is the pin (**OWUI `0.11.4`** since 2026-09-27, Python 3.11/3.12; the bump notes, and what to check again at each bump, are in INTEGRATION_BRIEF); `BUNDLE_REV` is raised by hand when a fix must replace installed bundles of the same OWUI, and a packaged client downloads one by itself a minute after its start, applied at the next (`repairWanted`, owner 2026-11-09; another OWUI stays About's click; not released yet); the build caps PyAV below 19 and decodes a short recording. A packaged client runs
+  `OPENWEBUI_VERSION` is the pin (**OWUI `0.11.4`** since 2026-09-27, Python 3.11/3.12; the bump notes, and what to check again at each bump, are in INTEGRATION_BRIEF); `BUNDLE_REV` is raised by hand when a fix must replace installed bundles of the same OWUI, and a packaged client downloads one by itself a minute after its start, applied at the next (`repairWanted`, owner 2026-11-09; another OWUI stays About's click; v0.2.16); the build caps PyAV below 19 and decodes a short recording. A packaged client runs
   `<userData>/sidecar/python launcher.py serve`; dev uses `sidecar/.venv`'s `open-webui serve`. NOT bundled
   into the installer — CI publishes it as `owui-sidecar-<platform>-<arch>.tar.gz` release assets and the
   packaged shell downloads it to `userData/sidecar` on first run (`sidecarManager.ts`); About ▸ "Check for
@@ -616,7 +617,7 @@ If a task seems to require breaking one of these, **stop and flag it**.
 | Config → OWUI | Env vars at **every** launch, made authoritative by `ENABLE_PERSISTENT_CONFIG=false` — repointing the farm restarts the sidecar with new env. **Three exceptions**, all written from the authed webview via OWUI's user‑settings API `POST /api/v1/users/user/settings/update`: switching web search back off, once, on a profile a client up to v0.2.7 turned on (`ui.webSearch` 'always' → null, only while its `lolWebSearchSeeded` marker is there and the value is still 'always'; marked `lolWebSearchUnseeded`) — web search is off by default; the globe button turns it on for a chat; the **date line** (2026‑10‑05: the model otherwise believes it is 2025): `ui.system` = `Today is {{CURRENT_WEEKDAY}} {{CURRENT_DATE}}.`, once per profile and only when the person's system prompt is empty (marked `lolDateLineSeeded` either way, so a prompt they wrote or emptied is never touched; OWUI fills the variables at each message, on chat requests only, not title generation); and the opt‑in Blender tool server (`ui.toolServers` + `ui.tools`). None has a usable env (`DEFAULT_MODEL_PARAMS.system` never reaches a farm model's messages; 0.11's `DEFAULT_INTERFACE_SETTINGS` is missing from 0.10 and comes back when a person empties it). | See gotchas below. |
 | Data | `DATA_DIR` → the user's chosen local folder; the vectors are kept there whoever computes them (the farm's document search once the folder adopted it, else OWUI's MiniLM on this computer); telemetry off. | Enforces invariant #3. |
 | Net out of OWUI | Chat completions to the farm endpoint; plus, when the farm advertises them: web searches, Kokoro TTS requests, uploaded‑file bytes to the farm OCR extractor, and (2026-10-09) the microphone's and Call mode's recordings to the farm's speech to text (written down and dropped there; OWUI keeps its copy in `DATA_DIR/cache/audio`, as with its local engine); and MCP tool calls to the Computer on 127.0.0.1 (this machine) — which answers the home tools against the Home Assistant a person linked. **Web search v2** (2026-10-05): OWUI's searches go to this app's main on 127.0.0.1 (`POST /web/search` on the MCP listener, OWUI's external-search env); main sends the query to the farm's SearXNG and itself reads the top pages of each search — up to 6 automatic GETs, public internet only (`webSearch.ts` through `io.ts`) — instead of OWUI fetching only the pages the model picks; a page the model still fetches itself (`fetch_url`) is OWUI's own GET. That is native tool calling, OWUI's default; a chat set to Legacy function calling gets main's results too, but OWUI then loads those pages itself (its web loader). When that port is taken, OWUI queries SearXNG directly, as before. **Document search** (2026-10-08): once the data folder adopted the farm's contract, the text of each piece of an uploaded document, and of a search, goes to the farm's document search (`RAG_OPENAI_API_BASE_URL`, its own port and key) and the vectors come back. | The vectors are stored only in DATA_DIR; the farm keeps no text and no vector. |
-| Webview | The renderer reads the OWUI origin's `localStorage.token`, validates it with `GET /api/v1/auths/` (drop + reload, ≤4 tries) before revealing the webview, and reads the user's settings once per session to undo the old web‑search seed and write the date line (a failed read writes nothing); a page that loaded while the farm in use was not answering is reloaded once, 500 ms after that farm answers (`reloadIfFarmBack`: OWUI reads the model list only as its page loads, measured on 0.11.4; re-check on a pin bump); the `persist:owui` partition is granted mic/camera/clipboard only, and only to the sidecar's own origin; a link Open WebUI opens in a new window (a citation, a search's source, a link in a reply) goes to the system browser, except Open WebUI's own pages (a file it shows), which open in an app window where they are signed in (both 2026-11-05, not released yet: `keepOwuiLinks`, `util.ts` `sameOrigin`). | `renderer/app.js`, `src/main/index.ts`. |
+| Webview | The renderer reads the OWUI origin's `localStorage.token`, validates it with `GET /api/v1/auths/` (drop + reload, ≤4 tries) before revealing the webview, and reads the user's settings once per session to undo the old web‑search seed and write the date line (a failed read writes nothing); a page that loaded while the farm in use was not answering is reloaded once, 500 ms after that farm answers (`reloadIfFarmBack`: OWUI reads the model list only as its page loads, measured on 0.11.4; re-check on a pin bump); the `persist:owui` partition is granted mic/camera/clipboard only, and only to the sidecar's own origin; a link Open WebUI opens in a new window (a citation, a search's source, a link in a reply) goes to the system browser, except Open WebUI's own pages (a file it shows), which open in an app window where they are signed in (both 2026-11-05, v0.2.16: `keepOwuiLinks`, `util.ts` `sameOrigin`). | `renderer/app.js`, `src/main/index.ts`. |
 | Hugging Face cache | Before each start of a data folder still on MiniLM (none once it indexes on the farm), main repairs a half or damaged MiniLM in huggingface_hub's cache, never OWUI's own files. `repairMiniLm` removes the hub's file list and dangling links, and the snapshots only if the model is still half there; the blobs always stay. While MiniLM is not on disk, main also sends huggingface.co one HEAD (3 s) to choose `HF_HUB_OFFLINE` for that launch. "Whole" (`hfModelState`) copies huggingface_hub 1.33's local lookup and the files MiniLM's loader reads: re-check both on every pin bump. | `configBridge.ts`, `sidecar.ts`. |
 | Everything else | None. OWUI is a black box. | No DB poking, no template/CSS edits, no internal imports. |
 
@@ -739,7 +740,7 @@ Node CLI, npm‑style (mirrors ComfyQ's config‑driven Node server). Single sou
 declarative config; the CLI orchestrates everything from it.
 
 `lol.config.json` (example — every key has a default, and the file holds only what differs: the Farm app writes its
-changes, and `lol init` / `lol install` scaffold the name only; until 2026-11-05 (not released yet) they wrote every
+changes, and `lol init` / `lol install` scaffold the name only; until 2026-11-05 (farm-v0.0.52) they wrote every
 default, which froze them, an old `vllm.version` among them):
 ```jsonc
 {
@@ -828,7 +829,7 @@ tools** · **Home Assistant** · startup & updates · about):
   `lol-client` before the window opens, then removes the old copy; **start fresh** saves `dataDir` and
   relaunches (the old data stays where it was). A move goes into an empty folder only: a folder that holds data is
   refused before Open WebUI stops and offered only as it is, **Use this folder** (`dataMigration.ts` `NOT_EMPTY`;
-  2026-11-05, not released yet). Default: `<userData>/owui-data`.
+  2026-11-05, v0.2.16). Default: `<userData>/owui-data`.
 - **Connection** — "Auto-search the subnet", "Rescan now", the **Search range** (`a.b . c–d . e–f`), and
   "Add by address" + chips (ComfyQ pattern). The farm list and the choice of farm live in the topbar popover.
 - **Assistant tools** — the opt‑in Blender/mcpo toggle, a "Test connection" button (checks both the
@@ -836,7 +837,7 @@ tools** · **Home Assistant** · startup & updates · about):
 - **Home Assistant** (2026-09-30) — address + long-lived token → **Link** (tested before anything is kept), **Test
   connection**, **Forget**, and **Allow commands…** / **Stop commands** (main's native dialog lists the devices).
 - **Startup & updates** — "Launch at login"; "Install app updates automatically" (off: a downloaded update installs
-  only on "Restart & install", 2026-11-05, not released yet); "Check for app updates"
+  only on "Restart & install", 2026-11-05, v0.2.16); "Check for app updates"
   → "Restart & install update"; a close-means-close note. There is no update channel.
 - **About** — the app and Open WebUI versions, "Check for chat-engine update" (a staged sidecar update,
   applied on relaunch), and explicit "Powered by Open WebUI" attribution + link.
@@ -875,7 +876,7 @@ mDNS because ComfyQ proved multicast alone is flaky across consumer APs, and thi
   without a verified stored password (re-checked ≤1/min); a pinned, current or last-session farm is used
   anyway, and after a rotated password main drops the stale key and the farm card asks again. A 502–504 (the farm's
   gate while LiteLLM restarts) says nothing about the password, so the stored one is kept (`farmSelect.ts`
-  `passwordVerdict`; 2026-11-05, not released yet). What a farm says is not taken on trust (2026-11-06, not released
+  `passwordVerdict`; 2026-11-05, v0.2.16). What a farm says is not taken on trust (2026-11-06, not released
   yet): every plugin address takes the host the farm was reached at (`discovery.ts` `onHost` in `getFarms`); a beacon that
   crossed the network is filed under its source address; another host repeating an id changes nothing while the recorded
   host answers; a password stays at the address it was typed for (`storedFarmKey`, `farmKeyHosts`), and a farm this client
@@ -1025,7 +1026,7 @@ LlmOnLan/
     renderer/            #   status chrome + Settings + the admin panel in a <webview>
     electron-builder.yml #   ships `../farm` as an extraResource, without what a dev checkout's `lol up` wrote there
                          #   (venvs, models, the config and its backups: the list is installer.ts FARM_COPY_SKIP's,
-                         #   checked by supervisor.test.js; 2026-11-05, not released yet); tags are `farm-v*`
+                         #   checked by supervisor.test.js; 2026-11-05, farm-v0.0.52); tags are `farm-v*`
   sidecar/               # packaging of the pinned, UNMODIFIED Open WebUI
     OPENWEBUI_VERSION    #   single source of truth for the pin
     build-sidecar.*      #   fetches OWUI at the pin + bundles a self-contained executable

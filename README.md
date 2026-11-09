@@ -64,8 +64,9 @@ one of 2026-06 to 2026-08, is archived: [`docs/archive/plans/implementation_plan
 
 ## Status
 
-**Released — client `v0.2.15` (self‑updating, Open WebUI `0.11.4`) and Farm app `farm-v0.0.51` (manual update
-check).** What each release brought is in [`docs/DEVLOG.md`](docs/DEVLOG.md); the state of each piece is the build
+**Released — client `v0.2.16` (self‑updating, Open WebUI `0.11.4`) and Farm app `farm-v0.0.52` (manual update
+check), 2026-11-09, for a phase of human testing:** what to check, in order, is the ★ list of
+[`docs/HUMAN_TESTS.md`](docs/HUMAN_TESTS.md). What each release brought is in [`docs/DEVLOG.md`](docs/DEVLOG.md); the state of each piece is the build
 status in [`CLAUDE.md`](CLAUDE.md).
 
 *Chat + farm* — the farm serves **`gemma4:12b` on [Ollama](farm/README.md#backends--ollama-default-and-llamacpp)**

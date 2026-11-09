@@ -2,8 +2,7 @@
 
 *Written 2026-11-05 from the project review of that day: every plan was read against the code, and the leftovers
 of the plans now in [../archive/plans/](../archive/plans/) are here, one line each, so nothing open hides in the
-archive. Released: client v0.2.15 and Farm app farm-v0.0.51. The branch `multiuser-phase0` carries the review's
-fixes, not released yet.*
+archive. Released 2026-11-09: client v0.2.16 and Farm app farm-v0.0.52, with the review's fixes.*
 
 Sizes: **S** under a day, **M** a few days, **L** a week or more. The owner's direction behind the order: one big
 box serves the class (20–30 people, 50 at most) with vLLM; the operator does everything from the app; nothing is
@@ -19,27 +18,9 @@ processed in a cloud; the code follows the ponytail ladder.
 
 ## 1. Now
 
-1. **Release the review's fixes** (a client and a Farm app; the owner says when). Not released yet:
-   - Open WebUI's links go to the system browser, and its microphone, camera and clipboard only to its own page;
-   - a farm restart no longer wipes a laptop's password;
-   - *Move my data* refuses a folder that already holds data;
-   - LOL Vibe schedules over 60 minutes fire;
-   - turning a plugin on no longer freezes the farm;
-   - the Farm app's installer leaves out a dev box's models, venvs and config backups;
-   - the 503 tells *starting* from *stopped*;
-   - `lol init` writes only the name;
-   - no search query in the farm's log, and no document left behind when OCR is killed;
-   - a device on the LAN can no longer steer a client (plugin addresses stay on the farm's host, a password at its
-     address, and a farm you use comes before a stranger);
-   - a graph from a file lists what it reaches before its first run;
-   - a phone's street address reaches no model;
-   - LOL Vibe says when a save failed;
-   - the panel's keyboard focus stays on its row;
-   - the Computer's sandbox has no WebRTC way out;
-   - the laptop's own speech to text works again (a rebuilt bundle, `BUNDLE_REV` 2): a client that has the broken one
-     gets it from About ▸ *Check for chat-engine update*.
-
-   Their person checks are in [HUMAN_TESTS](../HUMAN_TESTS.md): A21, A22, A23, C7, D16, D17, G13, K11, K12, plus A18 step 5, C8 and K13.
+1. **The human testing phase** (owner 2026-11-09): client v0.2.16 and Farm app farm-v0.0.52 carry the review's fixes, the
+   owner's decisions of 2026-11-06 and 09 and Gemma 4 26B. Run the ★ list of [HUMAN_TESTS](../HUMAN_TESTS.md) in its order;
+   each finding goes back here.
 2. **The ★ list** in [HUMAN_TESTS](../HUMAN_TESTS.md) (proposed 2026-11-05): agree it, then run it in its order.
 3. **On the PRO 6000, at a quiet hour:** install farm-v0.0.51, then J14 and J15. J14 is Update vLLM 0.30.0 → 0.33.0,
    which takes it from 32 to 48 people at 64k every turn. J15 is Flint from the panel. **M**, the owner's hour.
