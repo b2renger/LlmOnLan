@@ -140,11 +140,10 @@ and it serves more than we said. Gemma 4 26B is LOL Vibe's coding model since 20
   - pin python-build-standalone for the client's sidecar;
   - commit the spike's vLLM logs.
 - **Housekeeping:**
-  - delete `~/lol-models-scratch` in WSL (106 GB: Gemma 4 26B, Nanbeige, Apex), keeping Gemma if it joins the list;
-  - delete `owui-arm.tar.gz` (1.16 GB) and `arm-list.txt` at the repo root, and `shell/webui.db` (an empty dev run of
-    2026-08-25);
-  - delete the 24 merged branches on GitHub;
-  - `bench/quant-ladder`: a tag, or `docs/spike/quant-ladder/`.
+  - two deletions Claude Code's safety check leaves to a person (the owner said yes, 2026-11-09): in PowerShell
+    `Remove-Item -Recurse -Force F:\lol-scratch-flint` (64 GB) and `wsl -d Ubuntu -- rm -rf /home/ateliernum/lol-models-scratch`
+    (106 GB). WSL's disk file does not shrink by itself afterwards;
+  - `bench/quant-ladder`, not merged: a tag, or `docs/spike/quant-ladder/`.
 - **The record:**
   - how vLLM got into `~/lol-vllm` on the PRO 6000 (decides J1);
   - which Farm app runs there now;

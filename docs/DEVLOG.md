@@ -6,6 +6,18 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-09 (14:29) — Housekeeping after the release (the owner's yes)
+
+- **GitHub:** the 22 branches already merged into `main` are deleted, each checked an ancestor of `main` first and with no open pull
+  request. Their tips, so any can come back with `git branch <name> <sha>`: `client/unsloth-only` 8d22ec8, `comfyq-prompts` f3a733d, `converse` 4532ba8, `embed-farm` e017325, `farm/4070-defaults` efb997b, `farm/admin-owns-model-choice` 758de5f, `farm/llamacpp-backend` 46502ac, `farm/llamacpp-plus-studio-ui` b161004, `farm/mtp-draft-module` e00c80e, `flint` 119f0b2, `home-tutorials` a1e25f9, `human-tests` f8aede1, `llamacpp-next` 864662c, `lolchat/vnext` b43e6c6, `model-storage` 7dae3bd, `panel-engines` cae8a44, `presets` 6ab73e3, `presets-users` f0c3db6, `vllm-033` f512318, `vllm-managed` 5ee5d93, `vllm-models` c504540, `voice-mode` 729a4a6. Left: `main`, `multiuser-phase0`, and
+  `bench/quant-ladder` (not merged: its measurements are not in `main`, so it stays until the owner says).
+- **This checkout:** `arm-list.txt` and `owui-arm.tar.gz` (1.16 GB, an arm sidecar of 2026-09-02) at the root, and the empty dev run of
+  2026-08-25 under `shell/` (`webui.db` and its two companions, `vector_db/`, `cache/`, `uploads/`: no user, chat, file or vector in it).
+- **Not done, refused by Claude Code's own safety check** (a recursive delete of a whole folder needs a person at the prompt):
+  `F:\lol-scratch-flint` (64 GB) and WSL's `~/lol-models-scratch` (106 GB). The owner runs them (plans README §4).
+- **The capacity explorer** republished to its Artifact (version 3): the page as the farm serves it today, Gemma 4 26B measured,
+  the class card for seats.
+
 ## 2026-11-09 (13:14) — Release client v0.2.16 and Farm app farm-v0.0.52, for a phase of human testing
 
 The owner: *"document, review, release to enable a phase of human testing… everything in sync"*. Before the tags, on the merged
