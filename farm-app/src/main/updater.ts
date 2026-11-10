@@ -21,25 +21,22 @@ let checked = false;
 
 export function setUpdateNotifier(cb: (info: UpdateInfo) => void): void { onAvailable = cb; }
 
-// --- GitHub JSON (redirect-following) ---------------------------------------
+// --- GitHub (redirect-following) --------------------------------------------
 
-function ghJson(apiPath: string, redirects = 0): Promise<any> {
+export type Get = (url: string) => Promise<{ status: number; body: string }>;
+
+function httpGet(url: string, redirects = 0): Promise<{ status: number; body: string }> {
     return new Promise((resolve, reject) => {
         if (redirects > 5) return reject(new Error('too many redirects'));
-        https.get(`https://api.github.com${apiPath}`, { headers: { 'user-agent': UA, accept: 'application/vnd.github+json' } }, (res) => {
+        https.get(url, { headers: { 'user-agent': UA, accept: 'application/vnd.github+json, application/atom+xml' } }, (res) => {
             const loc = res.headers.location;
             if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && loc) {
                 res.resume();
-                // location may be an absolute URL; strip the origin for the recursive call.
-                const path = loc.replace(/^https:\/\/api\.github\.com/, '');
-                return ghJson(path, redirects + 1).then(resolve, reject);
+                return httpGet(new URL(loc, url).toString(), redirects + 1).then(resolve, reject);
             }
             let buf = '';
             res.on('data', (c) => { buf += c; });
-            res.on('end', () => {
-                if (res.statusCode !== 200) return reject(new Error(`GitHub API ${res.statusCode}`));
-                try { resolve(JSON.parse(buf)); } catch (e) { reject(e as Error); }
-            });
+            res.on('end', () => resolve({ status: res.statusCode || 0, body: buf }));
         }).on('error', reject);
     });
 }
@@ -57,22 +54,31 @@ function cmp(a: [number, number, number], b: [number, number, number]): number {
 
 // --- public API -------------------------------------------------------------
 
-// Query the newest farm-v* release (prereleases included) and compare to this app.
-export async function checkFarmUpdate(): Promise<UpdateCheck> {
+// The newest farm-v* release (prereleases included), compared to this app. First from the releases' Atom feed, a page of
+// github.com that lists the 10 newest releases: the GitHub API allows 60 requests an hour to everything behind one public
+// address, a school's whole network, and on 2026-11-10 the check said "GitHub API 403" all morning. The API is asked only
+// when the feed holds no farm release (ponytail: ten client releases in a row would push it out).
+export async function checkFarmUpdate(get: Get = httpGet): Promise<UpdateCheck> {
     const current = app.getVersion();
     const cur = parseVer(current) || [0, 0, 0];
     try {
-        const releases = await ghJson(`/repos/${REPO}/releases?per_page=30`);
-        let best: { v: [number, number, number]; tag: string; url: string } | null = null;
-        for (const r of releases || []) {
-            const tag: string = r.tag_name || '';
+        const feed = await get(`https://github.com/${REPO}/releases.atom`).catch(() => ({ status: 0, body: '' }));
+        // Only the entries' own links: a release note's link to another release is escaped (&quot;) in the feed.
+        let tags = feed.status === 200 ? [...feed.body.matchAll(/\/releases\/tag\/([\w.-]+)"/g)].map((m) => m[1]) : [];
+        if (!tags.some((t) => t.startsWith(TAG_PREFIX))) {
+            const api = await get(`https://api.github.com/repos/${REPO}/releases?per_page=30`);
+            if (api.status !== 200) throw new Error(`GitHub API ${api.status}`);
+            tags = (JSON.parse(api.body) || []).map((r: any) => String(r.tag_name || ''));
+        }
+        let best: { v: [number, number, number]; tag: string } | null = null;
+        for (const tag of tags) {
             if (!tag.startsWith(TAG_PREFIX)) continue;
             const v = parseVer(tag);
             if (!v) continue;
-            if (!best || cmp(v, best.v) > 0) best = { v, tag, url: r.html_url };
+            if (!best || cmp(v, best.v) > 0) best = { v, tag };
         }
         if (!best) return { current, updateAvailable: false };
-        return { current, latest: best.tag.slice(TAG_PREFIX.length), updateAvailable: cmp(best.v, cur) > 0, url: best.url };
+        return { current, latest: best.tag.slice(TAG_PREFIX.length), updateAvailable: cmp(best.v, cur) > 0, url: `https://github.com/${REPO}/releases/tag/${best.tag}` };
     } catch (e: any) {
         return { current, updateAvailable: false, error: e?.message || String(e) };
     }

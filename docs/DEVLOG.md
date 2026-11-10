@@ -6,6 +6,35 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-10 (10:34) — No GitHub API where a whole school asks (the Farm app's *GitHub API 403*)
+
+The owner: the Farm app's Check for updates said *Couldn't check: GitHub API 403*. GitHub answered `403 rate limit exceeded`,
+`X-RateLimit-Limit: 60`, `Remaining: 0` (reset 11:09). Requests that don't sign in get 60 an hour per public address, and the
+school's network shares one. Three of our programs asked it: the Farm app's update check (`releases?per_page=30`), its first-run
+wizard (the pinned Python and Ollama releases), and every client (its chat engine's release a minute after each start since
+v0.2.16's automatic repair, the first install and About's check, and the coding agent's download). A new client could not
+download its chat engine while the limit lasted.
+
+- **Farm app update check** (`updater.ts`): reads `https://github.com/<repo>/releases.atom`, a github.com page and not the
+  API, which lists the 10 newest releases, prereleases included. Only the entries' own links count: a release note's link is
+  escaped inside the feed. The API is asked only when no farm release is among those 10. The fetch is a parameter, for the test.
+- **Wizard** (`runtimeManager.ts`): the pinned files by name, `releases/download/<pin>/<file>`: Ollama's (four fixed names) and
+  `cpython-3.12.14+20260825-<triple>-install_only.tar.gz`, the one 3.12 on that release. The API, as before, only if that
+  link fails or `LOL_PY_VERSION` asks for another Python.
+- **Client** (`sidecarManager.ts` `releaseAssetUrl`, shared by the chat engine and the coding agent): HEAD requests on
+  `releases/latest/download/<file>` or `releases/download/<tag>/<file>`. 404 means the release has no such file; latest's
+  redirect gives the tag's own link, which is returned so a release landing in between cannot mix two. The manifest is read
+  from the same tag. No `api.github.com` in the file (a test says so).
+- **Tests:** the Farm app's `npm test` (11 + 3: the feed, the API fallback, both closed is an error), the client's
+  `chat-unit.js` 1958 passed (the hops as github.com answers them) and `chat-lint.js` 0 violations. **Live, while the API
+  still answered 403:** the client found `owui-sidecar-win32-x64.tar.gz` on latest as `.../download/v0.2.16/...`, the coding
+  agent's file on v0.2.16, null for a missing file and a missing release, and read the manifest (`latest` 0.11.4); the Farm
+  app's check found farm-v0.0.52 from 0.0.51; HEAD answered 302 for the five Python files (a literal `+` too) and the four
+  Ollama ones. App updates were never affected: electron-updater reads the feed, not the API.
+- **Reaches people at the next releases** (client v0.2.17 and Farm app farm-v0.0.53, the owner's go). Until then: try again
+  after the hour. HUMAN_TESTS N4 says so; plans README Now 1 has the finding, and its stale line 3 (farm-v0.0.51, Flint) now
+  reads farm-v0.0.52 and Gemma 4 26B.
+
 ## 2026-11-10 (10:23) — The two scratch folders are gone
 
 The two deletions of the 2026-11-09 housekeeping that were left to a person. `F:\lol-scratch-flint` (64 GB) the owner deleted. WSL's

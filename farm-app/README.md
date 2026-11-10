@@ -188,7 +188,9 @@ tags don't work on the prerelease path). So:
 - Farm releases are published as **prereleases** → the client's `v*` release stays
   GitHub's "latest", keeping client auto-update working.
 - The farm app does **not** auto-install. On launch (when **Notify me about updates** is
-  on) and via **Settings → Check for updates** it queries the GitHub API for the newest `farm-v*` release; if newer, it shows
+  on) and via **Settings → Check for updates** it reads the repo's releases feed (`releases.atom`, the 10 newest releases)
+  for the newest `farm-v*` release, and asks the GitHub API only when none is there: the API allows 60 requests an hour to
+  everything behind one public address, a school's whole network. If newer, it shows
   a notice and a **Download vX** button that opens the release page. The operator downloads
   the new installer. (electron-updater was removed — the app has no runtime deps.)
 

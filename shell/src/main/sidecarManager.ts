@@ -56,11 +56,17 @@ function httpGet(url: string, redirects = 0): Promise<{ status: number; body: st
     });
 }
 
-async function ghJson(apiPath: string): Promise<any> {
-    const { status, body } = await httpGet(`https://api.github.com${apiPath}`);
-    if (status !== 200) throw new Error(`GitHub API ${status} for ${apiPath}`);
-    return JSON.parse(body);
-}
+/** One request, no redirect followed: its status and where it points. */
+export type Head = (url: string) => Promise<{ status: number; location?: string }>;
+
+const httpHead: Head = (url) => new Promise((resolve, reject) => {
+    const req = https.request(url, { method: 'HEAD', headers: { 'user-agent': UA } }, (res) => {
+        res.resume();
+        resolve({ status: res.statusCode || 0, location: res.headers.location });
+    });
+    req.setTimeout(15_000, () => req.destroy(new Error('GitHub did not answer')));
+    req.on('error', reject).end();
+});
 
 // Stream a (large) file to disk, following redirects, reporting bytes.
 function downloadTo(url: string, dest: string, onBytes?: (recv: number, total: number) => void, redirects = 0): Promise<void> {
@@ -90,33 +96,35 @@ function downloadTo(url: string, dest: string, onBytes?: (recv: number, total: n
 interface FoundAsset { url: string; owuiVersion: string | null; bundleRev: string | null }
 
 async function findSidecarAsset(tagOrLatest: string): Promise<FoundAsset | null> {
-    const rel = tagOrLatest === 'latest'
-        ? await ghJson(`/repos/${REPO}/releases/latest`)
-        : await ghJson(`/repos/${REPO}/releases/tags/${tagOrLatest}`);
-    if (!rel || !Array.isArray(rel.assets)) return null;
-    const asset = rel.assets.find((a: any) => a.name === assetName());
-    if (!asset) return null;
+    const url = await releaseAssetUrl(tagOrLatest, assetName());
+    if (!url) return null;
     let owuiVersion: string | null = null;
     let bundleRev: string | null = null;
-    const man = rel.assets.find((a: any) => a.name === MANIFEST);
-    if (man) {
-        try {
-            const m = JSON.parse((await httpGet(man.browser_download_url)).body);
-            owuiVersion = m.owuiVersion || null;
-            bundleRev = m.bundleRev || null;
-        } catch { /* optional */ }
-    }
-    return { url: asset.browser_download_url, owuiVersion, bundleRev };
+    try {
+        // The manifest of the same release: `url` names its tag even when 'latest' was asked.
+        const m = JSON.parse((await httpGet(url.replace(/[^/]+$/, MANIFEST))).body);
+        owuiVersion = m.owuiVersion || null;
+        bundleRev = m.bundleRev || null;
+    } catch { /* optional */ }
+    return { url, owuiVersion, bundleRev };
 }
 
-/** The download URL of one asset on a release of this repo ('latest' or a tag), or null. Also the IDE's
- *  coding-agent runtime (dsh-runtime-<platform>-<arch>.tar.gz, docs/plans/IDE_PLAN.md slice 5). */
-export async function releaseAssetUrl(tagOrLatest: string, name: string): Promise<string | null> {
-    const rel = tagOrLatest === 'latest'
-        ? await ghJson(`/repos/${REPO}/releases/latest`)
-        : await ghJson(`/repos/${REPO}/releases/tags/${tagOrLatest}`);
-    const asset = rel && Array.isArray(rel.assets) ? rel.assets.find((a: any) => a.name === name) : null;
-    return asset ? asset.browser_download_url : null;
+/** The download link of one file on a release of this repo ('latest' or a tag), or null when that release has none. Also
+ *  the IDE's coding-agent runtime (dsh-runtime-<platform>-<arch>.tar.gz, docs/plans/IDE_PLAN.md slice 5). Plain download
+ *  links, never the GitHub API: the API allows 60 requests an hour to everything behind one public address, a school's whole
+ *  network, and every client asks a minute after it starts (2026-11-10: the Farm app's check got a 403 there). 'latest'
+ *  redirects to the tag's own link, which is what comes back, so a release landing meanwhile cannot mix two. */
+export async function releaseAssetUrl(tagOrLatest: string, name: string, head: Head = httpHead): Promise<string | null> {
+    let url = `https://github.com/${REPO}/releases/${tagOrLatest === 'latest' ? 'latest/download' : `download/${tagOrLatest}`}/${name}`;
+    for (let hop = 0; hop < 3; hop++) {
+        const { status, location } = await head(url);
+        if (status === 404) return null;
+        if (status < 300 || status >= 400 || !location) throw new Error(`GitHub ${status} for ${name}`);
+        const next = new URL(location, url).toString();
+        if (!next.startsWith(`https://github.com/${REPO}/releases/download/`)) return url;   // the file's storage: it is there
+        url = next;
+    }
+    throw new Error(`too many redirects for ${name}`);
 }
 
 // Download <tarball-url> and extract it into destDir (replacing it atomically).

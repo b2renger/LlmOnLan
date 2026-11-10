@@ -789,6 +789,30 @@ export default (test) => {
     assert.ok(src.includes('void checkOwuiUpdate().then((r) => (repairWanted(r, updateStaged())'), 'checked a minute after a packaged start');
   });
 
+  test('a release file is found by its download link, never the GitHub API (2026-11-10: 60 requests an hour for a whole school)', async () => {
+    const DL = 'https://github.com/b2renger/LlmOnLan/releases/download/';
+    const STORE = 'https://release-assets.githubusercontent.com/x?sig=1';
+    // As github.com answers HEAD: latest → the tag's link; the tag's link → the file's storage, or 404.
+    const github = (/** @type {Record<string, {status: number, location?: string}>} */ map) => {
+      /** @type {string[]} */ const seen = [];
+      return { seen, head: async (/** @type {string} */ u) => { seen.push(u); return map[u] || { status: 404 }; } };
+    };
+    const files = {
+      'https://github.com/b2renger/LlmOnLan/releases/latest/download/owui-sidecar-win32-x64.tar.gz': { status: 302, location: `${DL}v0.2.16/owui-sidecar-win32-x64.tar.gz` },
+      [`${DL}v0.2.16/owui-sidecar-win32-x64.tar.gz`]: { status: 302, location: STORE },
+      'https://github.com/b2renger/LlmOnLan/releases/latest/download/nope.tar.gz': { status: 302, location: `${DL}v0.2.16/nope.tar.gz` },
+    };
+    let g = github(files);
+    assert.equal(await SM.releaseAssetUrl('latest', 'owui-sidecar-win32-x64.tar.gz', g.head), `${DL}v0.2.16/owui-sidecar-win32-x64.tar.gz`, 'the tag\'s own link, not latest\'s');
+    assert.ok(g.seen.every((u) => !u.includes('api.github.com')));
+    assert.equal(await SM.releaseAssetUrl('v0.2.16', 'owui-sidecar-win32-x64.tar.gz', github(files).head), `${DL}v0.2.16/owui-sidecar-win32-x64.tar.gz`);
+    assert.equal(await SM.releaseAssetUrl('latest', 'nope.tar.gz', github(files).head), null, 'the latest release has no such file');
+    assert.equal(await SM.releaseAssetUrl('v9.9.9', 'owui-sidecar-win32-x64.tar.gz', github(files).head), null, 'no such release');
+    await assert.rejects(SM.releaseAssetUrl('v0.2.16', 'x', async () => ({ status: 429 })), /GitHub 429/, 'a refusal is an error the callers turn into null');
+    const src = fs.readFileSync(path.join(SRC, 'sidecarManager.ts'), 'utf8');
+    assert.ok(!src.includes('api.github.com'), 'the chat engine and the coding agent never ask the API');
+  });
+
   test('B-3 checkOwuiUpdate/downloadOwuiUpdate: a dev build answers at once and stages nothing', async () => {
     resetTrees();
     fakeApp.isPackaged = false;

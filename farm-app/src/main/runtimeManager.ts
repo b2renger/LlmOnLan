@@ -39,13 +39,16 @@ const PY_TRIPLES: Record<string, string> = {
 // Verified against the pinned release (RUNTIME_PINS). The Linux archives are zstd
 // (.tar.zst). For the DGX Spark we use the plain arm64 archive (it bundles the CUDA
 // runners for GB10-class GPUs); the *-jetpack5/6 variants are for older Jetson CUDA.
-const OLLAMA_ASSETS: Record<string, RegExp> = {
-    'win32-x64': /^ollama-windows-amd64\.zip$/,
-    'darwin-arm64': /^ollama-darwin\.tgz$/,
-    'darwin-x64': /^ollama-darwin\.tgz$/,
-    'linux-x64': /^ollama-linux-amd64\.tar\.zst$/,
-    'linux-arm64': /^ollama-linux-arm64\.tar\.zst$/,
+const OLLAMA_FILES: Record<string, string> = {
+    'win32-x64': 'ollama-windows-amd64.zip',
+    'darwin-arm64': 'ollama-darwin.tgz',
+    'darwin-x64': 'ollama-darwin.tgz',
+    'linux-x64': 'ollama-linux-amd64.tar.zst',
+    'linux-arm64': 'ollama-linux-arm64.tar.zst',
 };
+// The one 3.12 on the pinned python-build-standalone release (RUNTIME_PINS), so its file has a name we know.
+const PY_PINNED = '3.12.14';
+const exactly = (name: string): RegExp => new RegExp(`^${name.replace(/[.+]/g, '\\$&')}$`);
 
 function key(): string { return `${process.platform}-${process.arch}`; }
 
@@ -209,22 +212,35 @@ function writeManifest(patch: { python?: string; ollama?: string }): void {
 
 // --- download one piece -----------------------------------------------------
 
-async function fetchAndExtract(repo: string, assetRx: RegExp, what: string, destDir: string, onProgress?: (p: DownloadProgress) => void): Promise<string> {
+// `pinnedFile`, the file's name on the pinned release, is fetched by its plain download link, which is not the GitHub API:
+// the API allows 60 requests an hour to everything behind one public address, a school's whole network (2026-11-10, a 403).
+// The API (`assetRx` on the pinned release, else the latest) only when that link fails or there is no name.
+async function fetchAndExtract(repo: string, pinnedFile: string | undefined, assetRx: RegExp, what: string, destDir: string, onProgress?: (p: DownloadProgress) => void): Promise<string> {
     onProgress?.({ phase: 'check', what, message: `Locating ${what}…` });
-    const { tag, assets } = await ghLatestAssets(repo);
-    const asset = assets.find((a) => assetRx.test(a.name));
-    if (!asset) throw new Error(`No ${what} asset matching ${assetRx} in ${repo} ${tag}`);
-
-    const tmp = path.join(runtimeRoot(), `.dl-${what}-${asset.name}`);
     fs.mkdirSync(runtimeRoot(), { recursive: true });
-    onProgress?.({ phase: 'download', what, percent: 0, message: `Downloading ${what}…` });
-    await downloadTo(asset.url, tmp, (recv, total) => {
-        onProgress?.({
-            phase: 'download', what,
-            receivedMB: Math.round(recv / 1e6), totalMB: Math.round(total / 1e6),
-            percent: total ? Math.round((recv / total) * 100) : undefined,
+    const fetch = async (name: string, url: string): Promise<string> => {
+        const tmp = path.join(runtimeRoot(), `.dl-${what}-${name}`);
+        onProgress?.({ phase: 'download', what, percent: 0, message: `Downloading ${what}…` });
+        await downloadTo(url, tmp, (recv, total) => {
+            onProgress?.({
+                phase: 'download', what,
+                receivedMB: Math.round(recv / 1e6), totalMB: Math.round(total / 1e6),
+                percent: total ? Math.round((recv / total) * 100) : undefined,
+            });
         });
-    });
+        return tmp;
+    };
+    let tmp: string;
+    try {
+        if (!pinnedFile) throw new Error('no pinned file name');
+        tmp = await fetch(pinnedFile, `https://github.com/${repo}/releases/download/${RUNTIME_PINS[repo]}/${pinnedFile}`);
+    } catch (e: any) {
+        if (pinnedFile) console.warn(`[runtime] ${pinnedFile}: ${e?.message || e} — asking the GitHub API`);
+        const { tag, assets } = await ghLatestAssets(repo);
+        const asset = assets.find((a) => assetRx.test(a.name));
+        if (!asset) throw new Error(`No ${what} asset matching ${assetRx} in ${repo} ${tag}`);
+        tmp = await fetch(asset.name, asset.url);
+    }
 
     onProgress?.({ phase: 'extract', what, message: `Unpacking ${what}…` });
     // extractArchive replaces destDir atomically (fresh staging → rename), so a
@@ -244,8 +260,8 @@ export function runtimeReady(): boolean { return runtimeInstalled(); }
 export async function ensureRuntime(onProgress?: (p: DownloadProgress) => void): Promise<{ ok: boolean; error?: string }> {
     const k = key();
     const pyTriple = PY_TRIPLES[k];
-    const ollamaRx = OLLAMA_ASSETS[k];
-    if (!pyTriple || !ollamaRx) return { ok: false, error: `Unsupported platform ${k}` };
+    const ollamaFile = OLLAMA_FILES[k];
+    if (!pyTriple || !ollamaFile) return { ok: false, error: `Unsupported platform ${k}` };
 
     try {
         // 1. Portable CPython (pbs). The install_only tarball unpacks a top-level
@@ -253,7 +269,9 @@ export async function ensureRuntime(onProgress?: (p: DownloadProgress) => void):
         //    we still record it for symmetry.
         if (!fs.existsSync(bundledPython())) {
             const pyRx = new RegExp(`^cpython-${PY_PREFIX.replace('.', '\\.')}\\.\\d+\\+.*-${pyTriple}\\.tar\\.gz$`);
-            await fetchAndExtract('astral-sh/python-build-standalone', pyRx, 'python', path.join(runtimeRoot(), 'python'), onProgress);
+            const pbs = 'astral-sh/python-build-standalone';
+            const pyFile = PY_PREFIX === '3.12' ? `cpython-${PY_PINNED}+${RUNTIME_PINS[pbs]}-${pyTriple}.tar.gz` : undefined;
+            await fetchAndExtract(pbs, pyFile, pyRx, 'python', path.join(runtimeRoot(), 'python'), onProgress);
             const pyBin = findBinary(path.join(runtimeRoot(), 'python'), process.platform === 'win32' ? ['python.exe'] : ['python3', 'python'], 2);
             if (!pyBin) throw new Error('extracted Python interpreter not found');
             if (process.platform !== 'win32') { try { fs.chmodSync(pyBin, 0o755); } catch { /* best-effort */ } }
@@ -262,7 +280,7 @@ export async function ensureRuntime(onProgress?: (p: DownloadProgress) => void):
 
         // 2. Ollama.
         if (!fs.existsSync(bundledOllamaBin())) {
-            await fetchAndExtract('ollama/ollama', ollamaRx, 'ollama', path.join(runtimeRoot(), 'ollama'), onProgress);
+            await fetchAndExtract('ollama/ollama', ollamaFile, exactly(ollamaFile), 'ollama', path.join(runtimeRoot(), 'ollama'), onProgress);
             const olBin = findBinary(path.join(runtimeRoot(), 'ollama'), process.platform === 'win32' ? ['ollama.exe'] : ['ollama'], 3);
             if (!olBin) throw new Error('extracted Ollama binary not found');
             if (process.platform !== 'win32') { try { fs.chmodSync(olBin, 0o755); } catch { /* best-effort */ } }

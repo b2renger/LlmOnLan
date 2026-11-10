@@ -214,6 +214,28 @@ test('the wizard run again keeps the farm\'s config (its model folder above all)
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('the update check reads the releases feed, and the GitHub API only when the feed holds no farm release (2026-11-10: a 403)', async () => {
+    const { checkFarmUpdate } = fresh('updater');
+    const REL = 'https://github.com/b2renger/LlmOnLan/releases/tag/';
+    // As github.com writes it: each entry's own link, and a release note's links escaped inside its content.
+    const feed = (...tags) => tags.map((t) => `<entry><link rel="alternate" type="text/html" href="${REL}${t}"/>`
+        + `<content type="html">&lt;a href=&quot;${REL}farm-v9.9.9&quot;&gt;notes&lt;/a&gt;</content></entry>`).join('');
+    const answers = (map) => { const seen = []; return { seen, get: async (url) => { seen.push(url); return map[url] || { status: 0, body: '' }; } }; };
+    const FEED = 'https://github.com/b2renger/LlmOnLan/releases.atom';
+    const API = 'https://api.github.com/repos/b2renger/LlmOnLan/releases?per_page=30';
+
+    let a = answers({ [FEED]: { status: 200, body: feed('v0.2.16', 'farm-v0.0.52', 'farm-v0.0.51') } });
+    assert.deepEqual(await checkFarmUpdate(a.get), { current: '0.0.0-test', latest: '0.0.52', updateAvailable: true, url: `${REL}farm-v0.0.52` });
+    assert.deepEqual(a.seen, [FEED], 'no API request, and a link inside a release note is not a release');
+
+    a = answers({ [FEED]: { status: 200, body: feed('v0.2.20', 'v0.2.19') }, [API]: { status: 200, body: JSON.stringify([{ tag_name: 'v0.2.20' }, { tag_name: 'farm-v0.0.40' }]) } });
+    assert.equal((await checkFarmUpdate(a.get)).latest, '0.0.40', 'the feed has no farm release: the API');
+    assert.deepEqual(a.seen, [FEED, API]);
+
+    a = answers({ [API]: { status: 403, body: '{"message":"API rate limit exceeded"}' } });
+    assert.equal((await checkFarmUpdate(a.get)).error, 'GitHub API 403', 'both closed: said, not a silent "up to date"');
+});
+
 test('a dev box\'s models, venvs, config backups and move journal stay out of the app\'s farm copy and out of the installer (review PKG-1)', () => {
     const { farmCopyKeeps } = fresh('installer');   // the app's copy (an update, a dev run from ../farm)
     // The installer's copy: electron-builder.yml's ../farm filter, run by electron-builder's own matcher.

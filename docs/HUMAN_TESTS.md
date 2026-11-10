@@ -2004,6 +2004,9 @@ plugin process left.
    release).
 
 *Expect:* *Version … is available*; Download opens the release page; a client's own update is unaffected.
+*Known on farm-v0.0.52:* on the school's network the check can say *Couldn't check: GitHub API 403*. That version asks
+GitHub's API, which allows 60 requests an hour for the whole network (seen 2026-11-10); try again after the hour. The next
+Farm app reads the releases feed instead.
 - [ ] Done · Found:
 
 ### N5 A Mac farm, and a low-RAM Mac
