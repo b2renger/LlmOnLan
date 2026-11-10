@@ -25,6 +25,10 @@ processed in a cloud; the code follows the ponytail ladder.
      requests an hour to everything behind one public address, and the school's network had used them up. Fixed on
      `multiuser-phase0`, for the next releases: the update check, the wizard's downloads and the client's chat engine and
      coding agent no longer use the API. Until then, try again after the hour.
+   - *Found 2026-11-10:* the default model, Gemma 4 12B, was weak (owner). Done on `multiuser-phase0`: the farm ships
+     **Gemma 4 26B** for documents, pictures and a little code on 24 GB and above, and Balanced brings a farm to it
+     (measured: [RESULTS "Ollama's default"](../spike/RESULTS.md#ollamas-default-rtx-pro-6000-2026-11-10)). It reaches
+     operators with farm-v0.0.53 (the owner's go); then HUMAN_TESTS **K14** and **K15**.
 2. **The ★ list** in [HUMAN_TESTS](../HUMAN_TESTS.md) (proposed 2026-11-05): agree it, then run it in its order.
 3. **On the PRO 6000, at a quiet hour:** install farm-v0.0.52, then J14 and J15. J14 is Update vLLM 0.30.0 → 0.33.0,
    which takes it from 32 to 48 people at 64k every turn. J15 is Gemma 4 26B from the panel. **M**, the owner's hour.

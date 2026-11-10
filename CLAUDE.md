@@ -38,8 +38,12 @@ and its next work goes to docs/plans/README.md. Snapshot:
   beacon + `/lol/self`). **Four engines behind one LiteLLM endpoint, exactly one serving at a time**
   (owner decisions 2026-08-26/27, 09-07, 10-07), resolved by `engineOf` (`litellm.js`: external > vllm > llama.cpp >
   Ollama); the panel switches between Ollama, llama.cpp and vLLM:
-  - **Ollama — the default.** Serves the `models` catalog, default **`gemma4:12b`** (vision-native, also the
-    OCR model; its sliding-window attention holds its native 262144 context in ~10 GB). `ollama.contextLength:
+  - **Ollama — the default.** Serves the `models` catalog, default **`gemma4:26b`** since 2026-11-10 (not released yet;
+    owner: "documents, describe an image, code a little; GPUs of 24 GB and above"): Gemma 4 26B-A4B Q4_K_M, vision-native
+    and also the OCR model, measured on Ollama 0.33.0 at 28/28 on the spike's check with thinking on and off, 14/15 with
+    the coding agent, two people at about 48k each on a 24 GB card (20.6 GiB at 32k each, 22.0 at 64k, 24.8 at 128k);
+    `gemma4:12b` until then, for 12 GB cards (22/28 with thinking on). `preinstall` holds `gemma4:12b`, never served: it
+    reads scanned pages beside vLLM (`OCR_BESIDE`). `ollama.contextLength:
     'auto'` MEASURES the largest `num_ctx` that stays fully in VRAM: loads the default at 16k and 32k, takes
     the per-token slope from `/api/ps`, aims at min(model native max, VRAM − max(1 GB, 8%)) and verifies with one more
     load (one halving then 16k if that spills; 8k/4k if even 16k spills). The verdict caches per (model, VRAM,
@@ -133,7 +137,7 @@ and its next work goes to docs/plans/README.md. Snapshot:
   - A name the operator GAVE the served model (per-model Rename, `modelAlias`, `llamacpp.alias`, `vllm.alias`,
     `external.alias`) survives an engine switch and a fallback (`carryNameAcross(config, from, to)` over the four
     engines, `engineFallback`), so bound chats keep working. An
-    unnamed default is served under its raw id on Ollama (`gemma4:12b`) and as `llamacpp.alias` on llama.cpp,
+    unnamed default is served under its raw id on Ollama (`gemma4:26b`) and as `llamacpp.alias` on llama.cpp,
     so chats bound to it re-pick after a switch; non-default catalog models are never served under llama.cpp.
   - **Seat gate** (2026-09-04, `proxy.seatGate` default true): the public `proxy.port` is the farm's own
     streaming listener (`seats.js`) with LiteLLM on `127.0.0.1:proxy.internalPort` (default port+1). An IP's
@@ -182,12 +186,14 @@ and its next work goes to docs/plans/README.md. Snapshot:
   - **Presets** (owner 2026-10-27, `src/presets.js` + `up.js` `makePresets`, the panel's Presets card; branches `presets`
     and `presets-users`, released in farm-v0.0.50): one per session — **Balanced** (the default, the farm as it ships:
     vLLM's shipped model and context (the card's best vLLM pick when that one is not in the list or does not fit) where
-    vLLM is set up on a GPU the capacity page knows, else Ollama's default model,
-    so a farm serving llama.cpp switches to Ollama; the shipped plugins), **Documents** (`rag`: the MOST PEOPLE at 64k among models good enough for documents — `GATE_FLOOR`, 25/28
+    vLLM is set up on a GPU the capacity page knows, else the model the farm ships for Ollama (`gemma4:26b`, made the
+    default IN PLACE OF the old one and downloaded first when missing, its context measured inside the job; 2026-11-10,
+    not released yet: until then Ollama's default, whatever it was), so a farm serving llama.cpp switches to Ollama; the
+    shipped plugins), **Documents** (`rag`: the MOST PEOPLE at 64k among models good enough for documents — `GATE_FLOOR`, 25/28
     or more on every run of the spike's check — document reading on), **LOL Vibe** (`vibe`: the most people at 64k among
     models PROVEN WITH THE IDE'S CODING AGENT — `AGENT_PROVEN`: Qwen3.6, 11/15 on the five tasks, and since 2026-11-09
-    (owner, in Flint's place: Flint stays in vLLM's list) Gemma 4 26B, 12/15 on the farm's vLLM 0.33.0 — not on Ollama, whose
-    ollama#19191 breaks the agent's reads (`NOT_PROVEN_ON`); the most-people rule still picks Qwen3.6 on every card the
+    (owner, in Flint's place: Flint stays in vLLM's list) Gemma 4 26B, 12/15 on the farm's vLLM 0.33.0 and 14/15 on Ollama
+    0.33.0 (2026-11-10: ollama#19191, which broke Flint's reads there, did not touch it); the most-people rule still picks Qwen3.6 on every card the
     capacity page knows (48 against Gemma's 20 on the PRO 6000) — document reading off), **Computer** (the most
     people at 32k among models that see pictures and do tools well, every plugin on). Picked for THIS box by `scenarios.js`
     `recommend()` (the capacity page's cards, the spike's measurements, the estimator; never copied), only among what it
@@ -258,7 +264,8 @@ and its next work goes to docs/plans/README.md. Snapshot:
     (`selfServer.js`; the client side is `farmSelect.ts` `applyPluginKeys` + `index.ts`).
   - Also: beacon group **`239.255.43.10:41998`** (+ httpPort `41997`), distinct from ComfyQ; coordinator mode;
     `lol fleet`/`lol bench`; `modelAlias` + the interactive picker in `lol up`; `lol install` (Ollama, the
-    LiteLLM venv, `models` + `preinstall` — ships a ~8.6 GB staged Qwen3.8-27B — the SearXNG/OCR venvs, document
+    LiteLLM venv, `models` + `preinstall` — `gemma4:12b` for reading documents beside vLLM; a Qwen3.8-27B staged for
+    12 GB cards until 2026-11-10 — the SearXNG/OCR venvs, document
     search when it is on — by default, with an NVIDIA GPU — (the llama.cpp build + EmbeddingGemma 2), and the llama.cpp
     engine's weights only when enabled). The farm's advertised `version` is the Farm app's
     (`LOL_FARM_VERSION`), falling back to `farm/package.json`.
@@ -548,8 +555,9 @@ When working here, keep honoring the **prime directive** below.
    and two first-party surfaces beside OWUI: **LOL Vibe** and **the Computer**.
 3. **Open WebUI** — vendored, version‑pinned, **unmodified**. We inherit all its features.
 4. **The Farm app** (`farm-app/`, Electron) — the operator-facing sibling of the client: a first-run
-   wizard downloads its own Python + Ollama, copies the farm code to `userData/farm`, pulls `gemma4:12b`,
-   runs `lol install` (venvs, document search on an NVIDIA GPU, the staged preinstall model), then supervises `lol up --no-pick` and shows
+   wizard downloads its own Python + Ollama, copies the farm code to `userData/farm`, pulls `gemma4:26b` (19 GB; `gemma4:12b`
+   until 2026-11-10), runs `lol install` (venvs, document search on an NVIDIA GPU, `gemma4:12b` for reading documents beside
+   vLLM: about 27 GB in all), then supervises `lol up --no-pick` and shows
    the admin panel as its window (token auto-seeded) — which is where the model, its name and the capacity
    are run. **Private by default** (`proxy.host` 127.0.0.1, beacon off) until Settings ▸ Share compute.
    The panel's Browse… (Model storage) is the app's folder picker (`choose-folder`, `webviewPreload.js`), and its own
@@ -753,9 +761,9 @@ default, which froze them, an old `vllm.version` among them):
   "proxy":  { "port": 4000, "host": "0.0.0.0",   // port = the seat gate; LiteLLM listens on 127.0.0.1:port+1
               "masterKey": null,                 // the shared farm password (null = open LAN)
               "seatGate": true, "seatIdleSec": 900 },
-  "models": [ { "id": "gemma4:12b", "default": true } ],   // Ollama catalog = the DEFAULT engine's serving set
+  "models": [ { "id": "gemma4:26b", "default": true } ],   // Ollama catalog = the DEFAULT engine's serving set
   "modelAlias": null,                            // optional stable name for the default Ollama model
-  "preinstall": [ /* staged, never served — ships Qwen3.8-27B UD-IQ2_XXS + draft (~8.6 GB) */ ],
+  "preinstall": [ { "id": "gemma4:12b" } ],      // downloaded, never served: reads scanned pages beside vLLM
   "ollama": { "hosts": ["http://127.0.0.1:11434"], "numParallel": 2, "maxLoadedModels": 1,
               "flashAttention": true, "kvCacheType": "q8_0", "keepAlive": "-1",
               "contextLength": "auto" },         // probed per box; a number pins it
@@ -796,7 +804,7 @@ Notes:
 - The CLI **generates** `litellm/config.generated.yaml` (routing least-busy, `num_retries` 3,
   `allowed_fails` 1, cooldown 60 s — none when no model has a second deployment to fail over to). On Ollama
   each host becomes a deployment of the same `model_name`
-  (e.g. `gemma4:12b`), so LiteLLM load‑balances + fails over; with llama.cpp, vLLM or an external server serving, one
+  (e.g. `gemma4:26b`), so LiteLLM load‑balances + fails over; with llama.cpp, vLLM or an external server serving, one
   OpenAI‑compatible deployment (+ coordinator peers) replaces the Ollama catalog. LOL never hand‑edits routing; it's
   derived from `lol.config.json`.
 - Model choice = the admin panel (live), or edit `models` (or `lol models add`) + `lol up`. Clients see the

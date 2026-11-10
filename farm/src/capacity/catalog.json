@@ -7276,7 +7276,7 @@
    "kv_constant_bytes_per_request": 104857600,
    "recurrent_state_bytes": 0,
    "kv_confidence": "measured (vLLM 0.33.0 start-up line)",
-   "spike_quality": {"gate": "28-item smoke gate (10 code, 7 exact, 11 tool round-trips)", "pro6000_think_on_off": "26/28 (86k tok) / 28/28 (13k)", "note": "vLLM 0.33.0, 2026-11-06. The coding agent: 12/15, 31 s a task, level with Flint.", "source": "repo-results"},
+   "spike_quality": {"gate": "28-item smoke gate (10 code, 7 exact, 11 tool round-trips)", "pro6000_think_on_off": "26/28 (86k tok) / 28/28 (13k)", "note": "vLLM 0.33.0, 2026-11-06. The coding agent: 12/15, 31 s a task, level with Flint. On Ollama 0.33.0 (Q4_K_M, 2026-11-10): 28/28 / 28/28, the coding agent 14/15, 22 s a task.", "source": "repo-results"},
    "context_native": 262144,
    "context_max": 262144,
    "vision": true,

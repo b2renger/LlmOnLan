@@ -4776,6 +4776,11 @@ test('document reading beside vLLM uses gemma4:12b when it is installed; beside 
     c.vllm.enabled = false; c.llamacpp.enabled = true;
     c.models = [{ id: 'qwen3-vl:4b', default: true, vision: true }];
     assert.equal(resolveOcrModel(c, ['qwen3-vl:4b', 'gemma4:12b']), 'qwen3-vl:4b', 'llama.cpp: its own vision default');
+    // … but not the shipped default (2026-11-10): 19 GB nobody chose to fit beside llama-server.
+    c.models = [{ id: 'gemma4:26b', default: true }];
+    assert.equal(resolveOcrModel(c, ['gemma4:26b', 'gemma4:12b']), 'gemma4:12b', 'llama.cpp beside the shipped default: the 8 GB reader');
+    assert.equal(resolveOcrModel(c, ['gemma4:26b']), 'gemma4:26b', 'not downloaded: the default, as before');
+    c.models = [{ id: 'qwen3-vl:4b', default: true, vision: true }];
     c.llamacpp.enabled = false; c.external.enabled = true;
     assert.equal(resolveOcrModel(c, ['qwen3-vl:4b', 'gemma4:12b']), 'qwen3-vl:4b', 'an external server: unchanged');
     c.external.enabled = false; c.vllm.enabled = true;

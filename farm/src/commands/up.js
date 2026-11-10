@@ -77,12 +77,17 @@ function loopbackPort(baseUrl) {
 // kept for it (vllm.ocrReserveGib, 9 GB): gemma4:12b (vision, ~8 GB; config.js `preinstall` downloads it) when it
 // is installed on a local host (`installed`, the local /api/tags names), rather than a standby default
 // that may not fit (production's was qwen3.8, 17.7 GB on disk; docs/archive/plans/VLLM_MANAGED_PLAN.md
-// §1.4). Only beside vLLM, where that reserve exists: a llama.cpp farm chose its standby
-// default to fit beside llama-server, and an external server's farm keeps its own choice.
+// §1.4). Beside vLLM, where that reserve exists; and beside llama.cpp while the Ollama default is still the one the
+// farm ships (2026-11-10: gemma4:26b, 19 GB, chosen by nobody to fit beside llama-server, where gemma4:12b was 8). A
+// llama.cpp farm whose operator chose its own standby default keeps it, and an external server's farm keeps its choice.
 const OCR_BESIDE = 'gemma4:12b';
+const SHIPPED_OLLAMA = ConfigSchema.parse({}).models[0].id;
 function resolveOcrModel(config, installed = []) {
     if (config.ocr.model) return config.ocr.model;
-    if (engineOf(config) === 'vllm' && installed.some((n) => n === OCR_BESIDE)) return OCR_BESIDE;
+    const engine = engineOf(config);
+    const def = defaultModelEntry(config);
+    const shippedBesideLlama = engine === 'llamacpp' && def && String(def.id).replace(/:latest$/, '') === SHIPPED_OLLAMA;
+    if ((engine === 'vllm' || shippedBesideLlama) && installed.some((n) => n === OCR_BESIDE)) return OCR_BESIDE;
     const entries = servedEntries(config);
     const pick = entries.find((e) => e.isDefault && e.vision)
         || entries.find((e) => e.vision)

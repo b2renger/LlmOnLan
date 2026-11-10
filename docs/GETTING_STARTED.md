@@ -21,19 +21,20 @@ You set up the farm once per GPU box, and everyone else just installs the client
 
 | What | Size |
 |---|---|
-| `gemma4:12b` — the chat model everyone gets (vision included; also drives OCR) | ~8 GB |
-| The staged `preinstall` model + its draft module (on by default) | ~8.6 GB |
+| `gemma4:26b` — the model everyone gets: documents, pictures and a little code, for GPUs of 24 GB and above (also drives OCR) | ~19 GB |
+| `gemma4:12b` — the `preinstall` model that reads scanned pages beside vLLM (never offered to people) | ~8 GB |
 | LiteLLM / SearXNG / OCR venvs | ~1 GB |
 | *With an NVIDIA GPU (Windows x64, DGX Spark):* document search — llama.cpp's build (with its CUDA runtime) and EmbeddingGemma 2 | ~1.2 GB |
-| **Total, one time** | **~18 GB (~19 GB with an NVIDIA GPU), 20–30 min** on a normal office line |
+| **Total, one time** | **~27 GB (~28 GB with an NVIDIA GPU), 30–75 min** on a normal office line (the school's gave about 6 MB/s on 2026-11-10) |
 | *Only if you enable the llama.cpp engine:* its `.gguf` weights (and its build + CUDA runtime, unless document search already brought them) | *+~10 GB, fetched at enable time* |
 | *Only if you choose vLLM in the panel (Windows with WSL, or Linux such as a DGX Spark):* vLLM and its GPU libraries, then the model you pick | *~8 GB + the model, about 45 min, when you press Install vLLM* |
 
 Everything is cached afterwards.
 
-**Want to skip the staged ~8.6 GB?** It's a model kept ready for the admin panel to start on demand —
-nothing else uses it. Removing it means scaffolding the config *before* installing, which only Route B
-can do (Route A writes its config and installs in one unattended pass):
+**Want to skip the ~8 GB reader?** `gemma4:12b` only reads scanned pages while vLLM (or llama.cpp, while the Ollama
+default is the shipped one) serves; a farm that only ever serves Ollama reads them with its own model. Removing it means
+scaffolding the config *before* installing, which only Route B can do (Route A writes its config and installs in one
+unattended pass):
 
 ```bash
 cd farm && npm install
@@ -97,7 +98,7 @@ cd farm
 This installs the CLI's Node deps, then runs `lol install`, which:
 - installs **Ollama** (winget on Windows / brew on macOS / the official script on Linux),
 - creates a local Python venv with **LiteLLM**,
-- **pulls the Ollama models** in your config (`gemma4:12b` by default — the model everyone chats with) — several GB on first run,
+- **pulls the Ollama models** in your config (`gemma4:26b` by default — the model everyone chats with — and `gemma4:12b`, which reads documents beside vLLM) — about 27 GB on first run,
 - **fetches the llama.cpp backend** *only if you enabled it* (`llamacpp.enabled: true`) — the pinned
   `llama-server` build + CUDA runtime + `.gguf` weights — so the first `lol up` doesn't stall on it (on an
   NVIDIA box, document search below brings the build anyway),
@@ -117,7 +118,7 @@ The defaults already give you a working farm (model + web search). Change them i
 {
   "name": "Studio Farm",                 // shown in the client
   "llamacpp": {                          // the OPT-IN speed engine (off by default —
-    "enabled": true,                     //   the default farm serves gemma4:12b on Ollama at 262k context)
+    "enabled": true,                     //   the default farm serves gemma4:26b on Ollama)
     "alias": "assistant",                //   the name users see — rename it to anything you like
     "model": "https://…/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf",
     "contextLength": "auto",             //   DEFAULT: the largest that fits this GPU (a number pins it); one pool shared by the slots below (kvUnified)
@@ -125,7 +126,7 @@ The defaults already give you a working farm (model + web search). Change them i
   },
   "modelAlias": null,                    // stable id for the default OLLAMA model (used when
                                          //   llamacpp is disabled); swap the model underneath freely
-  "models": [ { "id": "gemma4:12b", "default": true },          // the Ollama catalog — standby (not in the
+  "models": [ { "id": "gemma4:26b", "default": true },          // the Ollama catalog — standby (not in the
               { "id": "qwen2.5-coder:14b", "alias": "coder" } ],  //   picker) while llamacpp serves; alias = role name
   "websearch": { "enabled": true, "port": 8888 },   // ON by default → every client can search the web
                                                     //   (set enabled:false to turn it off)
@@ -166,7 +167,7 @@ lol fleet      # every farm on the LAN (this box + peers): load, VRAM, model, se
 ```
 
 When it's up you'll see the OpenAI endpoint (`http://<box-ip>:4000/v1`) and, if enabled, the search/voice URLs.
-Clients auto-select the farm's default model — `gemma4:12b` on the default Ollama engine (or its alias
+Clients auto-select the farm's default model — `gemma4:26b` on the default Ollama engine (or its alias
 if you set one); with llama.cpp enabled, `llamacpp.alias` (`assistant`) is the only model they see (one
 engine at a time; the Ollama catalog is standby). Confirm what's actually served with
 `curl http://<box-ip>:4000/v1/models`.
@@ -217,7 +218,7 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
 ## 3. Using it
 
 - **Model** — pick it in the top-left dropdown. It's preselected for you: everyone lands on the farm's
-  model, shown under the name the operator chose in the farm panel (`gemma4:12b` by default;
+  model, shown under the name the operator chose in the farm panel (`gemma4:26b` by default;
   `assistant` on a llama.cpp or vLLM farm). That name is a stable id, so the operator can swap the
   checkpoint underneath without breaking your existing chats.
 - **Three surfaces** — the topbar switch picks **Open WebUI** (documents, RAG, web search, voice,
@@ -439,7 +440,7 @@ Because the name *is* the model id that clients request, renaming takes a few se
 under the old name will ask their user to re-pick the model; new chats are unaffected.
 
 **Name each model.** Every model in the *Ollama* section is offered under its **checkpoint name**
-(e.g. `gemma4:12b`) until you press its **Rename** button — give each one whatever people should see
+(e.g. `gemma4:26b`) until you press its **Rename** button — give each one whatever people should see
 (`tutor`, `coder`, …); empty puts the checkpoint name back. Duplicates are refused (the name is the id
 clients request).
 
@@ -470,7 +471,7 @@ installs vLLM and its models, about 45 minutes the first time); Ollama serves it
 between several models. The others go **standby** — invisible to clients; in the panel their sections' lines say
 *standby*. A name you gave the model (**Rename** / **Name users see**) survives the
 switch, so existing chats keep working; an unnamed default is served under its raw id on Ollama
-(`gemma4:12b`) and under the engine's own name (`assistant`) on llama.cpp and vLLM, so name the model first if
+(`gemma4:26b`) and under the engine's own name (`assistant`) on llama.cpp and vLLM, so name the model first if
 chats should survive a switch. About a minute for Ollama or llama.cpp, about 2 minutes for vLLM (longer the very
 first time). While it runs, every client shows "*switching…*"
 instead of an error.
@@ -480,7 +481,8 @@ the largest context it holds for the current model — on llama.cpp with the shi
 card lands around 36k, a 16 GB card near 78k, the Spark gets the model's full native window. On the
 Ollama engine the farm *measures* instead of computing (it loads the model at 16k and at 32k, aims at
 what the VRAM holds, verifies that with one more load — halving once if it spilled to system RAM —
-and remembers the answer; e.g. gemma4:12b probes straight to its native 262k on a big card). Pick a
+and remembers the answer; e.g. gemma4:26b gets two people at about 48k on a 24 GB card and its native 262k on a 48 GB
+one). Pick a
 number only to trade context for more slots. On vLLM the row is **Context per person**, a number (64k by
 default, at most what the model reads; a longer one fits fewer people), and there **People served at once** and
 **GPU memory for conversations** are Automatic; **Plan capacity ↗** shows what each choice serves.
@@ -582,7 +584,7 @@ Terms that show up in the config and in this guide.
 | **context window** (`contextLength`, `num_ctx`) | How much text the model can consider at once — your question, the conversation so far, and any attached document. Bigger = longer documents, more VRAM. |
 | **KV cache** | The memory the model uses to hold that context while generating. It's allocated **in full when the model loads**, which is why the context window costs VRAM even on an idle farm. |
 | **slot** (`parallel`) | One generation the server runs at a time. llama.cpp slots share one context pool by default (`kvUnified`). |
-| **alias** | The model name clients see. The default Ollama farm serves `gemma4:12b` with no alias (clients see the raw id); `assistant` is the default alias on llama.cpp and vLLM. It's a stable stand-in for the real checkpoint, so you can swap the model underneath without breaking chats. |
+| **alias** | The model name clients see. The default Ollama farm serves `gemma4:26b` with no alias (clients see the raw id); `assistant` is the default alias on llama.cpp and vLLM. It's a stable stand-in for the real checkpoint, so you can swap the model underneath without breaking chats. |
 | **`mmproj`** | The "vision projector" file that lets a model read images. Must come from the same repo as the weights. |
 | **`ngl`** | How many model layers go on the GPU. `999` = all of them; anything less spills to CPU and is dramatically slower. |
 | **MTP** (`mtp`) | Speculative decoding — the model drafts several tokens then checks them, which is faster. Only works on quants that still carry the extra "head" it needs (`UD-Q2_K_XL` and above). |

@@ -48,6 +48,7 @@ The owner released these builds for a phase of human testing (2026-11-09): ★ m
 | 2 | The K test box | **K1**, **K2** (farm-v0.0.51 → farm-v0.0.52), **K3**, **K4**, **K5**, **K11**, **K12** | about 4 h | every operator's update path, over a held file (`serve.sh` changed in farm-v0.0.51); llama.cpp b11836 and document search's first start were never run from an installed Farm app; small cards are told the truth |
 | 3 | A laptop on client v0.2.15, and a fresh one | **A1**, **B1**, **C1** (from v0.2.15), **C2**, **G11**, **I1**–**I4** | about 5 h | day one and the update; G11: the coding agent's fence fails closed (security); I1–I4: the document privacy rule of 2026-10-08 on real laptops |
 | 4 | The fixes v0.2.16 brings | **A21**, **A22**, **A23**, **A18** step 5, **C7**, **D16**, **D17**, **G13** | about 3 h, + 3 h of waiting for G13 | each checks one fix that build brings: Open WebUI's links and the microphone, a move into a folder that holds data, the password through a farm restart, a schedule above an hour, a first plugin install that froze the farm |
+| 5 | The default model (farm-v0.0.53, not released yet) | **K14**, **K15** | about 3 h (mostly downloads: 27 GB) | the owner's ask of 2026-11-10: a farm that starts as Balanced on a model that reads documents, sees pictures and codes a little, on 24 GB and above; measured only on a scratch farm |
 
 **Proposed off the ★:** I5 (the MiniLM path is the fallback of a folder that never met document search); J1 (vLLM has
 been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the owner's question 12); J2–J4
@@ -1802,7 +1803,9 @@ there); llama.cpp serves it.
 2. **Apply LOL Vibe**; wait for the job. From the laptop, a LOL Vibe project: ask the coding agent for a small page.
 3. **Apply Balanced**. Stop and Start the farm.
 
-*Expect:* step 1: Balanced, Documents and Computer = Ollama · gemma4:12b · Automatic context · 2 at once; LOL Vibe =
+*Expect:* step 1: Balanced = Ollama · gemma4:26b · Automatic context · 2 at once (on farm-v0.0.53+; it says this card is
+under the 24 GB the model was measured for, and asks to download it first when it is not there), Documents and Computer =
+Ollama · the farm's own default · Automatic context · 2 at once; LOL Vibe =
 llama.cpp · Qwen3.8 27B · UD-IQ2_S, with *No model proven with the IDE's coding agent is available here*; nothing offers
 vLLM; Review changed nothing. Step 2: if llama.cpp's model is not on this computer, Review lists *Download Qwen3.8 27B ·
 UD-IQ2_S (… GB) for llama.cpp first.* and Apply refuses with *First: …*, changing nothing: download it in the llama.cpp
@@ -1855,6 +1858,41 @@ Farm app release after farm-v0.0.51. *Was:* new (review 2026-11-05).
 
 *Expect:* 2: `.extract\work` is empty or gone, and no `lolocr_*` folder is left. 3: the word is not there. An engine's
 error may show, without its address.
+- [ ] Done · Found:
+
+### K14 ★ A fresh farm starts as Balanced: documents, a picture, a little code
+*Proves:* the shipped default (owner 2026-11-10: "rag on documents, describe an image, code a little; GPUs of 24 GB and
+above") on a clean box. *Needs:* farm-v0.0.53+ (not released yet), a clean PC with an NVIDIA card of 24 GB or more (a 32
+or 48 GB one too, if there is one), a laptop on the release under test. *Was:* new (DEVLOG 2026-11-10 12:08: measured on a
+scratch farm on the PRO 6000, never from the installed Farm app).
+1. Install the Farm app; go through the wizard (about 27 GB to download).
+2. Panel ▸ Presets; the Ollama section; the Serving card.
+3. From the laptop, in Open WebUI: attach a PDF of 20–40 pages and ask three questions whose answers sit near its start,
+   middle and end; attach a photo and ask what it shows; ask for a small function and its test.
+4. LOL Vibe ▸ a project: ask the coding agent for a small page.
+
+*Expect:* the wizard's model step pulls gemma4:26b (about 19 GB, a real % bar) and `lol install` pulls gemma4:12b; the
+Presets card reads *Set up as Balanced, the farm's defaults.*; the Ollama section serves gemma4:26b (gemma4:12b downloaded,
+not offered); on a 24 GB card the Serving card shows about 48k per person, 2 at once (about 128k on 32 GB, 262k on 48 GB).
+The answers are right, the photo is described, the code runs, the agent finishes. Note the context the farm measured and
+the seconds to a first word.
+- [ ] Done · Found:
+
+### K15 ★ Balanced brings a farm on the old default to Gemma 4 26B
+*Proves:* the operator's way from gemma4:12b, or from llama.cpp, to the new default, from the panel alone. *Needs:*
+farm-v0.0.53+, a farm whose Ollama default is gemma4:12b (the K1 box after its update) and, if possible, a farm serving
+llama.cpp (the PRO 6000 today); a laptop chatting. *Was:* new (DEVLOG 2026-11-10 12:08: run on a scratch farm).
+1. Panel ▸ Presets ▸ Balanced ▸ **Review…**.
+2. If it lists *Download gemma4:26b in the Ollama section first.*: download it there (people keep chatting), then Review
+   again.
+3. **Apply**; chat from the laptop during it and after.
+
+*Expect:* before, the card read *No preset applied yet: the farm runs with settings of its own.*; Review says *The farm's
+Ollama default is gemma4:12b: Balanced makes gemma4:26b the default…* and *Model: gemma4:12b → gemma4:26b* (from llama.cpp:
+*Engine: llama.cpp → Ollama*), and that a model loads for about a minute. After Apply: the Ollama section serves gemma4:26b
+alone (gemma4:12b no longer offered), under the name people saw before (a renamed model keeps its name; from llama.cpp,
+`assistant`); the card reads *Balanced · in use*; the laptop's chat answers after a short pause. With document reading on,
+a scanned PDF still reads.
 - [ ] Done · Found:
 
 ### K13 The review's smaller farm fixes
@@ -1974,8 +2012,8 @@ box", "OCR on a fresh box".
 1. Install and open. Go through the wizard; watch each phase.
 2. When it serves: a client chats, attaches a scanned PDF and a photo.
 
-*Expect:* all phases complete — runtime download (Python + Ollama), farm copy, gemma4:12b pull (about 8 GB, a real %
-bar), `lol install`'s venvs (`.extract` among them), launch — then `/lol/self` healthy and the panel opens unlocked
+*Expect:* all phases complete — runtime download (Python + Ollama), farm copy, gemma4:26b pull (about 19 GB, a real %
+bar; gemma4:12b, about 8 GB, before farm-v0.0.53), `lol install`'s venvs (`.extract` among them) and gemma4:12b, launch — then `/lol/self` healthy and the panel opens unlocked
 (token seeded). The PDF and photo are transcribed; farm.log has one `[extract] <file>: N page(s) → …` line each.
 Document search starts too (K4).
 - [ ] Done · Found:
@@ -2013,11 +2051,11 @@ Farm app reads the releases feed instead.
 *Proves:* the macOS Farm app. *Was:* RIG_CHECKLIST "Per-OS installers" (the dmg never installed), "Low-RAM Mac"; the
 Ollama app's Model location on macOS (DEVLOG 2026-10-12 11:57: never run against the real app).
 1. Install the macOS arm64 Farm app (right-click ▸ Open the first time); go through the wizard. On a Mac with less
-   than 16 GB too.
+   than 32 GB too (16 GB before farm-v0.0.53).
 2. On a Mac with the Ollama desktop app (Ollama.app) installed and open before the wizard (the wizard then reuses it):
    Model storage ▸ a folder on another disk ▸ **Move here**.
 
-*Expect:* it serves gemma4:12b on Ollama, no vLLM offered and Document search off; the low-RAM Mac shows the memory
+*Expect:* it serves gemma4:26b on Ollama (gemma4:12b before farm-v0.0.53), no vLLM offered and Document search off; the low-RAM Mac shows the memory
 warning but goes on. Step 2: the Ollama app quits and reopens, its Settings ▸ Model location names the new `ollama`
 folder, and `ollama list` is unchanged. Without the app, the farm's own Ollama restarts on the new folder.
 - [ ] Done · Found:

@@ -2,7 +2,8 @@
 
 A small Node CLI that turns one declarative `lol.config.json` into a running, LAN‑discoverable
 inference farm. It brings up one inference engine at a time — **[Ollama](https://ollama.com)** (the multi‑model
-catalog, and the **default** — serving `gemma4:12b` at its native 262k context out of the box),
+catalog, and the **default** — serving `gemma4:26b` out of the box: documents, pictures and a little code, for GPUs of
+24 GB and above),
 **[llama.cpp](https://github.com/ggml-org/llama.cpp)** (`llama-server`, one model, fastest for a few people)
 or **[vLLM](https://docs.vllm.ai)** (many people at once on a big NVIDIA GPU, installed and run by the farm) —
 **generates** a [LiteLLM](https://docs.litellm.ai) proxy config that fronts it as one OpenAI‑compatible,
@@ -131,7 +132,7 @@ The panel says the same on each engine's section line, in plain words.
 
 | | **llama.cpp** (`llama-server`) | **Ollama** |
 |---|---|---|
-| On by default | no — opt-in (`llamacpp.enabled: true`) | **yes — the default engine** (gemma4:12b at its native 262k context) |
+| On by default | no — opt-in (`llamacpp.enabled: true`) | **yes — the default engine** (gemma4:26b, its context measured on each box) |
 | Serves | **exactly one** model — `llamacpp.model`, a `.gguf` URL | every entry in `models` — **only while it is the selected engine** |
 | Client-facing name | `llamacpp.alias` (default `assistant`) | each model's `alias`, else its raw id |
 | Visible to clients? | **yes** — the only model, while it is the engine | only when Ollama is the engine — otherwise **standby** (not routed, not advertised) |
@@ -146,7 +147,7 @@ client picking an Ollama model next to a resident llama-server overcommitted VRA
 fallback** (`carryNameAcross`), so bound chats keep working: switching to llama.cpp makes the Ollama
 default's served name (its own **Rename**, else `modelAlias`) the `llamacpp.alias`; switching back
 writes `llamacpp.alias` onto the default's own name if it has one, else into `modelAlias`. An
-**unnamed** default is served under its raw id on Ollama (`gemma4:12b`) and under `llamacpp.alias`
+**unnamed** default is served under its raw id on Ollama (`gemma4:26b`) and under `llamacpp.alias`
 (`assistant`) on llama.cpp — a raw checkpoint id is never carried — so chats bound to it re-pick after
 a switch (and a switch back names it `llamacpp.alias` via `modelAlias`); name the model first if chats
 should survive a switch. The other catalog models are never served under llama.cpp. A fallback gives
@@ -392,8 +393,9 @@ log-on task, `lol-vllm.service` or a hand, says so and does nothing).
   four compile jobs are on by themselves ([On Linux (DGX Spark)](#on-linux-dgx-spark) says why).
 
 **Document reading beside it.** Ollama still reads documents (OCR), directly, in the memory kept for it. Beside
-vLLM, the farm prefers `gemma4:12b` for it when that model is installed (beside llama.cpp or an external server it
-keeps its own choice, the Ollama list's vision default); Performance, in the vLLM section,
+vLLM, the farm prefers `gemma4:12b` for it when that model is installed (`preinstall` downloads it). Beside llama.cpp it
+does the same while the Ollama default is still the shipped `gemma4:26b` (19 GB, chosen by nobody to fit beside
+llama-server); a default the operator chose, and an external server's farm, keep their own choice. Performance, in the vLLM section,
 warns when the reading model does not fit the 9 GB kept (production's `qwen3.8:latest` would not: 17.7 GB).
 Before vLLM or llama.cpp starts, Ollama's loaded models leave the GPU.
 
@@ -1003,7 +1005,7 @@ Or edit `models` directly, giving each a stable role name:
 
 ```jsonc
 "models": [
-  { "id": "gemma4:12b", "default": true },
+  { "id": "gemma4:26b", "default": true },
   { "id": "qwen2.5-coder:14b", "alias": "coder" }
 ]
 ```
@@ -1012,14 +1014,15 @@ An **alias is what keeps chats alive** across a model swap: a chat binds to the 
 without one, re-quantising or renaming breaks every existing conversation.
 
 For a Hugging Face GGUF served *through Ollama*, use `source` + `params` (and `draft` for a separate
-speculative-decoding module) — see the annotated `preinstall` entry in [`src/config.js`](src/config.js).
+speculative-decoding module) — `ModelSchema` in [`src/config.js`](src/config.js) says what each key does.
 
 **`preinstall` — staged but not served.** Entries here are **pulled by `lol install` and `lol up` like
 served models**, but get no routing and are absent from the beacon: no client can see or select one, so
 no client can trigger a model swap on your GPU. It's how you keep a model *ready* for the panel to start
-on demand (the panel picks up its full definition, so alias/vision/params survive). Note the shipped
-default `preinstall` — a Qwen3.8-27B UD-IQ2_XXS **plus its draft module, ~8.6 GB** — is part of why the
-first bootstrap is large; empty it (`"preinstall": []`) if you don't want it on disk.
+on demand (the panel picks up its full definition, so alias/vision/params survive). The shipped default
+`preinstall` is `gemma4:12b` (~8 GB), the model that reads scanned pages beside vLLM, and beside llama.cpp while the
+Ollama default is the shipped one; until 2026-11-10 it was a Qwen3.8-27B UD-IQ2_XXS staged for 12 GB cards. Empty it
+(`"preinstall": []`) on a farm that will only ever serve Ollama.
 
 ### What the panel changes, and what it does not
 
@@ -1060,7 +1063,7 @@ can run:
 
 | Preset | Picked for (the capacity page's card) | Engine and model | Context each | Plugins on |
 |---|---|---|---|---|
-| **Balanced** (the default) | a class chatting, 30 | the farm as it ships: vLLM's shipped model (Qwen3.6 at 64k; the card's best vLLM model if the list lacks it) where vLLM is set up on a GPU the capacity page knows, else Ollama's default (`gemma4:12b`); a farm serving llama.cpp switches to Ollama | 64k on vLLM, else Automatic | web search, document reading |
+| **Balanced** (the default) | a class chatting, 30 | the farm as it ships: vLLM's shipped model (Qwen3.6 at 64k; the card's best vLLM model if the list lacks it) where vLLM is set up on a GPU the capacity page knows, else the model the farm ships for Ollama (`gemma4:26b`), made the default in place of the old one and downloaded first when missing; a farm serving llama.cpp switches to Ollama | 64k on vLLM, else Automatic | web search, document reading |
 | **Documents** | documents (RAG), 5 | the most people, among models good enough for documents (25/28 or more on every run of the spike's quality check); a lead under 10 % is a tie the better model wins | 64k (Open WebUI reads whole documents from 24k) | web search, document reading |
 | **LOL Vibe** | vibe-coding, 10 | the most people, among models proven with the IDE's coding agent | 64k | web search (document reading off: its 9 GB go to vLLM) |
 | **Computer** | a Computer workshop, 20 | the most people, among models that see pictures and do tools well | 32k | all: web search, document reading, voice, Classify, speech to text, the message bus |
@@ -1082,8 +1085,8 @@ can run:
   (`docs/spike/ide`); the estimator has no agent data. Qwen3.6 (11/15, `docs/spike/RESULTS.md`, *The coding agent: five
   tasks*) and, since 2026-11-09 (owner), **Gemma 4 26B** in Flint's place: on the farm's vLLM 0.33.0 (2026-11-06) it passed
   12/15 of the five tasks, level with Flint's 12–13, with pictures and a clear licence (Flint stays in vLLM's list, no longer
-  proven). Not on Ollama (ollama#19191 turns an earlier tool call's whole number into text, and the agent reads files by
-  line numbers): a farm whose Ollama serves it is told so. The rule still picks Qwen3.6 on every card the capacity page
+  proven), and on Ollama 0.33.0 it passed 14/15 (2026-11-10: ollama#19191, which broke Flint's reads there, did not touch
+  it). The rule still picks Qwen3.6 on every card the capacity page
   knows: it serves the most people (48 at 64k on the PRO 6000, Gemma 20). Qwen3.8 27B and Nemotron passed only the P5-0 spike's single edit task.
 - **Elsewhere** (a GeForce card, which the capacity page counts as one person's; a GPU it does not know; no vLLM):
   Ollama's default model with Automatic context and its 2 at once, except **LOL Vibe**, which serves a proven model when
@@ -1188,7 +1191,8 @@ big window.
 
 > **⚠ The table assumes llama.cpp is the only tenant on the GPU — and by default it isn't.** Farm OCR
 > runs a **vision model on this box's Ollama** for every uploaded image / scanned PDF, and by default
-> that is `gemma4:12b` (**~7.6 GB**, auto-picked as the served default vision model). On a **12 GB
+> that is `gemma4:12b` (**~7.6 GB**: beside llama.cpp the farm prefers it while the Ollama default is the shipped
+> `gemma4:26b`, else the Ollama default vision model reads). On a **12 GB
 > card there is no shape in the table that also fits it** — even the 9 GB default leaves ~3 GB. Ollama
 > can't help: `maxLoadedModels` has no visibility into llama-server's allocation. So on 12 GB, pick one:
 >
@@ -1386,7 +1390,7 @@ nothing. Shape:
   "proxy":  { "port": 4000, "host": "0.0.0.0", "masterKey": null,
               "maxReplyTokens": 32768 },        // the longest reply (null = none): a default on Ollama and llama.cpp;
                                                //   a ceiling the farm's vLLM starts with
-  "models": [ { "id": "gemma4:12b", "default": true },
+  "models": [ { "id": "gemma4:26b", "default": true },
               { "id": "qwen2.5-coder:14b", "alias": "coder" } ],  // per-model role alias
   "llamacpp": { "enabled": true,               // OPT-IN speed engine (default false) — serves ONE model as `alias`
                 "alias": "assistant",          // the name clients see and auto-select
@@ -1410,7 +1414,7 @@ nothing. Shape:
                 "extraArgs": [] },             // llama-server flags, appended last. b11836 refuses --mlock,
                                                //   --mmap/--no-mmap, --direct-io, --tensor-read-lazy
   "preinstall": [ /* … */ ],                   // models DOWNLOADED but never served (staged for the
-                                               //   admin panel). Ships non-empty (~8.6 GB) — see below
+                                               //   admin panel). Ships gemma4:12b (~8 GB, reads documents beside vLLM)
   "recommendedClientPlugins": [],              // client-side plugins this farm recommends, e.g.
                                                //   ["blender"] — clients auto-apply what they can run
   "ollama": { "hosts": ["http://127.0.0.1:11434"],   // add more boxes ONLY if they're really up

@@ -17,7 +17,7 @@ ComfyUI workflows, LOL gives a workshop a private, local‑first chat assistant.
   │  LOL shell (Electron) — ComfyQ-styled chrome  │       │  lol farm · UDP beacon · admin panel    │
   │   topbar · preferences · connection screen    │       │                                         │
   │   ┌─ <webview> ─ Open WebUI (pinned, UNMOD) ─┐│       │  seat gate → LiteLLM (one endpoint)     │
-  │   │  all chats / docs / RAG vectors live     ││◄─────►│   ├─ Ollama → the default (gemma4:12b)  │
+  │   │  all chats / docs / RAG vectors live     ││◄─────►│   ├─ Ollama → the default (gemma4:26b)  │
   │   │  HERE, in a folder you choose (DATA_DIR) ││  LAN  │   ├─ llama.cpp → opt-in, speed          │
   │   └──────────────────────────────────────────┘│       │   └─ vLLM → opt-in, many people at once │
   │   or LOL Vibe · or the Computer (the switch)  │       │  plugins: web search, OCR, document     │
@@ -31,8 +31,8 @@ a recording to write down (speech to text), web searches and text to read aloud;
 (the laptop's name, for the panel's list of clients). The full list is in
 [`CLAUDE.md`](CLAUDE.md) ▸ Data‑flow & privacy boundary.
 
-**Inference engines, one endpoint.** By default the farm serves **`gemma4:12b` on Ollama** at its native
-context (vision‑native, so one model covers chat and the OCR plugin). Two engines are **opt‑in from the farm
+**Inference engines, one endpoint.** By default the farm serves **`gemma4:26b` on Ollama**, for GPUs of 24 GB and
+above: documents, pictures and a little code (vision‑native, so one model covers chat and the OCR plugin). Two engines are **opt‑in from the farm
 panel**: **llama.cpp** (one `.gguf`, the fastest for a few people) and **vLLM** (many people at once on a big
 NVIDIA GPU; the farm installs, starts and stops it, on Windows inside WSL2). An `external` OpenAI‑compatible
 server the farm does not run (SGLang, another machine) is a fourth option, set in the config file by a
@@ -69,7 +69,7 @@ check), 2026-11-09, for a phase of human testing:** what to check, in order, is 
 [`docs/HUMAN_TESTS.md`](docs/HUMAN_TESTS.md). What each release brought is in [`docs/DEVLOG.md`](docs/DEVLOG.md); the state of each piece is the build
 status in [`CLAUDE.md`](CLAUDE.md).
 
-*Chat + farm* — the farm serves **`gemma4:12b` on [Ollama](farm/README.md#backends--ollama-default-and-llamacpp)**
+*Chat + farm* — the farm serves **`gemma4:26b` on [Ollama](farm/README.md#backends--ollama-default-and-llamacpp)**
 by default, with **llama.cpp** (the speed pick for a few people) and **vLLM** (many people on a big NVIDIA GPU,
 installed and run by the farm) opt‑in from the panel; whichever serves sits behind a single load‑balanced LiteLLM
 endpoint. **Stable model aliases** mean the operator can swap the checkpoint

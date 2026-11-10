@@ -12,7 +12,9 @@ Two boxes, the same harness, the same flags:
   vLLM with the whole GPU (HUMAN_TESTS J12–J13 on vLLM):
   [vLLM 0.33.0 and Flint on vLLM](#vllm-0330-and-flint-on-vllm-rtx-pro-6000-2026-11-02);
 - three new models, and Qwen3.6 on Open WebUI's traffic shape (2026-11-06):
-  [Model trials](#model-trials-rtx-pro-6000-2026-11-06), the last section.
+  [Model trials](#model-trials-rtx-pro-6000-2026-11-06);
+- the model a fresh farm serves on Ollama, for GPUs of 24 GB and above (2026-11-10):
+  [Ollama's default](#ollamas-default-rtx-pro-6000-2026-11-10), the last section.
 
 **Box:** `AN-A6000PRO`: one NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 96 GB (97,887 MiB), sm_120,
 ~1.8 TB/s, driver 596.36 (CUDA 13.2), Windows 11 + WSL2 Ubuntu 26.04 (16 vCPU and 94 GB RAM given to WSL).
@@ -1131,3 +1133,51 @@ Qwen3.6's. FP8 at load may cost it a little; nothing here suggests it is better 
 big for this card (Kimi K3.1, DeepSeek-V4.1-Flash, ERNIE 5.5, Hydrogen). Cold prefill, 128k and the Spark were not measured.
 
 Results: `results/pro6000-vllm033-trial-*`, `results/ide/ide-agent-20261106-*`, `results/probes/pro6000-vllm033-{gemma4-26b,nanbeige43-33b,apex-35b}*`.
+
+# Ollama's default (RTX PRO 6000, 2026-11-10)
+
+The owner: the farm starts with Balanced, and its model must answer from documents, describe a picture and code a little,
+on GPUs of 24 GB and above. A fresh farm starts on Ollama, and Ollama's default was Gemma 4 12B, chosen for 12 GB cards on
+2026-08-27: 22/28 with thinking on (155k tokens of thinking) and 26 off on the gate above.
+
+**How it ran.** A scratch farm (`lol up` from its own folder: ports 4190, 4191 and 41990, beacon and plugins off) in front of
+a scratch **Ollama 0.33.0**, the Farm app's pin (port 11500, its own models folder, two seats, flash attention). The live
+farm, the owner's Ollama app and production's vLLM were left alone. The GPU held the live farm's 23.8 GB throughout.
+`spike_bench.py` now sends Ollama's `think` beside `chat_template_kwargs`, as LOL Vibe does: the farm's LiteLLM passes
+`think` to its `ollama_chat/` routes.
+
+**The candidates** that see pictures and fit 24 GB: `gemma4:26b` (Gemma 4 26B-A4B, Q4_K_M, 18.7 GB on disk), `qwen3.8:27b`
+and `qwen3.6:27b` (dense, 18 GB). `qwen3.6:35b` (23 GB) leaves no room on 24 GB. Gemma went first: about 4B active
+parameters a token against 27B, and its long-range layers share one cache. It passed everything, so the others were not
+run.
+
+| Check | gemma4:26b on Ollama 0.33.0 | For comparison |
+|---|---|---|
+| The 28-item gate, thinking off | **28/28**, 37 s, 11k tokens | on vLLM 0.33.0 28/28; Gemma 4 12B 26/28 |
+| The 28-item gate, thinking on | **28/28**, 164 s, 73k tokens | on vLLM 26/28; Gemma 4 12B 22/28 (155k tokens) |
+| A screenshot (`docs/img/m6-farm-health.png`) | address, GPU and Open WebUI version right, 2.4 s | read "LlmOnLan" as "LimOnLan" |
+| A 39k-token document sent whole (this repo's DEVLOG) | 2 of 3 exact, the third half right ("172 steps" for 172 checks over 24 steps); 0.4–3.7 s | Open WebUI's whole-document mode |
+| The coding agent, five tasks × 3 (32,768 reply tokens) | **14/15**, 22 s a task | on vLLM 12/15; Qwen3.6 11/15 |
+
+The miss: t5 (rep 3) changed the tests it was given. ollama#19191 (an integer from an earlier tool call replayed as
+"30000.0"), which broke Flint's reads on Ollama, did not touch it.
+
+**GPU memory** with two seats (Ollama gives each seat the whole `num_ctx`), read from `nvidia-smi` against the GPU with the
+model unloaded:
+
+| Context per person | 32k | 64k | 128k | 256k |
+|---|---|---|---|---|
+| GPU memory | 20.6 GiB | 22.0 GiB | 24.8 GiB | 30.5 GiB |
+
+The weights are 15.9 GiB on the GPU, with a built-in 0.4 GiB draft model for speculative decoding. The cache for 262k is
+1.09 GiB at f16: one shared layer, plus 77 MiB of sliding window. The rest is compute buffers that grow with the context.
+Ollama 0.33's `/api/ps` reported 1.2–4.4 GiB here: the cache and buffers only, not the weights.
+
+With the farm's 8 % margin, a 24 GB card (24,564 MiB, 22,599 usable) holds two people at about 48k each; 64k each is
+105 MiB short of the margin. Open WebUI sends whole documents from 24k a person. A 32 GB card holds two at about 128k, a
+48 GB card the whole 256k.
+
+**What changed:** `models` ships `gemma4:26b`; `preinstall` ships `gemma4:12b`, which reads scanned pages beside vLLM. Off
+vLLM, Balanced picks the shipped model and replaces the old default inside its job: DEVLOG 2026-11-10 12:08.
+
+Results: `results/pro6000-ollama033-gemma4-26b-q4km__quality__*`, `results/ide/pro6000-ollama033-farm-gemma4-26b-q4km__32768.json`.
