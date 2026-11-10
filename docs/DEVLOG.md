@@ -6,6 +6,13 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-10 (10:23) — The two scratch folders are gone
+
+The two deletions of the 2026-11-09 housekeeping that were left to a person. `F:\lol-scratch-flint` (64 GB) the owner deleted. WSL's
+`~/lol-models-scratch` (106 GB: Apex-35B, Gemma 4 26B-A4B, Nanbeige4.3 and their three load logs) went at the owner's typed command,
+after a check that no process held it and no link in `~/lol-vllm` or `~/lol-vllm-033` pointed into it. J15 no longer mentions the
+scratch copy: the panel downloads its own. The spike's result files keep the old path as a record of where the trial read its weights.
+
 ## 2026-11-09 (14:29) — Housekeeping after the release (the owner's yes)
 
 - **GitHub:** the 22 branches already merged into `main` are deleted, each checked an ancestor of `main` first and with no open pull

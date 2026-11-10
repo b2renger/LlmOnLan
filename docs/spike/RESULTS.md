@@ -1080,7 +1080,7 @@ cards say Apache 2.0).
 The owner's request: new models for better quality, speed and scale, at a quiet hour. Three candidates, chosen from Hugging Face's
 listings and our own estimator, and the default model again on the traffic shape it really gets.
 
-**How they ran.** The whole GPU; vLLM 0.33.0 from a scratch root (`~/lol-vllm-033`), weights in `~/lol-models-scratch`, through the
+**How they ran.** The whole GPU; vLLM 0.33.0 from a scratch root (`~/lol-vllm-033`), weights in `~/lol-models-scratch` (deleted 2026-11-10), through the
 farm's `serve.sh` (`runs/trial_serve.sh`, which refuses production's root) with each family's farm flags, `--max-num-seqs 192`, 64k per
 person. Pool 60 GiB, 48 GiB for Apex (it holds 13 GiB more weights, as a farm's Automatic would give it). `runs/model_trial.sh`: the
 28-item gate with thinking off and on, a chat sweep, then follow-ups at 30k and 62k with `--append`, the shape Open WebUI and LOL Vibe

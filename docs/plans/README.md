@@ -140,9 +140,8 @@ and it serves more than we said. Gemma 4 26B is LOL Vibe's coding model since 20
   - pin python-build-standalone for the client's sidecar;
   - commit the spike's vLLM logs.
 - **Housekeeping:**
-  - two deletions Claude Code's safety check leaves to a person (the owner said yes, 2026-11-09): in PowerShell
-    `Remove-Item -Recurse -Force F:\lol-scratch-flint` (64 GB) and `wsl -d Ubuntu -- rm -rf /home/ateliernum/lol-models-scratch`
-    (106 GB). WSL's disk file does not shrink by itself afterwards;
+  - only if F: needs the space: WSL's disk file there keeps the 106 GB the test models freed (2026-11-10) until it is
+    compacted, which needs `wsl --shutdown` and so stops the farm's vLLM (a quiet hour);
   - `bench/quant-ladder`, not merged: a tag, or `docs/spike/quant-ladder/`.
 - **The record:**
   - how vLLM got into `~/lol-vllm` on the PRO 6000 (decides J1);

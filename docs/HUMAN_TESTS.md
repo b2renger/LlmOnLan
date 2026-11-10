@@ -1631,8 +1631,7 @@ at 64k. Write down the times.
 *Proves:* LOL Vibe's coding model (owner 2026-11-09) downloads, serves and behaves in Open WebUI and LOL Vibe through
 the farm. *Needs:* farm-v0.0.52, J14 done (vLLM 0.33.0), ~19 GB of disk, a laptop with the coding agent. *Was:* Flint's
 test until 2026-11-09 (Gemma 4 26B measured from a scratch root on 2026-11-06, never from the panel).
-1. vLLM section ▸ the list: **Download** Gemma 4 26B-A4B (18.8 GB; on the PRO 6000 a copy is in `~/lol-models-scratch`,
-   which the panel does not see), then **Use this**; wait for the restart (the first start compiles for about 7 minutes).
+1. vLLM section ▸ the list: **Download** Gemma 4 26B-A4B (18.8 GB), then **Use this**; wait for the restart (the first start compiles for about 7 minutes).
 2. Open WebUI: three short questions; then one with web search on (*"What is the weather in Lyon today?"*); look at each
    chat's title.
 3. LOL Vibe: a real project, a few tasks of your own (and one with **Keep going until done**).
