@@ -1882,7 +1882,7 @@ the seconds to a first word.
 *Proves:* the operator's way from gemma4:12b, or from llama.cpp, to the new default, from the panel alone. *Needs:*
 farm-v0.0.53+, a farm whose Ollama default is gemma4:12b (the K1 box after its update) and, if possible, a farm serving
 llama.cpp where vLLM is not set up; a laptop chatting. (Where vLLM is set up, as on the PRO 6000, Balanced picks vLLM's
-Qwen3.6 instead: P1.) *Was:* new (DEVLOG 2026-11-10 12:08: run on a scratch farm).
+Qwen3.6 instead: Q1.) *Was:* new (DEVLOG 2026-11-10 12:08: run on a scratch farm).
 1. Panel ▸ Presets ▸ Balanced ▸ **Review…**.
 2. If it lists *Download gemma4:26b in the Ollama section first.*: download it there (people keep chatting), then Review
    again.
