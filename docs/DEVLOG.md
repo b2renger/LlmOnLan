@@ -50,6 +50,12 @@ and was fetched again.
   **replaces** the old one, so nobody's model picker can unload it for a class; a name a person gave the old default passes
   to it. The dry run says a new model loads.
 - **LOL Vibe:** Gemma 4 26B is proven on Ollama too. `NOT_PROVEN_ON`, which held only it, is gone.
+- **Document reading beside llama.cpp** (`resolveOcrModel`, found while updating the docs): it read with the Ollama default
+  when that sees pictures, so a new farm switched to llama.cpp would load the 19 GB model beside llama-server. Now it uses
+  `gemma4:12b` while the Ollama default is still the shipped one. A default the operator chose is kept (review 2026-10-07),
+  and so is an external server's choice.
+- **Docs:** CLAUDE.md, the READMEs, GETTING_STARTED (the first download is now about 27 GB), HUMAN_TESTS (K9, N1 and N5
+  corrected; **K14** and **K15** added, ★ row 5), and RESULTS "Ollama's default".
 - **Farm app wizard:** pulls `gemma4:26b` (19 GB); the welcome screen says about 27 GB in all (28 with document search); the
   low-memory Mac warning is now under 32 GB.
 - Installed farms keep their model when the app updates: the wizard wrote it into their config. **Balanced is how they
