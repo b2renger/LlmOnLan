@@ -6,6 +6,67 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-10 (12:08) — The farm ships Gemma 4 26B, and Balanced brings a farm to it
+
+The owner: *"I don't really get why our default model is gemma4 12B, this model is weak"*, then *"we need the farm to start
+with a balanced preset. We want to do rag on document, be able to describe an image and be able to code a little. Targets are
+gpu 24gb and above"*. Gemma 4 12B had been the default since 2026-08-27, for the 12 GB cards: 262k of context in ~10 GB and
+pictures. The owner dropped those cards on 2026-10-04 and the default never followed. On the spike's check it scored 22/28 with
+thinking on, after 155k tokens of thinking, the weakest model measured. A fresh farm starts on Ollama: vLLM needs a person's
+setup, and where vLLM is set up, Balanced already picks Qwen3.6, which sees pictures and is proven with the coding agent.
+
+**Measured** on the PRO 6000, through a scratch farm (its own folder, ports 4190/41990, beacon and plugins off) in front of a
+scratch **Ollama 0.33.0**, the Farm app's pin, on port 11500 with its own models folder. The live farm and the owner's Ollama
+app were left alone. Candidates that see pictures and fit 24 GB: `gemma4:26b` (Q4_K_M, 18.7 GB on disk), `qwen3.8:27b` and
+`qwen3.6:27b` (18 GB). `qwen3.6:35b` (23 GB) is too tight. Gemma first: about 4B active, so faster, and its long-range layers
+share one cache. Its first download arrived corrupt (Ollama's digest check refused it; the school network gave about 6 MB/s)
+and was fetched again.
+- **Quality**, the spike's 28 items through the farm's LiteLLM (`spike_bench.py` now also sends Ollama's `think` beside
+  `chat_template_kwargs`, as LOL Vibe does): **28/28 with thinking off** (37 s, 11k tokens) and **28/28 with it on** (164 s,
+  73k). On vLLM it scored 26 and 28; Gemma 4 12B 22 and 26.
+- **A picture** (`docs/img/m6-farm-health.png`): the farm's address, its GPU and Open WebUI's version all right, in 2.4 s. It
+  misread "LlmOnLan" as "LimOnLan".
+- **A document sent whole** (39k tokens of this DEVLOG): three questions spread from its start to its end, answered in
+  0.4–3.7 s. Two exact; the first said "172 steps" where the text has 172 checks over 24 steps.
+- **The coding agent** (`ide/run.js`, five tasks × 3, 32,768 reply tokens): **14/15**, 22 s a task. On vLLM it scored 12/15,
+  Qwen3.6 11/15. The one miss: t5 changed the tests it was given. ollama#19191 (an integer replayed as "30000.0"), which
+  broke Flint there, did not touch it.
+- **GPU memory**, two seats (Ollama gives each the whole `num_ctx`), against the GPU's own counter: **20.6 GiB at 32k each,
+  22.0 at 64k, 24.8 at 128k, 30.5 at 256k**. Weights 15.9 GiB on the GPU, a built-in 0.4 GiB draft model, the 262k cache only
+  1.09 GiB at f16. Ollama 0.33's `/api/ps` reports only the cache and buffers (4.4 GiB at 256k), not the weights. With the
+  farm's 8 % margin, a 24 GB card holds two people at about 48k each: Open WebUI's whole-document mode starts at 24k. A 32 GB
+  card holds two at about 128k, a 48 GB card the whole 256k.
+- Qwen3.8 27B was not run: Gemma passed everything, and Qwen3.8's cache costs about three times as much per token on 24 GB.
+
+**Changed:**
+- `config.js`: `models` = `gemma4:26b`. `preinstall` = `gemma4:12b`, which reads scanned pages beside vLLM (`OCR_BESIDE`, in
+  the 9 GB kept for it), so a farm that turns vLLM on later still reads documents. It replaces the Qwen3.8 UD-IQ2_XXS staged
+  for 12 GB cards (8.6 GB), so `lol install` downloads about the same.
+- **Balanced off vLLM** (`presets.js`): the model the farm ships, whatever the farm's own default. It asks for the download
+  first when this Ollama lacks it, says when it changes the farm's default, and says so on a GPU under 24 GB.
+- **Apply** (`up.js`): an engine switch writes the new default before Ollama starts (`prepareEngine`). On a farm Ollama
+  already serves, `setOllamaModel` swaps the catalog, measures the context and rewrites the routing once, inside the job
+  (`setDefaultModel` measures only outside one), and puts it all back if the proxy does not return. The new default
+  **replaces** the old one, so nobody's model picker can unload it for a class; a name a person gave the old default passes
+  to it. The dry run says a new model loads.
+- **LOL Vibe:** Gemma 4 26B is proven on Ollama too. `NOT_PROVEN_ON`, which held only it, is gone.
+- **Farm app wizard:** pulls `gemma4:26b` (19 GB); the welcome screen says about 27 GB in all (28 with document search); the
+  low-memory Mac warning is now under 32 GB.
+- Installed farms keep their model when the app updates: the wizard wrote it into their config. **Balanced is how they
+  move**: Review, then Apply.
+
+**Tested:**
+- `farm/test/run.js` **288 passed**: Balanced's picks, the needs, the 12 GB warning, the dry run, the stubbed Apply rig with
+  `setOllamaModel`, and the preinstalled model being `OCR_BESIDE`.
+- The Farm app's `npm test`: 11 + 3.
+- **Live, on the scratch farm with the new code:**
+  - From llama.cpp, with an Ollama default renamed `tutor`: Balanced switched to Ollama serving `gemma4:26b` under
+    `assistant`, the name clients had seen. The catalog holds that one model, web search and document reading are on, and
+    the card reads Balanced, recorded, unchanged.
+  - From Ollama, with `qwen3:0.6b` made the default from the panel: the dry run said "Model: qwen3:0.6b → gemma4:26b";
+    Apply left one model, and a chat answered.
+  - The first live run caught a flaw, fixed before these: the old default was kept beside the new one.
+
 ## 2026-11-10 (10:34) — No GitHub API where a whole school asks (the Farm app's *GitHub API 403*)
 
 The owner: the Farm app's Check for updates said *Couldn't check: GitHub API 403*. GitHub answered `403 rate limit exceeded`,

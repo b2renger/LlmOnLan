@@ -3,12 +3,12 @@
 //
 //   1 runtime  download portable CPython + Ollama              (runtimeManager)
 //   2 farm     copy the bundled farm code → userData/farm (writable) + write config
-//   3 model    pull gemma4:12b (~8 GB) with a real % bar       (app-owned Ollama)
+//   3 model    pull gemma4:26b (~19 GB) with a real % bar      (app-owned Ollama)
 //   4 deps     `lol install` → LiteLLM / SearXNG / OCR venvs, document search on an NVIDIA GPU (reuses that Ollama)
 //   5 launch   handed back to index.ts (start the FarmSupervisor, health-wait)
 //
 // Why model BEFORE deps: `lol install` also pulls the configured model, but if it's
-// already present install just skips it — so pulling first gives the 8 GB download
+// already present install just skips it — so pulling first gives the 19 GB download
 // its own clean progress bar and avoids a double pull. The app owns the Ollama used
 // for the pull and STOPS it before launch, so `lol up` starts Ollama itself with the
 // right concurrency + context-length env (a reused bare Ollama would default to a
@@ -30,7 +30,9 @@ import { appendFarmLog } from './farmLog';
 import { copyTree } from './copyTree';
 import { SetupPhase, SetupPhaseId, SetupProgress, DownloadProgress } from './types';
 
-const MODEL_ID = 'gemma4:12b';
+// The farm's default model (farm/src/config.js `models`, owner 2026-11-10: GPUs of 24 GB and above). `lol install`
+// then pulls `preinstall` (gemma4:12b, which reads scanned pages beside vLLM).
+const MODEL_ID = 'gemma4:26b';
 const OLLAMA_HOST = '127.0.0.1';
 const OLLAMA_PORT = 11434;
 const OLLAMA_BASE = `http://${OLLAMA_HOST}:${OLLAMA_PORT}`;
@@ -366,7 +368,7 @@ export async function runSetup(emit: Emit, doLaunch: (onDetail?: (msg: string) =
         if (!fs.existsSync(lolEntry())) throw new Error('farm copy did not produce bin/lol.js');
         ph.done('farm');
 
-        // 3. Model — start an app-owned Ollama, pull gemma4:12b with a bar.
+        // 3. Model — start an app-owned Ollama, pull the default model with a bar.
         ph.start('model');
         ph.log('[model] starting Ollama…');
         ownedOllama = await startOllama();
@@ -378,7 +380,7 @@ export async function runSetup(emit: Emit, doLaunch: (onDetail?: (msg: string) =
         ph.done('model');
 
         // 4. Deps — `lol install` builds the LiteLLM/SearXNG/OCR venvs (it reuses the
-        //    Ollama above and finds gemma4:12b present, so it doesn't re-pull).
+        //    Ollama above and finds the default model present, so it doesn't re-pull).
         ph.start('deps');
         await runLolInstall((line) => { ph.detail('deps', line); ph.log(`[deps] ${line}`); });
         ph.done('deps');

@@ -46,11 +46,11 @@ function toast(msg) {
 // --- welcome ----------------------------------------------------------------
 
 function renderWelcome(prefs) {
-    // gemma4:12b wants ~8 GB of (V)RAM to run comfortably. Warn on a low-memory Mac
+    // gemma4:26b takes ~20 GB of (unified) memory with its context. Warn on a low-memory Mac
     // but never block — the admin panel can add a smaller model.
-    if (prefs.platform === 'darwin' && prefs.ramGb && prefs.ramGb < 16) {
+    if (prefs.platform === 'darwin' && prefs.ramGb && prefs.ramGb < 32) {
         const w = $('#ram-warning');
-        w.textContent = `This Mac reports ${prefs.ramGb} GB of memory. gemma4:12b runs best with 16 GB or more — setup will still proceed, and you can add a smaller model from the admin panel afterwards.`;
+        w.textContent = `This Mac reports ${prefs.ramGb} GB of memory. Gemma 4 26B, the farm's model, takes about 20 GB and runs best with 32 GB or more — setup will still proceed, and you can add a smaller model from the admin panel afterwards.`;
         w.classList.remove('hidden');
     }
     showScreen('welcome');

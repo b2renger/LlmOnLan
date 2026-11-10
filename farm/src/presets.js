@@ -4,8 +4,9 @@
 //
 //   balanced  the farm as it ships (the default): vLLM's shipped model and context where vLLM is set up on a GPU the
 //             capacity page knows (the card's best vLLM pick when that model is not in the list or does not fit),
-//             else Ollama's default model, whatever engine serves now (a farm serving llama.cpp switches to Ollama);
-//             the shipped plugins
+//             else the model the farm ships for Ollama (config.js `models`, Gemma 4 26B since 2026-11-10: documents,
+//             pictures and a little code on 24 GB and above), made the default and downloaded first when it is not,
+//             whatever engine serves now (a farm serving llama.cpp switches to Ollama); the shipped plugins
 //   rag       Documents: the most people at 64k each among models good enough for documents (GATE_FLOOR), document
 //             reading on (owner 2026-10-27: "more users")
 //   vibe      LOL Vibe and its coding agent: the most people at 64k among models proven with the agent (AGENT_PROVEN),
@@ -49,6 +50,11 @@ const RESTART = {
 };
 
 const SHIPPED = defaultConfig();
+// The model the farm ships for Ollama (config.js `models`): Balanced's pick off vLLM, whatever the farm's default is now
+// (owner 2026-11-10: documents, pictures and a little code, on GPUs of 24 GB and above).
+const SHIPPED_OLLAMA = defaultModelEntry(SHIPPED).id;
+const TARGET_GB = 23;   // a 24 GB card reports a little under 24
+const sameTag = (a, b) => String(a || '').toLowerCase().replace(/:latest$/, '') === String(b || '').toLowerCase().replace(/:latest$/, '');
 const all = (on) => Object.fromEntries(PLUGINS.map((k) => [k, on]));
 
 // Documents' quality floor: this score or more on EVERY run of the spike's 28-item check (10 code, 7 exact answers, 11
@@ -68,15 +74,15 @@ function gateWorst(m) {
 // Ollama), never the five. Gemma 4 26B (owner 2026-11-09, in Flint's place): 12/15 on the farm's vLLM 0.33.0 (RESULTS "Model
 // trials", 2026-11-06), level with Flint's 12-13 with pictures and a clear licence, for 20 people at 62k on the PRO 6000
 // against Qwen3.6's 48, so the most-people rule still picks Qwen3.6 there. Flint stays in vLLM's list, no longer proven here.
-const AGENT_PROVEN = { 'qwen3.6-35b-a3b': '11/15 on its five tasks, on vLLM', 'gemma-4-26b-a4b': '12/15 on its five tasks, on vLLM 0.33.0' };
-// An engine a proven model does NOT do the agent's job on. Ollama: ollama#19191 turns an earlier tool call's integer into
-// "30000.0", and the agent's read takes offset/limit (RESULTS 2026-11-02, with Flint).
-const NOT_PROVEN_ON = { 'gemma-4-26b-a4b': ['ollama'] };
+// On Ollama 0.33.0, as the farm's default since 2026-11-10: 14/15 (RESULTS "Ollama's default"). ollama#19191, which turned
+// an earlier tool call's integer into "30000.0" and broke Flint's reads there (2026-11-02), did not touch it, so it is no
+// longer held unproven on Ollama.
+const AGENT_PROVEN = { 'qwen3.6-35b-a3b': '11/15 on its five tasks, on vLLM', 'gemma-4-26b-a4b': '12/15 on its five tasks on vLLM 0.33.0, 14/15 on Ollama 0.33.0' };
 const provenText = (id) => `${S.modelName(CATALOG.models.find((m) => m.id === id))} (${AGENT_PROVEN[id]})`;
 const PROVEN_TEXT = (() => { const t = Object.keys(AGENT_PROVEN).map(provenText); return `${t.join(' and ')} ${t.length > 1 ? 'are' : 'is'}`; })();
-const provenOf = (served, engine) => {
+const provenOf = (served) => {
     const c = S.matchModel(CATALOG, served || '');
-    return (c && AGENT_PROVEN[c.id] && !(NOT_PROVEN_ON[c.id] || []).includes(engine)) ? AGENT_PROVEN[c.id] : null;
+    return (c && AGENT_PROVEN[c.id]) || null;
 };
 
 // The four presets. `card` = the capacity page's scenario card whose use and head count it is picked for
@@ -199,24 +205,29 @@ function pickFor(id, box) {
         // context Automatic (the most the card holds). LOL Vibe: a model proven with the coding agent first (llama.cpp's,
         // then Ollama's); with neither, llama.cpp's model where llama.cpp runs, as before the agent rule, and it says so.
         const lc = box.llamacpp || {}; const ol = box.ollama || {};
-        const llama = p.id === 'vibe' && !!lc.available && (!!provenOf(lc.label, 'llamacpp') || !provenOf(ol.model, 'ollama'));
+        const llama = p.id === 'vibe' && !!lc.available && (!!provenOf(lc.label) || !provenOf(ol.model));
         const engine = llama ? 'llamacpp' : 'ollama';
         const ctx = SHIPPED[engine].contextLength;
+        // Balanced: the shipped model (downloaded first when it is not on this Ollama); the others: the farm's default.
+        const olModel = p.id === 'balanced' && SHIPPED_OLLAMA ? SHIPPED_OLLAMA : ol.model;
+        const olInstalled = sameTag(olModel, ol.model) ? ol.installed : Array.isArray(ol.names) ? ol.names.some((n) => sameTag(n, olModel)) : null;
         Object.assign(out, {
-            engine, model: llama ? lc.model : ol.model, modelLabel: llama ? lc.label : ol.model,
+            engine, model: llama ? lc.model : olModel, modelLabel: llama ? lc.label : olModel,
             context: ctx, people: llama ? SHIPPED.llamacpp.parallel : SHIPPED.ollama.numParallel, memory: null,
         });
+        if (!llama && p.id === 'balanced' && ol.model && !sameTag(olModel, ol.model)) out.reasons.push(`The farm's Ollama default is ${ol.model}: Balanced makes ${olModel} the default, the model the farm ships for documents, pictures and a little code.`);
+        const vram = box.host && box.host.vramGb;
+        if (!llama && p.id === 'balanced' && vram && vram < TARGET_GB) out.reasons.push(`This GPU has ${Math.round(vram)} GB: ${olModel} is measured for 24 GB and more, so here its context is smaller and part of it may run on the processor, slowly.`);
         const cat = S.matchModel(CATALOG, out.modelLabel || '');
-        const proof = p.id === 'vibe' ? provenOf(out.modelLabel, engine) : null;
+        const proof = p.id === 'vibe' ? provenOf(out.modelLabel) : null;
         if (proof) out.reasons.push(`${out.modelLabel} on ${ENGINE[engine]}: proven with the IDE's coding agent (${proof}).`);
         else if (llama) {
             const unmet = cat ? S.unmet(cat, sc.need) : null;
             out.reasons.push(`${lc.label} on llama.cpp, the speed pick on one card${!cat ? '' : unmet ? ` (${unmet})` : ': the model has a strong agentic-coding score (measured at full size; a small quant loses some)'}.`);
         } else {
-            out.reasons.push(`${ol.model} on Ollama: ${p.id === 'vibe' ? 'llama.cpp cannot run on this computer, so the coding model is Ollama\'s' : 'one model for chat and for reading scanned pages and pictures'}.`);
-            if ((p.id === 'computer' || p.id === 'rag') && cat && !cat.vision) out.reasons.push(`${ol.model} does not read images: make a model that does the default in the Ollama section.`);
+            out.reasons.push(`${olModel} on Ollama: ${p.id === 'vibe' ? 'llama.cpp cannot run on this computer, so the coding model is Ollama\'s' : 'one model for chat and for reading scanned pages and pictures'}.`);
+            if ((p.id === 'computer' || p.id === 'rag') && cat && !cat.vision) out.reasons.push(`${olModel} does not read images: make a model that does the default in the Ollama section.`);
         }
-        if (p.id === 'vibe' && !proof && cat && (NOT_PROVEN_ON[cat.id] || []).includes(engine)) out.reasons.push(`${S.modelName(cat)} is proven with the IDE's coding agent, but not on ${ENGINE[engine]}: Ollama turns a whole number from an earlier tool call into text (ollama#19191), and the agent reads files by line numbers.`);
         if (p.id === 'vibe' && !proof) out.reasons.push(`No model proven with the IDE's coding agent is available here: so far only ${PROVEN_TEXT}.`);
         out.reasons.push(`Context: Automatic, the most this card holds${p.context ? ` (the aim is ${fmtK(p.context)} each)` : ''}.`);
         out.reasons.push(`People at once: ${out.people}, ${ENGINE[engine]}'s default.`);
@@ -227,7 +238,7 @@ function pickFor(id, box) {
             if (could.entry) out.reasons.push(`${box.vllm.checked ? 'vLLM is not set up on this computer' : 'vLLM has not been checked on this computer yet'}: with it, this GPU would serve about ${peopleOf(could.pair.r)} people with ${could.entry.label} (the vLLM section ${box.vllm.checked ? 'installs it' : 'checks it'}).`);
         }
         if (llama && !lc.downloaded) out.needs.push({ kind: 'llamacpp', id: lc.id || null, url: lc.id ? null : lc.model, label: lc.label, gb: lc.sizeGb ?? null, text: `Download ${lc.label}${lc.sizeGb ? ` (${Math.round(lc.sizeGb)} GB)` : ''} for llama.cpp first.` });
-        if (!llama && ol.installed === false) out.needs.push({ kind: 'ollama', id: ol.model, label: ol.model, gb: null, text: `Download ${ol.model} in the Ollama section first.` });
+        if (!llama && olInstalled === false) out.needs.push({ kind: 'ollama', id: olModel, label: olModel, gb: null, text: `Download ${olModel} in the Ollama section first.` });
     }
     out.reasons.push(pluginReason(p, out.engine));
     return out;

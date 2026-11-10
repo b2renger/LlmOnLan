@@ -176,14 +176,10 @@ const StorageSchema = z.object({
 // Ollama, and LiteLLM fronts it as an OpenAI deployment — so the client is
 // unchanged and cannot tell which backend answered.
 const LlamacppSchema = z.object({
-    // OFF by default (owner decision 2026-08-27): the default farm serves
-    // **gemma4:12b on the Ollama engine at its native 262144 context** — its
-    // sliding-window attention makes 262k of KV fit in ~10 GB total (probed live:
-    // size 10.0 GB fully in VRAM on the fleet's cards), where the llama.cpp
-    // Qwen3.8-27B setup caps at ~36k on a 4070. Max context beats raw tok/s for
-    // thinking models + whole-document RAG, and gemma4 is vision-native (one model
-    // serves chat AND the OCR plugin). llama.cpp remains one panel click away —
-    // still the speed pick for models without cheap KV.
+    // OFF by default (owner decision 2026-08-27): the default farm serves Ollama's default model (`models`, Gemma 4
+    // 26B since 2026-11-10; gemma4:12b at its native 262144 context until then, for the 12 GB cards) — Gemma's
+    // sliding-window attention keeps a long context cheap, and it is vision-native (one model serves chat AND the
+    // OCR plugin). llama.cpp remains one panel click away — still the speed pick for models without cheap KV.
     enabled: z.boolean().default(false),
     host: z.string().default('127.0.0.1'),   // LiteLLM is the only thing that talks to it
     port: z.number().int().positive().default(8081),
@@ -642,8 +638,15 @@ const ConfigSchema = z.object({
     // The admin panel mutates this at runtime (startModel/stopModel regenerate the
     // routing and warm/evict), which is the supported way to change what runs. For
     // models kept ready but deliberately NOT served, see `preinstall` below.
+    //
+    // The default (owner 2026-11-10: "documents, describe an image, code a little; GPUs of 24 GB and above"; the
+    // presets' Balanced): Gemma 4 26B-A4B, Ollama's Q4_K_M. Measured on Ollama 0.33.0 (the Farm app's pin) behind a
+    // farm, 2026-11-10 (docs/spike/RESULTS.md "Ollama's default"): 28/28 on the spike's check with thinking on AND off
+    // (Gemma 4 12B, the default until then: 22 and 26), a picture read right, answers out of a 39k-token document sent
+    // whole; GPU memory with its two seats 20.6 GiB at 32k each, 22.0 at 64k, 24.8 at 128k (its long-range layers
+    // share one cache), so a 24 GB card holds two people at about 48k each with the farm's 8 % margin.
     models: z.array(ModelSchema).min(1).default([
-        { id: 'gemma4:12b', default: true },
+        { id: 'gemma4:26b', default: true },
     ]),
 
     // Models to DOWNLOAD but NOT serve. `lol install` and `lol up` pull and derive
@@ -654,47 +657,11 @@ const ConfigSchema = z.object({
     // lists everything installed on the host); startModel picks the full definition up
     // from here, so alias/vision/params survive rather than degrading to a bare id.
     //
-    // The default entry is the measured pick for the 12 GB cards this farm targets
-    // (method and data in farm/bench/, on the bench/quant-ladder branch): Qwen3.8-27B
-    // at Unsloth UD-IQ2_XXS — 51.5 tok/s fully GPU-resident on a 4070 Ti and 90% on
-    // the graded quality suite pooled over 126 attempts, statistically tied with the
-    // larger UD-IQ2_S (91%) while ~10% faster and 1.1 GB smaller.
-    //
-    // Do NOT "optimise" it downward: the smaller quants measured FASTER but much worse
-    // (UD-IQ1_M 81%, computes 47*83 as 3941; UD-IQ1_S 63%, loses code generation
-    // entirely) — the fastest quant is the most damaged one. Bigger fails differently:
-    // UD-Q2_K_XL needs 11 GB, spills to CPU, and costs 6.4x. On a big-VRAM box swap in
-    // a higher quant and raise ollama.contextLength.
-    //
-    // NOTE on a 12 GB card this and gemma4:12b cannot be co-resident (8.6 + 7.6 GB),
-    // so starting it from the panel means stopping gemma — deliberately the admin's
-    // decision, not a side effect of someone's model picker.
+    // The default entry: Gemma 4 12B, which reads scanned pages while the farm's vLLM serves (up.js OCR_BESIDE, in
+    // the 9 GB vllm.ocrReserveGib keeps for it), so a farm that later turns vLLM on still reads documents. It
+    // replaced (2026-11-10) a Qwen3.8-27B UD-IQ2_XXS staged for the 12 GB cards, which are no longer a target.
     preinstall: z.array(ModelSchema).default([
-        {
-            id: 'qwen3.8-27b-iq2xxs',
-            source: 'hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ2_XXS',
-            // UD-IQ2_XXS is 7.27 GB — below Unsloth's UD-Q2_K_XL cutoff, so its MTP
-            // head is STRIPPED (verified: 0 `nextn` tensors, vs 4 in Q2_K_XL/IQ3_XXS
-            // /the ollama library build). `draft_num_predict` alone is therefore inert
-            // here; the separate module below is what actually makes it do anything.
-            draft: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/MTP/mtp-Qwen3.8-27B-Q4_0.gguf',
-            // MEASURED on an RTX PRO 6000, total GPU memory less the ~1.6 GB desktop:
-            //     IQ2_XXS alone,        ctx 16384 :  ~9.9 GB
-            //     IQ2_XXS + draft,      ctx  8192 : ~11.0 GB
-            //     IQ2_XXS + draft,      ctx 16384 : ~11.3 GB
-            // The module is 1.3 GB on disk (not the ~500 MB the docs suggest), which
-            // gives back almost the entire 1.5 GB that IQ2_XXS saved over UD-Q2_K_XL.
-            // A 4070-class card tops out around 10.7 GB, so this is EXPECTED TO SPILL
-            // there — num_ctx is pinned to 8192 to give it the best chance. Verify with
-            // `ollama ps`: anything other than "100% GPU" means it did not fit, and the
-            // MTP-capable UD-Q2_K_XL via a llama.cpp backend (quantized KV, ~10.6 GB)
-            // is the configuration that does.
-            params: { draft_num_predict: 4, num_ctx: 8192 },
-            vision: true,                        // multimodal; tag alone does not reveal it
-            // Stable role name so a chat bound to it survives a quant change. Without
-            // this, clients bind to "qwen3.8-27b-iq2xxs" and re-quantising breaks them.
-            alias: 'reasoning',
-        },
+        { id: 'gemma4:12b' },
     ]),
     ollama: OllamaSchema.default({}),
     llamacpp: LlamacppSchema.default({}),

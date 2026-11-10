@@ -13,7 +13,7 @@
     "seatIdleSec": 900
   },
   "models": [
-    { "id": "gemma4:12b", "default": true }
+    { "id": "gemma4:26b", "default": true }
   ],
   "ollama": {
     "hosts": ["http://127.0.0.1:11434"],

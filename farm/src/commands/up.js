@@ -74,8 +74,8 @@ function loopbackPort(baseUrl) {
 // is the real Ollama tag (`underlying`), since Ollama-OCR hits raw Ollama, not the
 // alias-fronted proxy.
 // While the farm's vLLM serves, Ollama only reads documents, beside it and in the memory
-// kept for it (vllm.ocrReserveGib, 9 GB): gemma4:12b (vision, ~8 GB) when it is installed
-// on a local host (`installed`, the local /api/tags names), rather than a standby default
+// kept for it (vllm.ocrReserveGib, 9 GB): gemma4:12b (vision, ~8 GB; config.js `preinstall` downloads it) when it
+// is installed on a local host (`installed`, the local /api/tags names), rather than a standby default
 // that may not fit (production's was qwen3.8, 17.7 GB on disk; docs/archive/plans/VLLM_MANAGED_PLAN.md
 // §1.4). Only beside vLLM, where that reserve exists: a llama.cpp farm chose its standby
 // default to fit beside llama-server, and an external server's farm keeps its own choice.
@@ -4057,7 +4057,7 @@ async function run(args) {
                 model: lcModel, id: lcEntry ? lcEntry.id : null, label: lcEntry ? lcEntry.label : ggufName(lcModel),
                 sizeGb: lcEntry ? lcEntry.sizeGb : null, downloaded: !!lcModel && llamacpp.onDisk(lcModel),
             },
-            ollama: { model: def ? def.id : null, installed: ollamaNames && def ? ollamaNames.some((n) => norm(n) === norm(def.id)) : null },
+            ollama: { model: def ? def.id : null, installed: ollamaNames && def ? ollamaNames.some((n) => norm(n) === norm(def.id)) : null, names: ollamaNames },
             plugins: Object.fromEntries(presetsMod.PLUGINS.map((k) => [k, { installed: svcById[k].installed(config) }])),
         };
     }
@@ -4123,7 +4123,51 @@ async function run(args) {
             return stage('vllm', c.patch);
         }
         if (pick.engine === 'llamacpp') return stage('llamacpp', { contextLength: pick.context, parallel: pick.people });
-        return stage('ollama', { contextLength: pick.context, numParallel: pick.people });
+        // Ollama: its default model too (Balanced brings a farm to the measured one), written before the switch starts it.
+        const models = config.models;
+        const def = defaultModelEntry(config);
+        const moved = pick.model && (!def || norm(def.id) !== norm(pick.model)) ? withDefault(models, pick.model) : null;
+        if (moved) standbyModels(moved);
+        const s = stage('ollama', { contextLength: pick.context, numParallel: pick.people });
+        return { ...s, undo: () => { s.undo(); if (moved) standbyModels(models); } };
+    }
+    // The catalog with `id` the default IN PLACE OF the old one (2026-11-10, measured on a test farm: kept beside it,
+    // anyone picking the old model in a class unloads the new one for everyone, Ollama holding one model at a time).
+    // A name a person gave the old default (Rename) passes to the new one, so chats bound to it keep working.
+    const withDefault = (models, id) => {
+        const old = models.find((m) => m.default && norm(m.id) !== norm(id));
+        const known = (config.preinstall || []).find((m) => norm(m.id) === norm(id));
+        const kept = models.filter((m) => m !== old);
+        const list = kept.some((m) => norm(m.id) === norm(id)) ? kept : kept.concat([known ? { ...known } : { id }]);
+        return list.map((m) => {
+            const isNew = norm(m.id) === norm(id);
+            return { ...m, default: isNew, ...(isNew && old && old.alias && !m.alias ? { alias: old.alias } : {}) };
+        });
+    };
+    // Balanced on a farm Ollama serves already: the catalog swapped, the context (Automatic) measured for the new model and
+    // the routing written once, inside the preset's job (setDefaultModel measures only outside a job). On a failure the
+    // catalog goes back as it was.
+    async function setOllamaModel(id, progress) {
+        const def = defaultModelEntry(config);
+        if (def && norm(def.id) === norm(id)) return { ok: true, already: true };
+        const present = (await Promise.all(oll.reachable.map((h) => ollama.listModels(h)))).flat();
+        if (!ollama.hasModel(present, id)) return { ok: false, error: `${id} is not downloaded: download it in the Ollama section first.` };
+        progress(`making ${id} the default`, null);
+        const before = config.models;
+        const resolved = config.ollama.contextResolved;
+        config.models = withDefault(before, id);
+        if (ollamaServes(config)) {
+            if (config.ollama.contextLength === 'auto') { config.ollama.contextResolved = null; await resolveOllamaContext(progress); }
+            progress('reloading routing', null);
+            if (!(await restartProxy())) {
+                config.models = before; config.ollama.contextResolved = resolved;
+                await restartProxy();
+                return { ok: false, error: 'The proxy did not come back — the previous model is kept.' };
+            }
+        }
+        const warn = persistModels();
+        if (beacon) beacon.kick();
+        return { ok: true, said: `${id} is the default${warn || ''}` };
     }
     const presetOps = makePresets({
         config, jobs,
@@ -4142,7 +4186,7 @@ async function run(args) {
             }
             return null;
         },
-        setBackend, applyFarmSettings, setPlugin, prepareEngine,
+        setBackend, applyFarmSettings, setPlugin, prepareEngine, setOllamaModel,
         vllmDryRun: (body) => applyVllmSettings({ ...body, dryRun: true }),
         writeFlags: (engine) => setEngineFlags(engine),
         record: (rec) => {
@@ -4343,7 +4387,7 @@ function makePresets(ctx) {
             else if (d && d.restart) restart = `vLLM restarts once: ${P.RESTART.vllm}.`;
             else if (changes.some((c) => ['model', 'context', 'people', 'memory'].includes(c.field))) restart = 'vLLM keeps running: applies in a few seconds.';
         } else if (pick.engine === 'llamacpp' && changes.some((c) => c.field === 'context' || c.field === 'people')) restart = `llama.cpp loads its model again: ${P.RESTART.llamacpp}.`;
-        else if (pick.engine === 'ollama' && changes.some((c) => c.field === 'context')) restart = `${P.RESTART.ollama}.`;
+        else if (pick.engine === 'ollama' && changes.some((c) => c.field === 'context' || c.field === 'model')) restart = `${P.RESTART.ollama}.`;
         return { box, pick, cur, changes, reserves, restart, refusal };
     }
 
@@ -4369,12 +4413,19 @@ function makePresets(ctx) {
             return { ok: true, said: `${P.ENGINE[pick.engine]} serves` };
         }
         if (cur.engine !== pick.engine) ctx.writeFlags(pick.engine);   // a run that fell back: the file named another engine
+        let modelSaid = null;
+        if (pick.engine === 'ollama' && pick.model && pick.model !== cur.model) {
+            const m = await ctx.setOllamaModel(pick.model, progress);
+            if (!m || m.ok === false) return { ok: false, error: (m && m.error) || `${pick.model} did not become the default.` };
+            modelSaid = m.said || null;
+        }
         const body = pick.engine === 'vllm'
             ? { model: pick.model, context: pick.context, slots: pick.people, kvCacheGib: pick.memory, forceRestart: reserves }
             : { context: pick.context, slots: pick.people };
         const r = await ctx.applyFarmSettings(body, progress);
         if (r && r.ok === false) return { ok: false, error: r.error || 'The settings did not apply.' };
-        return { ok: true, said: r && !r.already && r.message ? String(r.message).replace(/\.$/, '') : null };
+        const said = [modelSaid, r && !r.already && r.message ? String(r.message).replace(/\.$/, '') : null].filter(Boolean);
+        return { ok: true, said: said.length ? said.join(' · ') : null };
     }
 
     async function apply(id) {

@@ -111,7 +111,7 @@ test('litellm: a one-box farm never cools its only deployment (one glitch locked
     assert.equal(doc.model_list.filter((d) => d.model_name === ext.external.alias).length, 1);
     assert.equal(doc.router_settings.disable_cooldowns, true);
     // A coordinator peer adds a second deployment of the served name → failover → cooldown back on.
-    const coord = buildLitellmConfig(defaultConfig(), [{ openaiBaseUrl: 'http://peer:4000/v1', models: ['gemma4:12b'] }]);
+    const coord = buildLitellmConfig(defaultConfig(), [{ openaiBaseUrl: 'http://peer:4000/v1', models: [defaultConfig().models[0].id] }]);
     const counts = {};
     for (const d of coord.model_list) counts[d.model_name] = (counts[d.model_name] || 0) + 1;
     assert.ok(Object.values(counts).some((n) => n > 1), 'the peer is a second deployment of the served name');
@@ -405,7 +405,7 @@ test('llamacpp backend: its alias is the ONLY advertised model (one engine at a 
 
     c.llamacpp.enabled = false;
     const o = buildSnapshot(c, { proxyUp: true, hostsUp: 1 });
-    assert.ok(o.models.some((m) => m.id === 'gemma4:12b'), 'Ollama engine advertises the catalog');
+    assert.ok(o.models.some((m) => m.id === 'gemma4:26b'), 'Ollama engine advertises the catalog');
 });
 
 test('snapshot carries coordinator + deployments (default off)', () => {
@@ -837,16 +837,16 @@ test('the default farm serves exactly one model', () => {
     // could load, which is the farm admin's decision to make explicitly.
     const c = defaultConfig();
     assert.equal(c.models.length, 1);
-    assert.equal(c.models[0].id, 'gemma4:12b');
+    assert.equal(c.models[0].id, 'gemma4:26b', 'the measured pick for 24 GB and above (owner 2026-11-10)');
     assert.equal(c.models[0].default, true);
+    assert.ok(!servedEntries(c).some((e) => e.underlying === 'gemma4:12b'), 'the preinstalled reader is never served');
 });
 
 test('a preinstalled model keeps its alias when the admin starts it', () => {
     // startModel() merges the preinstall definition rather than pushing a bare { id },
     // so a chat binds to the stable role name and survives a later re-quantisation.
     const c = defaultConfig();
-    const hidden = c.preinstall[0];
-    assert.equal(hidden.alias, 'reasoning');
+    const hidden = { id: 'qwen3.8-27b-iq2xxs', source: 'hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ2_XXS', alias: 'reasoning' };
     const started = Object.assign({}, c);
     started.models = c.models.concat([{ ...hidden }]);
     const names = servedEntries(started).map((e) => e.servedName);
@@ -854,16 +854,13 @@ test('a preinstalled model keeps its alias when the admin starts it', () => {
     assert.ok(!names.includes(hidden.id), 'the raw derived id is not what clients bind to');
 });
 
-test('the preinstalled quant carries a separate draft/MTP module', () => {
-    // Unsloth strips the built-in MTP head from every quant under UD-Q2_K_XL to save
-    // ~500MB, so UD-IQ2_XXS has ZERO nextn tensors and `draft_num_predict` alone is
-    // inert. The separate module is what makes speculative decoding work at all here.
+test('the preinstalled model is the one that reads scanned pages beside vLLM (2026-11-10)', () => {
+    // A farm that turns vLLM on later still reads documents: up.js OCR_BESIDE uses gemma4:12b only when it is on
+    // disk, and `preinstall` is what downloads it (it replaced the Qwen3.8 IQ2_XXS staged for 12 GB cards).
     const c = defaultConfig();
-    const m = c.preinstall[0];
-    assert.ok(m.draft, 'a draft module URL is configured');
-    assert.match(m.draft, /^https:\/\//, 'fetched over https, not an ollama pull');
-    assert.match(m.draft, /mtp-.*\.gguf$/i);
-    assert.equal(m.params.draft_num_predict, 4, 'and the parameter that drives it');
+    assert.deepEqual(c.preinstall.map((m) => m.id), ['gemma4:12b']);
+    const up = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(up.includes("const OCR_BESIDE = 'gemma4:12b';"), 'the same model');
 });
 
 test('draft modules cache to a stable, gitignored path', () => {
@@ -879,14 +876,12 @@ test('draft modules cache to a stable, gitignored path', () => {
 // ---- llama.cpp backend ------------------------------------------------------
 const llamacpp = require('../src/llamacpp');
 
-test('gemma4:12b on Ollama is the DEFAULT engine in this build', () => {
-    // Owner decision (2026-08-27): gemma4's sliding-window attention holds its
-    // native 262144 context in ~10 GB (probed live), where the llama.cpp Qwen
-    // setup caps at ~36k on a 4070 — and max context is what thinking models +
-    // whole-document RAG need. llama.cpp stays one panel click away.
+test('gemma4:26b on Ollama is the DEFAULT engine in this build', () => {
+    // Owner decisions: Ollama is the default engine (2026-08-27; llama.cpp one panel click away), and its model is
+    // Gemma 4 26B for GPUs of 24 GB and above (2026-11-10): documents, pictures, a little code, measured.
     const c = defaultConfig();
     assert.equal(c.llamacpp.enabled, false, 'llama.cpp is opt-in now');
-    assert.equal(c.models[0].id, 'gemma4:12b');
+    assert.equal(c.models[0].id, 'gemma4:26b');
     assert.equal(c.ollama.contextLength, 'auto', 'context is probed per box');
     const deployed = buildLitellmConfig(c).model_list;
     assert.equal(deployed.length, 1, 'one engine at a time — the Ollama deployment');
@@ -2488,7 +2483,7 @@ test('lol models add/rm patch only `models`, never the parsed defaults (FA-7)', 
         fs.writeFileSync(p, JSON.stringify({ name: 'X' }));
         assert.equal(modelsCmd.add('qwen3:8b', p), 0);
         assert.deepEqual(Object.keys(read()).sort(), ['models', 'name']);
-        assert.deepEqual(read().models.map((m) => m.id), ['gemma4:12b', 'qwen3:8b']);
+        assert.deepEqual(read().models.map((m) => m.id), [defaultConfig().models[0].id, 'qwen3:8b']);
     } finally {
         fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -2503,7 +2498,6 @@ test('deriving a source model never ships num_ctx:"auto" (FA-8)', () => {
     c.ollama.contextLength = 32768;
     assert.equal(ollama.deriveParams(c, m).num_ctx, 32768, 'a pinned number still bakes in');
     assert.equal(ollama.deriveParams(c, { ...m, params: { num_ctx: 8192 } }).num_ctx, 8192, "the entry's own num_ctx wins");
-    assert.equal(ollama.deriveParams(defaultConfig(), defaultConfig().preinstall[0]).num_ctx, 8192);
 });
 
 test('pressure eviction covers any non-Ollama engine (external too)', () => {
@@ -4152,7 +4146,7 @@ test('names move across all four engines: the name chats are bound to survives e
                 assert.equal(JSON.stringify(c), frozen, 'carryNameAcross is pure');
                 if (from === to) { assert.deepEqual(plan, {}); continue; }
                 applyNamePlan(c, plan); serveOn(c, to);
-                if (from === 'ollama' && before === 'gemma4:12b') assert.equal(defId(c), own[to], `${vname}: ${from} → ${to}: a raw checkpoint id is not carried`);
+                if (from === 'ollama' && before === defaultConfig().models[0].id) assert.equal(defId(c), own[to], `${vname}: ${from} → ${to}: a raw checkpoint id is not carried`);
                 else assert.equal(defId(c), before, `${vname}: ${from} → ${to} keeps "${before}"`);
                 if (from === 'ollama') assert.equal(c.modelAlias ?? null, null, 'the serving engine holds the one name');
                 n++;
@@ -7148,7 +7142,7 @@ test('presets: the picks for an RTX PRO 6000 with vLLM — the capacity page\'s 
     // LOL Vibe: the model proven with the coding agent, and why not Flint.
     assert.match(picks.vibe.reasons[0], /^Qwen3\.6 35B-A3B · NVFP4 on vLLM, for 10 people at once .*: Covers your 10 with \d+/);
     assert.ok(picks.vibe.estimate.mid >= 48, `about 48–64 coders at 64k: ${picks.vibe.estimate.mid}`);
-    assert.match(picks.vibe.reasons[1], /^Picked for the most people among the models proven with the IDE's coding agent: 11\/15 on its five tasks, on vLLM\. Also proven: Gemma 4 26B-A4B \(12\/15 on its five tasks, on vLLM 0\.33\.0\)\.$/);
+    assert.match(picks.vibe.reasons[1], /^Picked for the most people among the models proven with the IDE's coding agent: 11\/15 on its five tasks, on vLLM\. Also proven: Gemma 4 26B-A4B \(12\/15 on its five tasks on vLLM 0\.33\.0, 14\/15 on Ollama 0\.33\.0\)\.$/);
     assert.match(picks.computer.reasons[0], /tool calling, reads images/);
     // Plugins: Vibe gives document reading's memory back; the Computer turns every one on; Balanced = as shipped.
     assert.deepEqual(picks.vibe.plugins, { websearch: true, ocr: false, tts: false, classify: false, stt: false, bus: false });
@@ -7170,11 +7164,13 @@ test('presets: the picks for a DGX Spark, a 24 GB and a 12 GB card, and a box wi
     const gguf = PR_LC.model;
     // A GeForce card is a one-person box for the capacity page: Ollama and llama.cpp, even with vLLM set up.
     for (const name of ['g24', 'g12']) {
+        // These boxes' Ollama default is still gemma4:12b (a farm set up before 2026-11-10): Balanced brings the shipped model.
         assert.deepEqual(prShort(PR_BOX[name]()), {
-            balanced: 'ollama gemma4:12b auto 2', rag: 'ollama gemma4:12b auto 2', vibe: `llamacpp ${gguf} auto 1`, computer: 'ollama gemma4:12b auto 2',
+            balanced: 'ollama gemma4:26b auto 2', rag: 'ollama gemma4:12b auto 2', vibe: `llamacpp ${gguf} auto 1`, computer: 'ollama gemma4:12b auto 2',
         }, name);
+        assert.ok(PR.pickFor('balanced', PR_BOX[name]()).reasons.includes('The farm\'s Ollama default is gemma4:12b: Balanced makes gemma4:26b the default, the model the farm ships for documents, pictures and a little code.'), name);
         // No model proven with the coding agent serves here: LOL Vibe keeps llama.cpp's model, and says so.
-        assert.ok(PR.pickFor('vibe', PR_BOX[name]()).reasons.includes('No model proven with the IDE\'s coding agent is available here: so far only Qwen3.6-35B-A3B (11/15 on its five tasks, on vLLM) and Gemma 4 26B-A4B (12/15 on its five tasks, on vLLM 0.33.0) are.'), name);
+        assert.ok(PR.pickFor('vibe', PR_BOX[name]()).reasons.includes('No model proven with the IDE\'s coding agent is available here: so far only Qwen3.6-35B-A3B (11/15 on its five tasks, on vLLM) and Gemma 4 26B-A4B (12/15 on its five tasks on vLLM 0.33.0, 14/15 on Ollama 0.33.0) are.'), name);
     }
     // A proven model as Ollama's default: LOL Vibe serves it there rather than llama.cpp's unproven one.
     const olProven = PR_BOX.g12(); olProven.ollama.model = 'qwen3.6:35b';
@@ -7182,16 +7178,16 @@ test('presets: the picks for a DGX Spark, a 24 GB and a 12 GB card, and a box wi
     assert.deepEqual([vibeOl.engine, vibeOl.model, vibeOl.people], ['ollama', 'qwen3.6:35b', 2]);
     assert.equal(vibeOl.reasons[0], 'qwen3.6:35b on Ollama: proven with the IDE\'s coding agent (11/15 on its five tasks, on vLLM).');
     assert.ok(!vibeOl.reasons.some((r) => /No model proven/.test(r)));
-    // Gemma 4 26B (owner 2026-11-09): proven on llama.cpp as on vLLM, but not on Ollama, whose ollama#19191 breaks the agent's reads.
-    // Flint left the list: no longer proven anywhere.
+    // Gemma 4 26B (owner 2026-11-09): proven on llama.cpp as on vLLM, and on Ollama (14/15, 2026-11-10: ollama#19191 did not
+    // touch it). Flint left the list: no longer proven anywhere.
     const lcGemma = PR_BOX.g24(); lcGemma.llamacpp = { ...PR_LC, id: 'gemma-4-26b-a4b-ud-q4_k_xl', label: 'gemma-4-26B-A4B-it-UD-Q4_K_XL', model: 'gemma-4-26B-A4B-it-UD-Q4_K_XL.gguf' };
     const vibeLcGemma = PR.pickFor('vibe', lcGemma);
-    assert.deepEqual([vibeLcGemma.engine, vibeLcGemma.reasons[0]], ['llamacpp', 'gemma-4-26B-A4B-it-UD-Q4_K_XL on llama.cpp: proven with the IDE\'s coding agent (12/15 on its five tasks, on vLLM 0.33.0).']);
+    assert.deepEqual([vibeLcGemma.engine, vibeLcGemma.reasons[0]], ['llamacpp', 'gemma-4-26B-A4B-it-UD-Q4_K_XL on llama.cpp: proven with the IDE\'s coding agent (12/15 on its five tasks on vLLM 0.33.0, 14/15 on Ollama 0.33.0).']);
     const olGemma = PR_BOX.g12(); olGemma.llamacpp = { available: false }; olGemma.ollama.model = 'gemma4:26b';
     const vibeOlGemma = PR.pickFor('vibe', olGemma);
     assert.equal(vibeOlGemma.engine, 'ollama');
-    assert.ok(vibeOlGemma.reasons.includes('Gemma 4 26B-A4B is proven with the IDE\'s coding agent, but not on Ollama: Ollama turns a whole number from an earlier tool call into text (ollama#19191), and the agent reads files by line numbers.'), JSON.stringify(vibeOlGemma.reasons));
-    assert.ok(vibeOlGemma.reasons.some((r) => /^No model proven/.test(r)));
+    assert.equal(vibeOlGemma.reasons[0], 'gemma4:26b on Ollama: proven with the IDE\'s coding agent (12/15 on its five tasks on vLLM 0.33.0, 14/15 on Ollama 0.33.0).');
+    assert.ok(!vibeOlGemma.reasons.some((r) => /^No model proven|ollama#19191/.test(r)));
     const lcFlint = PR_BOX.g24(); lcFlint.llamacpp = { ...PR_LC, id: 'flint-ud-q4_k_xl', label: 'flint-UD-Q4_K_XL', model: 'flint-UD-Q4_K_XL.gguf' };
     assert.ok(!PR.pickFor('vibe', lcFlint).reasons[0].includes('proven with'), 'Flint is not proven any more');
     assert.ok(PR.pickFor('rag', PR_BOX.g24()).reasons.some((r) => /capacity page does not know this GPU/.test(r)));
@@ -7201,7 +7197,7 @@ test('presets: the picks for a DGX Spark, a 24 GB and a 12 GB card, and a box wi
     assert.ok(PR.pickFor('computer', g32).reasons.includes('Not vLLM: the capacity page counts this card for one person at a time.'));
     // An RTX PRO 6000 without vLLM: Ollama and llama.cpp, and what vLLM would give, so the operator knows.
     const nv = PR_BOX.noVllm();
-    assert.deepEqual(prShort(nv), { balanced: 'ollama gemma4:12b auto 2', rag: 'ollama gemma4:12b auto 2', vibe: `llamacpp ${gguf} auto 1`, computer: 'ollama gemma4:12b auto 2' });
+    assert.deepEqual(prShort(nv), { balanced: 'ollama gemma4:26b auto 2', rag: 'ollama gemma4:12b auto 2', vibe: `llamacpp ${gguf} auto 1`, computer: 'ollama gemma4:12b auto 2' });
     assert.ok(PR.pickFor('computer', nv).reasons.some((r) => /vLLM is not set up on this computer: with it, this GPU would serve about \d+/.test(r)));
     // … with each preset's own rule (Documents: Nemotron's lead at 64k is a tie, so Qwen3.6).
     assert.ok(PR.pickFor('rag', nv).reasons.some((r) => /would serve about \d+ .*people with Qwen3\.6 35B-A3B/.test(r)));
@@ -7213,6 +7209,16 @@ test('presets: the picks for a DGX Spark, a 24 GB and a 12 GB card, and a box wi
     const missing = PR_BOX.g12(); missing.llamacpp.downloaded = false; missing.ollama.installed = false;
     assert.deepEqual(PR.pickFor('vibe', missing).needs.map((n) => n.kind), ['llamacpp']);
     assert.deepEqual(PR.pickFor('rag', missing).needs.map((n) => [n.kind, n.id]), [['ollama', 'gemma4:12b']]);
+    // Balanced's model (owner 2026-11-10): downloaded first when this Ollama lacks it, not asked when it has it, and a
+    // GPU under the 24 GB it was measured for is told what to expect.
+    const old = PR_BOX.g24(); old.ollama.names = ['gemma4:12b'];
+    assert.deepEqual(PR.pickFor('balanced', old).needs.map((n) => [n.kind, n.id, n.text]), [['ollama', 'gemma4:26b', 'Download gemma4:26b in the Ollama section first.']]);
+    old.ollama.names = ['gemma4:12b', 'gemma4:26b:latest'];
+    assert.deepEqual(PR.pickFor('balanced', old).needs, []);
+    assert.ok(!PR.pickFor('balanced', old).reasons.some((r) => /This GPU has/.test(r)), '24 GB is the target');
+    assert.ok(PR.pickFor('balanced', PR_BOX.g12()).reasons.includes('This GPU has 12 GB: gemma4:26b is measured for 24 GB and more, so here its context is smaller and part of it may run on the processor, slowly.'));
+    const shipped = PR_BOX.g24(); shipped.ollama.model = 'gemma4:26b';
+    assert.ok(!PR.pickFor('balanced', shipped).reasons.some((r) => /The farm's Ollama default is/.test(r)), 'a farm on the shipped model is not told to change');
 });
 
 test('presets: document search is never switched — not a preset plugin, never in a change list, never toggled by Apply', async () => {
@@ -7238,7 +7244,7 @@ test('presets: document search is never switched — not a preset plugin, never 
 
 test('presets: the dry run lists exactly what changes, what restarts and how long', () => {
     const label = (m) => ({ 'qwen3.6-35b-a3b': 'Qwen3.6 35B-A3B · NVFP4', 'nemotron-3.5-lightning': 'Nemotron 3.5 Lightning 30B-A3B · NVFP4' }[m] || m);
-    const shipped = { engine: 'ollama', model: 'gemma4:12b', context: 'auto', people: 2, memory: null, plugins: { websearch: true, ocr: true, tts: false, classify: false, stt: false, bus: false } };
+    const shipped = { engine: 'ollama', model: 'gemma4:26b', context: 'auto', people: 2, memory: null, plugins: { websearch: true, ocr: true, tts: false, classify: false, stt: false, bus: false } };
     // Ollama → vLLM: the switch says how long, then what vLLM starts with; Kokoro's first start installs it.
     const box = PR_BOX.pro6000(); box.plugins.tts.installed = false;
     const toComputer = PR.changesFor(shipped, PR.pickFor('computer', box), { label, plugins: box.plugins, ollamaPeople: 2 }).map((c) => c.text);
@@ -7261,6 +7267,8 @@ test('presets: the dry run lists exactly what changes, what restarts and how lon
     assert.deepEqual(PR.changesFor(four, PR.pickFor('balanced', PR_BOX.g12())).map((c) => c.text), ['People at once: 4 → 2 (applies when the farm restarts)']);
     // Nothing to change: an empty list.
     assert.deepEqual(PR.changesFor(shipped, PR.pickFor('balanced', PR_BOX.g12())), []);
+    // A farm still on the old default: Balanced changes its model (owner 2026-11-10).
+    assert.deepEqual(PR.changesFor({ ...shipped, model: 'gemma4:12b' }, PR.pickFor('balanced', PR_BOX.g12())).map((c) => c.text), ['Model: gemma4:12b → gemma4:26b']);
 });
 
 test('presets: a setting changed by hand after Apply marks the preset changed, and says what', () => {
@@ -7279,7 +7287,7 @@ test('presets: a setting changed by hand after Apply marks the preset changed, a
     assert.deepEqual(PR.statusOf(null, { ...PR.pickSettings(bal), engine: 'ollama', model: 'gemma4:12b' }, picks).changed, ['Engine: vLLM → Ollama']);
     // The file's settings: what the engine flags say, never a fallback's memory.
     const c = defaultConfig();
-    assert.deepEqual(PR.settingsOf(c), { engine: 'ollama', model: 'gemma4:12b', context: 'auto', people: 2, memory: null, plugins: { websearch: true, ocr: true, tts: false, classify: false, stt: false, bus: false } });
+    assert.deepEqual(PR.settingsOf(c), { engine: 'ollama', model: 'gemma4:26b', context: 'auto', people: 2, memory: null, plugins: { websearch: true, ocr: true, tts: false, classify: false, stt: false, bus: false } });
     c.vllm.enabled = true;
     assert.deepEqual([PR.settingsOf(c).engine, PR.settingsOf(c).context, PR.settingsOf(c).people, PR.settingsOf(c).memory], ['vllm', 65536, 'auto', 'auto']);
 });
@@ -7301,12 +7309,31 @@ function presetRig({ engine = 'ollama', cur = null, box = PR_BOX.pro6000(), fail
         vllmDryRun: (body) => { calls.push(['dry', body]); return { ok: true, dryRun: true, restart: !!body.forceRestart, changes: [] }; },
         setPlugin: async (id, on) => { calls.push(['plugin', id, on]); config[id].enabled = on; return { ok: true }; },
         prepareEngine: (pick) => { calls.push(['prepare', pick.engine, pick.model, pick.context]); return { ok: true, undo: () => calls.push(['undo']) }; },
+        setOllamaModel: async (id, inJob) => { calls.push(['ollamaModel', id, typeof inJob === 'function']); return { ok: true, said: `${id} is the default` }; },
         writeFlags: (e) => calls.push(['flags', e]),
         record: (rec) => { calls.push(['record', rec.id]); return null; },
     });
     const done = async () => { for (let i = 0; i < 200 && jobs.busy(); i++) await new Promise((r) => setTimeout(r, 5)); return jobs.jobView(); };
     return { ops, calls, config, jobs, done };
 }
+
+test('presets: Balanced on an Ollama farm still on the old default makes the shipped model the default, inside the job (2026-11-10)', async () => {
+    const box = PR_BOX.g24(); box.ollama.names = ['gemma4:12b', 'gemma4:26b'];
+    const rig = presetRig({ box, cur: { engine: 'ollama', model: 'gemma4:12b', context: 'auto', people: 2, memory: null, plugins: { websearch: true, ocr: true, tts: false, classify: false, stt: false, bus: false } } });
+    const dry = await rig.ops.dryRun('balanced');
+    assert.deepEqual(dry.changes, ['Model: gemma4:12b → gemma4:26b']);
+    assert.equal(dry.restart, 'about a minute: Ollama loads the model to measure the context it holds.', 'a new model loads: said');
+    await rig.ops.apply('balanced');
+    const j = await rig.done();
+    assert.ok(j.ok, j.error);
+    assert.deepEqual(rig.calls, [['ollamaModel', 'gemma4:26b', true], ['apply', { context: 'auto', slots: 2 }, true], ['record', 'balanced']]);
+    assert.match(j.message, /^The Balanced preset is applied: gemma4:26b is the default · Applied\.$/);
+    // Not downloaded yet: Apply refuses and says what to download.
+    const n = presetRig({ box: { ...PR_BOX.g24(), ollama: { model: 'gemma4:12b', installed: true, names: ['gemma4:12b'] } } });
+    const r = await n.ops.apply('balanced');
+    assert.equal(r.ok, false);
+    assert.match(r.error, /^First: Download gemma4:26b in the Ollama section first\.$/);
+});
 
 test('presets: Apply goes through the farm\'s own controls in one job — plugins off, the engine with its settings, plugins on, recorded', async () => {
     // Balanced Ollama farm → Computer on a PRO 6000 with vLLM.

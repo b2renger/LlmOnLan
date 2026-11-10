@@ -457,10 +457,18 @@ class PromptFactory:
         ctk = template_kwargs(a)
         if ctk:
             body["chat_template_kwargs"] = ctk
+        add_think(a, body)
         if self.tools:
             body["tools"] = self.tools
             body["tool_choice"] = "auto"
         return body
+
+
+def add_think(a, body):
+    """Ollama's own switch, beside chat_template_kwargs, as LOL Vibe sends it (shell/renderer/chat/net/request.mjs):
+    the farm's LiteLLM turns `think` into Ollama's think on its ollama_chat/ routes; vLLM and llama-server ignore it."""
+    if a.thinking in ("on", "off"):
+        body["think"] = a.thinking == "on"
 
 
 def template_kwargs(a):
@@ -901,6 +909,7 @@ async def chat_once(session, args, messages, tools=None, max_tokens=None):
     ctk = template_kwargs(args)
     if ctk:
         body["chat_template_kwargs"] = ctk
+    add_think(args, body)
     if tools:
         body["tools"] = tools
         body["tool_choice"] = "auto"
