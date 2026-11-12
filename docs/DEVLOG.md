@@ -6,6 +6,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-12 (20:17) — The model survey, the fit, and tonight's two downloads
+
+Tonight's research (the owner, 19:58), its daytime half. Three read-only Haiku readers surveyed new open-weight models, the
+engines, and independent evidence; their reports with every URL are `docs/research/MODELS_2026-11-13.sources.md`, the draft is
+`docs/research/MODELS_2026-11-13.md`. Found: vLLM 0.33.0 is still the newest; **no independent long-document result exists for
+any model in our size range** (so the RAG check is the evidence); new candidates **Nemotron 3.5 Super VL** (120B/12B, hybrid
+Mamba, pictures, NVFP4 75 GB) and **Kolibri-1** (78B/3.5B, sliding windows, long-document claims, FP8 79 GB); Ripple-65B's
+architecture is not in vLLM 0.33.0 (queued, as the plans list said). The fit (`docs/spike/runs/fit_estimate.mjs`, the farm's own
+Automatic rule) shows the 9 GiB document-reading reserve leaves a 70 GB model a 2 GiB pool on the PRO 6000: the owner's open
+question on letting vLLM's model read documents decides whether such a model can serve a class. The estimator runs optimistic
+(Qwen3.6: 99 estimated, 64 measured). Downloads began 20:15 (`docs/spike/runs/download_verify.sh`: one at a time into
+`~/lol-models-scratch`, each file checked against Hugging Face's sha256).
+
+---
+
 ## 2026-11-12 (20:03) — A RAG check for the model research (`docs/spike/runs/rag_check.mjs`)
 
 Tonight's objective (the owner, 19:58) is a model survey for a class on the PRO 6000 and the Spark, RAG and code; the 28-item
