@@ -117,8 +117,9 @@ the owner and Claude share is [docs/sessions/](docs/sessions/README.md), one dat
 4. **Every fifth session** is an adversarial review of the code, the docs and the in-app documentation and tutorials
    (the skill `lol-review`), in place of building.
 
-**Build only what the owner approved:** code comes from an item of [docs/plans/README.md](docs/plans/README.md) or a
-plan whose status line reads `Status: approved by the owner, <date>`. Anything else a session thinks of becomes a plan
+**Build only what the owner approved:** code comes from an item of [docs/plans/README.md](docs/plans/README.md)'s
+sections *1. Now*, *2. Next* or *3. Later* (never *4. Waiting on the owner* or *5. Parked or dropped*), or from a plan
+whose status line reads `Status: approved by the owner, <date>`. Anything else a session thinks of becomes a plan
 or a question in its summary, not code.
 
 **The owner's tests are the bottleneck**, so a session saves the owner's time: each human test it asks for is ready to

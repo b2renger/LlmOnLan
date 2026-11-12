@@ -29,8 +29,9 @@ down what you did not check.
 
 **Your objective** is the last summary's *Next objective*, unless an owner's line says otherwise. Write in a few lines
 how you will reach it and how you will know it is done (its *Done when*), and the one side task, if there is one.
-**Consult the advisor before you lock it.** Build only what the owner approved: an item of `docs/plans/README.md`, or a
-plan whose status line reads `Status: approved by the owner, <date>`. An idea of your own becomes a plan or a question.
+**Consult the advisor before you lock it.** Build only what the owner approved: an item of `docs/plans/README.md`'s sections
+*1. Now*, *2. Next* or *3. Later* (never *4. Waiting on the owner* or *5. Parked or dropped*), or a plan whose status
+line reads `Status: approved by the owner, <date>`. An idea of your own becomes a plan or a question.
 If the objective is blocked, say why in the summary and take the next item of the queue.
 
 ## 2. Work

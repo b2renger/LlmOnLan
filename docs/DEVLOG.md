@@ -6,6 +6,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-12 (10:56) — The process, sharpened by the owner: one objective, approved work only, a night backup
+
+The owner, on the review of the workflow (10:52): one main objective a session with a *Done when* and at most one side
+task; code only from what the owner approved; human tests prepared so they take minutes, and `RELEASE READY` early for
+small batches; a backup push of each commit to a branch, tags and releases still the owner's. The owner also switched
+the session left open to Opus 5.5, in auto mode.
+- **CLAUDE.md ▸ *How we work*,** the skill `lol-session` and the summary template carry it. "Approved" is checkable: an
+  item of `docs/plans/README.md`'s *Now*, *Next* or *Later*, or a plan whose status line reads `Status: approved by
+  the owner, <date>` (INSIGHTS_PLAN §6.5 and §7.1 are marked so).
+- **The backup:** exactly `git push origin main:night`. Checked first: release builds start only on `v*` and `farm-v*`
+  tags; `build-llamacpp-arm64` and `build-dsh-runtime` start on a push to `main` when their files change; `night`
+  starts nothing (none ran after the first push, `21ee658`). `push.followTags` is unset.
+- The memory notes on pushing and on agents follow. Session 1's summary holds the next objective in the new shape: build
+  "Save a usage report", with *Done when*, the side task (check `docs/context/farm.md`) and the queue (prepare K14).
+
 ## 2026-11-12 (10:32) — Release client v0.2.17 and Farm app farm-v0.0.53 (the owner's go)
 
 The owner, on the work of 2026-11-10: *"go then"*. Also from the owner today: sessions run five hours, 02:00 to 07:00, from a
