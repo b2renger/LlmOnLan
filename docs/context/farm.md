@@ -15,7 +15,8 @@
     reads scanned pages beside vLLM (`OCR_BESIDE`). `ollama.contextLength:
     'auto'` MEASURES the largest `num_ctx` that stays fully in VRAM: loads the default at 16k and 32k, takes
     the per-token slope from `/api/ps`, aims at min(model native max, VRAM − max(1 GB, 8%)) and verifies with one more
-    load (one halving then 16k if that spills; 8k/4k if even 16k spills). The verdict caches per (model, VRAM,
+    load (one halving then 16k if that spills; 8k/4k if even 16k spills). A 32k that spills keeps 16k; an aim of exactly
+    32k needs no third load; with the VRAM unknown it skips 32k and verifies the native max (`up.js` `resolveOllamaContext`). The verdict caches per (model, VRAM,
     numParallel, kvCacheType, and whether document search and speech to text on the GPU run beside it). Per-arch KV math is deliberately NOT used (Gemma's sliding window makes it
     wildly over-estimate). It is applied as per-deployment `num_ctx` in the generated routing (+ the
     `OLLAMA_CONTEXT_LENGTH` seed). `kvCacheType` q8_0 and `numParallel` 2 only apply to an Ollama the farm
@@ -138,7 +139,7 @@
     **Rename** (Ollama); people served at once, the context window (Automatic on Ollama and llama.cpp; on vLLM the
     context is a number, and people at once and GPU memory for conversations are Automatic) and the farm
     password under ONE **Apply changes** (one restart; on vLLM a dry run first, and vLLM restarts only for a new
-    model, context, memory or request cap), and **Free an idle seat after** (`proxy.seatIdleSec`,
+    model, context, memory, people at once, reply cap or extra flags: `vllm.js` `restart`), and **Free an idle seat after** (`proxy.seatIdleSec`,
     1–60 min, the workshop setting — alone it applies live, no restart); Ollama download/offer/stop/delete/Make default;
     the plugin switches and the Blender fleet recommendation; and the clients with their seats. Long operations run as one
     job whose progress the panel polls. vLLM's install and model downloads run beside it in a second slot, the download slot, with their own bar and Stop. A Stop of vLLM is not kept: the
@@ -254,7 +255,7 @@ default, which froze them, an old `vllm.version` among them):
 {
   "name": "Studio Farm",                 // friendly name shown in the client
   "beacon": { "enabled": true, "group": "239.255.43.10", "port": 41998, "intervalSec": 5, "httpPort": 41997 },
-  "proxy":  { "port": 4000, "host": "0.0.0.0",   // port = the seat gate; LiteLLM listens on 127.0.0.1:port+1
+  "proxy":  { "port": 4000, "host": "0.0.0.0",   // port = the seat gate; LiteLLM on 127.0.0.1:port+1 (seatGate false: LiteLLM on port)
               "masterKey": null,                 // the shared farm password (null = open LAN)
               "seatGate": true, "seatIdleSec": 900 },
   "models": [ { "id": "gemma4:26b", "default": true } ],   // Ollama catalog = the DEFAULT engine's serving set
