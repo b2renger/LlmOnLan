@@ -15,7 +15,7 @@
 **The aim** (owner, 2026-11-12): teachers use it, and it shows that a small compute cluster gives a school fast, local AI.
 
 **Status:** released client `v0.2.17` (Open WebUI `0.11.4`) and Farm app `farm-v0.0.53` (2026-11-12). Work is committed
-on `main` in this checkout and not pushed: `origin/main` is the last release. What is released, verified and still to check: [docs/context/status.md](docs/context/status.md).
+on `main` in this checkout and backed up to the `night` branch; `origin/main` is the last release. What is released, verified and still to check: [docs/context/status.md](docs/context/status.md).
 
 This file is the core every session loads. The detail lives in **context modules** (the table below): read the ones
 your task touches before you act, and no others.
@@ -106,20 +106,32 @@ leaves open (it dies with that session; the owner asks for it again), and by day
 the owner and Claude share is [docs/sessions/](docs/sessions/README.md), one dated summary per session.
 
 1. **Start:** read the five last summaries, and any line the owner wrote in them (`> owner:`): it outranks the summary's
-   own "next". Then [docs/plans/README.md](docs/plans/README.md) and `git log` since the last summary.
-2. **Work**, from this menu, in the order the summaries and the plans give: look at the code and the latest changes;
-   run the tests, and the client and a farm for real (the skill `lol-scratch-farm`); measure; research models, engines
-   and harnesses that matter to us; write a plan; build a plan that is ready; test what was built; update the docs and
-   the in-app help and tutorials; commit along the way.
-3. **End:** write the summary: what was done, with the evidence; what was not, and why; the next logical step; the
-   questions for the owner. Then commit it.
-
-**Commits, pushes and releases:** a session commits on `main` and **never pushes**. A push to `origin/main` with a tag
-builds installers people update to, so a person tests first. When the unpushed work is worth a release, the summary
-**opens** with a line `RELEASE READY` saying what it brings and which HUMAN_TESTS a person should run before; the owner
-tests, says go, and the release is then cut ([docs/context/release.md](docs/context/release.md)).
+   own "Next". Then [docs/plans/README.md](docs/plans/README.md) and `git log` since the last summary.
+2. **One objective per session** (owner, 2026-11-12): the last summary's *Next objective*, with its *Done when*, plus
+   at most one small side task. Not the whole menu. The menu the objective comes from: look at the code and the latest
+   changes; run the tests, and the client and a farm for real (the skill `lol-scratch-farm`); measure; research models,
+   engines and harnesses that matter to us; write a plan; build an approved plan; test what was built; prepare a human
+   test; update the docs and the in-app help and tutorials. Finished early: the next item of the summary's queue.
+3. **End:** write the summary: what was done, with the evidence; what was not, and why; the next objective with its
+   *Done when*, its side task and the queue; the questions for the owner. Commit it, and push the backup.
 4. **Every fifth session** is an adversarial review of the code, the docs and the in-app documentation and tutorials
    (the skill `lol-review`), in place of building.
+
+**Build only what the owner approved:** code comes from an item of [docs/plans/README.md](docs/plans/README.md) or a
+plan whose status line reads `Status: approved by the owner, <date>`. Anything else a session thinks of becomes a plan
+or a question in its summary, not code.
+
+**The owner's tests are the bottleneck**, so a session saves the owner's time: each human test it asks for is ready to
+run in minutes (the steps written out in HUMAN_TESTS, the files and builds ready, the expected result stated), and it
+raises `RELEASE READY` early, for small batches.
+
+**Commits, backup, releases:** a session commits on `main`, and backs it up with exactly
+`git push origin main:night`. Never a bare `git push`, never `origin main`, never `--tags` or `--follow-tags`: a push to
+`main` starts two CI builds, and a tag builds the installers people update to. The repository is public, so what is
+committed is published: no secret, nothing about a person, never a usage report's data. When the unreleased work
+(`git log origin/main..main`) is worth a release, the summary **opens** with `RELEASE READY`: what it brings and which
+HUMAN_TESTS to run first. The owner tests and says go; only then is `main` pushed and tagged
+([docs/context/release.md](docs/context/release.md)).
 
 The skill `lol-session` holds the whole procedure. **Precise before fast:** read the documentation, check the fact in
 the code or by running it, and say what was not checked.
@@ -132,6 +144,9 @@ the code or by running it, and say what was not checked.
 | Explores, in parallel, read-only | Haiku 5.5 | the subagents `search` (maps a part of the repo), `grep` (finds call sites), `docs` (reads a reference) |
 | Advises on the big calls | Opus 5.5 | Claude Code's advisor (`advisorModel`): it reads the whole session |
 
+The night cron runs in the Claude Code session the owner leaves open, on that session's model: **Opus 5.5** since
+2026-11-12, the owner's choice, in auto mode. `.claude/settings.json` sets Sonnet for a session started fresh.
+
 **Consult the advisor at three moments, and only these:** before a plan locks; when the same error shows up twice;
 before calling a task done. Explorers return facts with `file:line`; the session checks a fact before it builds on it.
 Parallel agents beyond the three explorers need the owner's yes for that run. Fable 5.2 (4× Sonnet's price) is not in
@@ -143,7 +158,7 @@ farm's local one, Classify (Laya), never a cloud one.
 
 ### What a session never does without the owner
 
-- Push, tag or release (above).
+- Push anything but the `night` backup, tag, or release (above).
 - Stop, restart or reconfigure the farm people use (the Farm app on this computer, its vLLM in `~/lol-vllm`, its
   config and data), the owner's client and its data folder, the Ollama desktop app, ComfyUI. A session **may** load
   models on the GPU beside the live farm, with clients connected or not (owner 2026-11-12).

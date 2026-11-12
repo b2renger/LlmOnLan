@@ -11,9 +11,10 @@ session, and it outranks the summary's own "Next". Answer a question under "Ques
 ```markdown
 # Session 2026-11-12 (n° 1)
 
-**Ran:** 02:00 to 06:55, by night. **Model:** Sonnet 5.5. **Branch:** main, abc1234 → def5678 (not pushed).
+**Ran:** 02:00 to 06:55, by night. **Model:** Sonnet 5.5. **Branch:** main, abc1234 → def5678 (backed up to `night`).
 
-**RELEASE READY** (only when it is): what the unpushed work brings, and the HUMAN_TESTS to run before the tag.
+**RELEASE READY** (only when it is; early, for small batches): what the unreleased work brings, and the HUMAN_TESTS to
+run before the tag, each ready to run in minutes.
 
 ## Done
 - What changed, each with its evidence: the test that passed, the number measured, the commit.
@@ -24,8 +25,13 @@ session, and it outranks the summary's own "Next". Answer a question under "Ques
 ## Found
 - Bugs, surprises, facts that contradict a doc. Each one fixed, or filed in docs/plans/README.md.
 
-## Next
-1. The next logical step, precise enough to start on without this conversation.
+## Next objective
+One objective, precise enough to start on without this conversation, from an approved plan or the plans list.
+**Done when:** what will be true, checkable (a test passes, a file exists, a number is measured).
+**Side task** (at most one, small): …
+
+**Queue** (taken in order when the objective is done or blocked):
+1. …
 
 ## Questions for the owner
 - A decision only the owner takes. One per line, with the choice recommended.

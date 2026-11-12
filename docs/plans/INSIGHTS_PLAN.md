@@ -1,6 +1,6 @@
 # Insights plan: what the sessions may see of how LlmOnLan is used
 
-**Status:** the owner said yes to §6.5 on 2026-11-12: **build "Save a usage report" first** (a file on the person's own
+**Status: approved by the owner, 2026-11-12, for §6.5 and §7.1 only:** **build "Save a usage report" first** (a file on the person's own
 computer, nothing sent). Decisions 1 to 4, which change the project's central promise, still wait. Written 2026-11-12 (session 1).
 
 ## 1. The ask (owner, 2026-11-12)

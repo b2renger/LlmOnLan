@@ -8,7 +8,8 @@
 > What each release brought, from v0.2.0 on: the DEVLOG's release entries ([docs/DEVLOG.md](../../docs/DEVLOG.md), headed
 > "Release …"; v0.2.5 is in its 2026-09-29 afternoon entry, farm-v0.0.47 and 0.0.48 in its 2026-10-13 ones).
 > `origin/main` = the last release (client v0.2.17 and Farm app farm-v0.0.53, 2026-11-12). Since that day the work is
-> committed on `main` in the owner's checkout and not pushed until a release (CLAUDE.md, *How we work*). The modules
+> committed on `main` in the owner's checkout, backed up to the `night` branch, and pushed to `main` only at a release
+> (CLAUDE.md, *How we work*). The modules
 > describe the code; a change from 2026-11-05 on names the release that brought it.
 
 The full plan is built, released and in multi-user testing. Where to look: the map of the docs,
