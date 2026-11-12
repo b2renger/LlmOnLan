@@ -29,7 +29,7 @@ ComfyUI workflows, LOL gives a workshop a private, local‑first chat assistant.
 to read (OCR), a document's text to index (document search: the vectors come back and stay on your machine),
 a recording to write down (speech to text), web searches and text to read aloud; and every 10 s a presence ping
 (the laptop's name, for the panel's list of clients). The full list is in
-[`CLAUDE.md`](CLAUDE.md) ▸ Data‑flow & privacy boundary.
+[`docs/context/privacy.md`](docs/context/privacy.md).
 
 **Inference engines, one endpoint.** By default the farm serves **`gemma4:26b` on Ollama**, for GPUs of 24 GB and
 above: documents, pictures and a little code (vision‑native, so one model covers chat and the OCR plugin). Two engines are **opt‑in from the farm
@@ -58,8 +58,8 @@ OpenAI‑compatible endpoint and never knows which answered. Details:
 4. **We touch OWUI only through its public surface** (env vars + admin REST API).
 5. **Upgrading OWUI is a version bump, not a merge** — no LOL code changes.
 
-See [`CLAUDE.md`](CLAUDE.md) for the full invariants, the integration contract, and the design
-rationale. Every other document is on the map, [`docs/README.md`](docs/README.md) (the first milestone plan, the v0.1
+See [`CLAUDE.md`](CLAUDE.md) for the invariants and how the work is run, and its context modules
+([`docs/context/`](docs/context/)) for the integration contract and the design rationale. Every other document is on the map, [`docs/README.md`](docs/README.md) (the first milestone plan, the v0.1
 one of 2026-06 to 2026-08, is archived: [`docs/archive/plans/implementation_plan.md`](docs/archive/plans/implementation_plan.md)).
 
 ## Status
@@ -67,7 +67,7 @@ one of 2026-06 to 2026-08, is archived: [`docs/archive/plans/implementation_plan
 **Released — client `v0.2.16` (self‑updating, Open WebUI `0.11.4`) and Farm app `farm-v0.0.52` (manual update
 check), 2026-11-09, for a phase of human testing:** what to check, in order, is the ★ list of
 [`docs/HUMAN_TESTS.md`](docs/HUMAN_TESTS.md). What each release brought is in [`docs/DEVLOG.md`](docs/DEVLOG.md); the state of each piece is the build
-status in [`CLAUDE.md`](CLAUDE.md).
+status in [`docs/context/status.md`](docs/context/status.md).
 
 *Chat + farm* — the farm serves **`gemma4:26b` on [Ollama](farm/README.md#backends--ollama-default-and-llamacpp)**
 by default, with **llama.cpp** (the speed pick for a few people) and **vLLM** (many people on a big NVIDIA GPU,

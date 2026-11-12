@@ -13,6 +13,13 @@ processed in a cloud; the code follows the ponytail ladder.
   **on hold** (owner 2026-11-06): a request from the school's administrators; nothing starts before they and IT say go.
   The school has no Google Workspace.
 - [IDE_PLAN.md](IDE_PLAN.md) — LOL Vibe's IDE. Slice 7 and §5 B/C are open.
+- [INSIGHTS_PLAN.md](INSIGHTS_PLAN.md) — opt-in usage statistics, so the sessions can see how the apps are used
+  (owner 2026-11-12). Nothing built: it changes the promise "the farm stores nothing", so it **waits for the owner's
+  decisions** (its §6). A first step that sends nothing is proposed there.
+
+**How the work is run** (owner 2026-11-12): in sessions, each ending with a dated summary in
+[../sessions/](../sessions/README.md). The summaries' "Next" and the owner's lines there give the day's order; this
+file stays the whole list.
 
 ---
 
@@ -105,7 +112,8 @@ and it serves more than we said. Gemma 4 26B is LOL Vibe's coding model since 20
    conversations (multi-user decision 6). **M**.
 4. **CI minutes for the tests** (Next 4).
 5. **CLAUDE.md:**
-   - cut it to about 350 lines, with the details moved to the READMEs and each one checked there first;
+   - ~~cut it to about 350 lines~~ done 2026-11-12: 172 lines, the detail moved verbatim to
+     [../context/](../context/). Still to do: check each module against the code (the first reviews' job);
    - change it only when a rule, the contract, a port or the map changes;
    - reword invariant #4 to the calls the contract table lists (it says "admin REST API", which the app never uses).
 

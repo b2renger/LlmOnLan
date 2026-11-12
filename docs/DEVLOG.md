@@ -6,6 +6,22 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-12 (10:20) — The work runs in sessions; CLAUDE.md becomes a core and eleven context modules
+
+The owner: daily sessions that read the five last dated summaries and write one; Sonnet 5.5 runs, three read-only Haiku 5.5
+explorers, Opus 5.5 as advisor at three moments; every fifth session an adversarial review; CLAUDE.md rewritten around it.
+- **CLAUDE.md: 1,173 → 172 lines.** The detail moved verbatim, by line range, to `docs/context/` (status, overview, farm,
+  client, computer, owui-contract, discovery, design, release, repo-layout, privacy), links re-based and checked. The prime
+  directive and the conventions are unchanged. New: the table of modules and *How we work*.
+- **`docs/sessions/`:** the README (template and rules) and session 1's summary, with the questions for the owner.
+- **`.claude/`** (force-added past this checkout's local exclude): `settings.json` (`model: sonnet`, `advisorModel: opus`),
+  the agents `search`, `grep`, `docs`, the skills `lol-session`, `lol-review`, `lol-scratch-farm`.
+- **`docs/plans/INSIGHTS_PLAN.md`:** opt-in usage statistics, as a plan that waits for the owner: it changes "the farm stores
+  nothing".
+- Not done: the 2 am schedule (no `claude` CLI on this computer, and the owner's decisions on length and permissions), and
+  "JEV" (in no Anthropic documentation). The modules are moved, not yet checked against the code.
+- Tested: `farm/test/run.js` 288 passed (its docs test reads every `.md`), `shell/test/chat-lint.js` 0 violations. No code changed.
+
 ## 2026-11-10 (12:08) — The farm ships Gemma 4 26B, and Balanced brings a farm to it
 
 The owner: *"I don't really get why our default model is gemma4 12B, this model is weak"*, then *"we need the farm to start

@@ -14,7 +14,7 @@
 > below record each pin bump since (0.10.2 on 2026-07-01, 0.11.4 on 2026-09-27) and what was checked again;
 > [What to check again at each pin bump](#what-to-check-again-at-each-pin-bump) gathers those checks. The pin and the
 > env have moved since: the pin is `sidecar/OPENWEBUI_VERSION`, and the authoritative env list is
-> `shell/src/main/configBridge.ts`, summed up in CLAUDE.md ▸ *Verified OWUI config surface*. Superseded: §2's
+> `shell/src/main/configBridge.ts`, summed up in [context/owui-contract.md](context/owui-contract.md) ▸ *Verified OWUI config surface*. Superseded: §2's
 > admin-REST reconcile (never built: the client uses only Open WebUI's user-settings API), §3's "leave
 > `RAG_EMBEDDING_ENGINE` empty" (true until the farm's document search, 2026-10-08: see its note) and §5's
 > PyInstaller packaging (never built: a standalone CPython, downloaded on first run).

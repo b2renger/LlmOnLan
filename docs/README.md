@@ -20,7 +20,9 @@
 
 | Document | What it is |
 |---|---|
-| [../CLAUDE.md](../CLAUDE.md) | The project's rules, the Open WebUI contract and the map of the code |
+| [../CLAUDE.md](../CLAUDE.md) | The core every session loads: the prime directive, how the work is run, and the table of context modules |
+| [context/](context/) | **The context modules**: one file per area (the farm, the client, the Computer, the Open WebUI contract, discovery, privacy, design, releases, the repo's layout, the status), read when a task touches it. Split out of CLAUDE.md on 2026-11-12 |
+| [sessions/](sessions/README.md) | **The thread the owner and Claude share**: one dated summary per work session; a session reads the five last and writes one |
 | [DEVLOG.md](DEVLOG.md) | The dated build log: what changed, why, how it was tested, every release |
 | [HUMAN_TESTS.md](HUMAN_TESTS.md) | What a person must still check on real machines; ★ = before the next release |
 | [plans/](plans/) | **Open plans only**, and [plans/README.md](plans/README.md): the next work, in order |
@@ -36,7 +38,11 @@
   replaced it. `archive/plans/` holds the executed or replaced plans, visions, specs and studies; `archive/testing/`
   the four checklists HUMAN_TESTS replaced on 2026-10-09; `archive/logs/` the night logs; the rest are dated reports
   and runbooks.
-- **[reviews/](reviews/)** — critic and consistency reports, dated. Tests cite some of them.
+- **[context/](context/)** — the context modules (above). Kept true: a change to the code a module describes changes it in
+  the same commit.
+- **[sessions/](sessions/)** — the session summaries (above). The owner writes in them too (`> owner:`).
+- **[reviews/](reviews/)** — critic and consistency reports, dated, and each fifth session's review
+  (`SESSION_REVIEW_<date>.md`). Tests cite some of them.
 - **[research/](research/)** — dated research and spikes for the Computer and the coding agent.
 - **[spike/](spike/)** — the capacity measurements (vLLM and llama.cpp, PRO 6000 and DGX Spark). The farm's
   capacity page and its estimator are built from them, so these paths stay put.
