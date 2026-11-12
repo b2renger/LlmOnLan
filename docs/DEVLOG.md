@@ -6,7 +6,7 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-11-12 (11:10) — Field notes: what teachers met, read first by every session
+## 2026-11-12 (11:03) — Field notes: what teachers met, read first by every session
 
 The owner accepted the suggestion: `docs/sessions/FIELD_NOTES.md`, where the owner writes a line after a class or a day
 of use (no names: the repo is public). Every session reads it before the summaries; an open note outranks the session's
