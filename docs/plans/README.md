@@ -135,20 +135,17 @@ and it serves more than we said. Gemma 4 26B is LOL Vibe's coding model since 20
   - LOL Vibe's old discussion items (D-C6 screen capture, D-C8 mailto, D-F7 OCR progress, D-F8 a farm page fetch,
     D-O1 *Continue in Open WebUI* as a file, D-O3, D-U1, D-U6, D-S1).
 - **The Computer:**
-  - *found 2026-11-12, cause not settled:* **the Computer's sandbox fails to start in the harness tonight**, with *The
-    sandbox could not start, so nothing was run*, each time just past its 3,000 ms boot limit (`sandbox/protocol.mjs`
-    `TIMEOUTS.boot`). Observed: `--phase k` 175/217 then 174/217 (6 November: 216/216); `k5` 11 fails both with and
-    without the evening's client changes; `k8` 35/35 and `k5` 38/38 when run as groups; the 500x200 scenario fails alone
-    while another harness ran beside it. Ruled out: the evening's changes, and importing a graph first. Not settled: a
-    GPU nearly full (first suspected, contradicted by a full run on a free GPU) or a machine under load (a large download
-    all evening). If it is load, a 3 s boot limit may also fail a slow school laptop. Repro:
-    `node shell/test/chat-harness/run.js --only k8-boxes-sandbox-a-500x200-preview-photographs-500x200`. **S** to settle;
-    **the likely mechanism** (about 22:05, read from the full run's order, not yet proven in code): only the page's FIRST sandbox
-    boot fails, and the host then keeps `state === 'disabled'` for the page (`sandbox/host.mjs` `boot`, "if (frame) …
-    state !== 'disabled'"), so every later sandbox box fails too. In the full run every sandbox scenario from the first
-    one on (n° 37) failed and every other passed; `--phase k8` (its first boot succeeds) passed 35/35 at about 21:15 and again just before 22:09;
-    its 500x200 scenario alone fails. If a real app does the same, one slow first start refuses the Code, p5 and three.js
-    boxes until the window reloads: a teacher's first lesson. Check in a real window, then measure the first boot's time;
+  - *found 2026-11-12, not reproduced since:* **the Computer's sandbox failed to start in the harness** on the evening
+    of 12 November, with *The sandbox could not start, so nothing was run*, each just past its 3,000 ms boot limit
+    (`sandbox/protocol.mjs` `TIMEOUTS.boot`): `--phase k` 175/217 then 174/217, every sandbox scenario from the first one
+    on; the 500x200 scenario failed alone while another harness ran beside it. **At 22:15 the same day, the same tree:**
+    `--phase k` 216/217 (every sandbox scenario passed; `k3-control-branches` timed out once and passed alone), and the
+    500x200 scenario alone passed in 863 ms. **The mechanism first written here was wrong:** a failed boot does not stay
+    `disabled`; `destroyFrame` clears the frame, and every later `compute`/`run` calls `boot()` and builds a fresh one
+    (`sandbox/host.mjs` `boot`), so each box waited its own 3 s. What made every boot slow that evening is not known (a
+    large download ran both then and at 22:15; the GPU was full for one failed run and free for the other). **Watch:** if
+    a harness run shows it again, note what else runs on the machine; if a real window shows it, the 3 s limit is the
+    question (a slow school laptop);
   - which unbuilt plan items still matter: a Section that carries its boxes, wires in their kind's colour, lesson
     buttons on more errors, five lessons, seven templates, a Data/table box;
   - Converse phase 2: events out to devices, speech to text on the laptop, lesson 15, several voices, a bot that

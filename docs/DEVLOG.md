@@ -6,6 +6,24 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-12 (22:22) — Super VL refused by vLLM 0.33.0 without remote code; the sandbox failure not reproduced
+
+- **Nemotron 3.5 Super VL NVFP4** downloaded (20:15–22:02, 92 files, every sha256 matches). Launching it with
+  `--trust-remote-code` was refused by the session's permission check; without it vLLM 0.33.0 stops while loading:
+  `'NemotronH_Omni_Reasoning_V3_Config' object has no attribute 'vit_hidden_size'`. vLLM's own config class for
+  `nemotron_h_omni` lacks the field; the checkpoint's `configuration_nemotron_h_omni.py` defaults it to 1280 and
+  `config.json` leaves it out. Not patched, not worked around: a question for the owner (research draft §5).
+- **Kolibri-1 FP8** needs no remote code (no `auto_map`; `Kolibri1ForCausalLM` and `kolibri1` are built into vLLM 0.33.0
+  and Transformers 5.20.2). Downloading at ~9 MB/s.
+- **The sandbox failure of the evening entry below did not come back:** at 22:15 on the same tree, `--phase k` 216/217
+  (every sandbox scenario passed; `k3-control-branches` timed out once, then passed alone in 2.6 s), and the 500x200
+  repro alone passed in 863 ms. **The mechanism written below was wrong:** after a boot timeout `destroyFrame` clears the
+  frame, and every later `compute`/`run` calls `boot()` again and builds a fresh frame (`sandbox/host.mjs`); nothing stays
+  `disabled`. Each sandbox box then waited out its own 3 s. What slowed every boot that evening is not known. The plans
+  entry (▸ 4 ▸ The Computer) now says "not reproduced; watch".
+
+---
+
 ## 2026-11-12 (20:58) — Qwen3.6's RAG baseline, a hard RAG check, and "Save a usage report"
 
 The owner (~20:40): carry on now, autonomously, no farm or client running. Two pieces of work:
