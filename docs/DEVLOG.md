@@ -42,6 +42,12 @@ not; "Save a usage report" (INSIGHTS_PLAN §6.5) is to be built first. Written i
 - **Before the tags**, on the tree released: `farm/test/run.js` 288 passed; the Farm app's `npm test` 11 + 3; the client's
   `npm run test:chat` 1,958 passed, lint 0 violations.
 - **For a person, after it:** HUMAN_TESTS K14 and K15 (★ row 5), and N4 on the school's network.
+- **CI** (checked 11:22): both green. Client v0.2.17: 09:33 → 11:07 (local), all six jobs; Farm app farm-v0.0.53:
+  09:33 → 09:36 UTC, all four. Assets complete: the client's five installers (+ blockmaps), four `latest*.yml`
+  (`latest.yml` says 0.2.17), five Open WebUI bundles + `owui-sidecar-manifest.json` (0.11.4, `bundleRev` 2), five
+  coding-agent runtimes; the Farm app's Windows, macOS arm64 and Linux arm64 builds (a prerelease, as always).
+  `releases/latest/download/owui-sidecar-win32-x64.tar.gz` now redirects to v0.2.17's, the client's new lookup.
+  A "What's new" heads each release's notes, CI's text kept below.
 
 ## 2026-11-12 (10:20) — The work runs in sessions; CLAUDE.md becomes a core and eleven context modules
 
