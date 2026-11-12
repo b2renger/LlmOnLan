@@ -4,7 +4,10 @@
 // cannot share the work). A fact counts as found when the reply contains its value.
 //
 //   node docs/spike/runs/rag_check.mjs <farm or engine /v1 URL> <model> [--sizes 30000,60000] [--people 1,4]
-//        [--thinking off|on] [--key sk-…] [--label name]
+//        [--thinking off|on] [--key sk-…] [--label name] [--hard]
+// --hard (2026-11-12, after Qwen3.6 found every fact): each fact also gets an outdated value planted 30 % further on
+// ("an earlier door code, no longer valid, was …"), a retrieval counts only when the reply holds the current value and
+// not the old one, and each person adds one comparison question (which place has the highest current code).
 //
 // Writes docs/spike/results/<label>__rag__<stamp>.json and prints one line per (size, people).
 // ponytail: tokens are estimated at 3.1 characters each (measured on the DEVLOG through Gemma 4's tokenizer, 2026-11-10:
@@ -27,6 +30,7 @@ const THINK = opt('thinking', 'off');
 const KEY = opt('key', 'sk-lol-lan');
 const LABEL = opt('label', model.replace(/[^\w.-]+/g, '-'));
 const CHARS_PER_TOKEN = 3.1;
+const HARD = argv.includes('--hard');
 
 // node:http rather than fetch: fetch refuses the web's blocked ports (4190 among them).
 function post(url, body) {
@@ -47,7 +51,10 @@ const PLACES = ['the Lyon workshop', 'the Brest studio', 'the Nantes lab', 'the 
 const fact = (seed, k) => {
   const n = 1000 + ((seed * 7919 + k * 104729) % 9000);
   const place = PLACES[(seed + k) % PLACES.length];
-  return { place, value: String(n), text: `Note for the record: the door code of ${place} is ${n}.` };
+  let o = 1000 + ((seed * 31 + k * 7907 + 4111) % 9000);
+  if (o === n) o = n === 9999 ? 1000 : n + 1;
+  return { place, value: String(n), old: String(o), text: `Note for the record: the door code of ${place} is ${n}.`,
+    oldText: `An earlier door code of ${place}, no longer valid, was ${o}.` };
 };
 const DEPTHS = [0.1, 0.5, 0.9];
 
@@ -56,19 +63,35 @@ function documentFor(person, tokens) {
   const start = (person * 211_000) % Math.max(1, HAY.length - chars);
   let doc = HAY.slice(start, start + chars);
   const facts = DEPTHS.map((d, k) => ({ ...fact(person + tokens, k), depth: d }));
-  // Plant from the deepest so earlier offsets stay right; each at a line break near its depth.
-  for (const f of [...facts].reverse()) {
-    const at = doc.indexOf('\n', Math.floor(doc.length * f.depth));
-    const i = at < 0 ? Math.floor(doc.length * f.depth) : at + 1;
-    doc = doc.slice(0, i) + f.text + '\n' + doc.slice(i);
+  // What to plant: each fact at its depth and, --hard, its outdated value 30 % further on. Planted from the deepest so
+  // earlier offsets stay right; each at a line break near its depth.
+  const plants = facts.map((f) => ({ depth: f.depth, text: f.text }));
+  if (HARD) for (const f of facts) plants.push({ depth: (f.depth + 0.3) % 1, text: f.oldText });
+  for (const pl of plants.sort((a, b) => b.depth - a.depth)) {
+    const at = doc.indexOf('\n', Math.floor(doc.length * pl.depth));
+    const i = at < 0 ? Math.floor(doc.length * pl.depth) : at + 1;
+    doc = doc.slice(0, i) + pl.text + '\n' + doc.slice(i);
   }
   return { doc, facts };
 }
 
-async function ask(doc, f) {
+// A retrieval question about one fact, or (--hard) the comparison across the person's three facts.
+const retrieval = (f) => ({
+  question: `what is the door code of ${f.place}?`,
+  check: (text) => text.includes(f.value) && !(HARD && text.includes(f.old)),
+});
+const comparison = (facts) => {
+  const best = facts.reduce((a, b) => (Number(b.value) > Number(a.value) ? b : a));
+  return {
+    question: 'of the places whose current door codes the document gives, which one has the highest current door code? Answer with the place name only.',
+    check: (text) => text.includes(best.place.replace(/^the /, '')),
+  };
+};
+
+async function ask(doc, q) {
   const body = {
     model, max_tokens: THINK === 'on' ? 4096 : 200, temperature: 0.2,
-    messages: [{ role: 'user', content: `Here is a document:\n\n${doc}\n\nAnswer from the document only, in one short sentence: what is the door code of ${f.place}?` }],
+    messages: [{ role: 'user', content: `Here is a document:\n\n${doc}\n\nAnswer from the document only, in one short sentence: ${q.question}` }],
   };
   if (THINK === 'off') { body.chat_template_kwargs = { enable_thinking: false }; body.think = false; }
   if (THINK === 'on') { body.chat_template_kwargs = { enable_thinking: true }; body.think = true; }
@@ -78,7 +101,7 @@ async function ask(doc, f) {
   if (r.status !== 200) return { ok: false, s, err: `HTTP ${r.status} ${r.body.slice(0, 200)}` };
   const j = JSON.parse(r.body);
   const text = (j.choices && j.choices[0].message.content) || '';
-  return { ok: true, s, found: text.includes(f.value), prompt: j.usage && j.usage.prompt_tokens, reply: text.slice(0, 160) };
+  return { ok: true, s, found: q.check(text), prompt: j.usage && j.usage.prompt_tokens, reply: text.slice(0, 160) };
 }
 
 const runs = [];
@@ -89,7 +112,8 @@ for (const size of SIZES) {
     const per = await Promise.all(Array.from({ length: people }, async (_, p) => {
       const { doc, facts } = documentFor(p, size);
       const out = [];
-      for (const f of facts) out.push({ depth: f.depth, ...(await ask(doc, f)) });
+      for (const f of facts) out.push({ depth: f.depth, ...(await ask(doc, retrieval(f))) });
+      if (HARD) out.push({ depth: 'compare', ...(await ask(doc, comparison(facts))) });
       return out;
     }));
     const all = per.flat();
@@ -98,7 +122,7 @@ for (const size of SIZES) {
     const secs = ok.map((a) => a.s).sort((a, b) => a - b);
     const row = {
       size, people, asked: all.length, errors: all.length - ok.length, found,
-      byDepth: Object.fromEntries(DEPTHS.map((d) => [d, `${ok.filter((a) => a.depth === d && a.found).length}/${all.filter((a) => a.depth === d).length}`])),
+      byDepth: Object.fromEntries([...DEPTHS, ...(HARD ? ['compare'] : [])].map((d) => [d, `${ok.filter((a) => a.depth === d && a.found).length}/${all.filter((a) => a.depth === d).length}`])),
       promptTokens: ok.map((a) => a.prompt).filter(Boolean),
       secondsMedian: secs.length ? +secs[Math.floor(secs.length / 2)].toFixed(1) : null,
       secondsWorst: secs.length ? +secs[secs.length - 1].toFixed(1) : null,
@@ -110,6 +134,6 @@ for (const size of SIZES) {
   }
 }
 const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*/, '').replace('T', '-');
-const out = path.join(ROOT, 'docs', 'spike', 'results', `${LABEL}__rag__think-${THINK}__${stamp}.json`);
-fs.writeFileSync(out, JSON.stringify({ kind: 'rag', label: LABEL, model, base, thinking: THINK, sizes: SIZES, people: PEOPLE, depths: DEPTHS, runs }, null, 1));
+const out = path.join(ROOT, 'docs', 'spike', 'results', `${LABEL}__rag${HARD ? '-hard' : ''}__think-${THINK}__${stamp}.json`);
+fs.writeFileSync(out, JSON.stringify({ kind: HARD ? 'rag-hard' : 'rag', label: LABEL, model, base, thinking: THINK, sizes: SIZES, people: PEOPLE, depths: DEPTHS, runs }, null, 1));
 console.log(`[rag] -> ${out}`);

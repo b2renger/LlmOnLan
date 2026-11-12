@@ -87,6 +87,11 @@ teacher, in person.
 ## 7. Build order, once decided
 
 1. The event lists and the day's buffer on the client, with the shape test; **Save a usage report** (decision 5).
+   **Built 2026-11-12** (not released yet): `shell/renderer/chat/core/usage.mjs` (frozen lists, storage passed in, a
+   pure module), its hooks (`app.js` the surface switch, `chat/main.mjs` a reply's end, `computer/host.mjs` a run's end),
+   Preferences ▸ Usage report; tests `usage.test.mjs` (hostile names, values, box types and planted storage) and the
+   harness's `k29-usage`. **Left out:** which templates were opened (level 1 lists them): a shipped template's id would
+   need its own fixed list; it waits for a look at the first reports.
 2. With decision 1 accepted: the Preferences switches and *Show what would be sent*; the farm's route, folder, 30-day
    deletion and panel page; `privacy.md`, `CLAUDE.md` and the client's About text changed in the same commits.
 3. A harness scenario that turns it on, runs a template, and checks the file on a scratch farm holds only listed

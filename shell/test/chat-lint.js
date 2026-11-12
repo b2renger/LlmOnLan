@@ -28,6 +28,7 @@ const CHAT_DIR = path.join(SHELL_DIR, 'renderer', 'chat');
 const PURE_MODULES = [
     // P0
     'core/ids.mjs', 'core/events.mjs', 'core/registry.mjs', 'core/i18n.mjs', 'core/types.mjs',
+    'core/usage.mjs',   // the usage report: storage passed in (2026-11-12)
     'render/md-block.mjs', 'render/md-inline.mjs', 'render/dom.mjs',
     'state/tree.mjs', 'state/migrate-v0.mjs',
     // P1

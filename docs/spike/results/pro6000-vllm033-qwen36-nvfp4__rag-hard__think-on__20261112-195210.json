@@ -1,0 +1,175 @@
+{
+ "kind": "rag-hard",
+ "label": "pro6000-vllm033-qwen36-nvfp4",
+ "model": "qwen36",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "on",
+ "sizes": [
+  30000,
+  60000
+ ],
+ "people": [
+  1,
+  8
+ ],
+ "depths": [
+  0.1,
+  0.5,
+  0.9
+ ],
+ "runs": [
+  {
+   "size": 30000,
+   "people": 1,
+   "asked": 4,
+   "errors": 0,
+   "found": 4,
+   "byDepth": {
+    "0.1": "1/1",
+    "0.5": "1/1",
+    "0.9": "1/1",
+    "compare": "1/1"
+   },
+   "promptTokens": [
+    30659,
+    30660,
+    30659,
+    30676
+   ],
+   "secondsMedian": 4,
+   "secondsWorst": 9.9,
+   "wallSeconds": 19.3,
+   "misses": []
+  },
+  {
+   "size": 30000,
+   "people": 8,
+   "asked": 32,
+   "errors": 0,
+   "found": 31,
+   "byDepth": {
+    "0.1": "8/8",
+    "0.5": "8/8",
+    "0.9": "7/8",
+    "compare": "8/8"
+   },
+   "promptTokens": [
+    30659,
+    30660,
+    30659,
+    30676,
+    28304,
+    28303,
+    28303,
+    28320,
+    24898,
+    24898,
+    24898,
+    24915,
+    25950,
+    25950,
+    25951,
+    25967,
+    28607,
+    28608,
+    28607,
+    28624,
+    27645,
+    27644,
+    27645,
+    27661,
+    25540,
+    25541,
+    25540,
+    25557,
+    26028,
+    26027,
+    26027,
+    26044
+   ],
+   "secondsMedian": 7.6,
+   "secondsWorst": 14.8,
+   "wallSeconds": 36.8,
+   "misses": [
+    {
+     "depth": 0.9,
+     "reply": "\n\nAccording to the document, the Nantes lab's door code is no longer valid, with earlier codes listed as 6111, 2972, and 7204."
+    }
+   ]
+  },
+  {
+   "size": 60000,
+   "people": 1,
+   "asked": 4,
+   "errors": 0,
+   "found": 4,
+   "byDepth": {
+    "0.1": "1/1",
+    "0.5": "1/1",
+    "0.9": "1/1",
+    "compare": "1/1"
+   },
+   "promptTokens": [
+    58965,
+    58966,
+    58965,
+    58982
+   ],
+   "secondsMedian": 3.8,
+   "secondsWorst": 9.3,
+   "wallSeconds": 19.2,
+   "misses": []
+  },
+  {
+   "size": 60000,
+   "people": 8,
+   "asked": 32,
+   "errors": 0,
+   "found": 32,
+   "byDepth": {
+    "0.1": "8/8",
+    "0.5": "8/8",
+    "0.9": "8/8",
+    "compare": "8/8"
+   },
+   "promptTokens": [
+    58965,
+    58966,
+    58965,
+    58982,
+    55944,
+    55943,
+    55943,
+    55960,
+    50315,
+    50315,
+    50315,
+    50332,
+    51767,
+    51767,
+    51768,
+    51784,
+    56008,
+    56009,
+    56008,
+    56025,
+    49926,
+    49925,
+    49926,
+    49942,
+    51802,
+    51803,
+    51802,
+    51819,
+    56548,
+    56547,
+    56547,
+    56564
+   ],
+   "secondsMedian": 9.1,
+   "secondsWorst": 25.2,
+   "wallSeconds": 41.8,
+   "misses": []
+  }
+ ]
+}

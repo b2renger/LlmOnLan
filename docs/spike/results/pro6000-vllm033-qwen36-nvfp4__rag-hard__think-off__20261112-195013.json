@@ -1,0 +1,567 @@
+{
+ "kind": "rag-hard",
+ "label": "pro6000-vllm033-qwen36-nvfp4",
+ "model": "qwen36",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "off",
+ "sizes": [
+  30000,
+  60000
+ ],
+ "people": [
+  1,
+  8,
+  16
+ ],
+ "depths": [
+  0.1,
+  0.5,
+  0.9
+ ],
+ "runs": [
+  {
+   "size": 30000,
+   "people": 1,
+   "asked": 4,
+   "errors": 0,
+   "found": 3,
+   "byDepth": {
+    "0.1": "1/1",
+    "0.5": "1/1",
+    "0.9": "1/1",
+    "compare": "0/1"
+   },
+   "promptTokens": [
+    30661,
+    30662,
+    30661,
+    30678
+   ],
+   "secondsMedian": 0.2,
+   "secondsWorst": 1.1,
+   "wallSeconds": 1.6,
+   "misses": [
+    {
+     "depth": "compare",
+     "reply": "Brest studio"
+    }
+   ]
+  },
+  {
+   "size": 30000,
+   "people": 8,
+   "asked": 32,
+   "errors": 0,
+   "found": 22,
+   "byDepth": {
+    "0.1": "8/8",
+    "0.5": "8/8",
+    "0.9": "6/8",
+    "compare": "0/8"
+   },
+   "promptTokens": [
+    30661,
+    30662,
+    30661,
+    30678,
+    28306,
+    28305,
+    28305,
+    28322,
+    24900,
+    24900,
+    24900,
+    24917,
+    25952,
+    25952,
+    25953,
+    25969,
+    28609,
+    28610,
+    28609,
+    28626,
+    27647,
+    27646,
+    27647,
+    27663,
+    25542,
+    25543,
+    25542,
+    25559,
+    26030,
+    26029,
+    26029,
+    26046
+   ],
+   "secondsMedian": 0.5,
+   "secondsWorst": 5.9,
+   "wallSeconds": 6.9,
+   "misses": [
+    {
+     "depth": "compare",
+     "reply": "Brest studio"
+    },
+    {
+     "depth": "compare",
+     "reply": "Brest studio"
+    },
+    {
+     "depth": "compare",
+     "reply": "Nantes"
+    },
+    {
+     "depth": "compare",
+     "reply": "Rennes"
+    },
+    {
+     "depth": "compare",
+     "reply": "Rennes"
+    },
+    {
+     "depth": "compare",
+     "reply": "Dijon atelier"
+    },
+    {
+     "depth": 0.9,
+     "reply": "The door code of the Nantes lab was 6111, but it is no longer valid."
+    },
+    {
+     "depth": "compare",
+     "reply": "Nantes lab"
+    },
+    {
+     "depth": 0.9,
+     "reply": "The door code of the Lille room was 6142, but it is no longer valid."
+    },
+    {
+     "depth": "compare",
+     "reply": "Nantes lab"
+    }
+   ]
+  },
+  {
+   "size": 30000,
+   "people": 16,
+   "asked": 64,
+   "errors": 0,
+   "found": 48,
+   "byDepth": {
+    "0.1": "16/16",
+    "0.5": "16/16",
+    "0.9": "11/16",
+    "compare": "5/16"
+   },
+   "promptTokens": [
+    30661,
+    30662,
+    30661,
+    30678,
+    28306,
+    28305,
+    28305,
+    28322,
+    24900,
+    24900,
+    24900,
+    24917,
+    25952,
+    25952,
+    25953,
+    25969,
+    28609,
+    28610,
+    28609,
+    28626,
+    27647,
+    27646,
+    27647,
+    27663,
+    25542,
+    25543,
+    25542,
+    25559,
+    26030,
+    26029,
+    26029,
+    26046,
+    28200,
+    28200,
+    28200,
+    28217,
+    24943,
+    24943,
+    24944,
+    24960,
+    26030,
+    26031,
+    26030,
+    26047,
+    29186,
+    29185,
+    29186,
+    29202,
+    27993,
+    27994,
+    27993,
+    28010,
+    25287,
+    25286,
+    25286,
+    25303,
+    25894,
+    25894,
+    25894,
+    25911,
+    28140,
+    28140,
+    28141,
+    28157
+   ],
+   "secondsMedian": 0.9,
+   "secondsWorst": 7.8,
+   "wallSeconds": 9.3,
+   "misses": [
+    {
+     "depth": "compare",
+     "reply": "Lyon workshop"
+    },
+    {
+     "depth": "compare",
+     "reply": "Brest studio"
+    },
+    {
+     "depth": 0.9,
+     "reply": "The door code of the Rennes class was 5987."
+    },
+    {
+     "depth": "compare",
+     "reply": "Dijon atelier"
+    },
+    {
+     "depth": "compare",
+     "reply": "Rennes"
+    },
+    {
+     "depth": "compare",
+     "reply": "Dijon atelier"
+    },
+    {
+     "depth": 0.9,
+     "reply": "An earlier door code of the Nantes lab, no longer valid, was 6111."
+    },
+    {
+     "depth": "compare",
+     "reply": "the Brest studio"
+    },
+    {
+     "depth": 0.9,
+     "reply": "The door code of the Lille room was 6142, which is no longer valid."
+    },
+    {
+     "depth": "compare",
+     "reply": "Rennes"
+    },
+    {
+     "depth": "compare",
+     "reply": "Rennes"
+    },
+    {
+     "depth": "compare",
+     "reply": "Rennes"
+    },
+    {
+     "depth": 0.9,
+     "reply": "The door code of the Brest studio is 6266."
+    },
+    {
+     "depth": "compare",
+     "reply": "Lyon workshop"
+    },
+    {
+     "depth": 0.9,
+     "reply": "The door code of the Rennes class is 6359, which is noted as an earlier code that is no longer valid."
+    },
+    {
+     "depth": "compare",
+     "reply": "Lille room"
+    }
+   ]
+  },
+  {
+   "size": 60000,
+   "people": 1,
+   "asked": 4,
+   "errors": 0,
+   "found": 3,
+   "byDepth": {
+    "0.1": "1/1",
+    "0.5": "1/1",
+    "0.9": "1/1",
+    "compare": "0/1"
+   },
+   "promptTokens": [
+    58967,
+    58968,
+    58967,
+    58984
+   ],
+   "secondsMedian": 0.3,
+   "secondsWorst": 2.4,
+   "wallSeconds": 3.1,
+   "misses": [
+    {
+     "depth": "compare",
+     "reply": "Lyon workshop"
+    }
+   ]
+  },
+  {
+   "size": 60000,
+   "people": 8,
+   "asked": 32,
+   "errors": 0,
+   "found": 22,
+   "byDepth": {
+    "0.1": "8/8",
+    "0.5": "8/8",
+    "0.9": "4/8",
+    "compare": "2/8"
+   },
+   "promptTokens": [
+    58967,
+    58968,
+    58967,
+    58984,
+    55946,
+    55945,
+    55945,
+    55962,
+    50317,
+    50317,
+    50317,
+    50334,
+    51769,
+    51769,
+    51770,
+    51786,
+    56010,
+    56011,
+    56010,
+    56027,
+    49928,
+    49927,
+    49928,
+    49944,
+    51804,
+    51805,
+    51804,
+    51821,
+    56550,
+    56549,
+    56549,
+    56566
+   ],
+   "secondsMedian": 0.9,
+   "secondsWorst": 14.7,
+   "wallSeconds": 16.8,
+   "misses": [
+    {
+     "depth": "compare",
+     "reply": "Lyon workshop"
+    },
+    {
+     "depth": 0.9,
+     "reply": "An earlier door code of the Rennes class, no longer valid, was 8987."
+    },
+    {
+     "depth": "compare",
+     "reply": "the Rennes class"
+    },
+    {
+     "depth": 0.9,
+     "reply": "The door code of the Dijon atelier was 9018."
+    },
+    {
+     "depth": "compare",
+     "reply": "Rennes"
+    },
+    {
+     "depth": "compare",
+     "reply": "Rennes"
+    },
+    {
+     "depth": 0.9,
+     "reply": "An earlier door code of the Brest studio, no longer valid, was 9080."
+    },
+    {
+     "depth": "compare",
+     "reply": "the Lyon workshop"
+    },
+    {
+     "depth": 0.9,
+     "reply": "The door code of the Lille room is 9142."
+    },
+    {
+     "depth": "compare",
+     "reply": "Nantes lab"
+    }
+   ]
+  },
+  {
+   "size": 60000,
+   "people": 16,
+   "asked": 64,
+   "errors": 0,
+   "found": 46,
+   "byDepth": {
+    "0.1": "16/16",
+    "0.5": "15/16",
+    "0.9": "12/16",
+    "compare": "3/16"
+   },
+   "promptTokens": [
+    58967,
+    58968,
+    58967,
+    58984,
+    55946,
+    55945,
+    55945,
+    55962,
+    50317,
+    50317,
+    50317,
+    50334,
+    51769,
+    51769,
+    51770,
+    51786,
+    56010,
+    56011,
+    56010,
+    56027,
+    49928,
+    49927,
+    49928,
+    49944,
+    51804,
+    51805,
+    51804,
+    51821,
+    56550,
+    56549,
+    56549,
+    56566,
+    50314,
+    50314,
+    50314,
+    50331,
+    51940,
+    51940,
+    51941,
+    51957,
+    57120,
+    57121,
+    57120,
+    57137,
+    50675,
+    50674,
+    50675,
+    50691,
+    51908,
+    51909,
+    51908,
+    51925,
+    56861,
+    56860,
+    56860,
+    56877,
+    51302,
+    51302,
+    51302,
+    51319,
+    51831,
+    51831,
+    51832,
+    51848
+   ],
+   "secondsMedian": 1.5,
+   "secondsWorst": 18.3,
+   "wallSeconds": 21.3,
+   "misses": [
+    {
+     "depth": "compare",
+     "reply": "Lyon workshop"
+    },
+    {
+     "depth": "compare",
+     "reply": "Brest studio"
+    },
+    {
+     "depth": 0.9,
+     "reply": "An earlier door code of the Rennes class, no longer valid, was 8987."
+    },
+    {
+     "depth": "compare",
+     "reply": "the Rennes class"
+    },
+    {
+     "depth": "compare",
+     "reply": "Rennes"
+    },
+    {
+     "depth": "compare",
+     "reply": "Rennes"
+    },
+    {
+     "depth": 0.9,
+     "reply": "An earlier door code of the Brest studio, no longer valid, was 9080."
+    },
+    {
+     "depth": "compare",
+     "reply": "Brest studio"
+    },
+    {
+     "depth": 0.9,
+     "reply": "The door code of the Lille room is 9142."
+    },
+    {
+     "depth": "compare",
+     "reply": "Nantes lab"
+    },
+    {
+     "depth": 0.5,
+     "reply": "The door code of the Rennes class is 1297."
+    },
+    {
+     "depth": "compare",
+     "reply": "Dijon atelier"
+    },
+    {
+     "depth": "compare",
+     "reply": "the Rennes class"
+    },
+    {
+     "depth": 0.9,
+     "reply": "The door code of the Brest studio was 9266."
+    },
+    {
+     "depth": "compare",
+     "reply": "The Dijon atelier"
+    },
+    {
+     "depth": "compare",
+     "reply": "The Brest studio"
+    },
+    {
+     "depth": "compare",
+     "reply": "Nantes lab"
+    },
+    {
+     "depth": "compare",
+     "reply": "the Rennes class"
+    }
+   ]
+  }
+ ]
+}

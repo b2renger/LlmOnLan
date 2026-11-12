@@ -55,6 +55,7 @@ $('theme-toggle').addEventListener('click', async () => {
 });
 
 // ---- preferences modal (M4) ----
+let usageVersion = '';   // the app's version, for the usage report's header (filled with About's)
 const prefs = {
   backdrop: $('prefs-backdrop'), close: $('prefs-close'),
   dataPath: $('data-path'), changeFolder: $('change-folder'), clientNote: $('data-client-note'),
@@ -100,6 +101,7 @@ async function refreshPrefs() {
   prefs.blenderPort.value = p.blenderPort || 9876;
   setBlenderStatus(p.blenderState, p.blenderMcp);
   prefs.verShell.textContent = 'v' + p.shellVersion;
+  usageVersion = p.shellVersion || '';
   // 'unknown' = the chat engine has not been downloaded yet (first run) — never print "vunknown".
   prefs.verOwui.textContent = p.owuiVersion === 'unknown' ? 'not installed yet' : 'v' + p.owuiVersion;
   const r = p.scanRange || {};
@@ -318,6 +320,17 @@ window.lol.onBlenderState(async (s) => {
   }
 });
 prefs.owuiLink.addEventListener('click', (e) => { e.preventDefault(); window.lol.openExternal('https://openwebui.com'); });
+
+// --- the usage report (chat/core/usage.mjs; docs/plans/INSIGHTS_PLAN.md §6.5): saved as a file the person picks ---
+$('pref-usage-save').addEventListener('click', async () => {
+  const status = $('pref-usage-status');
+  if (!window.lolUsage) { status.textContent = 'The report is not ready yet: try again in a moment.'; return; }
+  try {
+    const r = await window.lolUsage.save(usageVersion);
+    status.textContent = r && r.mode === 'clipboard' ? (r.ok ? 'Copied to the clipboard instead of a file.' : 'Not saved.')
+      : r && r.ok ? `Saved as ${r.filename}.` : 'Not saved.';
+  } catch (e) { status.textContent = 'Not saved: ' + (e && e.message ? e.message : e); }
+});
 
 // --- app self-update (electron-updater) ---
 prefs.checkApp.addEventListener('click', async () => {
@@ -1171,6 +1184,8 @@ function publishFarm() {
     document.body.dataset.view = view;
     for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === view));
     try { localStorage.setItem('lol:view', view); } catch (e) { /* private mode */ }
+    // The usage report (chat/core/usage.mjs): a fixed name per surface. Not yet there at the first show of a launch.
+    try { if (window.lolUsage) window.lolUsage.record({ owui: 'open.owui', chat: 'open.vibe', computer: 'open.computer' }[view]); } catch (e) { /* never in the way */ }
     publishFarm();
   }
   for (const b of document.querySelectorAll('[data-view]')) b.addEventListener('click', () => show(b.dataset.view));

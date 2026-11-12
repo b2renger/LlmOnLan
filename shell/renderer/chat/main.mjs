@@ -47,6 +47,8 @@
 
 import { flags, now } from './core/env.mjs';
 import { createApp } from './core/app.mjs';
+import { createUsage } from './core/usage.mjs';
+import { download } from './ui/transfer.mjs';
 import { EV } from './core/events.mjs';
 import { t } from './core/i18n.mjs';
 import { buildLayout, installDropGuard } from './ui/layout.mjs';
@@ -168,6 +170,23 @@ async function mount() {
   // 4.
   const app = createApp({ root, els });
   LolChat.app = app;
+
+  // 4b. The usage report (docs/plans/INSIGHTS_PLAN.md §6.5): counts in this window's storage (the data folder), never
+  // sent. app.js (the surface switch, Preferences ▸ Usage report) and the Computer's host.mjs reach it on window.
+  {
+    /** @type {any} */ let storage = null;
+    try { storage = window.localStorage; } catch { /* no storage: nothing is counted */ }
+    const usage = createUsage({ storage });
+    app.bus.on(EV.STREAM_END, (/** @type {any} */ p) => { try { usage.reply(p && p.message, p && p.result); } catch { /* never in the way */ } });
+    /** @type {any} */ (window).lolUsage = {
+      ...usage,
+      /** Save the report as a file the person picks. @param {string} appVersion */
+      save: (appVersion) => {
+        const rep = usage.report({ appVersion });
+        return download(`lol-usage-report-${rep.made}.json`, JSON.stringify(rep, null, 1), 'application/json', { app });
+      },
+    };
+  }
 
   // 5.
   installDropGuard(document);

@@ -6,6 +6,37 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-12 (20:58) — Qwen3.6's RAG baseline, a hard RAG check, and "Save a usage report"
+
+The owner (~20:40): carry on now, autonomously, no farm or client running. Two pieces of work:
+- **The RAG baseline** (research draft §4): Qwen3.6 served from `~/lol-vllm-033` (production's weights read) found every
+  planted fact at 30k and 60k with 1 to 16 people. Too easy to tell models apart, so `rag_check.mjs --hard` plants an outdated
+  value of each fact 30 % further on and adds a comparison question. Thinking off: the comparison right 10/49, the deep fact
+  33/48; thinking on: 71/72. Chats in Open WebUI think by default; the farm's quick tasks and the Computer's boxes do not.
+- **"Save a usage report"** (INSIGHTS_PLAN §6.5 / §7.1, approved 2026-11-12): `shell/renderer/chat/core/usage.mjs`, a pure
+  module (storage and clock passed in, in lint's pure list): per day, counts from a frozen list (`open.*`, `vibe.*`, `run.*`)
+  and timings (`vibe.first_word_ms`, `vibe.reply_ms`, `vibe.tokens_per_s`, `run.ms`) plus the Computer's box types from the
+  code's own registry; a name off the lists or a value that is not a finite number is never recorded; the report is built
+  from the lists, never copied from storage, so planted garbage cannot leak; kept 30 days; recording never throws. Hooks:
+  `app.js` (the surface switch), `chat/main.mjs` (`STREAM_END`, a local row skipped), `computer/host.mjs` (after a run, in a
+  try, no new await). Preferences ▸ **Usage report** says what is counted and saves the JSON through `transfer.mjs`
+  `download`. Nothing is sent; `privacy.md` says so. Templates opened: left out (a shipped id would need its own list).
+- **Tested:** `usage.test.mjs` 5/5 (hostile names, values, box types, planted storage, a throwing storage); harness
+  `k29-usage` passed after it caught a bug the unit test could not (`specMap()` is a Map: `Object.keys` gave no box
+  types); on the final tree (22:09) `npm run test:chat` 1,962 passed and lint 0 violations, after renaming `computer.*`
+  events to `run.*` (lint's string rule read them as text keys); `npm run test:unit` 30 passed. **Not exercised:** the save dialog and the surface counts
+  (the harness has no `app.js` and cannot click a native dialog): HUMAN_TESTS **A24**. One harness test skipped for a reason
+  of its own: ComfyQ's checkout at `E:/ComfyQ` moved to 8d27899 (the committed prompts come from 5d19e35).
+- **The harness's `k` family did not pass** (175 then 174 of 217; 216/216 on 6 November): from the first scenario that
+  starts the Computer's sandbox, every sandbox scenario failed with *The sandbox could not start*, just past the 3,000 ms
+  boot limit, and every other passed. Ruled out with controls: the evening's changes (`k5` failed the same with them
+  stashed), importing a graph first (the 500x200 scenario fails alone), RAM (105 GB free). A GPU nearly full was my first
+  explanation and a free-GPU run contradicted it. `--phase k8` passes 35/35 (its first boot succeeds). Likely mechanism, not
+  proven in code: a page's first boot overruns 3 s and the host keeps `disabled` for the page. Filed with its repro
+  (`docs/plans/README.md` ▸ 4 ▸ The Computer); the usage report does not depend on it.
+
+---
+
 ## 2026-11-12 (20:17) — The model survey, the fit, and tonight's two downloads
 
 Tonight's research (the owner, 19:58), its daytime half. Three read-only Haiku readers surveyed new open-weight models, the

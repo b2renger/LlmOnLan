@@ -473,6 +473,11 @@ export function createHost(app, els) {
     // `only` here is gone — it called the same `activeSet`, so it was harmless, but it hid where
     // the entry point actually lives.
     const report = await runner.run(o);
+    // The usage report (core/usage.mjs, chat/main.mjs makes it): counts and box types from the code's own lists.
+    try {
+      const usage = /** @type {any} */ (globalThis).lolUsage;
+      if (usage && !(report && report.cycle)) { usage.setBoxTypes([...specMap().keys()]); usage.run(report, session.doc()); }
+    } catch { /* counting never stops a run */ }
     // A refused run activates nothing, so it consumes no press. Same rule as above: the
     // authorisation dies with the wave it was for, rather than waiting to open a gate by itself.
     if (report && report.cycle) clearPresses();

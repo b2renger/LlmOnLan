@@ -287,6 +287,19 @@ sensor for step 2. *Was:* new (review 2026-11-05).
    *Pass:* it reads `(hidden: a place)`, with no street, postal code or town. Ask where a person is, while their phone is
    in a zone of your home's (work, a school). *Pass:* `not_home`, never the zone's name or coordinates; at home, `home`.
 
+### A24 The usage report holds counts, never words
+*Proves:* Preferences ▸ Usage report saves a file through the system's save dialog, and the surface switch counts (the
+harness covers the rest: `k29-usage`). *Needs:* a client after the next release (not released yet), 5 minutes.
+*Was:* new (2026-11-12, INSIGHTS_PLAN §6.5).
+
+1. Open Open WebUI, then LOL Vibe, then the Computer. In LOL Vibe ask one question; in the Computer run one template.
+2. Preferences ▸ Usage report ▸ **Save a usage report…**; save the file; open it in a text editor.
+
+*Expect:* a save dialog, then *Saved as lol-usage-report-<date>.json*. The file has today's date with `open.owui`,
+`open.vibe` and `open.computer` (1 each, or more), `vibe.reply` 1 with `vibe.first_word_ms`, `run.done` 1 and the box
+types of the template under `boxesRun`. **No** word of your question, of the reply or of the graph anywhere in it.
+- [ ] Done · Found:
+
 ### A10 Code, pictures and files
 *Proves:* the sandbox and the File box on a real disk. *Was:* 3.1, 3.5, 3.6, 3.9; LOLCHAT_RIG §15, §15b, §18 (a paused
 sandbox); COMPUTER_STATUS "What only you can check" 3 and 8.

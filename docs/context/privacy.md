@@ -7,7 +7,11 @@
 
 - **On the device, all under `DATA_DIR`:** every conversation, folder, prompt, document, and RAG vector
   (OWUI's); LOL Vibe's history and the Computer's graphs and media (the main window's session,
-  `DATA_DIR/lol-client`); the Computer's File-box outputs (`DATA_DIR/LOL Studio Projects`). The vectors are kept
+  `DATA_DIR/lol-client`); the Computer's File-box outputs (`DATA_DIR/LOL Studio Projects`); and, since 2026-11-12 (not
+  released yet), the **usage counts** (`chat/core/usage.mjs`, in the same session's storage): per day, which surface was
+  opened, how LOL Vibe's replies ended and their timings, the Computer's runs and the box types they used, numbers and
+  names from fixed lists only, kept 30 days, counted for everyone from the update on, and **sent nowhere**: a person
+  saves them as a file from Preferences ▸ Usage report and gives that file to whom they choose. The vectors are kept
   here; the farm's document search computes them (MiniLM on this computer for a folder that has not met it yet),
   and which model a folder uses is written in `DATA_DIR/lol-embedding.json`. Outside DATA_DIR, under userData, only app plumbing: settings, the downloaded engine,
   OWUI's webview token/caches, logs (`logs/boot.log`, `logs/client-data.log`, the Computer's opt-in recordings), and
