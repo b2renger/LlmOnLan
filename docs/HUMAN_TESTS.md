@@ -48,7 +48,7 @@ The owner released these builds for a phase of human testing (2026-11-09): ★ m
 | 2 | The K test box | **K1**, **K2** (farm-v0.0.51 → farm-v0.0.52), **K3**, **K4**, **K5**, **K11**, **K12** | about 4 h | every operator's update path, over a held file (`serve.sh` changed in farm-v0.0.51); llama.cpp b11836 and document search's first start were never run from an installed Farm app; small cards are told the truth |
 | 3 | A laptop on client v0.2.15, and a fresh one | **A1**, **B1**, **C1** (from v0.2.15), **C2**, **G11**, **I1**–**I4** | about 5 h | day one and the update; G11: the coding agent's fence fails closed (security); I1–I4: the document privacy rule of 2026-10-08 on real laptops |
 | 4 | The fixes v0.2.16 brings | **A21**, **A22**, **A23**, **A18** step 5, **C7**, **D16**, **D17**, **G13** | about 3 h, + 3 h of waiting for G13 | each checks one fix that build brings: Open WebUI's links and the microphone, a move into a folder that holds data, the password through a farm restart, a schedule above an hour, a first plugin install that froze the farm |
-| 5 | The default model (farm-v0.0.53, not released yet) | **K14**, **K15** | about 3 h (mostly downloads: 27 GB) | the owner's ask of 2026-11-10: a farm that starts as Balanced on a model that reads documents, sees pictures and codes a little, on 24 GB and above; measured only on a scratch farm |
+| 5 | The default model (farm-v0.0.53) | **K14**, **K15** | about 3 h (mostly downloads: 27 GB) | the owner's ask of 2026-11-10: a farm that starts as Balanced on a model that reads documents, sees pictures and codes a little, on 24 GB and above; measured only on a scratch farm |
 
 **Proposed off the ★:** I5 (the MiniLM path is the fallback of a folder that never met document search); J1 (vLLM has
 been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the owner's question 12); J2–J4
@@ -1862,7 +1862,7 @@ error may show, without its address.
 
 ### K14 ★ A fresh farm starts as Balanced: documents, a picture, a little code
 *Proves:* the shipped default (owner 2026-11-10: "rag on documents, describe an image, code a little; GPUs of 24 GB and
-above") on a clean box. *Needs:* farm-v0.0.53+ (not released yet), a clean PC with an NVIDIA card of 24 GB or more (a 32
+above") on a clean box. *Needs:* farm-v0.0.53+, a clean PC with an NVIDIA card of 24 GB or more (a 32
 or 48 GB one too, if there is one), a laptop on the release under test. *Was:* new (DEVLOG 2026-11-10 12:08: measured on a
 scratch farm on the PRO 6000, never from the installed Farm app).
 1. Install the Farm app; go through the wizard (about 27 GB to download).

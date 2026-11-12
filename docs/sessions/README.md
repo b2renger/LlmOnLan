@@ -11,7 +11,9 @@ session, and it outranks the summary's own "Next". Answer a question under "Ques
 ```markdown
 # Session 2026-11-12 (n° 1)
 
-**Ran:** 10:05 to 12:40, by day with the owner. **Model:** Fable 5.2. **Branch:** multiuser-phase0, abc1234 → def5678.
+**Ran:** 02:00 to 06:55, by night. **Model:** Sonnet 5.5. **Branch:** main, abc1234 → def5678 (not pushed).
+
+**RELEASE READY** (only when it is): what the unpushed work brings, and the HUMAN_TESTS to run before the tag.
 
 ## Done
 - What changed, each with its evidence: the test that passed, the number measured, the commit.

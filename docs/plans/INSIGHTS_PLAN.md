@@ -1,7 +1,7 @@
 # Insights plan: what the sessions may see of how LlmOnLan is used
 
-**Status: a proposal. Nothing is built. It waits for the owner's decisions in §6**, the first of which changes the
-project's central promise. Written 2026-11-12 (session 1).
+**Status:** the owner said yes to §6.5 on 2026-11-12: **build "Save a usage report" first** (a file on the person's own
+computer, nothing sent). Decisions 1 to 4, which change the project's central promise, still wait. Written 2026-11-12 (session 1).
 
 ## 1. The ask (owner, 2026-11-12)
 

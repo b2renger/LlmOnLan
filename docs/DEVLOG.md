@@ -6,6 +6,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-12 (10:32) — Release client v0.2.17 and Farm app farm-v0.0.53 (the owner's go)
+
+The owner, on the work of 2026-11-10: *"go then"*. Also from the owner today: sessions run five hours, 02:00 to 07:00, from a
+cron on the Claude Code session left open; work is committed on `main` and never pushed by a session; a session flags
+`RELEASE READY` in its summary and a person tests before a tag; the GPU may be used beside the live farm, clients connected or
+not; "Save a usage report" (INSIGHTS_PLAN §6.5) is to be built first. Written into CLAUDE.md and the skills.
+- **Client v0.2.17:** the chat engine and the coding agent are found by their download links, never the GitHub API (60
+  requests an hour for a whole school behind one address).
+- **Farm app farm-v0.0.53:** the same for its update check and its wizard's downloads; the farm ships **Gemma 4 26B** for
+  documents, pictures and a little code on GPUs of 24 GB and above, with Gemma 4 12B kept to read scanned pages beside vLLM;
+  **Balanced** brings a farm to it; reading documents beside llama.cpp uses the 8 GB reader while the default is the shipped one.
+- **Before the tags**, on the tree released: `farm/test/run.js` 288 passed; the Farm app's `npm test` 11 + 3; the client's
+  `npm run test:chat` 1,958 passed, lint 0 violations.
+- **For a person, after it:** HUMAN_TESTS K14 and K15 (★ row 5), and N4 on the school's network.
+
 ## 2026-11-12 (10:20) — The work runs in sessions; CLAUDE.md becomes a core and eleven context modules
 
 The owner: daily sessions that read the five last dated summaries and write one; Sonnet 5.5 runs, three read-only Haiku 5.5

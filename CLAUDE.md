@@ -14,8 +14,8 @@
 
 **The aim** (owner, 2026-11-12): teachers use it, and it shows that a small compute cluster gives a school fast, local AI.
 
-**Status:** released client `v0.2.16` (Open WebUI `0.11.4`) and Farm app `farm-v0.0.52`. `main` is the last release;
-work goes on `multiuser-phase0`. What is released, verified and still to check: [docs/context/status.md](docs/context/status.md).
+**Status:** released client `v0.2.17` (Open WebUI `0.11.4`) and Farm app `farm-v0.0.53` (2026-11-12). Work is committed
+on `main` in this checkout and not pushed: `origin/main` is the last release. What is released, verified and still to check: [docs/context/status.md](docs/context/status.md).
 
 This file is the core every session loads. The detail lives in **context modules** (the table below): read the ones
 your task touches before you act, and no others.
@@ -101,7 +101,8 @@ that is in no module and not in the code is not a fact yet.
 
 ### Sessions (owner, 2026-11-12)
 
-The work runs in **sessions**, by night when the owner schedules them and by day when the owner opens one. The thread
+The work runs in **sessions** of five hours: by night, 02:00 to 07:00, from a cron on the Claude Code session the owner
+leaves open (it dies with that session; the owner asks for it again), and by day when the owner opens one. The thread
 the owner and Claude share is [docs/sessions/](docs/sessions/README.md), one dated summary per session.
 
 1. **Start:** read the five last summaries, and any line the owner wrote in them (`> owner:`): it outranks the summary's
@@ -111,7 +112,12 @@ the owner and Claude share is [docs/sessions/](docs/sessions/README.md), one dat
    and harnesses that matter to us; write a plan; build a plan that is ready; test what was built; update the docs and
    the in-app help and tutorials; commit along the way.
 3. **End:** write the summary: what was done, with the evidence; what was not, and why; the next logical step; the
-   questions for the owner. Then commit and push it.
+   questions for the owner. Then commit it.
+
+**Commits, pushes and releases:** a session commits on `main` and **never pushes**. A push to `origin/main` with a tag
+builds installers people update to, so a person tests first. When the unpushed work is worth a release, the summary
+**opens** with a line `RELEASE READY` saying what it brings and which HUMAN_TESTS a person should run before; the owner
+tests, says go, and the release is then cut ([docs/context/release.md](docs/context/release.md)).
 4. **Every fifth session** is an adversarial review of the code, the docs and the in-app documentation and tutorials
    (the skill `lol-review`), in place of building.
 
@@ -128,13 +134,19 @@ the code or by running it, and say what was not checked.
 
 **Consult the advisor at three moments, and only these:** before a plan locks; when the same error shows up twice;
 before calling a task done. Explorers return facts with `file:line`; the session checks a fact before it builds on it.
-Parallel agents beyond the three explorers need the owner's yes for that run.
+Parallel agents beyond the three explorers need the owner's yes for that run. Fable 5.2 (4× Sonnet's price) is not in
+the routine; the owner may switch a review session to it.
+
+Small forks (which file, which tool, retry or stop) stay the session's own: inside Claude Code a separate decision model
+costs a tool call for each answer, more than the decision. Where a script of ours needs a decision model, it is the
+farm's local one, Classify (Laya), never a cloud one.
 
 ### What a session never does without the owner
 
-- Cut a release or a tag, or move `main`. Work is committed and pushed on `multiuser-phase0`.
+- Push, tag or release (above).
 - Stop, restart or reconfigure the farm people use (the Farm app on this computer, its vLLM in `~/lol-vllm`, its
-  config and data), the owner's client and its data folder, the Ollama desktop app, ComfyUI.
+  config and data), the owner's client and its data folder, the Ollama desktop app, ComfyUI. A session **may** load
+  models on the GPU beside the live farm, with clients connected or not (owner 2026-11-12).
 - Delete anything outside the session's own scratch folder; work around a refused permission.
 - Break or reword a line of the prime directive or the privacy boundary: stop, and write the question in the summary.
 - Post to another project (an issue, a pull request, a comment), or send anything to a service the docs do not name.

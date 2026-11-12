@@ -7,7 +7,7 @@
   beacon + `/lol/self`). **Four engines behind one LiteLLM endpoint, exactly one serving at a time**
   (owner decisions 2026-08-26/27, 09-07, 10-07), resolved by `engineOf` (`litellm.js`: external > vllm > llama.cpp >
   Ollama); the panel switches between Ollama, llama.cpp and vLLM:
-  - **Ollama — the default.** Serves the `models` catalog, default **`gemma4:26b`** since 2026-11-10 (not released yet;
+  - **Ollama — the default.** Serves the `models` catalog, default **`gemma4:26b`** since 2026-11-10 (farm-v0.0.53;
     owner: "documents, describe an image, code a little; GPUs of 24 GB and above"): Gemma 4 26B-A4B Q4_K_M, vision-native
     and also the OCR model, measured on Ollama 0.33.0 at 28/28 on the spike's check with thinking on and off, 14/15 with
     the coding agent, two people at about 48k each on a 24 GB card (20.6 GiB at 32k each, 22.0 at 64k, 24.8 at 128k);
@@ -157,7 +157,7 @@
     vLLM's shipped model and context (the card's best vLLM pick when that one is not in the list or does not fit) where
     vLLM is set up on a GPU the capacity page knows, else the model the farm ships for Ollama (`gemma4:26b`, made the
     default IN PLACE OF the old one and downloaded first when missing, its context measured inside the job; 2026-11-10,
-    not released yet: until then Ollama's default, whatever it was), so a farm serving llama.cpp switches to Ollama; the
+    farm-v0.0.53: until then Ollama's default, whatever it was), so a farm serving llama.cpp switches to Ollama; the
     shipped plugins), **Documents** (`rag`: the MOST PEOPLE at 64k among models good enough for documents — `GATE_FLOOR`, 25/28
     or more on every run of the spike's check — document reading on), **LOL Vibe** (`vibe`: the most people at 64k among
     models PROVEN WITH THE IDE'S CODING AGENT — `AGENT_PROVEN`: Qwen3.6, 11/15 on the five tasks, and since 2026-11-09

@@ -3,13 +3,13 @@
 > Moved verbatim from CLAUDE.md on 2026-11-12 (the split into context modules). It describes `main` unless a line
 > names a release or says *not released yet*. Keep it true: a change to the code it describes changes this file in the same commit.
 
-## Build status (2026-11-09) — released: client `v0.2.16` (OWUI `0.11.4`) · Farm app `farm-v0.0.52`
+## Build status (2026-11-12) — released: client `v0.2.17` (OWUI `0.11.4`) · Farm app `farm-v0.0.53`
 
 > What each release brought, from v0.2.0 on: the DEVLOG's release entries ([docs/DEVLOG.md](../../docs/DEVLOG.md), headed
 > "Release …"; v0.2.5 is in its 2026-09-29 afternoon entry, farm-v0.0.47 and 0.0.48 in its 2026-10-13 ones).
-> `main` = the last release (client v0.2.16 and Farm app farm-v0.0.52, 2026-11-09, a release for a phase of human
-> testing); work goes on `multiuser-phase0` and its feature branches. The bullets below describe `main`; a change from 2026-11-05
-> on names the release that brought it.
+> `origin/main` = the last release (client v0.2.17 and Farm app farm-v0.0.53, 2026-11-12). Since that day the work is
+> committed on `main` in the owner's checkout and not pushed until a release (CLAUDE.md, *How we work*). The modules
+> describe the code; a change from 2026-11-05 on names the release that brought it.
 
 The full plan is built, released and in multi-user testing. Where to look: the map of the docs,
 [docs/README.md](../../docs/README.md); the dated build log with how each piece was tested, [docs/DEVLOG.md](../../docs/DEVLOG.md);

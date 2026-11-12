@@ -68,7 +68,9 @@ folder, with the farm's settings:
 - Run WSL scripts through PowerShell (`wsl.exe -d Ubuntu -- bash /mnt/c/...`): Git Bash rewrites `/mnt/...` paths
   (or set `MSYS_NO_PATHCONV=1`). PowerShell 5.1 mangles double quotes inside an argument to `wsl.exe`: use none.
 - A detached `nohup … &` in WSL dies when the session closes: run long jobs as a tracked background command.
-- The GPU is shared with the live farm: never touch its memory, and measure capacity only when `usage.clients` is 0.
+- The GPU is shared with the live farm. You may load models beside it, with clients connected or not (owner
+  2026-11-12); never free or touch the live farm's own memory. A speed or capacity number taken while `usage.clients`
+  is above 0 says so in its notes: other people's requests share the GPU.
 
 ## The client
 

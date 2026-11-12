@@ -41,7 +41,7 @@
    (`vllm.js` `spawnScript`), never as "WSL did not answer". `farm-app/test/copytree.test.js` runs under Electron.
    Released on `farm-v*` tags as GitHub prereleases (Windows x64, macOS arm64, Linux arm64 AppImage). No
    electron-updater: the app looks for a newer `farm-v*` release (at launch when enabled, or on demand) and
-   opens its download page; **installing is manual**. **No GitHub API in the hot paths** (2026-11-10, not released yet):
+   opens its download page; **installing is manual**. **No GitHub API in the hot paths** (2026-11-10, v0.2.17 and farm-v0.0.53):
    it allows 60 requests an hour to a whole network behind one public address, and the school's ran out (*GitHub API
    403*). The update check reads `releases.atom` (the API only when its 10 newest hold no farm release); the wizard
    downloads the pinned Python and Ollama by their names (`releases/download/<pin>/<file>`, the API if that fails); the

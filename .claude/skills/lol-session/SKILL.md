@@ -1,7 +1,7 @@
 ---
 name: lol-session
 description: Runs one LlmOnLan work session from start to end - reads the five last session summaries, picks the work, does it with tests and evidence, and writes the dated summary. Use it when a scheduled night session starts, or when the owner says "start a session".
-argument-hint: "[hours, default 3] [focus, optional]"
+argument-hint: "[hours, default 5] [focus, optional]"
 ---
 
 # One LlmOnLan session
@@ -12,9 +12,9 @@ down what you did not check.
 
 ## 0. Before anything
 
-1. Run `date`. Note the start time and the time you must stop: the hours in `$ARGUMENTS`, else 3. Plan to start the
-   summary 20 minutes before that.
-2. `git status` and `git branch --show-current`. You work on `multiuser-phase0`. If the tree is dirty with work that is
+1. Run `date`. Note the start time and the time you must stop: the hours in `$ARGUMENTS`, else 5 (a night session runs 02:00 to 07:00). Plan to
+   start the summary 20 minutes before that.
+2. `git status` and `git branch --show-current`. You work on `main`, and you **commit without ever pushing**. If the tree is dirty with work that is
    not yours, do not touch it: say so in the summary and work around it, or stop.
 3. Count the files in `docs/sessions/` (not the README). This session's number is that count plus one.
    **If the number is a multiple of 5, this session is a review: run the skill `lol-review` and skip step 2 below.**
@@ -49,13 +49,13 @@ How to work:
 - Explore with the `search`, `grep` and `docs` subagents when a question needs many files; check what they return
   before you build on it.
 - **Consult the advisor** when the same error shows up twice, and before you call a task done.
-- After each tested step: a DEVLOG entry with the real time (`date`), a commit, a push to `multiuser-phase0`.
+- After each tested step: a DEVLOG entry with the real time (`date`) and a commit on `main`. No push.
 - A failing test is a finding, not an obstacle: fix the cause, or record it. Never weaken a test to pass.
 
 ## 3. Hard limits
 
-Everything under "What a session never does without the owner" in `CLAUDE.md`. In short: no release, no tag, no move
-of `main`; never touch the farm people use, the owner's client, its data, the Ollama app; nothing deleted outside your
+Everything under "What a session never does without the owner" in `CLAUDE.md`. In short: no push, no tag, no
+release; never touch the farm people use, the owner's client, its data, the Ollama app; nothing deleted outside your
 scratch folder; nothing posted to another project; the prime directive and the privacy boundary are not yours to bend.
 If the work needs one of these, stop that task and write the question in the summary.
 
@@ -67,4 +67,7 @@ If you are blocked on everything, write the summary and end the session early. A
    and check they are gone. Check the live farm still answers as it did at the start.
 2. Write `docs/sessions/<date>.md` from the template in `docs/sessions/README.md`: done with evidence, not done and
    why, found, next, questions for the owner.
-3. Commit it and push. The last line of your final message is the path of the summary.
+3. **Is a release due?** If the unpushed commits (`git log origin/main..main`) hold something people should get (a fix
+   they are hitting, a feature that is whole and tested), open the summary with `RELEASE READY`: what it brings, and
+   which HUMAN_TESTS a person should run first. Do not push or tag.
+4. Commit the summary. No push. The last line of your final message is the path of the summary.
