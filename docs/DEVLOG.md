@@ -6,6 +6,17 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-12 (20:03) — A RAG check for the model research (`docs/spike/runs/rag_check.mjs`)
+
+Tonight's objective (the owner, 19:58) is a model survey for a class on the PRO 6000 and the Spark, RAG and code; the 28-item
+gate measures no answers out of long documents. `rag_check.mjs` sends a whole document in the prompt, as Open WebUI's
+full-context mode does: a slice of the DEVLOG (real text no model has seen) with three made-up facts planted at 10, 50 and 90 %
+of its length, at the sizes asked (30k and 60k by default), by several people at once, each with their own slice and facts so no
+prefix cache shares the work. A fact counts when the reply holds its value; misses are kept by depth; `usage.prompt_tokens` is
+recorded beside the estimate. **Checked** against a stand-in server that reads the document and misses every fact past 85 % on
+purpose: 2/3 and 8/12 found at both sizes, the misses all at depth 0.9, prompts at 30,100 and 60,100 tokens. The survey of
+models, engines and evidence started at 20:05 (three read-only Haiku readers).
+
 ## 2026-11-12 (11:03) — Field notes: what teachers met, read first by every session
 
 The owner accepted the suggestion: `docs/sessions/FIELD_NOTES.md`, where the owner writes a line after a class or a day
