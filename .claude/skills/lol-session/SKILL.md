@@ -16,16 +16,20 @@ down what you did not check.
    start the summary 20 minutes before that.
 2. `git status` and `git branch --show-current`. You work on `main`, commit, and back up with `git push origin main:night` only. If the tree is dirty with work that is
    not yours, do not touch it: say so in the summary and work around it, or stop.
-3. Count the files in `docs/sessions/` (not the README). This session's number is that count plus one.
+3. Count the dated files in `docs/sessions/` (`20*.md`: not the README, not FIELD_NOTES). This session's number is
+   that count plus one.
    **If the number is a multiple of 5, this session is a review: run the skill `lol-review` and skip step 2 below.**
 
 ## 1. Read the thread
 
-1. The five last files of `docs/sessions/`, newest first. A line starting with `> owner:` is an instruction: it outranks
+1. `docs/sessions/FIELD_NOTES.md`: what happened when people used LlmOnLan. An open note (one with no `→` answer)
+   outranks your own ideas; if one is urgent and approved work can answer it, it may become tonight's objective.
+   Answer under a note you act on.
+2. The five last dated files of `docs/sessions/`, newest first. A line starting with `> owner:` is an instruction: it outranks
    the summary's own "Next". An answer under "Questions for the owner" settles that question.
-2. `docs/plans/README.md`: the next work, in order.
-3. `git log --oneline` since the last summary's commit: what changed outside the sessions.
-4. Only now, the context modules your work touches (the table in `CLAUDE.md`). Not the others.
+3. `docs/plans/README.md`: the next work, in order.
+4. `git log --oneline` since the last summary's commit: what changed outside the sessions.
+5. Only now, the context modules your work touches (the table in `CLAUDE.md`). Not the others.
 
 **Your objective** is the last summary's *Next objective*, unless an owner's line says otherwise. Write in a few lines
 how you will reach it and how you will know it is done (its *Done when*), and the one side task, if there is one.

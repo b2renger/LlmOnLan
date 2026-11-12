@@ -6,6 +6,13 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-12 (11:10) — Field notes: what teachers met, read first by every session
+
+The owner accepted the suggestion: `docs/sessions/FIELD_NOTES.md`, where the owner writes a line after a class or a day
+of use (no names: the repo is public). Every session reads it before the summaries; an open note outranks the session's
+own ideas, and a session that acts on one answers under it (`→ date: what was done`). CLAUDE.md, the skill `lol-session`
+(which now counts only the dated `20*.md` files for the session number) and the sessions README say so.
+
 ## 2026-11-12 (10:56) — The process, sharpened by the owner: one objective, approved work only, a night backup
 
 The owner, on the review of the workflow (10:52): one main objective a session with a *Done when* and at most one side

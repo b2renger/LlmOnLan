@@ -78,7 +78,7 @@ Two more rules with the same weight, each written out in its module:
 
 | Working on | Read first |
 |---|---|
-| Anything, at a session's start | the five last files of [docs/sessions/](docs/sessions/README.md); [docs/plans/README.md](docs/plans/README.md) (the next work, in order) |
+| Anything, at a session's start | [docs/sessions/FIELD_NOTES.md](docs/sessions/FIELD_NOTES.md), then the five last summaries in [docs/sessions/](docs/sessions/README.md); [docs/plans/README.md](docs/plans/README.md) (the next work, in order) |
 | What is released or verified; what a person must still test | [docs/context/status.md](docs/context/status.md), [docs/HUMAN_TESTS.md](docs/HUMAN_TESTS.md) |
 | The farm: engines, panel, presets, model storage, plugins, the config, the CLI | [docs/context/farm.md](docs/context/farm.md), then [farm/README.md](farm/README.md) |
 | The client shell, Preferences, boot time, LOL Vibe, the IDE's coding agent | [docs/context/client.md](docs/context/client.md) |
@@ -105,8 +105,9 @@ The work runs in **sessions** of five hours: by night, 02:00 to 07:00, from a cr
 leaves open (it dies with that session; the owner asks for it again), and by day when the owner opens one. The thread
 the owner and Claude share is [docs/sessions/](docs/sessions/README.md), one dated summary per session.
 
-1. **Start:** read the five last summaries, and any line the owner wrote in them (`> owner:`): it outranks the summary's
-   own "Next". Then [docs/plans/README.md](docs/plans/README.md) and `git log` since the last summary.
+1. **Start:** read [the field notes](docs/sessions/FIELD_NOTES.md) (what happened when people used it: an open note
+   outranks a session's own ideas), then the five last summaries and any line the owner wrote in them (`> owner:`): it
+   outranks the summary's own "Next". Then [docs/plans/README.md](docs/plans/README.md) and `git log` since the last summary.
 2. **One objective per session** (owner, 2026-11-12): the last summary's *Next objective*, with its *Done when*, plus
    at most one small side task. Not the whole menu. The menu the objective comes from: look at the code and the latest
    changes; run the tests, and the client and a farm for real (the skill `lol-scratch-farm`); measure; research models,

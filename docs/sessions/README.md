@@ -1,7 +1,8 @@
 # Sessions: the thread the owner and Claude share
 
 One file per work session, named by its date: `2026-11-12.md` (a second one the same day: `2026-11-12-2.md`).
-A session starts by reading the **five last** files here, and ends by writing one.
+A session starts by reading [FIELD_NOTES.md](FIELD_NOTES.md) (what happened when people used LlmOnLan, written by the
+owner after a class) and the **five last** summaries, and ends by writing one.
 
 **Owner:** edit any of these files. A line that starts with `> owner:` is an instruction or a comment for the next
 session, and it outranks the summary's own "Next". Answer a question under "Questions for the owner" the same way.
