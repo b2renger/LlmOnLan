@@ -109,6 +109,15 @@ function sendJson(res, status, obj) {
     res.end(JSON.stringify(obj));
 }
 
+// A wrong token or password costs time, so a student on the LAN cannot guess one quickly. ponytail: a fixed delay per
+// request, not a per-address lockout; guesses sent in parallel each wait their own 400 ms. A lockout is the upgrade if a
+// weak operator-set token ever matters (the default is 24 random bytes).
+const GUESS_DELAY_MS = 400;
+async function refuse(res) {
+    await new Promise((r) => setTimeout(r, GUESS_DELAY_MS));
+    return sendJson(res, 401, { error: 'unauthorized' });
+}
+
 function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = null, adminToken = null, onClientPing = null, getPluginKeys = null }) {
     const server = http.createServer(async (req, res) => {
         const pathOnly = (req.url || '').split('?')[0].replace(/\/+$/, '') || '/';
@@ -142,10 +151,7 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
             if (!getPluginKeys) return sendJson(res, 404, { error: 'not supported' });
             const { password, keys } = getPluginKeys();
             if (!password) return sendJson(res, 404, { error: 'this farm has no password: the keys are in /lol/self' });
-            if (!authOk(req, password)) {
-                await new Promise((r) => setTimeout(r, 400));   // a guess costs time
-                return sendJson(res, 401, { error: 'unauthorized' });
-            }
+            if (!authOk(req, password)) return refuse(res);
             return sendJson(res, 200, keys);
         }
 
@@ -168,7 +174,7 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
         // Everything below is admin control — token required.
         if (pathOnly.startsWith('/lol/admin/')) {
             if (!control) return sendJson(res, 404, { error: 'admin disabled' });
-            if (!authOk(req, adminToken)) return sendJson(res, 401, { error: 'unauthorized' });
+            if (!authOk(req, adminToken)) return refuse(res);
             try {
                 if (method === 'GET' && pathOnly === '/lol/admin/state') {
                     return sendJson(res, 200, await control.getAdminState());

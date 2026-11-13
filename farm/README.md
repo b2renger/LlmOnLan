@@ -1339,7 +1339,8 @@ An ESP32 that publishes a light reading and takes its LED from the bus:
 
 The panel is a thin page over these routes on `beacon.httpPort` (41997), bound to `proxy.host`. Every
 `/lol/admin/*` route needs `Authorization: Bearer <admin token>`; the rest are open, except `/lol/plugin-keys` (the
-farm password). Routes that reload a
+farm password). A wrong token or password waits 400 ms before its 401 (`selfServer.js` `refuse`), so guessing is slow.
+Routes that reload a
 model return at once with a job, whose progress rides `GET /lol/admin/state` (one job at a time — others
 get *"the farm is busy"*).
 

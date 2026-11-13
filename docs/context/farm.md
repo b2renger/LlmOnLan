@@ -119,7 +119,8 @@
   - `proxy.masterKey` = the shared **farm password** (LiteLLM `master_key`; panel-settable; clients prompt
     once, verify, remember per farm). Discovery, `/health/liveliness` and the admin token stay separate.
   - **Admin panel** at `http://<box>:41997/lol/admin` (bearer = `admin.token`, or a per-run token printed by
-    `lol up`; the Farm app pins one). **Its layout** (owner 2026-10-12, branch `panel-engines`): the **Presets** card on
+    `lol up`; the Farm app pins one; a wrong token waits 400 ms before its 401, as a wrong password does on
+    `/lol/plugin-keys`). **Its layout** (owner 2026-10-12, branch `panel-engines`): the **Presets** card on
     top (2026-10-27, below), the Serving card (what
     serves, people at once, connected; the engine's warnings), then **one collapsible section per engine** in a fixed
     order — Ollama, llama.cpp, vLLM, and External only while configured — each holding everything about its engine;

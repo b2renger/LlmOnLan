@@ -58,7 +58,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 4. **Tests before a release:** the farm suite, the Farm app's test, and the shell's unit, chat-unit and lint, in
    `release.yml` and `release-farm.yml` (a workflow_dispatch dry run first). No release since v0.2.10 ran its ★ tests,
    so the automatic suites should at least block one. The owner: CI minutes. **M**.
-5. **Slow down wrong admin-token guesses** on `/lol/admin/*` (a delay per 401, as `/lol/plugin-keys` waits 400 ms).
+5. ~~**Slow down wrong admin-token guesses**~~ *built 2026-11-13 (session 2, unreleased): `selfServer.js` `refuse`, 400 ms
+   before every 401 on `/lol/admin/*` and `/lol/plugin-keys`; a per-address lockout is the upgrade if ever needed.*
+   On `/lol/admin/*` (a delay per 401, as `/lol/plugin-keys` waits 400 ms).
    The token guards the whole panel on a LAN of students. **S**.
 6. **Small hardening:**
    - a main-frame navigation guard on the client's window (`index.ts` returns for the main frame);

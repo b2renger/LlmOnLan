@@ -6,6 +6,17 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-13 (03:27) — A wrong admin token waits 400 ms (plans ▸ 2. Next 5)
+
+`farm/src/selfServer.js`: `refuse(res)` waits `GUESS_DELAY_MS` (400) and answers 401; `/lol/plugin-keys` used it inline
+already, `/lol/admin/*` answered at once. Both now go through `refuse`. A `ponytail:` note names the ceiling: a fixed
+delay per request, not a lockout per address (parallel guesses each wait). **Tested:** `farm/test/run.js` 288 passed;
+the admin test now asserts a wrong token takes ≥ 350 ms and the right one < 350 ms; with the delay set to 0 it fails
+("17 ms"), restored. The suite takes ~4 s longer (its other 401 checks wait too). Docs: farm README ▸ routes,
+`docs/context/farm.md` ▸ Admin panel.
+
+---
+
 ## 2026-11-13 (03:22) — The model research measured: Kolibri-1 and LFM2.5 against Qwen3.6; keep what the farm runs
 
 Session 2's objective (the owner, 2026-11-12: state-of-the-art local models for many people on documents and code, on

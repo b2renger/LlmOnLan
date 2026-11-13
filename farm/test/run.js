@@ -645,8 +645,12 @@ test('selfServer: /lol/self open; admin routes gated by the bearer token', async
         assert.equal((await fetch(`${base}/lol/self`)).status, 200, '/lol/self open');
         assert.equal((await fetch(`${base}/lol/admin`)).status, 200, 'admin page open');
         assert.equal((await fetch(`${base}/lol/admin/state`)).status, 401, 'state needs a token');
+        let t0 = Date.now();
         assert.equal((await fetch(`${base}/lol/admin/state`, { headers: { authorization: 'Bearer nope' } })).status, 401, 'wrong token → 401');
+        assert.ok(Date.now() - t0 >= 350, `a wrong admin token waits before its 401 (${Date.now() - t0} ms)`);
+        t0 = Date.now();
         const st = await fetch(`${base}/lol/admin/state`, { headers: H });
+        assert.ok(Date.now() - t0 < 350, `the right token is not delayed (${Date.now() - t0} ms)`);
         assert.equal(st.status, 200);
         assert.equal((await st.json()).models[0].id, 'a');
         // a mutation without the token must NOT reach control
