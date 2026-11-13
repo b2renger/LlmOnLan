@@ -1,0 +1,217 @@
+{
+ "kind": "rag-hard",
+ "label": "pro6000-vllm033-kolibri1-fp8-triton",
+ "model": "kolibri",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "on",
+ "sizes": [
+  30000,
+  60000
+ ],
+ "people": [
+  1,
+  8
+ ],
+ "depths": [
+  0.1,
+  0.5,
+  0.9
+ ],
+ "runs": [
+  {
+   "size": 30000,
+   "people": 1,
+   "asked": 4,
+   "errors": 0,
+   "found": 3,
+   "byDepth": {
+    "0.1": "1/1",
+    "0.5": "0/1",
+    "0.9": "1/1",
+    "compare": "1/1"
+   },
+   "promptTokens": [
+    29915,
+    29916,
+    29916,
+    29932
+   ],
+   "secondsMedian": 24.7,
+   "secondsWorst": 25.8,
+   "wallSeconds": 58.2,
+   "misses": [
+    {
+     "depth": 0.5,
+     "reply": ""
+    }
+   ]
+  },
+  {
+   "size": 30000,
+   "people": 8,
+   "asked": 32,
+   "errors": 0,
+   "found": 27,
+   "byDepth": {
+    "0.1": "6/8",
+    "0.5": "8/8",
+    "0.9": "7/8",
+    "compare": "6/8"
+   },
+   "promptTokens": [
+    29915,
+    29916,
+    29916,
+    29932,
+    27430,
+    27430,
+    27430,
+    27446,
+    24812,
+    24812,
+    24812,
+    24828,
+    25745,
+    25745,
+    25745,
+    25761,
+    28738,
+    28738,
+    28737,
+    28754,
+    27578,
+    27577,
+    27578,
+    27594,
+    25585,
+    25586,
+    25586,
+    25602,
+    25839,
+    25839,
+    25839,
+    25855
+   ],
+   "secondsMedian": 10.4,
+   "secondsWorst": 68,
+   "wallSeconds": 104.7,
+   "misses": [
+    {
+     "depth": 0.1,
+     "reply": ""
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    },
+    {
+     "depth": 0.1,
+     "reply": ""
+    },
+    {
+     "depth": 0.9,
+     "reply": ""
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    }
+   ]
+  },
+  {
+   "size": 60000,
+   "people": 1,
+   "asked": 4,
+   "errors": 0,
+   "found": 4,
+   "byDepth": {
+    "0.1": "1/1",
+    "0.5": "1/1",
+    "0.9": "1/1",
+    "compare": "1/1"
+   },
+   "promptTokens": [
+    58310,
+    58311,
+    58311,
+    58327
+   ],
+   "secondsMedian": 13.4,
+   "secondsWorst": 14.5,
+   "wallSeconds": 44.9,
+   "misses": []
+  },
+  {
+   "size": 60000,
+   "people": 8,
+   "asked": 32,
+   "errors": 0,
+   "found": 27,
+   "byDepth": {
+    "0.1": "6/8",
+    "0.5": "8/8",
+    "0.9": "8/8",
+    "compare": "5/8"
+   },
+   "promptTokens": [
+    58310,
+    58311,
+    58311,
+    58327,
+    54948,
+    54948,
+    54948,
+    54964,
+    50203,
+    50203,
+    50203,
+    50219,
+    51358,
+    51358,
+    51358,
+    51374,
+    55330,
+    55330,
+    55329,
+    55346,
+    49824,
+    49823,
+    49824,
+    49840,
+    51370,
+    51371,
+    51371,
+    51387,
+    55870,
+    55870,
+    55870,
+    55886
+   ],
+   "secondsMedian": 21.7,
+   "secondsWorst": 106.2,
+   "wallSeconds": 156.8,
+   "misses": [
+    {
+     "depth": 0.1,
+     "reply": ""
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    },
+    {
+     "depth": 0.1,
+     "reply": ""
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    }
+   ]
+  }
+ ]
+}

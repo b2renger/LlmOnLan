@@ -1,0 +1,225 @@
+{
+ "kind": "rag-hard",
+ "label": "pro6000-vllm033-kolibri1-fp8-triton",
+ "model": "kolibri",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "off",
+ "sizes": [
+  30000,
+  60000
+ ],
+ "people": [
+  1,
+  8
+ ],
+ "depths": [
+  0.1,
+  0.5,
+  0.9
+ ],
+ "runs": [
+  {
+   "size": 30000,
+   "people": 1,
+   "asked": 4,
+   "errors": 0,
+   "found": 3,
+   "byDepth": {
+    "0.1": "1/1",
+    "0.5": "1/1",
+    "0.9": "1/1",
+    "compare": "0/1"
+   },
+   "promptTokens": [
+    29902,
+    29903,
+    29903,
+    29919
+   ],
+   "secondsMedian": 2,
+   "secondsWorst": 2,
+   "wallSeconds": 4.3,
+   "misses": [
+    {
+     "depth": "compare",
+     "reply": "Brest"
+    }
+   ]
+  },
+  {
+   "size": 30000,
+   "people": 8,
+   "asked": 32,
+   "errors": 0,
+   "found": 26,
+   "byDepth": {
+    "0.1": "8/8",
+    "0.5": "8/8",
+    "0.9": "8/8",
+    "compare": "2/8"
+   },
+   "promptTokens": [
+    29902,
+    29903,
+    29903,
+    29919,
+    27417,
+    27417,
+    27417,
+    27433,
+    24799,
+    24799,
+    24799,
+    24815,
+    25732,
+    25732,
+    25732,
+    25748,
+    28725,
+    28725,
+    28724,
+    28741,
+    27565,
+    27564,
+    27565,
+    27581,
+    25572,
+    25573,
+    25573,
+    25589,
+    25826,
+    25826,
+    25826,
+    25842
+   ],
+   "secondsMedian": 5,
+   "secondsWorst": 13.8,
+   "wallSeconds": 24.9,
+   "misses": [
+    {
+     "depth": "compare",
+     "reply": "Rennes"
+    },
+    {
+     "depth": "compare",
+     "reply": "Rennes"
+    },
+    {
+     "depth": "compare",
+     "reply": "Rennes class"
+    },
+    {
+     "depth": "compare",
+     "reply": "Brest studio"
+    },
+    {
+     "depth": "compare",
+     "reply": "Brest studio"
+    },
+    {
+     "depth": "compare",
+     "reply": "Nantes lab"
+    }
+   ]
+  },
+  {
+   "size": 60000,
+   "people": 1,
+   "asked": 4,
+   "errors": 0,
+   "found": 4,
+   "byDepth": {
+    "0.1": "1/1",
+    "0.5": "1/1",
+    "0.9": "1/1",
+    "compare": "1/1"
+   },
+   "promptTokens": [
+    58297,
+    58298,
+    58298,
+    58314
+   ],
+   "secondsMedian": 5.9,
+   "secondsWorst": 6,
+   "wallSeconds": 12.2,
+   "misses": []
+  },
+  {
+   "size": 60000,
+   "people": 8,
+   "asked": 32,
+   "errors": 0,
+   "found": 26,
+   "byDepth": {
+    "0.1": "8/8",
+    "0.5": "8/8",
+    "0.9": "8/8",
+    "compare": "2/8"
+   },
+   "promptTokens": [
+    58297,
+    58298,
+    58298,
+    58314,
+    54935,
+    54935,
+    54935,
+    54951,
+    50190,
+    50190,
+    50190,
+    50206,
+    51345,
+    51345,
+    51345,
+    51361,
+    55317,
+    55317,
+    55316,
+    55333,
+    49811,
+    49810,
+    49811,
+    49827,
+    51357,
+    51358,
+    51358,
+    51374,
+    55857,
+    55857,
+    55857,
+    55873
+   ],
+   "secondsMedian": 18.4,
+   "secondsWorst": 38.8,
+   "wallSeconds": 84.6,
+   "misses": [
+    {
+     "depth": "compare",
+     "reply": "Rennes class"
+    },
+    {
+     "depth": "compare",
+     "reply": "Rennes"
+    },
+    {
+     "depth": "compare",
+     "reply": "Rennes"
+    },
+    {
+     "depth": "compare",
+     "reply": "Lyon workshop"
+    },
+    {
+     "depth": "compare",
+     "reply": "Brest studio"
+    },
+    {
+     "depth": "compare",
+     "reply": "Spark"
+    }
+   ]
+  }
+ ]
+}
