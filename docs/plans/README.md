@@ -62,10 +62,15 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
    before every 401 on `/lol/admin/*` and `/lol/plugin-keys`; a per-address lockout is the upgrade if ever needed.*
    On `/lol/admin/*` (a delay per 401, as `/lol/plugin-keys` waits 400 ms).
    The token guards the whole panel on a LAN of students. **S**.
-6. **Small hardening:**
-   - a main-frame navigation guard on the client's window (`index.ts` returns for the main frame);
-   - make the Trigger's gap check and its start record one step (an `await` sits between them);
-   - a timeout before a download's first byte in the Farm app's wizard (a server that never answers hangs it).
+6. **Small hardening** (*checked 2026-11-13, session 2: all three settled*):
+   - ~~a main-frame navigation guard on the client's window~~ *already there since 2026-11-06 (ec67ceb):
+     `index.ts` `will-frame-navigate` refuses a main frame that is not the app's own `index.html`;*
+   - ~~make the Trigger's gap check and its start record one step~~ *not a race in the code: `trigger.mjs` `onEvent`
+     awaits `door.armed()` BEFORE both, and `mayFire` and `st.runs.push` run with no await between them, so a second event
+     sees the first's run (code unchanged since 2026-09-28; the review's wording of 2026-11-05 not found);*
+   - ~~a timeout before a download's first byte in the Farm app's wizard~~ *built (unreleased): `runtimeManager.ts`
+     `downloadTo` 60 s and its `httpGet` 30 s through the request's own `timeout`; checked against a server that accepts and
+     never answers (a scratch script: the error came at 1,010 ms of a 1,000 ms timeout).*
 
    **S**.
 7. **A plugin's first install shows its progress** (Voice takes about 10 minutes behind a "…"). The owner picks: in

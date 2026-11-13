@@ -57,7 +57,7 @@ function key(): string { return `${process.platform}-${process.arch}`; }
 function httpGet(url: string, redirects = 0): Promise<{ status: number; body: string }> {
     return new Promise((resolve, reject) => {
         if (redirects > 6) return reject(new Error('too many redirects'));
-        https.get(url, { headers: { 'user-agent': UA, accept: 'application/vnd.github+json' } }, (res) => {
+        const req = https.get(url, { headers: { 'user-agent': UA, accept: 'application/vnd.github+json' }, timeout: 30000 }, (res) => {
             const loc = res.headers.location;
             if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && loc) {
                 res.resume();
@@ -66,7 +66,9 @@ function httpGet(url: string, redirects = 0): Promise<{ status: number; body: st
             let buf = '';
             res.on('data', (c) => { buf += c; });
             res.on('end', () => resolve({ status: res.statusCode || 0, body: buf }));
-        }).on('error', reject);
+        });
+        req.on('timeout', () => req.destroy(new Error(`no answer for 30 s from ${new URL(url).host}`)));
+        req.on('error', reject);
     });
 }
 
@@ -108,7 +110,9 @@ async function ghLatestAssets(repo: string): Promise<{ tag: string; assets: { na
 function downloadTo(url: string, dest: string, onBytes?: (recv: number, total: number) => void, redirects = 0): Promise<void> {
     return new Promise((resolve, reject) => {
         if (redirects > 6) return reject(new Error('too many redirects'));
-        const req = https.get(url, { headers: { 'user-agent': UA } }, (res) => {
+        // `timeout` also covers the wait BEFORE the first byte (a server that accepts and never answers), which the
+        // stall timer below cannot: it arms only once a response has come.
+        const req = https.get(url, { headers: { 'user-agent': UA }, timeout: 60000 }, (res) => {
             const loc = res.headers.location;
             if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && loc) {
                 res.resume();
@@ -133,6 +137,7 @@ function downloadTo(url: string, dest: string, onBytes?: (recv: number, total: n
             out.on('finish', () => { if (stall) clearTimeout(stall); out.close(() => resolve()); });
             res.pipe(out);
         });
+        req.on('timeout', () => req.destroy(new Error(`no answer for 60 s while downloading ${path.basename(dest)} — check the connection and retry`)));
         req.on('error', reject);
     });
 }

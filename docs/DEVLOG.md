@@ -6,6 +6,20 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-13 (03:29) — The small hardening settled (plans ▸ 2. Next 6)
+
+- **The Farm app's wizard no longer hangs on a server that accepts and never answers.** `runtimeManager.ts` `downloadTo`
+  had a 60 s stall timer that arms only once a response arrives; it now also passes `timeout: 60000` to `https.get` with a
+  `'timeout'` handler that fails the download ("no answer for 60 s while downloading …"), so the phase can retry. Its
+  `httpGet` (the GitHub API fallback when a pinned file cannot be fetched) gets 30 s. **Checked:** a scratch script against
+  a TCP server that accepts and stays silent errored at 1,010 ms of a 1,000 ms timeout; `farm-app` `npm test` 14 passed
+  (build included). No test of `downloadTo` itself: it is HTTPS-only and not exported.
+- **The client's main-frame guard was already there** (ec67ceb, 2026-11-06: `index.ts` `will-frame-navigate`).
+- **The Trigger "race" is not one:** `trigger.mjs` `onEvent` awaits `door.armed()` before both the gap check and the
+  start record, which then run in one synchronous step. Nothing changed.
+
+---
+
 ## 2026-11-13 (03:27) — A wrong admin token waits 400 ms (plans ▸ 2. Next 5)
 
 `farm/src/selfServer.js`: `refuse(res)` waits `GUESS_DELAY_MS` (400) and answers 401; `/lol/plugin-keys` used it inline
