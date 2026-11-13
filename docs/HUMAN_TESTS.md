@@ -38,6 +38,81 @@ dropped, and why.
 laptops (one fresh); an Apple Silicon Mac, an Intel Mac, a Linux x64 PC; the office's Home Assistant Green. Never run
 a test that sets one seat, kills an engine or restarts the farm on production while people use it.
 
+## Before the class of Tuesday 17 November (the owner's list, 2026-11-13)
+
+Thirty students on their own laptops, Windows and Mac, install the client **on Tuesday** and use the chat, LOL Vibe and
+the Computer on the owner's Wi-Fi; the farm has no password ([the class's plan](plans/CLASS_TEST_2026-11-17.md)). This
+list comes first until then. About **2 h 30** in all, in this order:
+
+| # | When | Test | Time | Why |
+|---|---|---|---|---|
+| 1 | Friday or Saturday | **A24** (client) | 5 min | then the client release (the usage report) |
+| 2 | Friday or Saturday | **K16** (Farm app) | 20 min | then the Farm app release (the token delay, the wizard's timeouts, the OCR stop and caps) |
+| 3 | Saturday, before 01:00 | **The new Farm app on the PRO 6000**: Farm app ▸ Check for updates ▸ install; leave it running for the night | 10 min | the night of the 14th updates its vLLM to 0.33.0 (J14, 32 → 48 people at 64k), then fills it with 30 simulated people; J14 needs farm-v0.0.51 or later, and the last one recorded there is farm-v0.0.48 |
+| 4 | Saturday or Sunday | **S1** your Wi-Fi | 15 min | it decides whether 30 students can download about 1 GB each in class, and how they find the farm |
+| 5 | Monday, after the last releases (client by 12:00) | **S2** a student's 20 minutes, on a Windows laptop **and** a Mac, fresh | 2 × 25 min | the whole path a student takes, on the builds they get |
+| 6 | Monday | **S2 on the slowest laptop you can find** | 15 min | the Computer's sandbox has 3 s to start; a slow laptop is where it would fail |
+| 7 | Monday | **S3** three laptops at once | 15 min | the pill, discovery and the seats with more than one person |
+| 8 | Tuesday morning | **S4** the morning check | 5 min | nothing changed overnight |
+
+### S1 Your Wi-Fi: its speed, and how a laptop finds the farm
+*Proves:* the class can install in the room, and the students' laptops reach the farm. *Needs:* a laptop on the Wi-Fi
+the students will use; 15 minutes.
+1. Open a terminal on the laptop: `ipconfig` (Windows) or `ipconfig getifaddr en0` (Mac). Write the first three numbers of
+   its address, and the farm's (the PRO 6000's).
+2. From [the latest release](https://github.com/b2renger/LlmOnLan/releases/latest), download
+   `owui-sidecar-win32-x64.tar.gz` (740 MB, the chat engine every student fetches) and time it. Delete it after.
+3. Open the client on that laptop. Look at the pill: does it find the farm by itself? If not: pill ▸ *Servers on your
+   network* ▸ add the farm by its address.
+
+*Expect:* write the three numbers: the laptop's and the farm's first three numbers (same = discovery works by itself;
+different = every student adds the farm by its address, and the students' sheet says how), and the download's
+time. **Under about 40 s** (≈ 20 MB/s or more), 30 students can install in about 25 minutes while you show them;
+**much longer**, the class waits: tell the session (the plan's question on a farm copy of the chat engine).
+- [ ] Done · Found:
+
+### S2 A student's 20 minutes, from a fresh install
+*Proves:* everything a student will try, on the release they will install, on a laptop that never had LlmOnLan.
+*Needs:* the client release the students get; a fresh laptop (or a fresh user account on one), Windows and then a Mac
+(Apple Silicon or Intel); your Wi-Fi; a PDF of a few pages; 25 minutes each.
+1. Download the installer from the release page and install it (Windows: SmartScreen ▸ *More info* ▸ *Run anyway*; Mac:
+   right-click ▸ *Open* ▸ *Open*). Open the app; time the first start until a chat is possible.
+2. **Open WebUI:** ask a question; attach the PDF and ask about it.
+3. **LOL Vibe:** a chat; stop a long answer with **Stop**. Then **Project** ▸ **Install the coding agent** ▸ **New
+   project** ▸ *"Make index.html: a page with a bouncing ball"*; look at **Preview**.
+4. **The Computer:** the welcome panel and the **Tour**; then lesson 1; then a template from the shelf, ▶ Run.
+5. Note anything a student would stumble on: a word they would not understand, a wait with no sign of progress, a
+   button that does nothing.
+
+*Expect:* the first start shows the engine download with progress, then the farm is found (or added by address, S1) and
+the chat answers; the PDF's answer quotes it; LOL Vibe answers, Stop ends the reply at once, the agent writes
+`index.html` and Preview shows the ball; the Tour and lesson 1 complete; the template runs with no *The sandbox could
+not start*. Write the first start's time and every stumble.
+- [ ] Windows · Found:
+- [ ] Mac · Found:
+- [ ] The slowest laptop · Found:
+
+### S3 Three laptops at once
+*Proves:* more than one person at the same time, on your Wi-Fi. *Needs:* three laptops with the client (S2's are fine);
+10 minutes.
+1. All three open the chat and send a long question at the same moment (*"Write a 500-word story about a lighthouse"*).
+2. All three: LOL Vibe, the same; then one runs a Computer template while the others chat.
+
+*Expect:* every answer streams, none says *farm full* or *not responding*; the pill shows the farm in green on each.
+Note the seats the pill shows (`· N/M free`): if your Wi-Fi is behind NAT, all three count as **one** seat, and that is
+fine (vLLM serves them all).
+- [ ] Done · Found:
+
+### S4 Tuesday morning
+*Proves:* the farm is the one the nights checked. 5 minutes.
+1. On the PRO 6000: the Farm app shows the farm running; its panel shows vLLM, Qwen3.6, and the version installed on
+   Saturday.
+2. On your laptop on your Wi-Fi: the pill is green, and one chat answers in Open WebUI and in LOL Vibe.
+3. Read the night's summary (`docs/sessions/2026-11-17.md`): its first lines say the farm is ready, or what is wrong.
+
+*Expect:* all three. If not, do not restart anything before reading the summary.
+- [ ] Done · Found:
+
 ## The ★ list, in the order to run it (2026-11-09: the testing phase after client v0.2.16 and Farm app farm-v0.0.52)
 
 The owner released these builds for a phase of human testing (2026-11-09): ★ means *run first*, in this order.
