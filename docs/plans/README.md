@@ -44,6 +44,8 @@ file stays the whole list.
 
 **New models, measured 2026-11-06** ([RESULTS](../spike/RESULTS.md#model-trials-rtx-pro-6000-2026-11-06)): nothing beats Qwen3.6 for a class,
 and it serves more than we said. Gemma 4 26B is LOL Vibe's coding model since 2026-11-09 (owner), in Flint's place. Nanbeige4.3 and Apex-35B are not for this farm.
+**Measured again 2026-11-13** ([the research](../research/MODELS_2026-11-13.md), [RESULTS](../spike/RESULTS.md#new-models-for-a-class-rtx-pro-6000-2026-111213)):
+Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 ▸ The farm).
 
 1. **The class-size test through the seat gate** (HUMAN_TESTS J16): 48–64 people at 64k, 30 at 128k. It is the only
    proof of "a class of 50", and the purchase table rests on it. The harness measured Qwen3.6 at 64 people on Open WebUI's
@@ -119,6 +121,9 @@ and it serves more than we said. Gemma 4 26B is LOL Vibe's coding model since 20
 
 **Choices to make, one line each:**
 - **The farm:**
+  - *2026-11-13:* may a session serve **Nemotron 3.5 Super VL** with `--trust-remote-code` in the trial vLLM only
+    (`~/lol-vllm-033`)? vLLM 0.33.0 needs the checkpoint's own config code ([the research](../research/MODELS_2026-11-13.md)
+    §5); it is the one candidate that might read scanned pages itself and free the 9 GB reserve (3. above);
   - an OCR upload cap of 100 MB, or another number;
   - FSV-2's progress, (a) or (b);
   - the panel's text for an Ollama the farm did not start (FSV-7);
