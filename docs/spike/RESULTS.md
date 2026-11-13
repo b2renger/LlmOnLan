@@ -14,7 +14,9 @@ Two boxes, the same harness, the same flags:
 - three new models, and Qwen3.6 on Open WebUI's traffic shape (2026-11-06):
   [Model trials](#model-trials-rtx-pro-6000-2026-11-06);
 - the model a fresh farm serves on Ollama, for GPUs of 24 GB and above (2026-11-10):
-  [Ollama's default](#ollamas-default-rtx-pro-6000-2026-11-10), the last section.
+  [Ollama's default](#ollamas-default-rtx-pro-6000-2026-11-10);
+- the model research for a class, Kolibri-1 and LFM2.5 against Qwen3.6 with a RAG check (2026-11-12/13):
+  [New models for a class](#new-models-for-a-class-rtx-pro-6000-2026-111213), the last section.
 
 **Box:** `AN-A6000PRO`: one NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 96 GB (97,887 MiB), sm_120,
 ~1.8 TB/s, driver 596.36 (CUDA 13.2), Windows 11 + WSL2 Ubuntu 26.04 (16 vCPU and 94 GB RAM given to WSL).
@@ -1181,3 +1183,36 @@ With the farm's 8 % margin, a 24 GB card (24,564 MiB, 22,599 usable) holds two p
 vLLM, Balanced picks the shipped model and replaces the old default inside its job: DEVLOG 2026-11-10 12:08.
 
 Results: `results/pro6000-ollama033-gemma4-26b-q4km__quality__*`, `results/ide/pro6000-ollama033-farm-gemma4-26b-q4km__32768.json`.
+
+# New models for a class (RTX PRO 6000, 2026-11-12/13)
+
+The owner (2026-11-12): research the state-of-the-art local models that run on the PRO 6000 and the Spark, for many
+people at once on documents and code. The survey, the fit and the reasoning: `docs/research/MODELS_2026-11-13.md`; these
+are its measurements.
+
+**How they ran.** As on 2026-11-06 (above): vLLM 0.33.0 from `~/lol-vllm-033`, weights in `~/lol-models-scratch`, the
+farm's `serve.sh` through `runs/trial_serve.sh`, `--max-num-seqs 192`, 64k a person, `runs/model_trial.sh` (the gate off and
+on, the chat sweep, follow-ups at 30k and 62k with `--append`), `ide/run.js` five tasks × 3 at 32,768, and the new RAG
+check `runs/rag_check.mjs` (three planted facts at 10/50/90 % of a 30k or 60k slice of the DEVLOG; `--hard` adds an
+outdated value of each and a comparison question). No live farm ran; the whole card was free.
+
+| Model | Pool | Gate off / on | Coding agent | RAG plain: facts found | RAG hard, thinking on | People 30k | People 62k | One person |
+|---|---|---|---|---|---|---|---|---|
+| Qwen3.6 35B-A3B (reference, 2026-11-12 20:46) | 60 GiB | 28/28 / 27/28 | 7–11/15 | **all**, 1–16 people | **71/72** | ≥ 128 | 64 | 187 tok/s |
+| Kolibri-1 FP8, `TRITON_ATTN` | 16 GiB (whole card) | 24/28 / 22/28 | 10/15 | **all** (thinking off) | 48/54 facts, 13/18 compare | 32 | ≥ 24 | 185 tok/s |
+| Kolibri-1 FP8, FlashInfer (vLLM's pick) | 16 GiB | (same server) | — | all | (cap-bound) | 0 | 0 | 77 tok/s |
+| LFM2.5-24B-A2B FP8 | **48 GiB (the farm's own)** | 26/28 / 26/28 (always thinks) | 7/15 | 154/174 | 33/54 facts, 10/18 compare | **64** | 32 | **250 tok/s** |
+| Nemotron 3.5 Super VL NVFP4 | — | not served: vLLM 0.33.0 needs the checkpoint's own code (`--trust-remote-code`), refused | | | | | | |
+
+**Kolibri-1** (`Aleph-Alpha/Kolibri-1`, 73.46 GiB loaded, Transformers backend). On the attention backend vLLM chose,
+FlashInfer, its decode collapsed with context (4 people at 62k: 11.8 tok/s each); `--attention-backend TRITON_ATTN`, nothing
+else changed: 101 each, 160 for one. Measured A/B; the cause (FlashInfer's sliding-window FP8 kernel) is a guess. Its memory:
+vLLM's startup line says 12.6 people of 64k in 16 GiB, but 24 people with 24 different 62k documents ran at once with the
+pool 92.4 % full (~10.7 KB a token: its 513-token windows cost almost nothing). It does not fit beside the farm's reserves.
+
+**LFM2.5-24B-A2B** (`LiquidAI/LFM2.5-24B-A2B-FP8`, 23.24 GiB loaded, native). Always thinks (no switch in its template). Of
+its 20 plain misses, 11 were wrong answers (wrong digits, or "the document does not provide" a fact it held), 9 empty (the
+thinking used the 4,096-token cap). At 62k memory is its limit (the pool 99 % full at 40 running); at 30k it holds 73–75.
+
+Results: `results/pro6000-vllm033-{qwen36-nvfp4,kolibri1-fp8,kolibri1-fp8-triton,lfm25-24b-a2b-fp8}__*`,
+`results/ide/pro6000-vllm033-{kolibri1-fp8-triton,lfm25-24b-a2b-fp8}__32768.jsonl`.

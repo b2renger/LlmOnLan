@@ -6,6 +6,28 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-13 (03:22) — The model research measured: Kolibri-1 and LFM2.5 against Qwen3.6; keep what the farm runs
+
+Session 2's objective (the owner, 2026-11-12: state-of-the-art local models for many people on documents and code, on
+the PRO 6000 and the Spark). `docs/research/MODELS_2026-11-13.md` §5–§6; RESULTS ▸ *New models for a class*.
+- **Kolibri-1 FP8** (Aleph Alpha, 78B / 3.5B active): gate 24/28 and 22/28, coding agent 10/15, every planted fact found
+  with thinking off, the hard comparison 13/18 with thinking on (Qwen3.6 71/72 overall). On FlashInfer (vLLM's pick) its
+  decode collapsed at long context (11.8 tok/s each for 4 people at 62k); `--attention-backend TRITON_ATTN`: 101 each,
+  32 people at 30k and ≥ 24 at 62k on a 16 GiB pool. vLLM's startup line counted 12.6 people of 64k; its own gauges showed
+  24 distinct 62k contexts running with the pool 92.4 % full. Does not fit beside the farm's reserves.
+- **LFM2.5-24B-A2B FP8** (Liquid, 24B / 2.45B active), served in the 48 GiB pool the farm's `poolGib` gives it: gate 26/28,
+  coding agent 7/15, 250 tok/s for one, 64 people at 30k and 32 at 62k (memory the limit, pool 99 % full at 40). Always
+  thinks (no switch). Missed 20 of 174 planted facts: 11 wrong answers, 9 empty.
+- **Nemotron 3.5 Super VL** not served (remote code refused, DEVLOG 22:22): the owner's question.
+- **Recommendation:** documents, Qwen3.6; code, Gemma 4 26B; both as today on both boxes. No farm change. Catalog and
+  `measured.json` not touched: `presets.js` reads them, and neither model should become a pick.
+- Corrections made on the way: §5 first said Kolibri's windows saved less memory than they do, and computed it at ~8 people
+  as a farm (the margin is 8 % of the whole card: it does not fit); both fixed from vLLM's gauges and `poolGib`.
+- `download_verify.sh` takes `<repo> <folder>`. The trial weights stay in `~/lol-models-scratch` (Super VL 70 GB,
+  Kolibri-1 74 GB, LFM2.5 25 GB) until the owner decides on Super VL.
+
+---
+
 ## 2026-11-12 (22:22) — Super VL refused by vLLM 0.33.0 without remote code; the sandbox failure not reproduced
 
 - **Nemotron 3.5 Super VL NVFP4** downloaded (20:15–22:02, 92 files, every sha256 matches). Launching it with
