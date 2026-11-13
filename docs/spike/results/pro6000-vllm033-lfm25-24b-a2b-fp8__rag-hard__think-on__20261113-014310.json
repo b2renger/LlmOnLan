@@ -1,0 +1,290 @@
+{
+ "kind": "rag-hard",
+ "label": "pro6000-vllm033-lfm25-24b-a2b-fp8",
+ "model": "lfm",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "on",
+ "sizes": [
+  30000,
+  60000
+ ],
+ "people": [
+  1,
+  8
+ ],
+ "depths": [
+  0.1,
+  0.5,
+  0.9
+ ],
+ "runs": [
+  {
+   "size": 30000,
+   "people": 1,
+   "asked": 4,
+   "errors": 0,
+   "found": 2,
+   "byDepth": {
+    "0.1": "1/1",
+    "0.5": "1/1",
+    "0.9": "0/1",
+    "compare": "0/1"
+   },
+   "promptTokens": [
+    28647,
+    28648,
+    28647,
+    28664
+   ],
+   "secondsMedian": 17.7,
+   "secondsWorst": 17.7,
+   "wallSeconds": 40.2,
+   "misses": [
+    {
+     "depth": 0.9,
+     "reply": ""
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    }
+   ]
+  },
+  {
+   "size": 30000,
+   "people": 8,
+   "asked": 32,
+   "errors": 0,
+   "found": 20,
+   "byDepth": {
+    "0.1": "5/8",
+    "0.5": "7/8",
+    "0.9": "3/8",
+    "compare": "5/8"
+   },
+   "promptTokens": [
+    28647,
+    28648,
+    28647,
+    28664,
+    27055,
+    27054,
+    27054,
+    27071,
+    25115,
+    25115,
+    25116,
+    25132,
+    25938,
+    25939,
+    25940,
+    25955,
+    28278,
+    28279,
+    28277,
+    28294,
+    27072,
+    27070,
+    27071,
+    27087,
+    25890,
+    25891,
+    25890,
+    25907,
+    26671,
+    26670,
+    26670,
+    26687
+   ],
+   "secondsMedian": 25.4,
+   "secondsWorst": 56.7,
+   "wallSeconds": 132.6,
+   "misses": [
+    {
+     "depth": 0.9,
+     "reply": ""
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    },
+    {
+     "depth": 0.1,
+     "reply": ""
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    },
+    {
+     "depth": 0.9,
+     "reply": "The document states that the earlier door code for the Rennes class was **5987**."
+    },
+    {
+     "depth": "compare",
+     "reply": "Nantes lab"
+    },
+    {
+     "depth": 0.1,
+     "reply": ""
+    },
+    {
+     "depth": 0.9,
+     "reply": "The Dijon atelier’s door code was 6018 (an earlier, now‑invalid code)."
+    },
+    {
+     "depth": 0.9,
+     "reply": "The Lyon workshop’s door code is 8235 (it is noted as no longer valid)."
+    },
+    {
+     "depth": 0.5,
+     "reply": "The document states that the former door code of the Lyon workshop was 7173, but it is no longer valid."
+    },
+    {
+     "depth": 0.9,
+     "reply": "The earlier door code of the Brest studio was 6080, though it is no longer valid."
+    },
+    {
+     "depth": 0.1,
+     "reply": "The document states that the earlier door code of the Brest studio was 8328."
+    }
+   ]
+  },
+  {
+   "size": 60000,
+   "people": 1,
+   "asked": 4,
+   "errors": 0,
+   "found": 1,
+   "byDepth": {
+    "0.1": "0/1",
+    "0.5": "0/1",
+    "0.9": "0/1",
+    "compare": "1/1"
+   },
+   "promptTokens": [
+    56658,
+    56659,
+    56658,
+    56675
+   ],
+   "secondsMedian": 11.5,
+   "secondsWorst": 20.4,
+   "wallSeconds": 44.1,
+   "misses": [
+    {
+     "depth": 0.1,
+     "reply": "The Lyon workshop’s door code was 2111 (though it is no longer valid)."
+    },
+    {
+     "depth": 0.5,
+     "reply": ""
+    },
+    {
+     "depth": 0.9,
+     "reply": "The document says the Nantes lab’s door code was 8925, but notes that it is no longer valid."
+    }
+   ]
+  },
+  {
+   "size": 60000,
+   "people": 8,
+   "asked": 32,
+   "errors": 0,
+   "found": 20,
+   "byDepth": {
+    "0.1": "6/8",
+    "0.5": "5/8",
+    "0.9": "5/8",
+    "compare": "4/8"
+   },
+   "promptTokens": [
+    56658,
+    56659,
+    56658,
+    56675,
+    54070,
+    54069,
+    54069,
+    54086,
+    50863,
+    50863,
+    50864,
+    50880,
+    52429,
+    52430,
+    52431,
+    52446,
+    54316,
+    54317,
+    54315,
+    54332,
+    50443,
+    50441,
+    50442,
+    50458,
+    52252,
+    52253,
+    52252,
+    52269,
+    54916,
+    54915,
+    54915,
+    54932
+   ],
+   "secondsMedian": 26.7,
+   "secondsWorst": 74.3,
+   "wallSeconds": 150.3,
+   "misses": [
+    {
+     "depth": 0.1,
+     "reply": "The Lyon workshop’s door code was 2111, though that code is no longer valid."
+    },
+    {
+     "depth": 0.5,
+     "reply": "The Brest studio’s door code was 1018."
+    },
+    {
+     "depth": 0.9,
+     "reply": ""
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    },
+    {
+     "depth": 0.9,
+     "reply": "The Lille room’s door code was 8956 (no longer valid)."
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    },
+    {
+     "depth": 0.5,
+     "reply": "The door code of the Rennes class is 9757."
+    },
+    {
+     "depth": 0.1,
+     "reply": "The door code of the Rennes class is 9049."
+    },
+    {
+     "depth": 0.5,
+     "reply": "The door code of the Dijon atelier is 8676."
+    },
+    {
+     "depth": 0.9,
+     "reply": ""
+    },
+    {
+     "depth": "compare",
+     "reply": "Dijon atelier"
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    }
+   ]
+  }
+ ]
+}
