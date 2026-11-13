@@ -12,7 +12,7 @@ processed in a cloud; the code follows the ponytail ladder.
 - [CLASS_TEST_2026-11-17.md](CLASS_TEST_2026-11-17.md) — **the class of 30 students on Tuesday 17 November** (owner
   2026-11-13): chat, LOL Vibe and the Computer tight for that day, and the tutorials, docs and in-app tutorials refined.
   **It comes first until the class**: its nights, its freezes (the client Monday 16 at 12:00, the farm Monday evening)
-  and the owner's list of tests (HUMAN_TESTS ▸ *Before the class*).
+  and the owner's list of tests ([BEFORE_TUESDAY.md](../BEFORE_TUESDAY.md)).
 - [CLOUD_SOURCES_PLAN.md](CLOUD_SOURCES_PLAN.md) — documents from Microsoft 365 and synced folders. Nothing built, and
   **on hold** (owner 2026-11-06): a request from the school's administrators; nothing starts before they and IT say go.
   The school has no Google Workspace.

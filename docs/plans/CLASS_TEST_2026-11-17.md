@@ -27,19 +27,19 @@ Approved by those messages and the owner's answers of the same morning:
 
 ## What must hold on the day
 
-*Done when* (Tuesday, before the class): every line is ticked, by the owner (HUMAN_TESTS ▸ *Before the class*) or by a
+*Done when* (Tuesday, before the class): every line is ticked, by the owner ([BEFORE_TUESDAY.md](../BEFORE_TUESDAY.md)) or by a
 session, with its evidence.
 
-- [ ] Thirty installs in the room fit the time: the Wi-Fi's speed is measured (S1) and the students' sheet tells them
+- [ ] Thirty installs in the room fit the time: the Wi-Fi's speed is measured (test 2) and the students' sheet tells them
       what to start first (risk 1).
-- [ ] A student's 20 minutes pass from a fresh install on Windows and on a Mac, on the builds the students get (S2,
+- [ ] A student's 20 minutes pass from a fresh install on Windows and on a Mac, on the builds the students get (test 5,
       and night n° 4 on a scratch client).
 - [ ] The farm serves 30 people at once, measured in J16's units: no refusal, first token p95 under 5 s, decode p10 at 15
       tokens a second or more; both from 30 addresses and from **one** (the NAT case) (risk 2).
-- [ ] A laptop on the owner's Wi-Fi finds the farm, or the students' sheet says how to add it by address (S1, risk 3).
+- [ ] A laptop on the owner's Wi-Fi finds the farm, or the students' sheet says how to add it by address (test 2, risk 3).
 - [ ] The tutorials, the in-app tutorials and the docs a student or the owner meets are refined (risk 6).
 - [ ] **The client freeze, Monday 16, 12:00:** the last client release before the class (the students install on
-      Tuesday, so they get the latest). The owner runs S2 on it on Monday afternoon.
+      Tuesday, so they get the latest). The owner runs test 5 on it on Monday afternoon.
 - [ ] **The farm freeze, Monday 16, evening:** after it, only a blocker changes the farm.
 - [ ] The two sheets (`docs/CLASS_SHEETS.md`, English): the students' (install, find the farm, what to try, how to give
       feedback) and the owner's (what to do on *farm full*, *not responding*, *the sandbox could not start*, a slow
@@ -52,11 +52,11 @@ session, with its evidence.
    installer 99 MB, chat engine `owui-sidecar-win32-x64` 740 MB, coding agent `dsh-runtime-win32-x64` 104 MB; a Mac about
    0.9 GB; plus Open WebUI's document model on a farm without document search, up to about 92 MB). 30 students is
    about 30 GB through the Wi-Fi's internet line. At 6 MB/s (the school's line on 2026-11-10) that is **about 80
-   minutes**; at 20 MB/s, about 25. *Answer, with what exists:* S1 measures the line; the students start the install
+   minutes**; at 20 MB/s, about 25. *Answer, with what exists:* Test 2 measures the line; the students start the install
    first, while the owner shows; the coding agent only for those who try the IDE; the installers on a USB stick save
    only 10 %. *Answer that needs a build:* the farm hands out the chat engine and the coding agent on the LAN, and the
    client asks the farm before GitHub (question 1). Not built; **M**; it would have to land before the client freeze,
-   so S1 must be done **by Saturday evening**: a yes then means night n° 4 builds it, and the student's 20 minutes move
+   so test 2 must be done **by Saturday evening**: a yes then means night n° 4 builds it, and the student's 20 minutes move
    to a day session. If the Wi-Fi's internet is a 4G/5G box, 30 GB may also meet its data cap.
 2. **30 at once has never run through the seat gate** (J16 was never run). Production's vLLM is **0.30.0** (read in
    WSL, 2026-11-13): 32 people at 64k every turn. **J14 (0.33.0, 48 people) is run by night n° 3**, if the Farm app
@@ -70,18 +70,18 @@ session, with its evidence.
    carries the voice limit.
 3. **Discovery:** the beacon reaches a laptop only on the farm's own subnet; the search sweeps only the laptop's own
    subnet ([discovery](../context/discovery.md)). If the owner's Wi-Fi is another subnet than the PRO 6000's, each
-   student adds the farm by its address (S1 decides; the students' sheet says how either way).
+   student adds the farm by its address (Test 2 decides; the students' sheet says how either way).
 4. **A student's first 20 minutes have not run end to end on the current builds:** night n° 4 runs them on a scratch
-   client against the live farm, the owner on real laptops (S2). A client defect must be fixed before Monday 12:00.
+   client against the live farm, the owner on real laptops (test 5). A client defect must be fixed before Monday 12:00.
 5. **The Computer's sandbox has a 3 s start limit** (`sandbox/protocol.mjs` `TIMEOUTS.boot`), and it failed on this
    machine one evening (plans ▸ 4 ▸ the Computer). *Answer:* the rehearsal runs the harness with the farm loaded; the
-   owner runs S2 on the slowest laptop. Raising the limit is a one-line fix, decided on that evidence, before the client
+   owner runs test 5 on the slowest laptop. Raising the limit is a one-line fix, decided on that evidence, before the client
    freeze.
 6. **The words a first-time user reads:** the in-app Tour, lessons and help, LOL Vibe's empty state and its guide,
    GETTING_STARTED's install section (it says the engine is "about 0.8 GB", and a student needs the SmartScreen and
    macOS steps up front). **macOS 15 and later** no longer let right-click ▸ Open pass an app that is not notarized
    (ours is ad-hoc signed, [release](../context/release.md)): the student opens it once, then System Settings ▸ Privacy
-   & Security ▸ *Open Anyway* (an admin password). S2 records what a current Mac asks; the sheets give both ways, the
+   & Security ▸ *Open Anyway* (an admin password). Test 5 records what a current Mac asks; the sheets give both ways, the
    minimum systems (an Intel Mac needs macOS 14) and that a Chromebook cannot run the client. *Answer:* night n° 4 reads them along the first 20 minutes and fixes what a
    student would stumble on; night n° 5's review checks them against the running app.
 7. **30 PDFs at once:** OCR runs outside the seat gate. *Answer:* the stop between pages and the caps (200 pages,
@@ -96,30 +96,30 @@ The cron fires each night at about 01:49 for five hours; it expires on **2026-11
 | Night | Session | Objective | Done when |
 |---|---|---|---|
 | Sat 14, 01:49 to ~06:50 | n° 3 | **J14, then the rehearsal on the live farm.** First `/lol/self`: nobody on it, and the Farm app's version (J14 needs farm-v0.0.51+; if older, skip J14 and say so). J14 from the panel, as HUMAN_TESTS J14 writes it, its way back read before starting. Then 30 people through the gate from 30 addresses (`lol bench --people --users 30`) and from **one** (J16 step 3 at 16 and 30), with coding agents (`docs/spike/ide/run.js`) and the Computer harness (`--phase k`) beside it, and a few PDFs to OCR. | J14 done (or why not), the farm back up and answering as before; the rehearsal's table in RESULTS (refusals, first token p50/p95, decode p10, agent tasks passed, harness passes) and the defects ranked. |
-| Sun 15, 01:49 to ~06:50 | n° 4 | **A student's 20 minutes** on a scratch client against the live farm (HUMAN_TESTS S2's steps), and **the words along it**: the Tour, the lessons, LOL Vibe's help, GETTING_STARTED's install, fixed where a student would stumble; the rehearsal's defects, client first. *Side task:* `docs/CLASS_SHEETS.md`. | Each step passes or is fixed with its test; the sheets written. |
+| Sun 15, 01:49 to ~06:50 | n° 4 | **A student's 20 minutes** on a scratch client against the live farm (BEFORE_TUESDAY test 5's steps), and **the words along it**: the Tour, the lessons, LOL Vibe's help, GETTING_STARTED's install, fixed where a student would stumble; the rehearsal's defects, client first. *Side task:* `docs/CLASS_SHEETS.md`. | Each step passes or is fixed with its test; the sheets written. |
 | Mon 16, 01:49 to ~06:50 | n° 5 | **The review** (every fifth session, `lol-review`), scoped to what the students meet: the in-app tutorials and help, the guides, the sheets, against the running app. Its small fixes to words land before the client freeze (12:00), in a day session the owner opens, or wait on the owner's sheet. | The review report; each finding fixed, or on the owner's sheet. |
 | Tue 17, 01:49 to ~06:50 | n° 6 | **Checks only.** `/lol/self` answers with the right version, engine and seats; one chat, one coding-agent task and one Computer run, as one person. No restart, no config change, no commit but the summary. | The summary's first lines say the farm is ready, or what is wrong, by 06:30. |
 | Wed 18, 01:49 | n° 7 | The class's feedback into FIELD_NOTES first (the owner's notes); then Super VL (approved once). | — |
 
 ## What the owner does
 
-HUMAN_TESTS ▸ [Before the class of Tuesday 17 November](../HUMAN_TESTS.md#before-the-class-of-tuesday-17-november-the-owners-list-2026-11-13):
-the two releases and A24, K16 on them; the latest Farm app on the PRO 6000 before Saturday 01:00, its panel noted
-before and after; S1 (the Wi-Fi) by Saturday evening; a day session on Monday morning for the review's fixes; on Monday
-afternoon S2 on Windows, a Mac and the slowest laptop, and S3; S4 on Tuesday morning. About 2 h 30.
+[BEFORE_TUESDAY.md](../BEFORE_TUESDAY.md), seven short tests, about 2 h in all: the Farm app updated on the PRO 6000
+before Saturday 01:00 (1), the Wi-Fi by Saturday evening (2), the usage report and the PDFs on the new releases (3, 4),
+a student's 20 minutes on Windows, a Mac and the slowest laptop on Monday afternoon (5), three laptops at once (6),
+Tuesday morning (7). And a day session on Monday morning for the review's fixes, before the client freeze.
 
 ## Questions for the owner
 
 1. **A farm copy of the chat engine** (risk 1): may a session build it before the client freeze (the farm serves the
    chat engine and the coding agent it downloaded once; a new client asks the farm first, GitHub second)? *Recommended:
-   decide after S1, by Saturday evening.* If one 740 MB download takes under about 40 s on your Wi-Fi, no: the class installs in about 25
+   decide after test 2, by Saturday evening.* If one 740 MB download takes under about 40 s on your Wi-Fi, no: the class installs in about 25
    minutes while you show. If it takes much longer, yes, knowing it is a new path in the client two days before the
    class.
 2. **The releases:** cut client v0.2.18 and the next Farm app now and run A24 and K16 on them (the practice since
    2026-10-09: the tests run on published releases), or a local build first? *Recommended: cut them now*: the
    students install the latest on Tuesday, and a fix release before Monday 12:00 stays possible.
-3. **Today's window:** the live farm is off and the GPU free now. May a session run S2's student path on a scratch
+3. **Today's window:** the live farm is off and the GPU free now. May a session run test 5's student path on a scratch
    client and a scratch farm today, and start the words pass? *Recommended: yes*: it takes the riskiest client work off
    the last night before the freeze.
 4. **Where is the PRO 6000 on Tuesday?** On your Wi-Fi's own network, or on the office network your Wi-Fi connects
-   to? (S1 answers it too.)
+   to? (test 2 answers it too.)
