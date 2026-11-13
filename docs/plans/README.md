@@ -9,6 +9,9 @@ box serves the class (20–30 people, 50 at most) with vLLM; the operator does e
 processed in a cloud; the code follows the ponytail ladder.
 
 **The open plans:**
+- [CLASS_TEST_2026-11-17.md](CLASS_TEST_2026-11-17.md) — **the class of 30 students on Tuesday 17 November** (owner
+  2026-11-13): chat, LOL Vibe and the Computer tight for that day. **It comes first until the class**: its nights, its
+  freezes (the client Sunday 12:00, the farm Sunday evening) and the questions only the owner can answer.
 - [CLOUD_SOURCES_PLAN.md](CLOUD_SOURCES_PLAN.md) — documents from Microsoft 365 and synced folders. Nothing built, and
   **on hold** (owner 2026-11-06): a request from the school's administrators; nothing starts before they and IT say go.
   The school has no Google Workspace.
@@ -25,6 +28,8 @@ file stays the whole list.
 
 ## 1. Now
 
+0. **The class of Tuesday 17 November** ([its plan](CLASS_TEST_2026-11-17.md), owner 2026-11-13): until then, only what
+   the 30 students touch and the farm that serves them; no new feature. After the class, the order below resumes.
 1. **The human testing phase** (owner 2026-11-09): client v0.2.16 and Farm app farm-v0.0.52 carry the review's fixes, the
    owner's decisions of 2026-11-06 and 09 and Gemma 4 26B. Run the ★ list of [HUMAN_TESTS](../HUMAN_TESTS.md) in its order;
    each finding goes back here.
@@ -52,10 +57,11 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
    traffic shape (2026-11-06): if J16 agrees, the capacity page goes from 48 and 96 to 64 and 128. After Now 3. **S**.
 2. **One PDF must not hold the shared GPU:** a page cap and a stop between pages when the client leaves (OCR's
    `pysvc/server.py` reads every page), and an upload cap like speech to text's 25 MB (the owner: 100 MB?). OCR runs
-   outside the seat gate. **S**. *2026-11-13 (session 2, unreleased): the stop between pages is built (`process`
-   watches `request.is_disconnected()`, `_extract_pdf` checks before each page; `check_services.py` asserts it, and a run
-   of the real service against a slow stub model stopped after 2 of 10 pages when its client left). The page cap and the
-   upload cap wait on the owner's numbers.*
+   outside the seat gate. **S**. *Built 2026-11-13, unreleased (K16): the stop between pages (session 2: `process`
+   watches `request.is_disconnected()`, `_extract_pdf` checks before each page; a run of the real service against a slow
+   stub model stopped after 2 of 10 pages when its client left), and by day the owner's caps, **200 pages** (the rest
+   not read, a last page says so) and **100 MB** (413), `OCR_MAX_PAGES` and `OCR_MAX_MB`; `check_services.py` asserts
+   all of it.*
 3. **Web search under a class's burst** (one public IP), then the owner decides whether it goes back on by default.
    **S**.
 4. **Tests before a release:** the farm suite, the Farm app's test, and the shell's unit, chat-unit and lint, in
@@ -82,7 +88,8 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
    is good there since 2026-11-09). The owner: does Qwen3.6's 7–11/15 count as good at edits? **S**.
 9. **The client says when a farm is older than it expects.** Farm updates are manual, and older farms refuse newer
    settings. The owner: the minimum version. **S**.
-10. **Prune old coding-agent session logs** in `DATA_DIR/lol-studio/dsh` (IDE_PLAN slice 7). **S**.
+10. **Prune old coding-agent session logs** in `DATA_DIR/lol-studio/dsh` (IDE_PLAN slice 7): those **older than 30
+    days** (owner 2026-11-13). After the class of 17 November. **S**.
 11. **The coding agent's fence check on macOS and Linux** (`sandboxBlocked` checks only on Windows). After HUMAN_TESTS
     E4. **M**.
 12. **Measure Ripple-65B Preview**, a dense model tuned for coding: about 4–13 people at 64k on the PRO 6000 by
@@ -131,10 +138,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
 **Choices to make, one line each:**
 - **The farm:**
-  - *2026-11-13:* may a session serve **Nemotron 3.5 Super VL** with `--trust-remote-code` in the trial vLLM only
-    (`~/lol-vllm-033`)? vLLM 0.33.0 needs the checkpoint's own config code ([the research](../research/MODELS_2026-11-13.md)
-    §5); it is the one candidate that might read scanned pages itself and free the 9 GB reserve (3. above);
-  - an OCR upload cap of 100 MB, or another number;
+  - ~~may a session serve **Nemotron 3.5 Super VL** with `--trust-remote-code` in the trial vLLM?~~ *Yes, once (owner
+    2026-11-13), after the class of 17 November ([the class's plan](CLASS_TEST_2026-11-17.md), night n° 7);*
+  - ~~an OCR upload cap of 100 MB~~ *200 pages and 100 MB (owner 2026-11-13), built (Next 2);*
   - FSV-2's progress, (a) or (b);
   - the panel's text for an Ollama the farm did not start (FSV-7);
   - a panel change after a terminal pick writes the picked list whole (FEN-2): fix it, or leave it;
