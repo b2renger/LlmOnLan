@@ -218,5 +218,43 @@ with contextlib.redirect_stdout(out):
 check("ocr: the log line counts pages, never the file's name",
       r.status_code == 200 and "1 page(s)" in out.getvalue() and "Salaries" not in out.getvalue())
 
+
+# ---- OCR: a PDF stops between pages once the client has gone (plans ▸ Next 2, 2026-11-13) ----------------------
+leave, read = threading.Event(), []
+
+
+class _Page:
+    def __init__(self, i):
+        self.i = i
+
+    def get_text(self, _):
+        read.append(self.i)
+        if self.i == 1:
+            leave.set()   # the client leaves while page 2 is being read
+        return f"page {self.i} " * 20
+
+
+class _Doc:
+    page_count = 6
+
+    def __getitem__(self, i):
+        return _Page(i)
+
+    def close(self):
+        pass
+
+
+ocr.pymupdf.open = lambda _src: _Doc()
+ocr.OCR_PDF_ENGINE = "text"
+try:
+    with contextlib.redirect_stdout(io.StringIO()):
+        ocr._extract_pdf("x.pdf", "x.pdf", ".", leave)
+    status = 200
+except ocr.HTTPException as e:
+    status = e.status_code
+check("ocr: a PDF stops at the next page once the client has gone", status == 499 and read == [0, 1])
+check("ocr: with no one leaving, every page is read", len(ocr._extract_pdf("x.pdf", "x.pdf", ".")) == 6)
+ocr.OCR_PDF_ENGINE = "auto"
+
 print(f"{'FAILED ' + str(len(failures)) if failures else 'all passed'}")
 sys.exit(1 if failures else 0)

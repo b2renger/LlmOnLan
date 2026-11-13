@@ -6,6 +6,23 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-13 (03:35) — An abandoned PDF stops at the next page (plans ▸ 2. Next 2, its part with no number)
+
+`farm/src/pysvc/server.py`: `process` starts a watcher (`request.is_disconnected()` every second) beside the thread that
+reads the document; `_extract_pdf` checks the event before each page and stops with 499 and a log line that counts pages
+("stopped after 2 of 10 page(s)"). The page being read finishes (one vision call). The page cap and the upload cap wait
+on the owner's numbers. **Tested:**
+- `check_services.py` (run by `node farm/test/run.js` from the stt venv): a stubbed six-page PDF stops after page 2 with
+  499 when the client leaves during it; with no one leaving, 6 pages. Without the check in `_extract_pdf` the first fails.
+- The real service under uvicorn from `farm/.extract/venv`, a stub vision model taking 2 s a page, a 10-page PDF in
+  vision mode: a client that gave up at 3 s → 2 vision calls, then "stopped after 2 of 10"; a client that waited → 10
+  calls, 200. (A first run gave a 500 on the summary line's "→": my harness lacked the `PYTHONUTF8=1` `extract.js` sets.)
+- `farm/test/run.js` 288 passed.
+**Not checked:** whether Open WebUI closes its request when a person leaves an upload; the stop also covers its own
+request timeout and a client that restarts.
+
+---
+
 ## 2026-11-13 (03:29) — The small hardening settled (plans ▸ 2. Next 6)
 
 - **The Farm app's wizard no longer hangs on a server that accepts and never answers.** `runtimeManager.ts` `downloadTo`

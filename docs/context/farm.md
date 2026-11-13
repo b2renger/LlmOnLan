@@ -229,7 +229,7 @@
     seat gate, no seat). They bind to `proxy.host`; the Python ones share one
     shape (own venv, a Bearer key that stays the same across runs — an HMAC of `farm/.lol-secret` and the farm
     password — one job at a time (Classify and speech to text answer 429 + Retry-After; OCR's vision pages wait their
-    turn), no body ever logged). **Plugin keys are
+    turn, and a PDF stops at the next page once its client has gone: 499, `server.py` `process`), no body ever logged). **Plugin keys are
     tied to the farm password** (2026-09-27): on an open farm the key rides the snapshot; with a password
     it is `null` there and a client holding the password fetches it from `GET /lol/plugin-keys`
     (`selfServer.js`; the client side is `farmSelect.ts` `applyPluginKeys` + `index.ts`).

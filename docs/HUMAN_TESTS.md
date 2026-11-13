@@ -49,6 +49,7 @@ The owner released these builds for a phase of human testing (2026-11-09): ★ m
 | 3 | A laptop on client v0.2.15, and a fresh one | **A1**, **B1**, **C1** (from v0.2.15), **C2**, **G11**, **I1**–**I4** | about 5 h | day one and the update; G11: the coding agent's fence fails closed (security); I1–I4: the document privacy rule of 2026-10-08 on real laptops |
 | 4 | The fixes v0.2.16 brings | **A21**, **A22**, **A23**, **A18** step 5, **C7**, **D16**, **D17**, **G13** | about 3 h, + 3 h of waiting for G13 | each checks one fix that build brings: Open WebUI's links and the microphone, a move into a folder that holds data, the password through a farm restart, a schedule above an hour, a first plugin install that froze the farm |
 | 5 | The default model (farm-v0.0.53) | **K14**, **K15** | about 3 h (mostly downloads: 27 GB) | the owner's ask of 2026-11-10: a farm that starts as Balanced on a model that reads documents, sees pictures and codes a little, on 24 GB and above; measured only on a scratch farm |
+| 6 | The next release (2026-11-13's batch) | **A24** (client), **K16** (Farm app) | about 15 min | the usage report, the panel's token delay and the wizard's timeouts, none run in an app yet |
 
 **Proposed off the ★:** I5 (the MiniLM path is the fallback of a folder that never met document search); J1 (vLLM has
 been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the owner's question 12); J2–J4
@@ -1907,6 +1908,21 @@ Ollama default is gemma4:12b: Balanced makes gemma4:26b the default…* and *Mod
 alone (gemma4:12b no longer offered), under the name people saw before (a renamed model keeps its name; from llama.cpp,
 `assistant`); the card reads *Balanced · in use*; the laptop's chat answers after a short pause. With document reading on,
 a scanned PDF still reads.
+- [ ] Done · Found:
+
+### K16 A wrong panel token is slow; the wizard gives up on a silent server
+*Proves:* plans ▸ Next 5 and 6 (2026-11-13): a guessed admin token costs time; the wizard no longer hangs for ever.
+*Needs:* the first Farm app release after farm-v0.0.53; another computer's browser on the LAN; 10 minutes.
+*Was:* new (2026-11-13; the farm's suite asserts the delay, a scratch script the timeout; never run in the app).
+1. On another computer, open `http://<the farm>:41997/lol/admin` and enter a wrong token; then the right one (Farm app ▸
+   Settings ▸ Panel access token ▸ Copy).
+2. On a test PC with no Farm app runtime yet: start the wizard, and when it says *Downloading …*, pull the network cable
+   (or turn Wi-Fi off) before any progress shows.
+
+*Expect:* 1: the wrong token is refused after a short pause (under half a second), the right one opens the panel at once.
+2: within about a minute the wizard shows an error instead of waiting for ever: *no answer for 60 s while downloading …*,
+*download stalled …* once bytes had come, or a connection error if the computer notices the cable first. Note what it
+offers next (not checked in the app: retry or restart).
 - [ ] Done · Found:
 
 ### K13 The review's smaller farm fixes

@@ -42,6 +42,7 @@ Env (set by farm/src/extract.js spawnExtract):
                    not set by extract.js: inherited from the farm's own environment
 """
 
+import asyncio
 import os
 import re
 import hmac
@@ -222,11 +223,13 @@ def _render_page(page, workdir, i):
     return png
 
 
-def _extract_pdf(src, filename, workdir):
+def _extract_pdf(src, filename, workdir, stop=None):
     """Per page: the embedded text layer when it's substantial (born-digital),
     vision OCR when it isn't (scanned), and BOTH when a real text layer coexists
     with large images (the text alone would drop the figures). OCR_PDF_ENGINE
-    forces text-only or vision-only."""
+    forces text-only or vision-only. `stop` (a threading.Event) is set when the
+    client has gone: the next page is not read, so one abandoned PDF stops
+    holding the shared GPU (plans ▸ Next 2)."""
     doc = pymupdf.open(src)
     out = []
     try:
@@ -237,6 +240,9 @@ def _extract_pdf(src, filename, workdir):
         multi = doc.page_count > 1
         label = (lambda i, c: f"[Page {i + 1}]\n{c}") if multi else (lambda i, c: c)
         for i in range(doc.page_count):
+            if stop is not None and stop.is_set():
+                print(f"document: the client left; stopped after {i} of {doc.page_count} page(s)", flush=True)
+                raise HTTPException(status_code=499, detail="The client closed the request; extraction stopped.")
             page = doc[i]
             text = page.get_text("text").strip()
             if OCR_PDF_ENGINE == "text":
@@ -267,7 +273,7 @@ def _extract_pdf(src, filename, workdir):
     return out or [_page("", 1, filename, "text")]
 
 
-def _extract(body, filename, content_type):
+def _extract(body, filename, content_type, stop=None):
     ext = _ext(filename, content_type)
     # The farm's own folder, emptied at every start and stop (extract.js clearWork): the finally below never runs
     # when the service is killed mid-document.
@@ -291,7 +297,7 @@ def _extract(body, filename, content_type):
             except Exception as e:  # noqa: BLE001 — degrade gracefully to light path
                 print(f"[extract] docling failed ({e}); falling back to light extraction", flush=True)
         if ext == ".pdf":
-            return _extract_pdf(src, filename, workdir)
+            return _extract_pdf(src, filename, workdir, stop)
         if ext == ".docx":
             return [_page(_extract_docx(src), 1, filename, "text")]
         if ext == ".pptx":
@@ -336,7 +342,23 @@ async def process(request: Request):
     # OCR / extraction is blocking (HTTP to Ollama, cv2, pymupdf) — run it off the
     # event loop so concurrent uploads don't serialize on the single async worker.
     t0 = time.monotonic()
-    pages = await run_in_threadpool(_extract, body, filename, content_type)
+    # Watch for the client leaving while the pages are read (a closed upload, a client that timed out): the PDF loop
+    # checks `stop` before each page. ponytail: checked between pages, so the page being read finishes (one vision
+    # call); a page cap and an upload cap wait on the owner's numbers (plans ▸ Next 2).
+    stop = threading.Event()
+
+    async def watch():
+        while not stop.is_set():
+            if await request.is_disconnected():
+                stop.set()
+                return
+            await asyncio.sleep(1)
+
+    watcher = asyncio.create_task(watch())
+    try:
+        pages = await run_in_threadpool(_extract, body, filename, content_type, stop)
+    finally:
+        watcher.cancel()
     # One summary line per document in the farm log ([extract] prefix added by the
     # supervisor) — the operator's proof that OWUI is routed here at all, and the
     # first thing to read when an extraction "missed" content: it shows how each

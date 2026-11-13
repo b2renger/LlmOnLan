@@ -52,7 +52,10 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
    traffic shape (2026-11-06): if J16 agrees, the capacity page goes from 48 and 96 to 64 and 128. After Now 3. **S**.
 2. **One PDF must not hold the shared GPU:** a page cap and a stop between pages when the client leaves (OCR's
    `pysvc/server.py` reads every page), and an upload cap like speech to text's 25 MB (the owner: 100 MB?). OCR runs
-   outside the seat gate. **S**.
+   outside the seat gate. **S**. *2026-11-13 (session 2, unreleased): the stop between pages is built (`process`
+   watches `request.is_disconnected()`, `_extract_pdf` checks before each page; `check_services.py` asserts it, and a run
+   of the real service against a slow stub model stopped after 2 of 10 pages when its client left). The page cap and the
+   upload cap wait on the owner's numbers.*
 3. **Web search under a class's burst** (one public IP), then the owner decides whether it goes back on by default.
    **S**.
 4. **Tests before a release:** the farm suite, the Farm app's test, and the shell's unit, chat-unit and lint, in
