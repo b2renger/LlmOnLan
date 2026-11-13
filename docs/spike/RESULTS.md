@@ -16,7 +16,7 @@ Two boxes, the same harness, the same flags:
 - the model a fresh farm serves on Ollama, for GPUs of 24 GB and above (2026-11-10):
   [Ollama's default](#ollamas-default-rtx-pro-6000-2026-11-10);
 - the model research for a class, Kolibri-1 and LFM2.5 against Qwen3.6 with a RAG check (2026-11-12/13):
-  [New models for a class](#new-models-for-a-class-rtx-pro-6000-2026-111213), the last section.
+  [New models for a class](#new-models-for-a-class-rtx-pro-6000-2026-11-1213), the last section.
 
 **Box:** `AN-A6000PRO`: one NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 96 GB (97,887 MiB), sm_120,
 ~1.8 TB/s, driver 596.36 (CUDA 13.2), Windows 11 + WSL2 Ubuntu 26.04 (16 vCPU and 94 GB RAM given to WSL).

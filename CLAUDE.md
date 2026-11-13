@@ -89,7 +89,7 @@ Two more rules with the same weight, each written out in its module:
 | The shell's look (tokens, radii, status colours) | [docs/context/design.md](docs/context/design.md) |
 | The sidecar build, installers, CI, a release, auto-update | [docs/context/release.md](docs/context/release.md) |
 | Where a file lives | [docs/context/repo-layout.md](docs/context/repo-layout.md) |
-| How a piece was built and tested, by date | [docs/DEVLOG.md](docs/DEVLOG.md) (search it, never read it whole) |
+| How a piece was built and tested, by date | [docs/DEVLOG.md](docs/DEVLOG.md), before 2026-10-01 [docs/archive/DEVLOG_2026-06_to_09.md](docs/archive/DEVLOG_2026-06_to_09.md) (search them, never read them whole) |
 | Capacity measurements and model trials | [docs/spike/RESULTS.md](docs/spike/RESULTS.md) |
 
 A module is true or it is fixed: a change to the code a module describes changes the module in the same commit. A fact

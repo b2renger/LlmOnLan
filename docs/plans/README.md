@@ -44,7 +44,7 @@ file stays the whole list.
 
 **New models, measured 2026-11-06** ([RESULTS](../spike/RESULTS.md#model-trials-rtx-pro-6000-2026-11-06)): nothing beats Qwen3.6 for a class,
 and it serves more than we said. Gemma 4 26B is LOL Vibe's coding model since 2026-11-09 (owner), in Flint's place. Nanbeige4.3 and Apex-35B are not for this farm.
-**Measured again 2026-11-13** ([the research](../research/MODELS_2026-11-13.md), [RESULTS](../spike/RESULTS.md#new-models-for-a-class-rtx-pro-6000-2026-111213)):
+**Measured again 2026-11-13** ([the research](../research/MODELS_2026-11-13.md), [RESULTS](../spike/RESULTS.md#new-models-for-a-class-rtx-pro-6000-2026-11-1213)):
 Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 ▸ The farm).
 
 1. **The class-size test through the seat gate** (HUMAN_TESTS J16): 48–64 people at 64k, 30 at 128k. It is the only
