@@ -46,10 +46,11 @@ list comes first until then. About **2 h 30** in all, in this order:
 
 | # | When | Test | Time | Why |
 |---|---|---|---|---|
-| 1 | Friday or Saturday | **A24** (client) | 5 min | then the client release (the usage report) |
-| 2 | Friday or Saturday | **K16** (Farm app) | 20 min | then the Farm app release (the token delay, the wizard's timeouts, the OCR stop and caps) |
-| 3 | Saturday, before 01:00 | **The new Farm app on the PRO 6000**: Farm app ▸ Check for updates ▸ install; leave it running for the night | 10 min | the night of the 14th updates its vLLM to 0.33.0 (J14, 32 → 48 people at 64k), then fills it with 30 simulated people; J14 needs farm-v0.0.51 or later, and the last one recorded there is farm-v0.0.48 |
-| 4 | Saturday or Sunday | **S1** your Wi-Fi | 15 min | it decides whether 30 students can download about 1 GB each in class, and how they find the farm |
+| 1 | Friday or Saturday | **The two releases** (client v0.2.18, the next Farm app), then **A24** on the client | 5 min | the usage report; the students install the latest on Tuesday |
+| 2 | Friday or Saturday, before Saturday 01:00 | **The latest Farm app on the PRO 6000** (farm-v0.0.53, or the new one if cut): first write down what the panel shows (engine, model, context per person, people at once); Farm app ▸ Check for updates ▸ install; compare the panel after; leave it running for the night | 15 min | the night of the 14th updates its vLLM to 0.33.0 (J14, 32 → 48 people at 64k), then fills it with 30 simulated people; J14 needs farm-v0.0.51 or later, the last one recorded there is farm-v0.0.48, and K1 (*the update keeps everything*) was never ticked |
+| 3 | after row 2 | **K16** steps 1, 3 and 4 on the PRO 6000 (step 2, the wizard, needs a PC with no Farm app runtime: it can wait for the K box) | 15 min | the token delay, the OCR stop and caps |
+| 4 | **by Saturday evening** | **S1** your Wi-Fi | 15 min | it decides whether 30 students can download about 1 GB each in class (and whether a night must build the farm copy of the chat engine), and how they find the farm |
+| 4b | Monday, 07:00–12:00 | **A day session** (open Claude Code): the night review's fixes to words and tutorials, then the last client release before 12:00 | — | the client freeze is Monday 12:00 |
 | 5 | Monday, after the last releases (client by 12:00) | **S2** a student's 20 minutes, on a Windows laptop **and** a Mac, fresh | 2 × 25 min | the whole path a student takes, on the builds they get |
 | 6 | Monday | **S2 on the slowest laptop you can find** | 15 min | the Computer's sandbox has 3 s to start; a slow laptop is where it would fail |
 | 7 | Monday | **S3** three laptops at once | 15 min | the pill, discovery and the seats with more than one person |
@@ -66,8 +67,8 @@ the students will use; 15 minutes.
    network* ▸ add the farm by its address.
 
 *Expect:* write the three numbers: the laptop's and the farm's first three numbers (same = discovery works by itself;
-different = every student adds the farm by its address, and the students' sheet says how), and the download's
-time. **Under about 40 s** (≈ 20 MB/s or more), 30 students can install in about 25 minutes while you show them;
+different = every student adds the farm by its address, and the students' sheet says how), the download's time, and
+whether the Wi-Fi's internet is a 4G/5G box (30 GB may meet its data cap). **Under about 40 s** (≈ 20 MB/s or more), 30 students can install in about 25 minutes while you show them;
 **much longer**, the class waits: tell the session (the plan's question on a farm copy of the chat engine).
 - [ ] Done · Found:
 
@@ -76,7 +77,9 @@ time. **Under about 40 s** (≈ 20 MB/s or more), 30 students can install in abo
 *Needs:* the client release the students get; a fresh laptop (or a fresh user account on one), Windows and then a Mac
 (Apple Silicon or Intel); your Wi-Fi; a PDF of a few pages; 25 minutes each.
 1. Download the installer from the release page and install it (Windows: SmartScreen ▸ *More info* ▸ *Run anyway*; Mac:
-   right-click ▸ *Open* ▸ *Open*). Open the app; time the first start until a chat is possible.
+   right-click ▸ *Open* ▸ *Open*; on macOS 15 or later this may not be offered: open it once, then System Settings ▸
+   Privacy & Security ▸ *Open Anyway*). **Write down the macOS version and exactly what it asked.** Open the app; time
+   the first start until a chat is possible.
 2. **Open WebUI:** ask a question; attach the PDF and ask about it.
 3. **LOL Vibe:** a chat; stop a long answer with **Stop**. Then **Project** ▸ **Install the coding agent** ▸ **New
    project** ▸ *"Make index.html: a page with a bouncing ball"*; look at **Preview**.
@@ -99,8 +102,10 @@ not start*. Write the first start's time and every stumble.
 2. All three: LOL Vibe, the same; then one runs a Computer template while the others chat.
 
 *Expect:* every answer streams, none says *farm full* or *not responding*; the pill shows the farm in green on each.
-Note the seats the pill shows (`· N/M free`): if your Wi-Fi is behind NAT, all three count as **one** seat, and that is
-fine (vLLM serves them all).
+Note the seats the pill shows (`· N/M free`): if your Wi-Fi is behind NAT, all three count as **one** seat and none is
+refused (vLLM serves them all). But speech to text allows **one recording at a time per address**: behind NAT, two
+students speaking to the Computer at once get *one recording at a time from this computer*. Try it if Voice is on: two
+laptops, the Voice persona template, ▶ Live, ● Start, at the same moment; note what the second says.
 - [ ] Done · Found:
 
 ### S4 Tuesday morning

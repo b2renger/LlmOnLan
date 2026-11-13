@@ -55,13 +55,19 @@ session, with its evidence.
    minutes**; at 20 MB/s, about 25. *Answer, with what exists:* S1 measures the line; the students start the install
    first, while the owner shows; the coding agent only for those who try the IDE; the installers on a USB stick save
    only 10 %. *Answer that needs a build:* the farm hands out the chat engine and the coding agent on the LAN, and the
-   client asks the farm before GitHub (question 1). Not built; **M**; it would have to land before the client freeze.
+   client asks the farm before GitHub (question 1). Not built; **M**; it would have to land before the client freeze,
+   so S1 must be done **by Saturday evening**: a yes then means night n° 4 builds it, and the student's 20 minutes move
+   to a day session. If the Wi-Fi's internet is a 4G/5G box, 30 GB may also meet its data cap.
 2. **30 at once has never run through the seat gate** (J16 was never run). Production's vLLM is **0.30.0** (read in
    WSL, 2026-11-13): 32 people at 64k every turn. **J14 (0.33.0, 48 people) is run by night n° 3**, if the Farm app
    there is farm-v0.0.51 or later (the last recorded is farm-v0.0.48: the owner's step 3 installs the new one first).
-   **Behind NAT, the gate sees the owner's Wi-Fi as one address:** the 30 students share one seat, nothing is
-   refused, and vLLM serves them all up to its own room and queues the rest. The pill's `N/M free` then means
-   little. The rehearsal measures both shapes.
+   **Behind NAT, the farm sees the owner's Wi-Fi as one address** (checked in the code 2026-11-13, every per-address
+   rule): the seat gate gives the 30 students **one seat** and refuses none of them (vLLM serves them all up to its own
+   room and queues the rest; the pill's `N/M free` then means little); but **speech to text and Classify allow one
+   request at a time per address** (`stt_server.py`, `classify_server.py`: *one recording at a time from this
+   computer*, 429, the client retries once after 3 s), so behind NAT **one student at a time** can speak to the
+   Computer or use voice. The bus only logs addresses. The rehearsal measures the chat in both shapes; the owner's sheet
+   carries the voice limit.
 3. **Discovery:** the beacon reaches a laptop only on the farm's own subnet; the search sweeps only the laptop's own
    subnet ([discovery](../context/discovery.md)). If the owner's Wi-Fi is another subnet than the PRO 6000's, each
    student adds the farm by its address (S1 decides; the students' sheet says how either way).
@@ -73,7 +79,10 @@ session, with its evidence.
    freeze.
 6. **The words a first-time user reads:** the in-app Tour, lessons and help, LOL Vibe's empty state and its guide,
    GETTING_STARTED's install section (it says the engine is "about 0.8 GB", and a student needs the SmartScreen and
-   right-click ▸ Open steps up front). *Answer:* night n° 4 reads them along the first 20 minutes and fixes what a
+   macOS steps up front). **macOS 15 and later** no longer let right-click ▸ Open pass an app that is not notarized
+   (ours is ad-hoc signed, [release](../context/release.md)): the student opens it once, then System Settings ▸ Privacy
+   & Security ▸ *Open Anyway* (an admin password). S2 records what a current Mac asks; the sheets give both ways, the
+   minimum systems (an Intel Mac needs macOS 14) and that a Chromebook cannot run the client. *Answer:* night n° 4 reads them along the first 20 minutes and fixes what a
    student would stumble on; night n° 5's review checks them against the running app.
 7. **30 PDFs at once:** OCR runs outside the seat gate. *Answer:* the stop between pages and the caps (200 pages,
    100 MB), in the Farm app release (K16).
@@ -95,15 +104,22 @@ The cron fires each night at about 01:49 for five hours; it expires on **2026-11
 ## What the owner does
 
 HUMAN_TESTS ▸ [Before the class of Tuesday 17 November](../HUMAN_TESTS.md#before-the-class-of-tuesday-17-november-the-owners-list-2026-11-13):
-A24 and K16 and the two releases; the new Farm app on the PRO 6000 before Saturday 01:00; S1 (the Wi-Fi); on Monday
+the two releases and A24, K16 on them; the latest Farm app on the PRO 6000 before Saturday 01:00, its panel noted
+before and after; S1 (the Wi-Fi) by Saturday evening; a day session on Monday morning for the review's fixes; on Monday
 afternoon S2 on Windows, a Mac and the slowest laptop, and S3; S4 on Tuesday morning. About 2 h 30.
 
 ## Questions for the owner
 
 1. **A farm copy of the chat engine** (risk 1): may a session build it before the client freeze (the farm serves the
    chat engine and the coding agent it downloaded once; a new client asks the farm first, GitHub second)? *Recommended:
-   decide after S1.* If one 740 MB download takes under about 40 s on your Wi-Fi, no: the class installs in about 25
+   decide after S1, by Saturday evening.* If one 740 MB download takes under about 40 s on your Wi-Fi, no: the class installs in about 25
    minutes while you show. If it takes much longer, yes, knowing it is a new path in the client two days before the
    class.
-2. **Where is the PRO 6000 on Tuesday?** On your Wi-Fi's own network, or on the office network your Wi-Fi connects
+2. **The releases:** cut client v0.2.18 and the next Farm app now and run A24 and K16 on them (the practice since
+   2026-10-09: the tests run on published releases), or a local build first? *Recommended: cut them now*: the
+   students install the latest on Tuesday, and a fix release before Monday 12:00 stays possible.
+3. **Today's window:** the live farm is off and the GPU free now. May a session run S2's student path on a scratch
+   client and a scratch farm today, and start the words pass? *Recommended: yes*: it takes the riskiest client work off
+   the last night before the freeze.
+4. **Where is the PRO 6000 on Tuesday?** On your Wi-Fi's own network, or on the office network your Wi-Fi connects
    to? (S1 answers it too.)
