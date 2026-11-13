@@ -1516,8 +1516,10 @@ build for Blackwell cards (16 GB+); replace it freely.
   `.odt`/`.epub`/`.rtf`) at the cost of a multi‑GB torch install. Delete `farm/.extract/` to uninstall.
   The vision calls take turns — one at a time (`OCR_CONCURRENCY` in the farm's environment raises it),
   the rest **wait**, never refused — so a room dropping scans at once queues on the GPU instead of
-  stacking up beside chat; text-layer pages and office files never wait. Its log line counts pages,
-  never a file's name.
+  stacking up beside chat; text-layer pages and office files never wait. A PDF stops at the next page once
+  its client has gone, at most **200 pages** of one PDF are read (a last page says where it stopped), and an upload
+  over **100 MB** is refused (`OCR_MAX_PAGES`, `OCR_MAX_MB` in the farm's environment change them). Its log line
+  counts pages, never a file's name.
 - **Classify — Laya (OFF by default, 2026-09-27):** the Laya decision model (convaiinnovations/laya,
   Apache-2.0) for the Computer's **Classify** box: one multiple-choice question answered for every item of
   a list, with a confidence. `"classify": { "enabled": true, "port": 8891, "threads": 4, "maxItems": 200 }`.

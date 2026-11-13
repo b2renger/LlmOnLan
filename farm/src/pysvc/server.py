@@ -71,6 +71,12 @@ OCR_DOCLING = os.environ.get("OCR_DOCLING", "0") == "1"
 # free the worker (a stalled Ollama would otherwise hold a threadpool token forever).
 OCR_HTTP_TIMEOUT = int(os.environ.get("OCR_HTTP_TIMEOUT", "600"))
 
+# One upload and one PDF have caps, so one document cannot hold the shared GPU for an hour (plans ▸ Next 2; the owner's
+# numbers, 2026-11-13): past MAX_PAGES the rest of a PDF is not read and a last page says so; past MAX_BYTES the upload
+# is refused (413) before or while it is read, as speech to text does with its 25 MB.
+MAX_PAGES = max(1, int(os.environ.get("OCR_MAX_PAGES", "200")))
+MAX_BYTES = max(1, int(os.environ.get("OCR_MAX_MB", "100"))) * 1024 * 1024
+
 OCR = OCRProcessor(model_name=OCR_MODEL, base_url=OCR_OLLAMA_URL, request_timeout=(10, OCR_HTTP_TIMEOUT))
 
 # The vision calls are the GPU work, and they bypass the seat gate: thirty people dropping
@@ -239,7 +245,7 @@ def _extract_pdf(src, filename, workdir, stop=None):
         # chunks — page numbers otherwise exist only in metadata RAG can't match on.
         multi = doc.page_count > 1
         label = (lambda i, c: f"[Page {i + 1}]\n{c}") if multi else (lambda i, c: c)
-        for i in range(doc.page_count):
+        for i in range(min(doc.page_count, MAX_PAGES)):
             if stop is not None and stop.is_set():
                 print(f"document: the client left; stopped after {i} of {doc.page_count} page(s)", flush=True)
                 raise HTTPException(status_code=499, detail="The client closed the request; extraction stopped.")
@@ -268,6 +274,11 @@ def _extract_pdf(src, filename, workdir, stop=None):
                     out.append(_page(label(i, text), i + 1, filename, "text"))
             else:
                 out.append(_page(label(i, text), i + 1, filename, "text"))
+        if doc.page_count > MAX_PAGES:
+            print(f"document: {doc.page_count} pages; read the first {MAX_PAGES}", flush=True)
+            out.append(_page(f"[Pages {MAX_PAGES + 1} to {doc.page_count} were not read: the farm reads at most "
+                             f"{MAX_PAGES} pages of one PDF. Split the file to ask about the rest.]",
+                             MAX_PAGES + 1, filename, "text"))
     finally:
         doc.close()
     return out or [_page("", 1, filename, "text")]
@@ -334,7 +345,19 @@ async def health():
 @app.put("/process")
 async def process(request: Request):
     _check_auth(request.headers.get("authorization", ""))
-    body = await request.body()
+    too_big = HTTPException(status_code=413, detail=f"at most {MAX_BYTES // (1024 * 1024)} MB per document")
+    try:
+        declared = int(request.headers.get("content-length") or 0)
+    except ValueError:
+        declared = 0
+    if declared > MAX_BYTES:
+        raise too_big
+    body = bytearray()
+    async for chunk in request.stream():   # a chunked upload declares no length: counted as it comes
+        body += chunk
+        if len(body) > MAX_BYTES:
+            raise too_big
+    body = bytes(body)
     if not body:
         raise HTTPException(status_code=400, detail="Empty request body.")
     filename = urllib.parse.unquote(request.headers.get("x-filename", "") or "upload")
@@ -344,7 +367,7 @@ async def process(request: Request):
     t0 = time.monotonic()
     # Watch for the client leaving while the pages are read (a closed upload, a client that timed out): the PDF loop
     # checks `stop` before each page. ponytail: checked between pages, so the page being read finishes (one vision
-    # call); a page cap and an upload cap wait on the owner's numbers (plans ▸ Next 2).
+    # call).
     stop = threading.Event()
 
     async def watch():

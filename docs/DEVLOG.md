@@ -9,6 +9,27 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-13 (08:48) — The OCR caps: 200 pages, 100 MB (plans ▸ 2. Next 2, the owner's numbers); the class's plan
+
+**The owner's answers, 08:40:** the releases after A24 and K16; Super VL with remote code, once; the Kolibri-1 and
+LFM2.5 weights deleted (done, `~/lol-models-scratch` keeps Super VL's 70 GB); pruning by age, 30 days; the OCR caps,
+200 pages and 100 MB, "a good start". And **a class of 30 students on Tuesday 17 November**, so chat, LOL Vibe and the
+Computer must be tight that day: [plans/CLASS_TEST_2026-11-17.md](plans/CLASS_TEST_2026-11-17.md) holds the risks, the
+nights until then, two freezes and the owner's questions; the session summary's next objective now points at it.
+
+**The caps** (`farm/src/pysvc/server.py`), built before the Farm app release so one release carries K16 whole:
+- **Pages:** `_extract_pdf` reads `min(page_count, MAX_PAGES)` pages; past the cap a last page says *Pages 201 to N were
+  not read … Split the file to ask about the rest*, and the log says *document: N pages; read the first 200*. The upload
+  still succeeds: in Open WebUI a refusal is a failed upload, and the first 200 pages are useful.
+- **Bytes:** `process` refuses a declared `Content-Length` over `MAX_BYTES` before reading, and counts a chunked
+  upload as it streams in (Open WebUI streams its file), 413 *at most 100 MB per document*, as speech to text does with 25 MB.
+- `OCR_MAX_PAGES` and `OCR_MAX_MB` in the farm's environment change them (as `OCR_CONCURRENCY`); no panel setting.
+
+**Tested:** `check_services.py` (the stt venv, `PYTHONUTF8=1`): the defaults are the owner's numbers; a 6-page stub PDF
+under a cap of 4 reads pages 0–3 and adds the note page; 11 bytes over a cap of 10 → 413, the same chunked → 413, 10
+bytes → 200; all passed. `node test/run.js` 288 passed. Not run against the real service under uvicorn, nor in the app
+(HUMAN_TESTS K16 step 4).
+
 ## 2026-11-13 (03:38) — The DEVLOG split at 2026-10-01 (plans ▸ 3. Later)
 
 The 150 entries from 2026-06-29 to 2026-09-30 (6,774 lines) moved to `docs/archive/DEVLOG_2026-06_to_09.md`; this file

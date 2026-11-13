@@ -254,7 +254,26 @@ except ocr.HTTPException as e:
     status = e.status_code
 check("ocr: a PDF stops at the next page once the client has gone", status == 499 and read == [0, 1])
 check("ocr: with no one leaving, every page is read", len(ocr._extract_pdf("x.pdf", "x.pdf", ".")) == 6)
+
+# ---- OCR: the caps, 200 pages and 100 MB by default (the owner's numbers, 2026-11-13) --------------------------
+check("ocr: the caps' defaults are the owner's", ocr.MAX_PAGES == 200 and ocr.MAX_BYTES == 100 * 1024 * 1024)
+ocr.MAX_PAGES, read[:] = 4, []
+with contextlib.redirect_stdout(io.StringIO()):
+    capped = ocr._extract_pdf("x.pdf", "x.pdf", ".")
+check("ocr: past the page cap the rest is not read, and a last page says so",
+      read == [0, 1, 2, 3] and len(capped) == 5 and "Pages 5 to 6 were not read" in capped[-1]["page_content"])
+ocr.MAX_PAGES = 200
 ocr.OCR_PDF_ENGINE = "auto"
+ocr.MAX_BYTES = 10
+o = TestClient(ocr.app)
+txt = {**KEY, "X-Filename": "a.txt", "Content-Type": "text/plain"}
+check("ocr: an upload over the cap -> 413", o.put("/process", content=b"x" * 11, headers=txt).status_code == 413)
+check("ocr: a chunked upload over the cap -> 413",
+      o.put("/process", content=iter([b"x" * 6, b"x" * 6]), headers=txt).status_code == 413)
+with contextlib.redirect_stdout(io.StringIO()):
+    at_cap = o.put("/process", content=b"x" * 10, headers=txt).status_code
+check("ocr: an upload at the cap is read", at_cap == 200)
+ocr.MAX_BYTES = 100 * 1024 * 1024
 
 print(f"{'FAILED ' + str(len(failures)) if failures else 'all passed'}")
 sys.exit(1 if failures else 0)

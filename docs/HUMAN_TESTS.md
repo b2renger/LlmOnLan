@@ -49,7 +49,7 @@ The owner released these builds for a phase of human testing (2026-11-09): ★ m
 | 3 | A laptop on client v0.2.15, and a fresh one | **A1**, **B1**, **C1** (from v0.2.15), **C2**, **G11**, **I1**–**I4** | about 5 h | day one and the update; G11: the coding agent's fence fails closed (security); I1–I4: the document privacy rule of 2026-10-08 on real laptops |
 | 4 | The fixes v0.2.16 brings | **A21**, **A22**, **A23**, **A18** step 5, **C7**, **D16**, **D17**, **G13** | about 3 h, + 3 h of waiting for G13 | each checks one fix that build brings: Open WebUI's links and the microphone, a move into a folder that holds data, the password through a farm restart, a schedule above an hour, a first plugin install that froze the farm |
 | 5 | The default model (farm-v0.0.53) | **K14**, **K15** | about 3 h (mostly downloads: 27 GB) | the owner's ask of 2026-11-10: a farm that starts as Balanced on a model that reads documents, sees pictures and codes a little, on 24 GB and above; measured only on a scratch farm |
-| 6 | The next release (2026-11-13's batch) | **A24** (client), **K16** (Farm app) | about 20 min | the usage report, the panel's token delay, the wizard's timeouts and the OCR stop, none run in an app yet |
+| 6 | The next release (2026-11-13's batch) | **A24** (client), **K16** (Farm app) | about 25 min | the usage report, the panel's token delay, the wizard's timeouts, the OCR stop and its caps (200 pages, 100 MB), none run in an app yet |
 
 **Proposed off the ★:** I5 (the MiniLM path is the fallback of a folder that never met document search); J1 (vLLM has
 been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the owner's question 12); J2–J4
@@ -1910,9 +1910,9 @@ alone (gemma4:12b no longer offered), under the name people saw before (a rename
 a scanned PDF still reads.
 - [ ] Done · Found:
 
-### K16 A wrong panel token is slow; the wizard gives up on a silent server; an abandoned PDF stops
-*Proves:* plans ▸ Next 5, 6 and 2 (2026-11-13): a guessed admin token costs time; the wizard no longer hangs for ever; an abandoned PDF frees the GPU.
-*Needs:* the first Farm app release after farm-v0.0.53; another computer's browser on the LAN; a scanned PDF of 30+ pages; 15 minutes.
+### K16 A wrong panel token is slow; the wizard gives up on a silent server; an abandoned PDF stops; the caps
+*Proves:* plans ▸ Next 5, 6 and 2 (2026-11-13): a guessed admin token costs time; the wizard no longer hangs for ever; an abandoned PDF frees the GPU; one document cannot hold it for long (200 pages, 100 MB).
+*Needs:* the first Farm app release after farm-v0.0.53; another computer's browser on the LAN; a scanned PDF of 30+ pages; a PDF of more than 200 pages (any long born-digital one: a manual) and a file over 100 MB; 20 minutes.
 *Was:* new (2026-11-13; the farm's suite asserts the delay, a scratch script the timeout; never run in the app).
 1. On another computer, open `http://<the farm>:41997/lol/admin` and enter a wrong token; then the right one (Farm app ▸
    Settings ▸ Panel access token ▸ Copy).
@@ -1920,13 +1920,17 @@ a scanned PDF still reads.
    (or turn Wi-Fi off) before any progress shows.
 3. From a laptop, in Open WebUI, attach a scanned PDF of 30 pages or more; while it is still processing, close the chat
    (or remove the file). Then open `farm.log` (Farm app ▸ Settings ▸ Open data & logs folder) and search for `document:`.
+4. In Open WebUI, attach the PDF of more than 200 pages and wait; open the file's extracted text (click the file in the
+   chat). Then attach the file over 100 MB.
 
 *Expect:* 1: the wrong token is refused after a short pause (under half a second), the right one opens the panel at once.
 2: within about a minute the wizard shows an error instead of waiting for ever: *no answer for 60 s while downloading …*,
 *download stalled …* once bytes had come, or a connection error if the computer notices the cable first. Note what it
 offers next (not checked in the app: retry or restart). 3: either *the client left; stopped after N of M page(s)*
 (Open WebUI closed its request: the GPU is free at once), or *M page(s) → …* (it did not: note it; the stop then only
-helps when Open WebUI's own request times out).
+helps when Open WebUI's own request times out). 4: the long PDF's text ends with *[Pages 201 to N were not read: the
+farm reads at most 200 pages of one PDF. …]* and `farm.log` says *document: N pages; read the first 200*; the file over
+100 MB fails to upload (note Open WebUI's words: the farm answers *at most 100 MB per document*).
 - [ ] Done · Found:
 
 ### K13 The review's smaller farm fixes
