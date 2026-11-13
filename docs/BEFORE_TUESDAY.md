@@ -12,9 +12,10 @@ On the PRO 6000.
 1. Open the Farm app. Take a photo of the panel (engine, model, people at once).
 2. Check for updates ▸ install it.
 3. Look at the panel again: same engine and model as in the photo?
-4. Leave the farm running for the night (the night session updates vLLM and tests 30 people on it).
+4. **For the class:** in the panel, set the engine to **vLLM** (the Qwen3.6-27B preset). The panel must then say about **32 people at once**, not 1.
+5. Leave the farm running for the night (the night session updates vLLM and tests 30 people on it).
 
-- [ ] OK
+- [X] OK
 - Farm app version after the update:
 - Notes:
 
@@ -29,9 +30,9 @@ One laptop on the Wi-Fi the students will use.
    If not: click the connection pill ▸ add the farm by its address.
 
 - Download time:
-- [ ] Farm found by itself
+- [X] Farm found by itself
 - [ ] Had to add it by address
-- Is your Wi-Fi's internet a 4G/5G box? yes / no
+- Is your Wi-Fi's internet a 4G/5G box?  no
 - Notes:
 
 ## 3. The usage report (5 min)

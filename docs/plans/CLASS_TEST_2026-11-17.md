@@ -58,7 +58,8 @@ session, with its evidence.
    client asks the farm before GitHub (question 1). Not built; **M**; it would have to land before the client freeze,
    so test 2 must be done **by Saturday evening**: a yes then means night n° 4 builds it, and the student's 20 minutes move
    to a day session. If the Wi-Fi's internet is a 4G/5G box, 30 GB may also meet its data cap.
-2. **30 at once has never run through the seat gate** (J16 was never run). Production's vLLM is **0.30.0** (read in
+2. **Found 2026-11-13 15:52 (`/lol/self`): the live farm runs llama.cpp, not vLLM**: Qwen3.8-27B-NVFP4-MTP, `parallel` 1, one 262k window, so **1 seat**. From 30 addresses that refuses 29 students (*farm full*); behind NAT it admits them all and answers one at a time. The owner switches it back to vLLM (32 people at 64k) from the panel, or says otherwise, **before night n° 3**; night n° 3 checks `backend.engine` and `capacity.slots` first and runs J14 and the rehearsal only on vLLM.
+   **30 at once has never run through the seat gate** (J16 was never run). Production's vLLM is **0.30.0** (read in
    WSL, 2026-11-13): 32 people at 64k every turn. **J14 (0.33.0, 48 people) is run by night n° 3**, if the Farm app
    there is farm-v0.0.51 or later (the last recorded is farm-v0.0.48: the owner's step 3 installs the new one first).
    **Behind NAT, the farm sees the owner's Wi-Fi as one address** (checked in the code 2026-11-13, every per-address
