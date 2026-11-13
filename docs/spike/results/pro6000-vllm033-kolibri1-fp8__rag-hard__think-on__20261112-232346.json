@@ -1,0 +1,229 @@
+{
+ "kind": "rag-hard",
+ "label": "pro6000-vllm033-kolibri1-fp8",
+ "model": "kolibri",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "on",
+ "sizes": [
+  30000,
+  60000
+ ],
+ "people": [
+  1,
+  8
+ ],
+ "depths": [
+  0.1,
+  0.5,
+  0.9
+ ],
+ "runs": [
+  {
+   "size": 30000,
+   "people": 1,
+   "asked": 4,
+   "errors": 0,
+   "found": 3,
+   "byDepth": {
+    "0.1": "1/1",
+    "0.5": "1/1",
+    "0.9": "1/1",
+    "compare": "0/1"
+   },
+   "promptTokens": [
+    29915,
+    29916,
+    29916,
+    29932
+   ],
+   "secondsMedian": 12.6,
+   "secondsWorst": 84.1,
+   "wallSeconds": 107.5,
+   "misses": [
+    {
+     "depth": "compare",
+     "reply": ""
+    }
+   ]
+  },
+  {
+   "size": 30000,
+   "people": 8,
+   "asked": 32,
+   "errors": 0,
+   "found": 29,
+   "byDepth": {
+    "0.1": "8/8",
+    "0.5": "8/8",
+    "0.9": "7/8",
+    "compare": "6/8"
+   },
+   "promptTokens": [
+    29915,
+    29916,
+    29916,
+    29932,
+    27430,
+    27430,
+    27430,
+    27446,
+    24812,
+    24812,
+    24812,
+    24828,
+    25745,
+    25745,
+    25745,
+    25761,
+    28738,
+    28738,
+    28737,
+    28754,
+    27578,
+    27577,
+    27578,
+    27594,
+    25585,
+    25586,
+    25586,
+    25602,
+    25839,
+    25839,
+    25839,
+    25855
+   ],
+   "secondsMedian": 41,
+   "secondsWorst": 198.8,
+   "wallSeconds": 299.6,
+   "misses": [
+    {
+     "depth": "compare",
+     "reply": ""
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    },
+    {
+     "depth": 0.9,
+     "reply": "\n\nThe door code of the Lille room was 6142."
+    }
+   ]
+  },
+  {
+   "size": 60000,
+   "people": 1,
+   "asked": 4,
+   "errors": 0,
+   "found": 4,
+   "byDepth": {
+    "0.1": "1/1",
+    "0.5": "1/1",
+    "0.9": "1/1",
+    "compare": "1/1"
+   },
+   "promptTokens": [
+    58310,
+    58311,
+    58311,
+    58327
+   ],
+   "secondsMedian": 25.2,
+   "secondsWorst": 94.9,
+   "wallSeconds": 152.2,
+   "misses": []
+  },
+  {
+   "size": 60000,
+   "people": 8,
+   "asked": 32,
+   "errors": 0,
+   "found": 22,
+   "byDepth": {
+    "0.1": "7/8",
+    "0.5": "7/8",
+    "0.9": "6/8",
+    "compare": "2/8"
+   },
+   "promptTokens": [
+    58310,
+    58311,
+    58311,
+    58327,
+    54948,
+    54948,
+    54948,
+    54964,
+    50203,
+    50203,
+    50203,
+    50219,
+    51358,
+    51358,
+    51358,
+    51374,
+    55330,
+    55330,
+    55329,
+    55346,
+    49824,
+    49823,
+    49824,
+    49840,
+    51370,
+    51371,
+    51371,
+    51387,
+    55870,
+    55870,
+    55870,
+    55886
+   ],
+   "secondsMedian": 85.4,
+   "secondsWorst": 542.5,
+   "wallSeconds": 933.1,
+   "misses": [
+    {
+     "depth": 0.1,
+     "reply": ""
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    },
+    {
+     "depth": 0.5,
+     "reply": ""
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    },
+    {
+     "depth": 0.9,
+     "reply": ""
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    },
+    {
+     "depth": "compare",
+     "reply": "\n\nBrest studio"
+    },
+    {
+     "depth": 0.9,
+     "reply": "\n\nThe door code of the Nantes lab was 9111."
+    },
+    {
+     "depth": "compare",
+     "reply": ""
+    }
+   ]
+  }
+ ]
+}

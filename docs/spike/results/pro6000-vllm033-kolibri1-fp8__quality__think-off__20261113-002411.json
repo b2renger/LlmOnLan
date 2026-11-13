@@ -1,0 +1,486 @@
+{
+ "kind": "quality",
+ "label": "pro6000-vllm033-kolibri1-fp8",
+ "model": "kolibri",
+ "thinking": "off",
+ "sampling": {
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": null,
+  "seed": 1234,
+  "max_tokens": 8192,
+  "template_kwargs": {
+   "enable_thinking": false
+  }
+ },
+ "concurrency": 4,
+ "server": {
+  "models": [
+   {
+    "id": "kolibri",
+    "max_model_len": 65536,
+    "owned_by": "vllm",
+    "root": "/home/ateliernum/lol-models-scratch/kolibri1-fp8"
+   }
+  ],
+  "vllm_version": "0.33.0"
+ },
+ "host": {
+  "hostname": "AN-A6000PRO",
+  "machine": "x86_64",
+  "system": "Linux",
+  "release": "6.6.87.2-microsoft-standard-WSL2",
+  "python": "3.12.14"
+ },
+ "notes": "Kolibri-1 FP8, vLLM 0.33.0, 64k, 16 GiB pool, whole PRO 6000, kv fp8, hf parsers",
+ "wall_s": 24.8,
+ "summary": {
+  "code": "7/10",
+  "exact": "7/7",
+  "tool": "10/11",
+  "total": "24/28"
+ },
+ "completion_tokens_total": 5072,
+ "set_version": 1,
+ "items": [
+  {
+   "id": "code_roman",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 3.7,
+   "completion_tokens": 124,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "```python\ndef roman_to_int(s):\n    values = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}\n    total = 0\n    for i in range(len(s)):\n        current = values[s[i]]\n        if i + 1 < len(s) and current < values[s[i + 1]]:\n            total -= current\n        else:\n            total += current\n    return total\n```"
+  },
+  {
+   "id": "code_merge_intervals",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 4.15,
+   "completion_tokens": 153,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "d_intervals = sorted(intervals, key=lambda x: x[0])\n    \n    merged = [sorted_intervals[0]]\n    \n    for current in sorted_intervals[1:]:\n        last = merged[-1]\n        # If current interval overlaps or touches the last merged interval\n        if current[0] <= last[1]:\n            # Merge by extending the end if needed\n            merged[-1][1] = max(last[1], current[1])\n        else:\n            # No overlap, add as a new interval\n            merged.append(current)\n    \n    return merged\n```"
+  },
+  {
+   "id": "code_parse_duration",
+   "kind": "code",
+   "pass": false,
+   "reason": "\"/tmp/spikeq__992caiw/check.py\", line 32, in <module>\n    assert parse_duration('1h30m') == 5400\n           ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/spikeq__992caiw/check.py\", line 12, in parse_duration\n    raise ValueError(f\"Invalid duration string: {s!r}\")\nValueError: Invalid duration string: '1h30m'\n",
+   "latency_s": 4.62,
+   "completion_tokens": 181,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": " must be a string\")\n    s = s.strip()\n    if s == \"\":\n        raise ValueError(\"Empty string is not a valid duration\")\n    pattern = r'^(\\d+)h?(\\d+)m?(\\d+)s?$'\n    match = re.match(pattern, s)\n    if match is None:\n        raise ValueError(f\"Invalid duration string: {s!r}\")\n    h, m, s_val = match.groups()\n    total = 0\n    if h is not None:\n        total += int(h) * 3600\n    if m is not None:\n        total += int(m) * 60\n    if s_val is not None:\n        total += int(s_val)\n    return total\n```"
+  },
+  {
+   "id": "code_eval_expr",
+   "kind": "code",
+   "pass": false,
+   "reason": "  File \"/tmp/spikeq_87jk3t4_/check.py\", line 24\n    nonlocal pos\n    ^^^^^^^^^^^^\nSyntaxError: no binding for nonlocal 'pos' found\n",
+   "latency_s": 8.64,
+   "completion_tokens": 451,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "         return -parse_factor()\n        if tokens[pos] == '(':\n            pos += 1\n            val = parse_expr()\n            if pos >= len(tokens) or tokens[pos] != ')':\n                raise ValueError('Mismatched parentheses')\n            pos += 1\n            return val\n        token = tokens[pos]\n        pos += 1\n        return float(token) if '.' in token else int(token)\n\n    result = parse_expr()\n    if pos != len(tokens):\n        raise ValueError('Unexpected token')\n    return result\n```"
+  },
+  {
+   "id": "code_top_k",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 0.8,
+   "completion_tokens": 50,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "```python\nfrom collections import Counter\n\ndef top_k_frequent(words, k):\n    counts = Counter(words)\n    sorted_words = sorted(counts.keys(), key=lambda w: (-counts[w], w))\n    return sorted_words[:k]\n```"
+  },
+  {
+   "id": "code_topo_sort",
+   "kind": "code",
+   "pass": false,
+   "reason": " last):\n  File \"/tmp/spikeq_g_o9obn4/check.py\", line 38, in <module>\n    assert check(d1, topo_sort(d1))\n                     ^^^^^^^^^^^^^\n  File \"/tmp/spikeq_g_o9obn4/check.py\", line 23, in topo_sort\n    raise ValueError(\"Cycle detected in dependencies\")\nValueError: Cycle detected in dependencies\n",
+   "latency_s": 2.77,
+   "completion_tokens": 181,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "items():\n        for dep in deps_list:\n            indegree[node] += 1\n\n    queue = [node for node in all_nodes if indegree[node] == 0]\n    order = []\n\n    while queue:\n        node = queue.pop()\n        order.append(node)\n        for neighbor in deps.get(node, []):\n            indegree[neighbor] -= 1\n            if indegree[neighbor] == 0:\n                queue.append(neighbor)\n\n    if len(order) != len(all_nodes):\n        raise ValueError(\"Cycle detected in dependencies\")\n\n    return order\n```"
+  },
+  {
+   "id": "code_lru",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 2.13,
+   "completion_tokens": 140,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "    self.order = []\n\n    def get(self, key):\n        if key in self.cache:\n            self.order.remove(key)\n            self.order.append(key)\n            return self.cache[key]\n        return -1\n\n    def put(self, key, value):\n        if key in self.cache:\n            self.order.remove(key)\n        else:\n            if len(self.cache) >= self.capacity:\n                lru = self.order.pop(0)\n                del self.cache[lru]\n        self.cache[key] = value\n        self.order.append(key)\n```"
+  },
+  {
+   "id": "code_rle",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 2.71,
+   "completion_tokens": 179,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "ult = []\n    i = 0\n    n = len(s)\n    while i < n:\n        j = i\n        while j < n and s[j] == s[i]:\n            j += 1\n        result.append(str(j - i) + s[i])\n        i = j\n    return ''.join(result)\n\n\ndef rle_decode(s):\n    if not s:\n        return ''\n    result = []\n    i = 0\n    n = len(s)\n    while i < n:\n        j = i\n        while j < n and s[j].isdigit():\n            j += 1\n        count = int(s[i:j])\n        result.append(s[j] * count)\n        i = j + 1\n    return ''.join(result)\n```"
+  },
+  {
+   "id": "code_palindrome",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 2.99,
+   "completion_tokens": 203,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "i in range(n):\n        l, r = i, i\n        while l >= 0 and r < n and s[l] == s[r]:\n            l -= 1\n            r += 1\n        cur_len = r - l - 1\n        if cur_len > max_len:\n            max_len = cur_len\n            start = l + 1\n        l, r = i, i + 1\n        while l >= 0 and r < n and s[l] == s[r]:\n            l -= 1\n            r += 1\n        cur_len = r - l - 1\n        if cur_len > max_len:\n            max_len = cur_len\n            start = l + 1\n    return s[start:start + max_len]\n```"
+  },
+  {
+   "id": "code_business_days",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 1.23,
+   "completion_tokens": 81,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "```python\nfrom datetime import datetime, timedelta\n\ndef business_days(start, end):\n    s = datetime.fromisoformat(start)\n    e = datetime.fromisoformat(end)\n    count = 0\n    d = s\n    while d < e:\n        if d.weekday() < 5:\n            count += 1\n        d += timedelta(days=1)\n    return count\n```"
+  },
+  {
+   "id": "math_div35",
+   "kind": "exact",
+   "pass": true,
+   "reason": "got 400",
+   "latency_s": 6.61,
+   "completion_tokens": 449,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": " (since if divisible by 3 and 5, it's divisible by 15), and that's exactly C.\nSo A \u222a B = (A \\ C) \u222a (B \\ C) \u222a C, a disjoint union.\n\nTherefore, |(A \u222a B) \\ C| = |A \u222a B| - |C|.\n\nNow compute:\n|A| = floor(999/3) = 333.\n|B| = floor(999/5) = 199.\n|A \u2229 B| = |C| = floor(999/15) = 66.\n\nSo |A \u222a B| = 333 + 199 - 66 = 466.\nThen |(A \u222a B) \\ C| = 466 - 66 = 400.\n\nAlternatively, |A \\ C| = |A| - |C| = 333 - 66 = 267.\n|B \\ C| = |B| - |C| = 199 - 66 = 133.\nSum = 267 + 133 = 400.\n\nThus the answer is 400.\n\nANSWER: 400"
+  },
+  {
+   "id": "math_digits",
+   "kind": "exact",
+   "pass": true,
+   "reason": "got 76",
+   "latency_s": 8.06,
+   "completion_tokens": 541,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "776 \\times 1024 = 1,125,899,906,842,624\n\\]\n\nNow, sum the decimal digits of \\(1,125,899,906,842,624\\):\n\\[\n1 + 1 + 2 + 5 + 8 + 9 + 9 + 9 + 0 + 6 + 8 + 4 + 2 + 6 + 2 + 4\n\\]\nAdd step by step:\n\\[\n1 + 1 = 2\n\\]\n\\[\n2 + 2 = 4\n\\]\n\\[\n4 + 5 = 9\n\\]\n\\[\n9 + 8 = 17\n\\]\n\\[\n17 + 9 = 26\n\\]\n\\[\n26 + 9 = 35\n\\]\n\\[\n35 + 9 = 44\n\\]\n\\[\n44 + 0 = 44\n\\]\n\\[\n44 + 6 = 50\n\\]\n\\[\n50 + 8 = 58\n\\]\n\\[\n58 + 4 = 62\n\\]\n\\[\n62 + 2 = 64\n\\]\n\\[\n64 + 6 = 70\n\\]\n\\[\n70 + 2 = 72\n\\]\n\\[\n72 + 4 = 76\n\\]\n\nThe sum of the decimal digits is 76.\n\nANSWER: 76"
+  },
+  {
+   "id": "math_modpow",
+   "kind": "exact",
+   "pass": true,
+   "reason": "got 4",
+   "latency_s": 6.28,
+   "completion_tokens": 422,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "ore,\n\\[\n7^{2026} = 7^{12 \\times 168 + 10} = (7^{12})^{168} \\times 7^{10} \\equiv 1^{168} \\times 7^{10} \\equiv 7^{10} \\pmod{13}\n\\]\n\nNow compute \\(7^{10} \\pmod{13}\\):\n\\[\n7^1 \\equiv 7 \\pmod{13}\n\\]\n\\[\n7^2 \\equiv 49 \\equiv 10 \\pmod{13}\n\\]\n\\[\n7^4 \\equiv (7^2)^2 \\equiv 10^2 = 100 \\equiv 9 \\pmod{13}\n\\]\n\\[\n7^8 \\equiv (7^4)^2 \\equiv 9^2 = 81 \\equiv 3 \\pmod{13}\n\\]\n\\[\n7^{10} = 7^8 \\times 7^2 \\equiv 3 \\times 10 = 30 \\equiv 4 \\pmod{13}\n\\]\n\nThus, the remainder when \\(7^{2026}\\) is divided by 13 is 4.\n\nANSWER: 4"
+  },
+  {
+   "id": "math_strings",
+   "kind": "exact",
+   "pass": true,
+   "reason": "got 448",
+   "latency_s": 8.41,
+   "completion_tokens": 549,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": " 2a_{n-2}\\), so:\n\\[\na_n = 2a_{n-1} + 2a_{n-2}\n\\]\n\nWe need initial conditions:\n- For \\(n=1\\): strings are A, B, C \u2192 \\(a_1 = 3\\)\n- For \\(n=2\\): total strings \\(3^2 = 9\\), invalid is AA \u2192 \\(a_2 = 8\\)\n\nNow compute:\n- \\(a_3 = 2a_2 + 2a_1 = 2(8) + 2(3) = 16 + 6 = 22\\)\n- \\(a_4 = 2a_3 + 2a_2 = 2(22) + 2(8) = 44 + 16 = 60\\)\n- \\(a_5 = 2a_4 + 2a_3 = 2(60) + 2(22) = 120 + 44 = 164\\)\n- \\(a_6 = 2a_5 + 2a_4 = 2(164) + 2(60) = 328 + 120 = 448\\)\n\nThus, the number of valid strings of length 6 is 448.\n\nANSWER: 448"
+  },
+  {
+   "id": "logic_train",
+   "kind": "exact",
+   "pass": true,
+   "reason": "got 18:05",
+   "latency_s": 1.78,
+   "completion_tokens": 114,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "To find the arrival time, first calculate the duration of the journey.\n\nTime = Distance / Speed  \nTime = 287 km / 82 km/h = 3.5 hours = 3 hours and 30 minutes.\n\nThe train leaves at 14:35. Adding 3 hours and 30 minutes:\n\n14:35 + 3 hours = 17:35  \n17:35 + 30 minutes = 18:05\n\nANSWER: 18:05"
+  },
+  {
+   "id": "logic_siblings",
+   "kind": "exact",
+   "pass": true,
+   "reason": "got 7",
+   "latency_s": 3.21,
+   "completion_tokens": 199,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "amily.\n\nFrom the boy's statement: \"I have twice as many sisters as brothers.\"\nA boy has \\( g \\) sisters and \\( b - 1 \\) brothers.\nSo, \\( g = 2(b - 1) \\)\n\nFrom the sister's statement: \"I have as many brothers as sisters.\"\nA girl has \\( b \\) brothers and \\( g - 1 \\) sisters.\nSo, \\( b = g - 1 \\)\n\nSubstitute \\( b = g - 1 \\) into the first equation:\n\\( g = 2((g - 1) - 1) \\)\n\\( g = 2(g - 2) \\)\n\\( g = 2g - 4 \\)\n\\( g = 4 \\)\n\nThen \\( b = g - 1 = 3 \\).\n\nTotal children = \\( b + g = 3 + 4 = 7 \\).\n\nANSWER: 7"
+  },
+  {
+   "id": "prob_dice",
+   "kind": "exact",
+   "pass": true,
+   "reason": "got 3/4",
+   "latency_s": 2.7,
+   "completion_tokens": 163,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "e of the numbers is even. It is easier to find the probability that the product is odd, which happens only when both numbers are odd.\n\nEach die has 3 odd faces (1, 3, 5) out of 6 total faces. The probability that one die shows an odd number is \\(\\frac{3}{6} = \\frac{1}{2}\\). Since the dice are independent, the probability that both are odd is:\n\\[\n\\frac{1}{2} \\times \\frac{1}{2} = \\frac{1}{4}\n\\]\nTherefore, the probability that the product is even is:\n\\[\n1 - \\frac{1}{4} = \\frac{3}{4}\n\\]\n\nANSWER: 3/4"
+  },
+  {
+   "id": "tool_weather",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 0.8,
+   "completion_tokens": 45,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "get_weather",
+     "args": {
+      "city": "Lyon",
+      "unit": "celsius"
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "The current weather in Lyon is 17\u00b0C with light rain.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_currency",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 1.03,
+   "completion_tokens": 59,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "convert_currency",
+     "args": {
+      "amount": 250,
+      "from_currency": "EUR",
+      "to_currency": "JPY"
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "250 euros is equivalent to 41,250 Japanese yen.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_calendar",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 2.54,
+   "completion_tokens": 136,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "create_calendar_event",
+     "args": {
+      "title": "Spike review",
+      "date": "2026-10-06",
+      "start_time": "14:30",
+      "duration_minutes": 45,
+      "attendees": [
+       "alice@example.com",
+       "bob@example.com"
+      ]
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "I have successfully scheduled the meeting \"Spike review\" for October 6, 2026, at 14:30 for 45 minutes with attendees alice@example.com and bob@example.com. The event ID is evt_8812.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_parallel_weather",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 1.7,
+   "completion_tokens": 90,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "get_weather",
+     "args": {
+      "city": "Paris",
+      "unit": "celsius"
+     }
+    },
+    {
+     "name": "get_weather",
+     "args": {
+      "city": "Berlin",
+      "unit": "celsius"
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "Paris is currently 14\u00b0C and cloudy, while Berlin is 9\u00b0C and windy. Therefore, Paris is warmer than Berlin by 5\u00b0C.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_search",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 1.72,
+   "completion_tokens": 92,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "search_files",
+     "args": {
+      "query": "TODO",
+      "path": "src",
+      "file_glob": "*.ts"
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "Found 2 TODO comments in TypeScript files under `src/`:\n\n1. **src/main/index.ts:42**  \n   `// TODO: handle reconnect`\n\n2. **src/main/store.ts:7**  \n   `// TODO: migrate v1 settings`",
+   "malformed": 0
+  },
+  {
+   "id": "tool_read_then_answer",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 0.7,
+   "completion_tokens": 36,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "read_file",
+     "args": {
+      "path": "config/settings.json"
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "The server listens on port **8443**.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_light",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 0.72,
+   "completion_tokens": 34,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "set_light",
+     "args": {
+      "room": "kitchen",
+      "on": false
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "The kitchen lights have been turned off.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_no_call",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 0.26,
+   "completion_tokens": 8,
+   "finish": "stop",
+   "calls": [],
+   "steps": 0,
+   "final_tail": "The capital of Australia is Canberra.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_email",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 1.34,
+   "completion_tokens": 71,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "send_email",
+     "args": {
+      "to": "dana@example.com",
+      "subject": "Weekly report",
+      "body": "The benchmark spike has finished."
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "I have sent the email to dana@example.com with the subject \"Weekly report\" and the message that the benchmark spike has finished.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_chain_stock",
+   "kind": "tool",
+   "pass": false,
+   "reason": "missing/wrong call: convert_currency",
+   "latency_s": 4.9,
+   "completion_tokens": 217,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "get_stock_price",
+     "args": {
+      "ticker": "NVDA"
+     }
+    },
+    {
+     "name": "convert_currency",
+     "args": {
+      "amount": 1000,
+      "from_currency": "USD",
+      "to_currency": "EUR"
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "Now I need to convert $200 USD to euros. However, I notice I already called the convert_currency tool with an amount of 1000, but I should use the actual stock price of 200. Let me use the conversion result I have.\n\nBased on the conversion result I received:\n- $200 USD converts to \u20ac172.40 EUR (using the rate from the conversion).\n\nTherefore, NVDA's current share price is approximately **\u20ac172.40**.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_write_file",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 1.73,
+   "completion_tokens": 104,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "write_file",
+     "args": {
+      "path": "hello.py",
+      "content": "print('Hello, \"LAN\"!')"
+     }
+    },
+    {
+     "name": "read_file",
+     "args": {
+      "path": "hello.py"
+     }
+    }
+   ],
+   "steps": 2,
+   "final_tail": "I've created the file `hello.py` with the following content:\n\n```python\nprint('Hello, \"LAN\"!')\n```\n\nWhen you run this file, it will print: `Hello, \"LAN\"!`",
+   "malformed": 0
+  }
+ ],
+ "finished": "2026-11-13T00:24:11.365680"
+}

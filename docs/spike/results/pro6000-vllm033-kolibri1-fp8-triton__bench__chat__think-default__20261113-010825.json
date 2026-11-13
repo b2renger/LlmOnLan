@@ -1,0 +1,174 @@
+{
+ "kind": "bench",
+ "label": "pro6000-vllm033-kolibri1-fp8-triton",
+ "profile": "chat",
+ "profile_params": {
+  "prompt_tokens": 4000,
+  "prefix_tokens": 0,
+  "max_tokens": 512,
+  "tools": false
+ },
+ "thinking": "default",
+ "natural": false,
+ "model": "kolibri",
+ "base_url": "http://localhost/v1",
+ "server": {
+  "models": [
+   {
+    "id": "kolibri",
+    "max_model_len": 65536,
+    "owned_by": "vllm",
+    "root": "/home/ateliernum/lol-models-scratch/kolibri1-fp8"
+   }
+  ],
+  "vllm_version": "0.33.0"
+ },
+ "host": {
+  "hostname": "AN-A6000PRO",
+  "machine": "x86_64",
+  "system": "Linux",
+  "release": "6.6.87.2-microsoft-standard-WSL2",
+  "python": "3.12.14"
+ },
+ "notes": "Kolibri-1 FP8, vLLM 0.33.0, TRITON_ATTN, 64k, 16 GiB pool, whole PRO 6000",
+ "started": "2026-11-13T01:08:25.479353",
+ "tokenizer_calibration": {
+  "prose_tpw": 1.082392026578073,
+  "code_tpl": 7.593333333333334,
+  "json_tpc": 0.2535807291666667,
+  "source": "server /tokenize"
+ },
+ "criteria": {
+  "ttft_p95_max_s": 5.0,
+  "min_decode_tps": 15.0
+ },
+ "args": {
+  "cmd": "bench",
+  "base_url": "http://localhost/v1",
+  "model": "kolibri",
+  "uds": "/home/ateliernum/lol-vllm-033/run/vllm.sock",
+  "label": "pro6000-vllm033-kolibri1-fp8-triton",
+  "thinking": "default",
+  "template_kwargs": null,
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": null,
+  "timeout": 1200.0,
+  "out_dir": "/mnt/c/Users/ateliernum/Documents/code/LlmOnLan/docs/spike/results",
+  "notes": "Kolibri-1 FP8, vLLM 0.33.0, TRITON_ATTN, 64k, 16 GiB pool, whole PRO 6000",
+  "profile": "chat",
+  "levels": "1,8,16,32,64",
+  "extend": "",
+  "rounds": 2,
+  "stagger": 3.0,
+  "jitter": 0.2,
+  "natural": false,
+  "prompt_tokens": null,
+  "prefix_tokens": null,
+  "max_tokens": null,
+  "ttft_p95_max": 5.0,
+  "min_tps": 15.0,
+  "abort_ttft": 90.0,
+  "abort_tps": 3.0,
+  "warmup": true,
+  "warmup_burst": 32,
+  "cold_max_tokens": 8,
+  "append": false,
+  "save_requests": true
+ },
+ "levels": [
+  {
+   "concurrency": 1,
+   "requests": 2,
+   "errors": 0,
+   "wall_s": 6.76,
+   "ttft_p50": 0.141,
+   "ttft_p95": 0.142,
+   "ttft_max": 0.142,
+   "decode_tps_median": 184.88,
+   "decode_tps_p10": 184.76,
+   "decode_tps_min": 184.72,
+   "e2e_p50": 3.38,
+   "e2e_p95": 3.39,
+   "completion_tokens": 1198,
+   "completion_tokens_mean": 599.0,
+   "prompt_tokens_mean": 4038,
+   "agg_tps_wall": 177.2,
+   "agg_tps_steady": 181.1,
+   "steady_window_s": 6.6,
+   "agg_tps": 181.1,
+   "ttft_p50_steady": 0.14,
+   "ttft_p95_steady": 0.14,
+   "decode_tps_p10_steady": 185.03,
+   "ttft_p95_round0": 0.142,
+   "pass_steady": true,
+   "pass_p10": true,
+   "pass_median": true,
+   "gpu": {
+    "vram_used_mib_max": 95808.0,
+    "gpu_util_mean": 97.5,
+    "power_w_mean": 329.6
+   },
+   "server_metrics": {
+    "gauges_max": {
+     "vllm:num_requests_running": 1.0,
+     "vllm:num_requests_waiting": 0.0,
+     "vllm:num_requests_waiting_by_reason": 0.0,
+     "vllm:kv_cache_usage_perc": 0.004
+    },
+    "counters_delta": {
+     "vllm:prefix_cache_queries_total": 8076.0,
+     "vllm:prefix_cache_hits_total": 112.0,
+     "vllm:external_prefix_cache_queries_total": 0.0,
+     "vllm:external_prefix_cache_hits_total": 0.0,
+     "vllm:num_preemptions_total": 0.0,
+     "vllm:prompt_tokens_total": 8076.0,
+     "vllm:generation_tokens_total": 1198.0
+    },
+    "prefix_cache_hit_rate": 0.014
+   },
+   "requests_detail": [
+    {
+     "ok": true,
+     "err": null,
+     "t_start": 0.002461891999701038,
+     "ttft": 0.1424152920008055,
+     "t_end": 3.3682081469996774,
+     "ntok": 596,
+     "prompt_tokens": 4030,
+     "decode_tps": 184.7248915755014,
+     "finish": "length",
+     "n_events": 595,
+     "content_chars": 0,
+     "reasoning_chars": 2251,
+     "tool_call_chunks": 0,
+     "max_tokens": 596,
+     "e2e": 3.365745312999934,
+     "t_first": 0.14487812600054895,
+     "user": 0,
+     "round": 0
+    },
+    {
+     "ok": true,
+     "err": null,
+     "t_start": 3.3688005019976117,
+     "ttft": 0.14013158899979317,
+     "t_end": 6.7594012310000835,
+     "ntok": 602,
+     "prompt_tokens": 4046,
+     "decode_tps": 185.02614730407007,
+     "finish": "length",
+     "n_events": 601,
+     "content_chars": 0,
+     "reasoning_chars": 2498,
+     "tool_call_chunks": 0,
+     "max_tokens": 602,
+     "e2e": 3.3905999880007585,
+     "t_first": 3.508932831999118,
+     "user": 0,
+     "round": 1
+    }
+   ]
+  }
+ ]
+}
