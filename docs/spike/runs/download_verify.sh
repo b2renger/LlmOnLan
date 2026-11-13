@@ -16,6 +16,9 @@ dl() {
   echo "[dl] $(date +%H:%M) downloaded $repo ($(du -sh "$DEST/$name" | cut -f1))"
   "$BIN/python" "$HERE/verify_sha.py" "$repo" "$DEST/$name"
 }
-dl nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-NVFP4 nemotron35-super-vl-nvfp4
-dl Aleph-Alpha/Kolibri-1 kolibri1-fp8
+if [ $# -ge 2 ]; then dl "$1" "$2"   # download_verify.sh <repo> <folder name>
+else
+  dl nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-NVFP4 nemotron35-super-vl-nvfp4
+  dl Aleph-Alpha/Kolibri-1 kolibri1-fp8
+fi
 echo "[dl] $(date +%H:%M) all done"
