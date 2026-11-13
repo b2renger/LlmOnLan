@@ -1199,8 +1199,8 @@ outdated value of each and a comparison question). No live farm ran; the whole c
 | Model | Pool | Gate off / on | Coding agent | RAG plain: facts found | RAG hard, thinking on | People 30k | People 62k | One person |
 |---|---|---|---|---|---|---|---|---|
 | Qwen3.6 35B-A3B (reference, 2026-11-12 20:46) | 60 GiB | 28/28 / 27/28 | 7–11/15 | **all**, 1–16 people | **71/72** | ≥ 128 | 64 | 187 tok/s |
-| Kolibri-1 FP8, `TRITON_ATTN` | 16 GiB (whole card) | 24/28 / 22/28 | 10/15 | **all** (thinking off) | 48/54 facts, 13/18 compare | 32 | ≥ 24 | 185 tok/s |
-| Kolibri-1 FP8, FlashInfer (vLLM's pick) | 16 GiB | (same server) | — | all | (cap-bound) | 0 | 0 | 77 tok/s |
+| Kolibri-1 FP8, `TRITON_ATTN` | 16 GiB (whole card) | (ran on FlashInfer, below) | 10/15 | (ran on FlashInfer) | 48/54 facts, 13/18 compare | 32 | ≥ 24 | 185 tok/s |
+| Kolibri-1 FP8, FlashInfer (vLLM's pick) | 16 GiB | 24/28 / 22/28 | — | **all** (thinking off) | 49/54 facts, 9/18 compare (empty replies: likely the thinking hit the cap) | 0 | 0 | 77 tok/s |
 | LFM2.5-24B-A2B FP8 | **48 GiB (the farm's own)** | 26/28 / 26/28 (always thinks) | 7/15 | 154/174 | 33/54 facts, 10/18 compare | **64** | 32 | **250 tok/s** |
 | Nemotron 3.5 Super VL NVFP4 | — | not served: vLLM 0.33.0 needs the checkpoint's own code (`--trust-remote-code`), refused | | | | | | |
 
@@ -1211,8 +1211,9 @@ vLLM's startup line says 12.6 people of 64k in 16 GiB, but 24 people with 24 dif
 pool 92.4 % full (~10.7 KB a token: its 513-token windows cost almost nothing). It does not fit beside the farm's reserves.
 
 **LFM2.5-24B-A2B** (`LiquidAI/LFM2.5-24B-A2B-FP8`, 23.24 GiB loaded, native). Always thinks (no switch in its template). Of
-its 20 plain misses, 11 were wrong answers (wrong digits, or "the document does not provide" a fact it held), 9 empty (the
-thinking used the 4,096-token cap). At 62k memory is its limit (the pool 99 % full at 40 running); at 30k it holds 73–75.
+its 20 plain misses, 11 were wrong answers (wrong digits, or "the document does not provide" a fact it held), 9 empty (likely
+the thinking used the 4,096-token cap). Its agent's misses are its own, not the parser's: its calls reached the tools, with
+paths outside the project and an invented `exec`. At 62k memory is its limit (the pool 99 % full at 40 running); at 30k it holds 73–75.
 
 Results: `results/pro6000-vllm033-{qwen36-nvfp4,kolibri1-fp8,kolibri1-fp8-triton,lfm25-24b-a2b-fp8}__*`,
 `results/ide/pro6000-vllm033-{kolibri1-fp8-triton,lfm25-24b-a2b-fp8}__32768.jsonl`.

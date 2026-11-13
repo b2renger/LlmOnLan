@@ -19,7 +19,8 @@ the PRO 6000 and the Spark). `docs/research/MODELS_2026-11-13.md` §5–§6; RES
   coding agent 7/15, 250 tok/s for one, 64 people at 30k and 32 at 62k (memory the limit, pool 99 % full at 40). Always
   thinks (no switch). Missed 20 of 174 planted facts: 11 wrong answers, 9 empty.
 - **Nemotron 3.5 Super VL** not served (remote code refused, DEVLOG 22:22): the owner's question.
-- **Recommendation:** documents, Qwen3.6; code, Gemma 4 26B; both as today on both boxes. No farm change. Catalog and
+- **Recommendation:** keep what the farm runs on both boxes: Qwen3.6 for documents and, through the LOL Vibe preset, for
+  code (Gemma 4 26B stays the best coder measured, with fewer people). No farm change. Catalog and
   `measured.json` not touched: `presets.js` reads them, and neither model should become a pick.
 - Corrections made on the way: §5 first said Kolibri's windows saved less memory than they do, and computed it at ~8 people
   as a farm (the margin is 8 % of the whole card: it does not fit); both fixed from vLLM's gauges and `poolGib`.
