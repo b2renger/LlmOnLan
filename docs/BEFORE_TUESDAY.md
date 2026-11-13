@@ -12,7 +12,7 @@ On the PRO 6000.
 1. Open the Farm app. Take a photo of the panel (engine, model, people at once).
 2. Check for updates ▸ install it.
 3. Look at the panel again: same engine and model as in the photo?
-4. **For the class:** in the panel, set the engine to **vLLM** (the Qwen3.6-27B preset). The panel must then say about **32 people at once**, not 1.
+4. **For the class:** in the panel, set the engine to **vLLM** with its default model, **Qwen3.6 35B-A3B · NVFP4**. The panel must then say about **32 people at once** or more, not 1.
 5. Leave the farm running for the night (the night session updates vLLM and tests 30 people on it).
 
 - [X] OK
