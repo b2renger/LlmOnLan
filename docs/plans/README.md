@@ -112,7 +112,7 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
   - `npm test` runs the chat suites;
   - vllm-lifecycle's stopped-503 assertions follow the new code (needs WSL);
   - the CRLF fixture.
-- **Split DEVLOG.md** at 2026-10-01 into the archive.
+- ~~**Split DEVLOG.md** at 2026-10-01 into the archive.~~ *Done 2026-11-13: [archive/DEVLOG_2026-06_to_09.md](../archive/DEVLOG_2026-06_to_09.md).*
 
 ## 4. Waiting on the owner
 

@@ -69,7 +69,8 @@ LlmOnLan/
                          # COMPUTER_DEBUG_LOG)
     plans/               #   open plans only, and README (the next work, in order)
     archive/             #   what is done, not kept up to date: plans/ (executed plans, visions, specs, studies),
-                         #   testing/ (the checklists HUMAN_TESTS replaced), logs/ (night logs), dated reports
+                         #   testing/ (the checklists HUMAN_TESTS replaced), logs/ (night logs), dated reports,
+                         #   DEVLOG_2026-06_to_09.md (the DEVLOG's entries before 2026-10-01)
     reviews/             #   critic and consistency reports, dated
     research/            #   dated research and spikes (the Computer, the coding agent)
     spike/               #   the capacity measurements the capacity page is built from (paths stay put)
