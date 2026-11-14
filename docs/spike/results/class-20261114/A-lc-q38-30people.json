@@ -1,0 +1,326 @@
+{
+  "at": "2026-11-14T00:58:19.439Z",
+  "url": "http://127.0.0.1:4000",
+  "model": "assistant",
+  "users": 30,
+  "rounds": 1,
+  "maxTokens": 1000,
+  "cancel": 0,
+  "sources": "per-user",
+  "requests": [
+    {
+      "round": 1,
+      "user": 1,
+      "source": "127.0.0.2",
+      "ok": true,
+      "status": 200,
+      "ttftMs": 1931,
+      "totalMs": 30406,
+      "tokens": 1000,
+      "tps": 35.118525021949075,
+      "cancelled": false
+    },
+    {
+      "round": 1,
+      "user": 2,
+      "source": "127.0.0.3",
+      "ok": true,
+      "status": 200,
+      "ttftMs": 1941,
+      "totalMs": 30905,
+      "tokens": 1000,
+      "tps": 34.525618008562354,
+      "cancelled": false
+    },
+    {
+      "round": 1,
+      "user": 3,
+      "source": "127.0.0.4",
+      "ok": true,
+      "status": 200,
+      "ttftMs": 1931,
+      "totalMs": 30406,
+      "tokens": 1000,
+      "tps": 35.118525021949075,
+      "cancelled": false
+    },
+    {
+      "round": 1,
+      "user": 4,
+      "source": "127.0.0.5",
+      "ok": true,
+      "status": 200,
+      "ttftMs": 1941,
+      "totalMs": 30905,
+      "tokens": 1000,
+      "tps": 34.525618008562354,
+      "cancelled": false
+    },
+    {
+      "round": 1,
+      "user": 5,
+      "source": "127.0.0.6",
+      "ok": true,
+      "status": 200,
+      "ttftMs": 1942,
+      "totalMs": 30905,
+      "tokens": 1000,
+      "tps": 34.52681006801782,
+      "cancelled": false
+    },
+    {
+      "round": 1,
+      "user": 6,
+      "source": "127.0.0.7",
+      "ok": true,
+      "status": 200,
+      "ttftMs": 1938,
+      "totalMs": 30697,
+      "tokens": 1000,
+      "tps": 34.77172363434055,
+      "cancelled": false
+    },
+    {
+      "round": 1,
+      "user": 7,
+      "source": "127.0.0.8",
+      "ok": true,
+      "status": 200,
+      "ttftMs": 1939,
+      "totalMs": 30697,
+      "tokens": 1000,
+      "tps": 34.77293274914806,
+      "cancelled": false
+    },
+    {
+      "round": 1,
+      "user": 8,
+      "source": "127.0.0.9",
+      "ok": true,
+      "status": 200,
+      "ttftMs": 1940,
+      "totalMs": 30903,
+      "tokens": 1000,
+      "tps": 34.52681006801782,
+      "cancelled": false
+    },
+    {
+      "round": 1,
+      "user": 9,
+      "source": "127.0.0.10",
+      "ok": true,
+      "status": 200,
+      "ttftMs": 1938,
+      "totalMs": 30903,
+      "tokens": 1000,
+      "tps": 34.52442603141723,
+      "cancelled": false
+    },
+    {
+      "round": 1,
+      "user": 10,
+      "source": "127.0.0.11",
+      "ok": true,
+      "status": 200,
+      "ttftMs": 1934,
+      "totalMs": 30696,
+      "tokens": 1000,
+      "tps": 34.76809679438148,
+      "cancelled": false
+    },
+    {
+      "round": 1,
+      "user": 11,
+      "source": "127.0.0.12",
+      "ok": true,
+      "status": 200,
+      "ttftMs": 1934,
+      "totalMs": 30696,
+      "tokens": 1000,
+      "tps": 34.76809679438148,
+      "cancelled": false
+    },
+    {
+      "round": 1,
+      "user": 12,
+      "source": "127.0.0.13",
+      "ok": true,
+      "status": 200,
+      "ttftMs": 1932,
+      "totalMs": 30696,
+      "tokens": 1000,
+      "tps": 34.76567932137394,
+      "cancelled": false
+    },
+    {
+      "round": 1,
+      "user": 13,
+      "source": "127.0.0.14",
+      "ok": true,
+      "status": 200,
+      "ttftMs": 1936,
+      "totalMs": 30696,
+      "tokens": 1000,
+      "tps": 34.77051460361613,
+      "cancelled": false
+    },
+    {
+      "round": 1,
+      "user": 14,
+      "source": "127.0.0.15",
+      "ok": true,
+      "status": 200,
+      "ttftMs": 1941,
+      "totalMs": 30905,
+      "tokens": 1000,
+      "tps": 34.525618008562354,
+      "cancelled": false
+    },
+    {
+      "round": 1,
+      "user": 15,
+      "source": "127.0.0.16",
+      "ok": true,
+      "status": 200,
+      "ttftMs": 1936,
+      "totalMs": 30696,
+      "tokens": 1000,
+      "tps": 34.77051460361613,
+      "cancelled": false
+    },
+    {
+      "round": 1,
+      "user": 16,
+      "source": "127.0.0.17",
+      "ok": true,
+      "status": 200,
+      "ttftMs": 1934,
+      "totalMs": 30696,
+      "tokens": 1000,
+      "tps": 34.76809679438148,
+      "cancelled": false
+    },
+    {
+      "round": 1,
+      "user": 17,
+      "source": "127.0.0.18",
+      "ok": false,
+      "status": 429,
+      "error": "HTTP 429: All 16 seats on this server are in use. Every one is generating right now, and a seat frees about 1 min after its holder's last reply: try again later. Whoever runs the farm can free idle seats sooner"
+    },
+    {
+      "round": 1,
+      "user": 18,
+      "source": "127.0.0.19",
+      "ok": false,
+      "status": 429,
+      "error": "HTTP 429: All 16 seats on this server are in use. Every one is generating right now, and a seat frees about 1 min after its holder's last reply: try again later. Whoever runs the farm can free idle seats sooner"
+    },
+    {
+      "round": 1,
+      "user": 19,
+      "source": "127.0.0.20",
+      "ok": false,
+      "status": 429,
+      "error": "HTTP 429: All 16 seats on this server are in use. Every one is generating right now, and a seat frees about 1 min after its holder's last reply: try again later. Whoever runs the farm can free idle seats sooner"
+    },
+    {
+      "round": 1,
+      "user": 20,
+      "source": "127.0.0.21",
+      "ok": false,
+      "status": 429,
+      "error": "HTTP 429: All 16 seats on this server are in use. Every one is generating right now, and a seat frees about 1 min after its holder's last reply: try again later. Whoever runs the farm can free idle seats sooner"
+    },
+    {
+      "round": 1,
+      "user": 21,
+      "source": "127.0.0.22",
+      "ok": false,
+      "status": 429,
+      "error": "HTTP 429: All 16 seats on this server are in use. Every one is generating right now, and a seat frees about 1 min after its holder's last reply: try again later. Whoever runs the farm can free idle seats sooner"
+    },
+    {
+      "round": 1,
+      "user": 22,
+      "source": "127.0.0.23",
+      "ok": false,
+      "status": 429,
+      "error": "HTTP 429: All 16 seats on this server are in use. Every one is generating right now, and a seat frees about 1 min after its holder's last reply: try again later. Whoever runs the farm can free idle seats sooner"
+    },
+    {
+      "round": 1,
+      "user": 23,
+      "source": "127.0.0.24",
+      "ok": false,
+      "status": 429,
+      "error": "HTTP 429: All 16 seats on this server are in use. Every one is generating right now, and a seat frees about 1 min after its holder's last reply: try again later. Whoever runs the farm can free idle seats sooner"
+    },
+    {
+      "round": 1,
+      "user": 24,
+      "source": "127.0.0.25",
+      "ok": false,
+      "status": 429,
+      "error": "HTTP 429: All 16 seats on this server are in use. Every one is generating right now, and a seat frees about 1 min after its holder's last reply: try again later. Whoever runs the farm can free idle seats sooner"
+    },
+    {
+      "round": 1,
+      "user": 25,
+      "source": "127.0.0.26",
+      "ok": false,
+      "status": 429,
+      "error": "HTTP 429: All 16 seats on this server are in use. Every one is generating right now, and a seat frees about 1 min after its holder's last reply: try again later. Whoever runs the farm can free idle seats sooner"
+    },
+    {
+      "round": 1,
+      "user": 26,
+      "source": "127.0.0.27",
+      "ok": false,
+      "status": 429,
+      "error": "HTTP 429: All 16 seats on this server are in use. Every one is generating right now, and a seat frees about 1 min after its holder's last reply: try again later. Whoever runs the farm can free idle seats sooner"
+    },
+    {
+      "round": 1,
+      "user": 27,
+      "source": "127.0.0.28",
+      "ok": false,
+      "status": 429,
+      "error": "HTTP 429: All 16 seats on this server are in use. Every one is generating right now, and a seat frees about 1 min after its holder's last reply: try again later. Whoever runs the farm can free idle seats sooner"
+    },
+    {
+      "round": 1,
+      "user": 28,
+      "source": "127.0.0.29",
+      "ok": false,
+      "status": 429,
+      "error": "HTTP 429: All 16 seats on this server are in use. Every one is generating right now, and a seat frees about 1 min after its holder's last reply: try again later. Whoever runs the farm can free idle seats sooner"
+    },
+    {
+      "round": 1,
+      "user": 29,
+      "source": "127.0.0.30",
+      "ok": false,
+      "status": 429,
+      "error": "HTTP 429: All 16 seats on this server are in use. Every one is generating right now, and a seat frees about 1 min after its holder's last reply: try again later. Whoever runs the farm can free idle seats sooner"
+    },
+    {
+      "round": 1,
+      "user": 30,
+      "source": "127.0.0.31",
+      "ok": false,
+      "status": 429,
+      "error": "HTTP 429: All 16 seats on this server are in use. Every one is generating right now, and a seat frees about 1 min after its holder's last reply: try again later. Whoever runs the farm can free idle seats sooner"
+    }
+  ],
+  "summary": {
+    "requests": 30,
+    "ok": 16,
+    "cancelled": 0,
+    "refused": 14,
+    "failed": 0,
+    "ttftP50Ms": 1938,
+    "ttftP95Ms": 1942,
+    "tpsMedian": 34.8
+  }
+}

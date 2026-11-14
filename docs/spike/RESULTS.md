@@ -16,7 +16,9 @@ Two boxes, the same harness, the same flags:
 - the model a fresh farm serves on Ollama, for GPUs of 24 GB and above (2026-11-10):
   [Ollama's default](#ollamas-default-rtx-pro-6000-2026-11-10);
 - the model research for a class, Kolibri-1 and LFM2.5 against Qwen3.6 with a RAG check (2026-11-12/13):
-  [New models for a class](#new-models-for-a-class-rtx-pro-6000-2026-11-1213), the last section.
+  [New models for a class](#new-models-for-a-class-rtx-pro-6000-2026-11-1213);
+- 30 people for the class on the live farm, Qwen3.8 on llama.cpp and on vLLM against Qwen3.6 (2026-11-14):
+  [30 people for the class](#30-people-for-the-class-rtx-pro-6000-the-live-farm-2026-11-14), the last section.
 
 **Box:** `AN-A6000PRO`: one NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 96 GB (97,887 MiB), sm_120,
 ~1.8 TB/s, driver 596.36 (CUDA 13.2), Windows 11 + WSL2 Ubuntu 26.04 (16 vCPU and 94 GB RAM given to WSL).
@@ -1217,3 +1219,52 @@ paths outside the project and an invented `exec`. At 62k memory is its limit (th
 
 Results: `results/pro6000-vllm033-{qwen36-nvfp4,kolibri1-fp8,kolibri1-fp8-triton,lfm25-24b-a2b-fp8}__*`,
 `results/ide/pro6000-vllm033-{kolibri1-fp8-triton,lfm25-24b-a2b-fp8}__32768.jsonl`.
+
+# 30 people for the class (RTX PRO 6000, the live farm, 2026-11-14)
+
+Night n° 3 before the class of 17 November (plans ▸ [CLASS_TEST_2026-11-17](../plans/CLASS_TEST_2026-11-17.md), night n° 3).
+The owner asked for both engines to be measured for 30 students, and prefers Qwen3.8 if it holds 30. **Everything
+ran on the live farm** (farm-v0.0.53, the owner's Farm app), through its seat gate, with nobody else on it; the farm
+was switched from the panel's own API. The pass mark is the plan's: no refusal, first token p95 under 5 s, decode p10
+at 15 tok/s or more. Two shapes of traffic:
+- **People:** `lol bench --people` (each simulated person from its own 127.0.0.x, so the gate seats each one, as
+  students on their own addresses; one short question, up to 1,000 tokens back), and the same from **one** address
+  (the NAT case: one seat, everyone admitted).
+- **Conversations:** `spike_bench.py --profile followup --append` through the gate from one address, at 16 and 30
+  people, with a unique document of the size given in each follow-up history (8k, 28k, 62k asked; the prompt column is
+  what the model read).
+
+| Engine · model · context a person · seats | People (30 addresses) | Same, one address | Conversations 8k, 30 people | Near-full conversations, 30 people | Coding agent (5 tasks × 3, three at once) |
+|---|---|---|---|---|---|
+| **llama.cpp** (farm's build) · Qwen3.8-27B NVFP4-MTP GGUF · 262k shared · **16** (the farm's cap) | **16 served, 14 refused** (*All 16 seats … in use*) | all served, first token p95 **44 s** (14 wait for a slot) | — | — | — |
+| same, a scratch llama-server with `--parallel 30` (not the farm; direct, no gate) | 30 served, 22.5 tok/s each, burst first token 2–16 s | — | **fail at 16** (p95 23 s, p10 9.7) and at 30 (p95 111 s, p10 2.4) | — | — |
+| **vLLM 0.30.0** · Qwen3.6 35B-A3B NVFP4 · 64k · 48 (Automatic) | **pass**: 0 refused, p95 0.4 s, 80 tok/s each | pass: p95 0.3 s, 81 tok/s | **pass**: p95 0.65 s, p10 66 | **pass** at ~50k: p95 3.3 s, p10 28 | (2026-10/11: 7–11/15) |
+| **vLLM 0.30.0** · Qwen3.8-27B NVFP4 · 64k · 32 (set by hand) | **pass**: 0 refused, p95 0.5 s, 45 tok/s each | pass: p95 0.3 s, 46 tok/s | **pass**: p95 1.0 s, p10 32 | **fail** at ~50k: p95 87 s, p10 1.6 (16 pass) | **12/14** ¹ |
+| **vLLM 0.30.0** · Qwen3.8-27B NVFP4 · **32k** · 32 (set by hand) | **pass**: 0 refused, p95 0.4 s, 45 tok/s each | — | (as 64k) | **pass** at ~23k: p95 2.5 s, p10 20.6 | **13/15** ² |
+
+¹ One of 15 runs never started: the three runners shared one data folder and collided writing the agent's profile (the
+harness's setup, not the app's: each client has its own folder). No failed tool calls (0 of 76); 70 s a task (median,
+three at once); no reply ended on its token limit.
+
+² At 32k, the three agents ran **beside 27 people chatting** (`lol bench --people --users 27 --rounds 8`): the 27 got 216/216 answers, first token p95 0.5 s, 41 tok/s each (p10); the agents: 1 failed tool call of 80, 70 s a task.
+
+**The farm was left on the last row** (vLLM, Qwen3.8, 32k a person, 32 people at once), the owner's preference once it held 30.
+
+**What it means for Tuesday:**
+- **Qwen3.8 on llama.cpp cannot serve 30**: the farm caps llama.cpp at 16 people (`up.js` `setSlots` and
+  `applyFarmSettings`: 1–16), and even at 30 slots llama.cpp's prefill under load collapses with documents. Its
+  single-stream speed on the NVFP4-MTP GGUF and the farm's current build is good (80 tok/s alone, 34 each at 16: about
+  2.2× the Q4_K_M of 2026-10-04).
+- **Qwen3.6 on vLLM holds 30 on every shape**, with room (48 seats).
+- **Qwen3.8 on vLLM holds 30 at 32k a person, not at 64k**: its memory holds 22 whole 64k conversations (the farm says
+  so: *room for 22*), 39 at 32k. Its coding agent did better than Qwen3.6's on these tasks (12/14 against 7–11/15 on
+  earlier nights), at about half Qwen3.6's speed per person.
+- The live farm's seats came from **llama.cpp's default of 1** (`llamacpp.parallel` unset): a farm on llama.cpp
+  serves one person at a time unless the operator raises it.
+
+**The first token through the farm on llama.cpp** was 6–7 s for short questions at 16 people where llama-server alone
+gave 1.3 s (curl: 1.4 s for a new address alone, 0.14 s after); on vLLM the same path gave 0.2–0.4 s. Not explained
+tonight: it is llama.cpp's path through the farm, not the gate (the gate does nothing per request but count).
+
+Results: `results/pro6000-{gate-vllm030-qwen36,gate-vllm030-qwen38,lcpp-p30-qwen38nvfp4}*20261114*`,
+`results/class-20261114/` (the `lol bench` runs), `results/ide/class-20261114-qwen38-{64k,32k}.jsonl`.

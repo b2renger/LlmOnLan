@@ -12,7 +12,7 @@ On the PRO 6000.
 1. Open the Farm app. Take a photo of the panel (engine, model, people at once).
 2. Check for updates ▸ install it.
 3. Look at the panel again: same engine and model as in the photo?
-4. **For the class:** in the panel, set the engine to **vLLM** with its default model, **Qwen3.6 35B-A3B · NVFP4**. The panel must then say about **32 people at once** or more, not 1.
+4. **For the class** (set by the night session of 14 November, measured for 30 people): the panel must say **vLLM · Qwen3.8 27B · NVFP4**, **32 people at once**, **32k of context each**. If it says anything else, set exactly that (vLLM section ▸ Qwen3.8 27B ▸ Use this; People at once 32; Context per person 32768; Apply). Do not choose Automatic for people at once: it gives 16 for this model.
 5. Leave the farm running for the night (the night session updates vLLM and tests 30 people on it).
 
 - [X] OK

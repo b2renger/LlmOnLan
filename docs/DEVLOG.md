@@ -9,6 +9,39 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-14 (03:41) — 30 people for the class: Qwen3.8 on llama.cpp and on vLLM, against Qwen3.6 (night n° 3)
+
+The owner's objective for tonight (2026-11-13, 16:00): measure both engines for 30 students on the live farm, the session
+switching it; Qwen3.8 preferred if it holds 30. The live farm was found at 01:49 on llama.cpp, Qwen3.8-27B NVFP4-MTP GGUF,
+`parallel` unset (1 seat), 262k shared. Everything was switched through the panel's own API (`/lol/admin/*`, the admin
+token read from the config, never printed). Table and raw results: RESULTS ▸ *30 people for the class*.
+
+- **llama.cpp, Qwen3.8, 16 seats** (the farm's cap, `setSlots`/`applyFarmSettings` 1–16): 16 people at 34 tok/s each;
+  30 from 30 addresses: **14 refused**; 30 from one address: first token p95 44 s. A scratch llama-server with
+  `--parallel 30` beside it (not the farm): 30 short chats at 22.5 tok/s each, but with 8k conversations it fails at 16
+  (p95 23 s) and collapses at 30 (p95 111 s, 2.4 tok/s). **Out.**
+- **vLLM 0.30.0, Qwen3.6, 64k, 48 seats (Automatic):** passes every shape at 30 (short: p95 0.4 s, 80 tok/s; ~50k
+  conversations: p95 3.3 s, p10 28).
+- **vLLM 0.30.0, Qwen3.8 (downloaded tonight through the farm, 21.9 GB), 32 seats by hand:** at 64k it passes short
+  chats and 8k conversations at 30 but collapses at ~50k (the pool holds 22 whole 64k conversations); **at 32k it passes
+  near-full conversations at 30** (p95 2.5 s, p10 20.6). Its coding agent: 12/14 at 64k (three at once), **13/15 at
+  32k beside 27 people chatting** (216/216 answered, p95 0.5 s, 41 tok/s); Qwen3.6 scored 7–11/15 on earlier nights.
+- **Left on vLLM · Qwen3.8 · 32k · 32 seats**, persisted; the seat release put back to 900 s (60 s during the benches).
+  Changed on the way: `llamacpp.parallel` 1 → 16 (unused while vLLM serves).
+- **The Computer's harness** (`--phase k`) failed 43 of 217 both under load and on a quiet machine, from the first k11
+  scenario on (*The sandbox could not start*); `--phase k8` alone passes 35/35; k11 alone fails (repro:
+  `--only k11-edit-model-code-with-lol-orbit-and-the-mouse-draws-in-the-guest`, 6.3 s). No shell code changed since
+  the 216/217 of 11-12 22:15. Ruled out tonight: load, and Chromium's occluded-window backgrounding (two switches added to
+  the harness, reverted). The screen was locked (LockApp running); not ruled out. Not settled.
+- **Not done:** J14 (vLLM 0.33.0): the class passes on 0.30.0, and replacing production's vLLM three days before the
+  class is a risk with no gain for it; PDFs through OCR under load (no PDF library on this box's Pythons to make a
+  scanned file; OCR's model, gemma4:12b 8.5 GB, fits beside Qwen3.8: `ocrFits` true, 17 GB free).
+- **Seen, not explained:** through the farm on llama.cpp, short questions waited 6–7 s for a first token at 16 people
+  where llama-server alone gave 1.3 s; on vLLM the same path gave 0.2–0.4 s. The Qwen3.8 download fell to 0.3 MB/s for a
+  minute, then ran at 28 MB/s.
+
+---
+
 ## 2026-11-13 (08:48) — The OCR caps: 200 pages, 100 MB (plans ▸ 2. Next 2, the owner's numbers); the class's plan
 
 **The owner's answers, 08:40:** the releases after A24 and K16; Super VL with remote code, once; the Kolibri-1 and
