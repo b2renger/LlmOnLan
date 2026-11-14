@@ -18,7 +18,10 @@ Gray waves…"`, two empty lines first. `app/ask.mjs` text lane: the box's value
 (`/^(?:[ 	]*?
 )+/`), keeping the first line's own indent; `raw` stays as received. Test: `ask.test.mjs` *text() drops
 the blank lines…*; `npm run test:chat` 1,963 passed, lint 0; checked in the real app: *"Sea winds whisper low…"* from its
-first line, 4.1 s. Also read, not changed: the text lane never sends "think off" (by design, `ask.mjs` 455), so the
+first line, 4.1 s. Harness `--phase k8` after the change: 35/35 alone; 31/35 while a dev client ran beside it (a lead on
+the k11 failures: another Electron app open). The Computer's boxes clamp `max_tokens` to the window (`bind.mjs` `clampMaxTokens`, not the "2,048/4,096"
+written at 03:41): ~45k tokens of notes into an Instruction went out with 8,192 and no 400, and failed on thinking (*all
+8192 tokens thinking*, 136 s). Also read, not changed: the text lane never sends "think off" (by design, `ask.mjs` 455), so the
 Instruction and Creative coding think on Qwen3.8 (12,025 tokens, 188 s for one sketch): a question for the owner.
 Measured after (04:30): the Computer's Creative coding request captured from the real app (a `fetch` wrapper over CDP)
 and replayed through the gate: as sent 151–207 s, 8,005–11,026 thinking tokens; with `chat_template_kwargs.enable_thinking:
@@ -32,8 +35,9 @@ the box's rule list is what makes the model think long.
 The next item of the queue (night n° 4's objective), started once the night's objective was done. A dev client
 (`electron .` from `shell/`, `--user-data-dir` in the session's scratch folder, CDP on 9341, `LOL_DSH_DIR` at the installed
 coding agent), the screen locked (`forcePageVisible`), pinned to the live farm with one click on its card (12 s).
-- **The Computer's sandbox runs in the real app:** a p5 Preview in 213 ms, a three.js scene with `lol.orbit` in 101 ms,
-  sandbox *ready*, no errors. The harness's `k11` failure (DEVLOG 03:41) is the harness's own.
+- **The Computer's sandbox runs in the real app's Preview mode:** a p5 Preview in 213 ms, a three.js scene with `lol.orbit`
+  in 101 ms, sandbox *ready*, no errors. Not run in the real app: Live mode and the edit drawer, which the failing `k11`
+  scenarios exercise (DEVLOG 03:41).
 - **LOL Vibe:** a question answered, first token 0.26 s, 61.6 tok/s; **Stop** ends the reply in 111 ms, and vLLM's
   `num_requests_running` is 0 three seconds later (the farm's `busy` lags by a refresh).
 - **Project ▸ New project ▸ "Make index.html: a page with a bouncing ball":** the coding agent wrote it in 58 s (4 steps), and
@@ -78,7 +82,7 @@ token read from the config, never printed). Table and raw results: RESULTS ▸ *
   `--only k11-edit-model-code-with-lol-orbit-and-the-mouse-draws-in-the-guest`, 6.3 s). No shell code changed since
   the 216/217 of 11-12 22:15. Ruled out tonight: load, and Chromium's occluded-window backgrounding (two switches added to
   the harness, reverted). The screen was locked (LockApp running); not ruled out. Not settled.
-- **Checked at 32k through the live gate:** LOL Vibe's chat sends no `max_tokens`, the Computer 2,048/4,096; the coding agent never hit the window (a 92 KB file read in pieces, 75k input tokens, passed in 7 min); a picture is read. `max_tokens` 32,768 on this window is refused (400): `litellm.js`'s comment that vLLM 0.30 clamps it is wrong. Open WebUI injects whole documents at ≥ 24,576 (`RAG_FULL_CONTEXT`), so about 30–40 text pages fit one chat. The sandbox with a 20 s start limit (reverted): the run starts and never finishes, so broken, not slow.
+- **Checked at 32k through the live gate:** LOL Vibe's chat sends no `max_tokens`; the Computer's boxes clamp theirs to what the window leaves (`clampMaxTokens`; see 04:25); the coding agent never hit the window (a 92 KB file read in pieces, 75k input tokens, passed in 7 min); a picture is read. `max_tokens` 32,768 on this window is refused (400): `litellm.js`'s comment that vLLM 0.30 clamps it is wrong. Open WebUI injects whole documents at ≥ 24,576 (`RAG_FULL_CONTEXT`), so about 30–40 text pages fit one chat. The sandbox with a 20 s start limit (reverted): the run starts and never finishes, so broken, not slow.
 - **Not done:** J14 (vLLM 0.33.0): the class passes on 0.30.0, and replacing production's vLLM three days before the
   class is a risk with no gain for it; PDFs through OCR under load (no PDF library on this box's Pythons to make a
   scanned file; OCR's model, gemma4:12b 8.5 GB, fits beside Qwen3.8: `ocrFits` true, 17 GB free).
