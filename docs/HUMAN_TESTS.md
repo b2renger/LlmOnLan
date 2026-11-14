@@ -337,6 +337,25 @@ on vLLM 0.33.0, 2026-11-14); the Instruction's transcript (its Got tab) shows no
 draws. Untick Think all after.
 - [ ] Done · Found:
 
+### A27 ★ Open WebUI 0.13.3: the chats stay, documents and Blender still work
+*Proves:* the bump of 2026-11-14 (owner: the security updates before the class) on a real laptop: an existing data
+folder migrates and keeps its chats, a copy is kept, an attached document reaches the model, and the Blender tools
+still reach chats (two env values, INTEGRATION_BRIEF's note). *Needs:* client v0.2.18 on your own laptop (its data
+folder has chats), the live farm, Blender with the assistant tools if you use them, 10 minutes. *Was:* new (2026-11-14;
+run on a dev client with a copied folder, not on an installed one).
+
+1. On v0.2.18, About ▸ **Check for chat-engine update**: it offers Open WebUI 0.13.3. Download, then restart.
+2. After the restart: your chats are all there; in the data folder (Preferences shows it), a file
+   `webui.db.before-owui-0.13.3` sits beside `webui.db`.
+3. A new chat: attach a short PDF or text file and ask a question only it answers.
+4. If you use Blender: open Blender with the assistant tools, then in a chat ask the model to add a cube.
+
+*Expect:* step 1 offers 0.13.3 (a fresh install, the students', gets it directly). Step 2: the same chats as before,
+and the copy (the way back is to quit, put the copy back as `webui.db`, and reinstall v0.2.17's engine: say if you
+need it). Step 3: the answer comes from the file, with its source under it (on the dev client: "gate Zanzibar-9 at
+7:42", 1 source). Step 4: the cube appears. Open WebUI shows its "What's New" note once.
+- [ ] Done · Found:
+
 ### A10 Code, pictures and files
 *Proves:* the sandbox and the File box on a real disk. *Was:* 3.1, 3.5, 3.6, 3.9; LOLCHAT_RIG §15, §15b, §18 (a paused
 sandbox); COMPUTER_STATUS "What only you can check" 3 and 8.
@@ -1735,6 +1754,21 @@ installed, a laptop, a quiet 20 minutes (Qwen3.8 27B downloaded, or any second m
 *Expect:* step 1: Update starts (or says *vLLM 0.33.0 is already installed*), never *vLLM is running from this folder*.
 Step 2: the laptop gets an answer from Qwen3.8 (with farm-v0.0.53 it got *The model … does not exist*). Step 3: the same
 with Qwen3.6, and the panel shows 48 people at once. Leave the farm on step 3's setting (the class's).
+- [ ] Done · Found:
+
+### J18 ★ The Farm app update brings LiteLLM 1.106.9, with or without a farm password
+*Proves:* the security bump of 2026-11-14 reaches an installed farm (before, the Farm app never changed the LiteLLM a
+farm was set up with), and LiteLLM 1.106, which refuses to start with no master key, starts on a farm with no
+password. *Needs:* the next Farm app (after farm-v0.0.53) on the PRO 6000, a laptop, 10 minutes. *Was:* new
+(2026-11-14; the exact pip command run on a scratch 1.97.0 venv, 26 s; the cancel test passes on 1.106.9).
+
+1. Install the next Farm app over farm-v0.0.53. Its first start takes up to a minute or two longer (LiteLLM downloads).
+2. When the panel says ready, chat from a laptop.
+3. Settings ▸ logs ▸ `farm.log`: no line *pip install litellm[proxy]==1.106.9 ended with code*.
+
+*Expect:* step 2 answers. In PowerShell, `& "$env:APPDATA\LlmOnLan Farm\farm\.venv\Scripts\python.exe" -m pip show litellm`
+says `Version: 1.106.9`. If the update could not download (offline), the farm starts on 1.97.0 and the next start tries
+again (farm.log says so).
 - [ ] Done · Found:
 
 ## K. A Windows test box with an RTX card (not production)

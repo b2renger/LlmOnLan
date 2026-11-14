@@ -3,18 +3,20 @@
 The owner's standing ask of 2026-11-14: each session's research covers the updates of the tools we already pin. This is
 the first pass. Read from the release pages and advisories by three read-only explorers (their fetches went through a
 summariser: quotes are close, not byte-exact); the facts about our own code were checked in the repo. **Verdict per tool
-at the end of each section.** Nothing here is changed before the class of 17 November except vLLM, which the owner
-asked to test now.
+at the end of each section.** Nothing here was to change before the class of 17 November except vLLM; **the same afternoon the
+owner asked for the other updates now** ("No not after the class, i want now the updates for llama.cpp, LiteLLM,
+Electron, Open WebUI and Python"): the section *Done the same afternoon* at the end. Ollama stays for after the class;
+Electron 45 was tried and dropped.
 
 | Tool | Our pin | Latest (date) | For us |
 |---|---|---|---|
 | vLLM | 0.30.0 live, 0.33.0 offered (`farm/vllm/install.sh` `VER`) | **0.33.0** (2026-11-02) | **Updated on the live farm today** (J14); measured below and in RESULTS |
-| llama.cpp | b11836 (`farm/src/llamacpp.js` `PINNED_BUILD`) | v1.0.0 (2026-11-13, no binaries); builds up to **b12377** (2026-11-14) | Measured: same speed alone, first token 3× sooner with 16; a bump needs `CUDA_TAG` 13.5 too; after the class |
+| llama.cpp | b11836 (`farm/src/llamacpp.js` `PINNED_BUILD`) | v1.0.0 (2026-11-13, no binaries); builds up to **b12377** (2026-11-14) | **Bumped the same afternoon** (owner: "now"): b12377 with `CUDA_TAG` 13.5; document search's vectors identical; the Spark build started |
 | Ollama | v0.33.0 (`farm-app/src/main/runtimeManager.ts` `RUNTIME_PINS`) | **v0.40.16** (2026-11-09) | Models pulled by ≥0.40 need a re-pull to go back; after the class |
-| LiteLLM | 1.97.0 (`farm/src/commands/install.js:148`) | **1.109.1** (2026-11-12) | Inside a Critical advisory, but its precondition cannot occur here (below); bump after the class |
-| Open WebUI | 0.11.4 (`sidecar/OPENWEBUI_VERSION`) | **0.13.3** (2026-11-08) | Security fixes in 0.12.5/0.13.x; a bump is invariant 5's smoke test; after the class |
-| Electron | ^42.5.0 (`shell/` and `farm-app/package.json`) | **45.3.2** (2026-11-13) | **42 is past end-of-life (2026-10-20)**: a major bump, after the class |
-| python-build-standalone | 20260825, CPython 3.12.14 (`runtimeManager.ts:50,85`) | **20261110**, CPython 3.12.16 | 3.12.16 is an expedited security release; bump after the class |
+| LiteLLM | 1.97.0 (`farm/src/commands/install.js:148`) | **1.109.1** (2026-11-12) | **Bumped the same afternoon to 1.106.9**, and installed farms are brought to it on an update (below) |
+| Open WebUI | 0.11.4 (`sidecar/OPENWEBUI_VERSION`) | **0.13.3** (2026-11-08) | **Bumped the same afternoon**, two env values keep documents and the Blender tools (INTEGRATION_BRIEF's note) |
+| Electron | ^42.5.0 (`shell/` and `farm-app/package.json`) | **45.3.2** (2026-11-13) | **Tried the same afternoon and dropped**: the sandbox fails on 45 in the harness (below); after the class |
+| python-build-standalone | 20260825, CPython 3.12.14 (`runtimeManager.ts:50,85`) | **20261110**, CPython 3.12.16 | **Bumped the same afternoon** for new Farm app installs; the client's bundle takes the latest at CI time |
 
 ## vLLM: 0.33.0 is the newest
 
@@ -57,8 +59,9 @@ asked to test now.
 - **GHSA-7hp6-4w63-5g45 / CVE-2026-114612** (Critical, 2026-09-30): "An authenticated user with `internal_user`
   privileges can escalate to `proxy_admin`"; affected >=1.91.0 <1.100.4: **our 1.97.0 is in range.**
   https://github.com/advisories/GHSA-7hp6-4w63-5g45
-- **Why it cannot occur here (checked in our code):** the farm's LiteLLM has no database, so no users or roles: one
-  `master_key` (`farm/src/litellm.js:474-476`), and it listens on loopback only, behind the seat gate
+- **Why it cannot occur here (checked in our code):** the farm's LiteLLM has no database, so no users or roles: a
+  `master_key` only when the farm has a password, none otherwise (`farm/src/litellm.js`; corrected the same afternoon,
+  this line first said "one master_key"), and it listens on loopback only, behind the seat gate
   (`farm/src/commands/up.js:1709-1710`). There is no `internal_user` to escalate from.
 - Other advisories (2026-10-01, 10-27, 11-12) had no readable affected ranges. A malicious `litellm==1.107.0` was on
   PyPI on 2026-10-21 for two hours; we pin an explicit older version.
@@ -86,3 +89,25 @@ asked to test now.
 - 20261110 (2026-11-11) ships CPython 3.12.16, "an expedited security release" (CVEs in Expat and tarfile).
   https://www.python.org/downloads/release/python-31216/
 - **Verdict:** bump `RUNTIME_PINS` and `PY_PINNED` together, after the class (a fresh Farm app install path).
+
+## Done the same afternoon (2026-11-14, owner: "now")
+
+- **llama.cpp b12377** (`PINNED_BUILD`, `CUDA_TAG` cuda-13.5, the arm64 workflow): installed through the farm's own
+  path; document search's vectors equal on both builds (cosine 1.000000, five texts), so no laptop re-indexes;
+  `litellm-cancel.js` with the real engine passes. The Spark's `llamacpp-b12377` built by the workflow (dispatched
+  on `night`, the owner's yes): it must be on the repo's releases before a Farm app with this pin is tagged.
+- **LiteLLM 1.106.9**, not 1.109.1: the smallest step out of GHSA-7hp6-4w63-5g45 and of **GHSA-2rwg-2wh4-7c4f** (High,
+  published 2026-11-12, affects everything below 1.106.9 on that line). Two things found on the way: **1.106 refuses to
+  start with no master key** (a farm without a password, the default, would not have started: the generated config now
+  says so on purpose), and **an installed farm never got a LiteLLM bump** (`lol install` and the Farm app now bring the
+  venv to the pin; the Farm app's step is asynchronous and retried at the next start if it fails). The cancel test
+  passes on 1.106.9 (fake engine and llama.cpp) and on 1.97.0 with the new config line.
+- **Open WebUI 0.13.3**: see INTEGRATION_BRIEF's note of this date (two env values; the chats copied before the
+  one-way migration; a chat and an attached document through the live farm in the client's window).
+- **Electron 45.3.2: tried, dropped for the class.** No API we call was removed (a read of 43, 44 and 45's breaking
+  changes against our code; the sync `safeStorage` calls go in 46; 43's dialogs open in Downloads), and the unit suites
+  pass on it, but the harness's sandbox stops booting in a long-running window on 45 (`--phase c` 57/73 twice) and not
+  on 42 (73/73, same tree). Plans ▸ Next 14.
+- **LiteLLM 1.106.9's cost, measured on the live vLLM:** each person about 6 % slower at 30 (88 against 95 tok/s) and
+  9 % at 48 (67 against 74), first token unchanged; kept for the security fix.
+- **CPython 3.12.16** (`RUNTIME_PINS` 20261110): new Farm app installs; an installed farm keeps its runtime.

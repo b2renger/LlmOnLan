@@ -9,6 +9,66 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-14 (18:05) — The tool updates now (owner): llama.cpp, LiteLLM, Open WebUI 0.13.3, Python; Electron 45 dropped
+
+The owner, ~14:20: "No not after the class, i want now the updates". One commit per bump; research by three read-only
+explorers (Electron 43–45 breaking changes against our code, Open WebUI 0.11.4 → 0.13.3, LiteLLM's advisories), each
+fact used here checked in the installed package or by running it.
+
+- **CPython 3.12.16** (25c9121): the Farm app's `RUNTIME_PINS` 20261110, `PY_PINNED`; the release's asset names read
+  from GitHub. New installs only. The client's bundle (`build-sidecar.mjs`) takes the latest release at CI time: a
+  build of it here gave Python 3.12.16.
+- **llama.cpp b12377** (e71e3c9): `ensureLlamacpp()` installed it in 59 s; document search (embeddinggemma-2, the
+  farm's exact flags, port 8195, five texts) gives the same vectors on b11836 and b12377 (cosine 1.000000 each);
+  `litellm-cancel.js` with the real engine (Qwen3.8 27B IQ2_S, LOL_CANCEL_ENGINE=llamacpp) passes every path: streams
+  released 16–21 ms after the abort, non-streaming 940–991 ms, the one while another person streams included. The
+  Spark's arm64 build: `gh workflow run build-llamacpp-arm64.yml --ref night` (the owner's yes), run 43612545808,
+  success in 16 min; `llamacpp-b12377` holds `llama-b12377-bin-linux-cuda-arm64.tar.gz` (600 MB), a pre-release.
+- **LiteLLM 1.106.9** (785f896), not 1.109.1: the smallest step out of GHSA-7hp6-4w63-5g45 and GHSA-2rwg-2wh4-7c4f
+  (High, 2026-11-12). Clean venvs: the proxy imports, `pip check` clean, with our fastapi bound (0.140.6) and without
+  (0.162.7; 1.106.9 falls back to `get_flat_params`). **Found:** 1.106 refuses to start with no master key
+  (`proxy/auth/master_key_boot_check.py`: unset, empty or one publicly known key), and a farm has a key only when it
+  has a password: the generated config now sets `dangerously_permit_weak_or_unset_master_key` then (loopback, behind
+  the gate). **Found:** an installed farm kept its LiteLLM for ever (`ensureLitellm` and the Farm app only repaired
+  fastapi): both now install both pins; the Farm app's step is asynchronous (it was `execFileSync`) and a failure leaves
+  `farmCodeVersion`, so the next start retries. Cancel test PASS on 1.106.9 (fake engine: every shape, thinking off,
+  the reply limit) and on 1.97.0 with the new config line. The Farm app's exact pip command on a 1.97.0 venv: 26 s,
+  then 1 s satisfied, proxy import OK.
+- **Open WebUI 0.13.3** (9038485): read in the installed 0.13.3. `file_context` in `DEFAULT_MODEL_METADATA`
+  (`utils/tools.py` `is_file_context_enabled`; merged under per-model values, `utils/models.py`) and
+  `ENABLE_DIRECT_INTEGRATIONS=true` (`main.py`: a person's tool servers set to None otherwise), the owner choosing to
+  keep documents and Blender. New `sidecar.ts` `keepDbBeforeEngine`: `webui.db` (+ `-wal`) copied once before a version
+  first starts on a folder. A dev client on 0.13.3 (`LOL_SIDECAR_CMD`, a copy of the scratch profile, schema of 0.10.1):
+  the copy made, 24 migrations, the chat kept, `/api/models` capabilities `vision, file_context, web_search`, direct
+  integrations true; a chat through the live farm in the window; a text file attached through Open WebUI's own input,
+  answered from it with 1 source. A fresh 0.13.3 with the Computer's `TOOL_SERVER_CONNECTIONS` lists
+  `server:mcp:lol-computer`; signin, `GET /api/v1/auths/` 200, the user-settings write reads back; huggingface_hub
+  1.33, onnxruntime 1.26.0. The CI-shaped bundle (`build-sidecar.mjs` from a scratch copy, so `sidecar/build` was not
+  touched) built, decoded its recording (PyAV 18.1), and booted through `launcher.py` in 22 s, `/api/version` 0.13.3.
+- **LiteLLM 1.106.9 on the class's engine** (the advisor: it had not met vLLM): `litellm-cancel.js` with
+  LOL_CANCEL_ENGINE=vllm against the live vLLM (its own LiteLLM and gate on OS ports): PASS on every path, GPU ≤10 %
+  about 0.5 s after an abort. Then a scratch farm (`external` → the live vLLM :8100, its own gate and LiteLLM, ports
+  4290/4291), 30 people in this morning's two shapes, alternated with the live farm (1.97.0), two rounds each: first
+  token the same (p95 0.1–0.5 s, one 0.9 s), **per-person speed 88–89 tok/s on 1.106.9 against 93–96 on 1.97.0**;
+  the same scratch farm on a fresh 1.97.0 gave 94–99, so the cost is LiteLLM's. At 48 people: 67–68 tok/s on 1.106.9,
+  73–75 on 1.97.0 (p95 0.3–0.5 s both). Kept, for the security fix: still about ten times reading speed. The seat gate
+  answers 404 to LiteLLM's management routes (`/key/generate`, `/user/new`, `/model/new`, `/config/update`): its
+  allowlist, so a keyless LiteLLM's INTERNAL_USER is not reachable from the network. The live farm untouched
+  (0.0.53, vLLM, Qwen3.6, 48 seats; GPU memory as at the start).
+- **Electron 45.3.2: tried and dropped for the class.** The explorer's read of 43/44/45's breaking changes against our
+  code found nothing removed that we call (45 reports screen capture as `display-capture`: we install no display-media
+  handler; the sync `safeStorage` calls are deprecated, removed in 46; 43's dialogs default to Downloads). Local npm
+  11.20 skipped Electron's install script and left `dist` empty (`node node_modules/electron/install.js` fetched it).
+  On 45: farm-app 11 + 3, shell `test:chat` 1969 and lint 0, but **the harness's sandbox fails**: `--phase c` 57/73
+  twice (the second on a quiet machine), every sandbox scenario from the first one on ("The sandbox could not start");
+  `--phase k` 174/217, `--phase p` 88/89 (`p0-store-idb`). **On Electron 42.6.0, the same tree: `--phase c` 73/73.**
+  The failing scenarios pass alone on both (12/12, alternating), so it is order-dependent: something earlier in a long-
+  running window stops the sandbox from booting on 45. A probe of the real `runner.html` in an `allow-scripts` iframe
+  (with the harness preload in every frame, the app's CSP, the subframe navigation veto) boots on both. Not debugged
+  two nights before the freeze: both apps back on their locked Electron 42 (shell 42.5.1, farm-app 42.6.0), suites
+  green again. The 12 November evening's 175/217 and 174/217 on phase k (Electron 42) look like the same defect, rarer
+  there: a lead for the after-class bump (plans ▸ Next 14).
+
 ## 2026-11-14 (12:58) — llama.cpp b12377 measured; the farm's suites after the fixes; vLLM 0.33.0 and max_tokens
 
 - **llama.cpp b12377 against the pin b11836** (RESULTS ▸ *llama.cpp b11836 against b12377*): llama-server direct, the

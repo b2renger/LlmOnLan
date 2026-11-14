@@ -103,6 +103,26 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     ([the study](../research/RIPPLE_65B_STUDY.md)). Nanbeige, also dense and tuned for agents with a shell, did 5/15 on our
     fenced agent: expect the same risk. **S**, the owner's quiet hour.
 
+13. **From Qwen Code** ([the review](../research/QWEN_CODE_2026-11-14.md), owner 2026-11-14: "those are good, we need
+    to include those in our plans"), after the class, in this order:
+    - **n° 9 (Thursday 19): loop detection in the Computer's Agent box** (**S**): stop a run on the same tool call
+      several times in a row, or two calls alternating, and tell the student why (today it spends its 12 steps and says
+      "out of steps"); one unit test. **Side task: never write from a cut tool call** (**S**): first check what dsh and the
+      Agent box do with a tool call cut by `finish_reason: length`; the fix only where a file can be written from it.
+    - **n° 11: tool-call examples in each model's own style** (**S**, research then measure): the Agent box's prompt on
+      Qwen3.6 with JSON examples against the model's own format, the 28-item check or the Agent harness; adopted only if
+      it measures better.
+    - **n° 11 or 12: a plan mode for students** (**M**): the agent proposes, the student approves, before anything
+      changes (LOL Vibe's coding agent and the Agent box). A plan in `docs/plans/` first, for the owner.
+
+    (n° 10 is a review. The cron ends on 2026-11-19: n° 9 onwards needs it started again.)
+
+14. **Electron 45** (42 is past its end of life, 2026-10-20): tried 2026-11-14 and dropped for the class. On 45 the
+    harness's sandbox stops booting once a long-running window has run earlier scenarios (`--phase c` 57/73 twice,
+    k 174/217; on 42.6.0 the same tree gives 73/73), though each scenario passes alone: an order-dependent defect, maybe
+    the same one 42 showed rarely on 2026-11-12 (k 175/217). First find what earlier scenario leaves the state, then
+    bump (also: the sync `safeStorage` calls before Electron 46). After the class. **S–M**.
+
 ## 3. Later
 
 - **The farm:**
@@ -131,7 +151,7 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
 **The ones that unblock the most:**
 1. **The next release and the ★ list** (Now 1–2), and which build tests today's fixes: a local build or a pre-release
-   tag.
+   tag. *Owner, 2026-11-14: full release tags at the end of Monday's session (n° 6), tested on Monday.*
 2. **A quiet hour on the PRO 6000** (Now 3, then Next 1).
 3. **May vLLM's own model read documents** instead of a second gemma4:12b? It frees 9 GB, about 14 % more room for
    conversations (multi-user decision 6). **M**.
