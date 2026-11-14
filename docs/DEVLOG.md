@@ -9,6 +9,29 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-14 (04:22) — A student's path in the real app on the live farm; the class sheets drafted
+
+The next item of the queue (night n° 4's objective), started once the night's objective was done. A dev client
+(`electron .` from `shell/`, `--user-data-dir` in the session's scratch folder, CDP on 9341, `LOL_DSH_DIR` at the installed
+coding agent), the screen locked (`forcePageVisible`), pinned to the live farm with one click on its card (12 s).
+- **The Computer's sandbox runs in the real app:** a p5 Preview in 213 ms, a three.js scene with `lol.orbit` in 101 ms,
+  sandbox *ready*, no errors. The harness's `k11` failure (DEVLOG 03:41) is the harness's own.
+- **LOL Vibe:** a question answered, first token 0.26 s, 61.6 tok/s; **Stop** ends the reply in 111 ms, and vLLM's
+  `num_requests_running` is 0 three seconds later (the farm's `busy` lags by a refresh).
+- **Project ▸ New project ▸ "Make index.html: a page with a bouncing ball":** the coding agent wrote it in 58 s (4 steps), and
+  the Preview opened by itself on `127.0.0.1:<port>/index.html`. The same request in plain chat (no project): 106 s of
+  thinking, 13,775 tokens, the page as a code block (the owner's field note of 2026-11-13).
+- **The Computer's *Creative coding* template:** ran end to end (`ask` and `preview` done), **188 s, 12,025 tokens**
+  (one call, nearly all thinking), alone on the farm.
+- **Automatic picked a Spark first:** the fresh client chose spark-59f9 (2 seats) over the PRO 6000 (36): the
+  least-busy rule ties farms within 15 points and picks at random (`farmSelect.ts`). One click on a card pins it.
+- **`docs/CLASS_SHEETS.md`** drafted from these facts: the students' sheet and the owner's (each message, its meaning, what
+  to do). Not checked: the Tour and lesson 1's words, Open WebUI with a PDF in the real app (night n° 4).
+- Everything started here was stopped (`taskkill /T` on the dev client's launcher; no process with the scratch profile
+  left); the live farm unchanged by it.
+
+---
+
 ## 2026-11-14 (03:41) — 30 people for the class: Qwen3.8 on llama.cpp and on vLLM, against Qwen3.6 (night n° 3)
 
 The owner's objective for tonight (2026-11-13, 16:00): measure both engines for 30 students on the live farm, the session
