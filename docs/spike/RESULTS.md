@@ -1240,7 +1240,8 @@ at 15 tok/s or more. Two shapes of traffic:
 | same, a scratch llama-server with `--parallel 30` (not the farm; direct, no gate) | 30 served, 22.5 tok/s each, burst first token 2–16 s | — | **fail at 16** (p95 23 s, p10 9.7) and at 30 (p95 111 s, p10 2.4) | — | — |
 | **vLLM 0.30.0** · Qwen3.6 35B-A3B NVFP4 · 64k · 48 (Automatic) | **pass**: 0 refused, p95 0.4 s, 80 tok/s each | pass: p95 0.3 s, 81 tok/s | **pass**: p95 0.65 s, p10 66 | **pass** at ~50k: p95 3.3 s, p10 28 | (2026-10/11: 7–11/15) |
 | **vLLM 0.30.0** · Qwen3.8-27B NVFP4 · 64k · 32 (set by hand) | **pass**: 0 refused, p95 0.5 s, 45 tok/s each | pass: p95 0.3 s, 46 tok/s | **pass**: p95 1.0 s, p10 32 | **fail** at ~50k: p95 87 s, p10 1.6 (16 pass) | **12/14** ¹ |
-| **vLLM 0.30.0** · Qwen3.8-27B NVFP4 · **32k** · 32 (set by hand) | **pass**: 0 refused, p95 0.4 s, 45 tok/s each | — | (as 64k) | **pass** at ~23k: p95 2.5 s, p10 20.6 | **13/15** ² |
+| **vLLM 0.30.0** · Qwen3.8-27B NVFP4 · **32k** · 32 (set by hand) | **pass**: 0 refused, p95 0.4 s, 45 tok/s each | — | not run | **pass** at ~23k: p95 2.5 s, p10 20.6 | **13/15** ² |
+| same, **36** seats (max-num-seqs 128) | **pass** with 36 people from 36 addresses: p95 0.4 s, 42 tok/s | — | — | **pass** at ~23k, 36 people: p95 3.1 s, p10 18.2 | — |
 
 ¹ One of 15 runs never started: the three runners shared one data folder and collided writing the agent's profile (the
 harness's setup, not the app's: each client has its own folder). No failed tool calls (0 of 76); 70 s a task (median,
@@ -1248,7 +1249,7 @@ three at once); no reply ended on its token limit.
 
 ² At 32k, the three agents ran **beside 27 people chatting** (`lol bench --people --users 27 --rounds 8`): the 27 got 216/216 answers, first token p95 0.5 s, 41 tok/s each (p10); the agents: 1 failed tool call of 80, 70 s a task.
 
-**The farm was left on the last row** (vLLM, Qwen3.8, 32k a person, 32 people at once), the owner's preference once it held 30.
+**The farm was left on the last row** (vLLM, Qwen3.8, 32k a person, 36 people at once: room for the owner's laptop, the box's own client and a laptop that wakes with a new address), the owner's preference once it held 30.
 
 **What it means for Tuesday:**
 - **Qwen3.8 on llama.cpp cannot serve 30**: the farm caps llama.cpp at 16 people (`up.js` `setSlots` and

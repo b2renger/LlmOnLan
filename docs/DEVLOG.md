@@ -26,13 +26,14 @@ token read from the config, never printed). Table and raw results: RESULTS ▸ *
   chats and 8k conversations at 30 but collapses at ~50k (the pool holds 22 whole 64k conversations); **at 32k it passes
   near-full conversations at 30** (p95 2.5 s, p10 20.6). Its coding agent: 12/14 at 64k (three at once), **13/15 at
   32k beside 27 people chatting** (216/216 answered, p95 0.5 s, 41 tok/s); Qwen3.6 scored 7–11/15 on earlier nights.
-- **Left on vLLM · Qwen3.8 · 32k · 32 seats**, persisted; the seat release put back to 900 s (60 s during the benches).
+- **Left on vLLM · Qwen3.8 · 32k · 36 seats** (03:56; 36 short-chat people from 36 addresses and near-full conversations at 36 pass: p95 3.1 s, p10 18.2), persisted; the seat release put back to 900 s (60 s during the benches).
   Changed on the way: `llamacpp.parallel` 1 → 16 (unused while vLLM serves).
 - **The Computer's harness** (`--phase k`) failed 43 of 217 both under load and on a quiet machine, from the first k11
   scenario on (*The sandbox could not start*); `--phase k8` alone passes 35/35; k11 alone fails (repro:
   `--only k11-edit-model-code-with-lol-orbit-and-the-mouse-draws-in-the-guest`, 6.3 s). No shell code changed since
   the 216/217 of 11-12 22:15. Ruled out tonight: load, and Chromium's occluded-window backgrounding (two switches added to
   the harness, reverted). The screen was locked (LockApp running); not ruled out. Not settled.
+- **Checked at 32k through the live gate:** LOL Vibe's chat sends no `max_tokens`, the Computer 2,048/4,096; the coding agent never hit the window (a 92 KB file read in pieces, 75k input tokens, passed in 7 min); a picture is read. `max_tokens` 32,768 on this window is refused (400): `litellm.js`'s comment that vLLM 0.30 clamps it is wrong. Open WebUI injects whole documents at ≥ 24,576 (`RAG_FULL_CONTEXT`), so about 30–40 text pages fit one chat. The sandbox with a 20 s start limit (reverted): the run starts and never finishes, so broken, not slow.
 - **Not done:** J14 (vLLM 0.33.0): the class passes on 0.30.0, and replacing production's vLLM three days before the
   class is a risk with no gain for it; PDFs through OCR under load (no PDF library on this box's Pythons to make a
   scanned file; OCR's model, gemma4:12b 8.5 GB, fits beside Qwen3.8: `ocrFits` true, 17 GB free).

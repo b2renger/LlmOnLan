@@ -36,7 +36,7 @@ session, with its evidence.
       and night n° 4 on a scratch client).
 - [x] The farm serves 30 people at once, measured in J16's units: no refusal, first token p95 under 5 s, decode p10 at 15
       tokens a second or more; both from 30 addresses and from **one** (the NAT case) (risk 2).
-      *Night n° 3, 2026-11-14:* vLLM · Qwen3.8 · 32k · 32 seats passes every shape at 30 (RESULTS ▸ *30 people for the
+      *Night n° 3, 2026-11-14:* vLLM · Qwen3.8 · 32k · 36 seats passes every shape at 30 (and 36) (RESULTS ▸ *30 people for the
       class*); the farm left on it.
 - [ ] A laptop on the owner's Wi-Fi finds the farm, or the students' sheet says how to add it by address (test 2, risk 3).
 - [ ] The tutorials, the in-app tutorials and the docs a student or the owner meets are refined (risk 6).
@@ -60,7 +60,7 @@ session, with its evidence.
    client asks the farm before GitHub (question 1). Not built; **M**; it would have to land before the client freeze,
    so test 2 must be done **by Saturday evening**: a yes then means night n° 4 builds it, and the student's 20 minutes move
    to a day session. If the Wi-Fi's internet is a 4G/5G box, 30 GB may also meet its data cap.
-2. **Answered by night n° 3 (2026-11-14):** the farm now serves vLLM · Qwen3.8 27B · 32k a person · 32 seats, which holds
+2. **Answered by night n° 3 (2026-11-14):** the farm now serves vLLM · Qwen3.8 27B · 32k a person · 36 seats, which holds
    30 on every shape measured; llama.cpp cannot (16 seats at most, and it collapses with documents). Kept below for the
    record: **Found 2026-11-13 15:52 (`/lol/self`): the live farm runs llama.cpp, not vLLM**: Qwen3.8-27B-NVFP4-MTP, `parallel` 1, one 262k window, so **1 seat**. From 30 addresses that refuses 29 students (*farm full*); behind NAT it admits them all and answers one at a time. The owner switches it back to vLLM (32 people at 64k) from the panel, or says otherwise, **before night n° 3**; night n° 3 checks `backend.engine` and `capacity.slots` first and runs J14 and the rehearsal only on vLLM.
    **30 at once has never run through the seat gate** (J16 was never run). Production's vLLM is **0.30.0** (read in
