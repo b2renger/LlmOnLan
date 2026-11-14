@@ -48,6 +48,8 @@ file stays the whole list.
    *Owner, 2026-11-14:* J14 **before** the class, by night n° 4 (the box is idle on weekends; a session may switch the
    live farm), with the newer llama.cpp on a scratch farm; the releases are cut after. Every session's research also
    covers the updates of the tools we pin (CLAUDE.md ▸ Sessions).
+   **J14 done 2026-11-14 by day (session n° 4):** the live farm on vLLM 0.33.0, Qwen3.6 at 64k, 48 seats, measured for
+   30 ([the summary](../sessions/2026-11-14-n4.md)); two panel bugs fixed for the next Farm app (J17). J15 open.
 
 ## 2. Next — the most value for the office
 
