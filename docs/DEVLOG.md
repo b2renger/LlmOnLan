@@ -9,7 +9,7 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-11-14 (04:33) — The Computer's text answers lose a thinking model's leading blank lines
+## 2026-11-14 (04:25) — The Computer's text answers lose a thinking model's leading blank lines
 
 Found running lesson 1 in the real app on the live farm (Qwen3.8 on vLLM): the haiku reached the Text box as
 `"
@@ -20,6 +20,10 @@ Gray waves…"`, two empty lines first. `app/ask.mjs` text lane: the box's value
 the blank lines…*; `npm run test:chat` 1,963 passed, lint 0; checked in the real app: *"Sea winds whisper low…"* from its
 first line, 4.1 s. Also read, not changed: the text lane never sends "think off" (by design, `ask.mjs` 455), so the
 Instruction and Creative coding think on Qwen3.8 (12,025 tokens, 188 s for one sketch): a question for the owner.
+Measured after (04:30): the Computer's Creative coding request captured from the real app (a `fetch` wrapper over CDP)
+and replayed through the gate: as sent 151–207 s, 8,005–11,026 thinking tokens; with `chat_template_kwargs.enable_thinking:
+false` 13.6 s, 0 thinking; all three follow the box's rules. The same brief asked plainly thought only 133 tokens (21 s):
+the box's rule list is what makes the model think long.
 
 ---
 
