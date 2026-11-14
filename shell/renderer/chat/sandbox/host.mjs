@@ -423,12 +423,14 @@ export function createSandbox(o = {}) {
       css: req.css === undefined ? '' : String(req.css),
       params: req.inputs && typeof req.inputs === 'object' ? req.inputs : {},
       libs: Array.isArray(req.libs) ? req.libs.map(String) : libsFor(kind, markup ? '' : String(req.code || '')),
+      // A chat answer's web page (render/code.mjs): the guest loads it as a page loads (its load events fire, it scrolls).
+      page: markup && req.page === true,
     };
   }
 
   /**
    * @param {{mount?: any, mode?: string, code?: string, html?: string, css?: string,
-   *   size?: {w: number, h: number}, inputs?: object, libs?: string[]}} req
+   *   size?: {w: number, h: number}, inputs?: object, libs?: string[], page?: boolean}} req
    */
   function makeLive(req) {
     const mount = req.mount || null;
@@ -550,6 +552,7 @@ export function createSandbox(o = {}) {
       sizeLive();
       const out = await lask('run', {
         code: spec.code, kind: spec.kind, params: spec.params, html: spec.html, css: spec.css, size,
+        ...(spec.page ? { page: true } : {}),
       }, T.run);
       if (out && out.timeout && !ended) { end('run-timeout'); }
       if (ended) return { ok: false, ms: 0, timeout: !!(out && out.timeout), error: (out && out.error) || fail(t('sandbox.errGone')) };
@@ -740,8 +743,9 @@ export function createSandbox(o = {}) {
      * Never throws: a guest that cannot start ends with state 'stopped'/'stalled' and its `ready`
      * resolves `{ok:false, error}`.
      * @param {{mount: any, mode: string, code: string, size?: {w: number, h: number},
-     *   inputs?: object, html?: string, css?: string, libs?: string[]}} req
-     *   `mode` is a Preview mode (`three`, `p5`, `html`) or a run kind; `code` is already shaped.
+     *   inputs?: object, html?: string, css?: string, libs?: string[], page?: boolean}} req
+     *   `mode` is a Preview mode (`three`, `p5`, `html`) or a run kind; `code` is already shaped. `page` (html only):
+     *   run it as a web page loads, its DOMContentLoaded and load fired after its scripts, and scrolling.
      * @returns {{stop(): void, restart(code?: string|null, opts?: object): Promise<any>,
      *   focus(): void, state(): string, ready: Promise<any>, logs(): any[], errors(): any[],
      *   snapshot(o?: object): Promise<any>, on(fn: Function): () => void, send(ev: object): boolean, debug(): object}}

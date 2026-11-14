@@ -20,7 +20,11 @@
   **Three surfaces**, picked by the topbar's segmented control (Open WebUI · LOL Vibe · Computer; the last
   choice is remembered in `localStorage['lol:view']`): OWUI; **LOL Vibe** (`renderer/chat/main.mjs` + modules
   in `app/ core/ ctx/ net/ render/ state/ ui/ strings/ css/` — farm-direct, tok/s + TTFT per reply, a message
-  tree, seat-aware sending, a context meter; history in the renderer's IndexedDB `lol-chat` v2 with a one-way
+  tree, seat-aware sending, a context meter; an answer's code block gets **Preview / Code** tabs: an SVG is drawn, and
+  since 2026-11-14 (owner) a web page (`html`, or an untagged block that starts like one) RUNS in the sandbox's live
+  guest with the answer's CSS and JavaScript blocks (`render/page.mjs`, `render/code.mjs` code-page; the chat's own
+  sandbox, loaded on the first Preview; no network: p5, three and d3 from a CDN get the bundled copies, any other
+  address is named as missing); history in the renderer's IndexedDB `lol-chat` v2 with a one-way
   import of the v1 `localStorage` history; no RAG, uploads or tools — those P3/P4 plans were cancelled on 2026-09-16
   (docs/archive/plans/LOLCHAT_STUDIO_PLAN.md §6: Open WebUI does documents and search); and
   since 2026-09-28 the **IDE** (P5 v1, [docs/plans/IDE_PLAN.md](../../docs/plans/IDE_PLAN.md)): the workbench's **Project** panel binds a

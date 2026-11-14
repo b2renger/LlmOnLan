@@ -209,3 +209,6 @@
   background: var(--surface-2);
 }
 #lolchat .chat-svg { max-width: 100%; max-height: 420px; }
+#lolchat .chat-page-preview { background: var(--surface-2); overflow-x: auto; }
+#lolchat .chat-page-note { margin: 0; padding: 8px 12px; font-size: 12px; color: var(--grey); }
+#lolchat .chat-page-stage iframe { display: block; border: 0; }

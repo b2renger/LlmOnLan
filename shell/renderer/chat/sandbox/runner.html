@@ -705,6 +705,13 @@
       // A LIVE web page is a page, not a picture of one: its own <script>s run (innerHTML leaves
       // them inert). The CSP still decides what they may do — no network, nothing from disk.
       if (liveMode && kind === 'dom') wakeScripts();
+      // A chat answer's web page (`page`, live only): it loads as a page does. Its scripts often wait for these.
+      if (liveMode && kind === 'dom' && msg.page === true) {
+        document.documentElement.style.overflow = 'auto';
+        document.body.style.overflow = 'auto';
+        document.dispatchEvent(new Event('DOMContentLoaded'));
+        window.dispatchEvent(new Event('load'));
+      }
       var first = queued;
       queued = null;
       if (first) flushFirstFrame(first);

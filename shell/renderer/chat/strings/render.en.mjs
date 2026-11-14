@@ -36,6 +36,12 @@ registerStrings('render', {
   wrapOffTip: 'Stop wrapping: long lines stay on one line and scroll sideways',
   tabPreviewTip: 'Draw this SVG',
   tabCodeTip: 'Show the code of this SVG',
+  // A web page in an answer (render/code.mjs code-page): run here, without the internet.
+  pageTabTip: 'Run this page here, with the CSS and JavaScript blocks of this answer (no internet)',
+  pageCodeTip: 'Stop the page and show its code',
+  pageNoInternet: 'This preview has no internet: what the page loads from {hosts} is missing.',
+  pageError: 'The page stopped on an error: {message}',
+  pageStopped: 'The page stopped answering, so it was closed. Press Preview to run it again.',
 
   // branch bar (.chat-branch)
   branchPrev: 'Previous version',

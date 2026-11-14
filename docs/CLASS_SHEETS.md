@@ -31,7 +31,9 @@ address*, then **Add**.
 ### 3. Try it
 
 - **Open WebUI** (the chat): if the top says **Select a model**, click it and choose **assistant**. Ask a question. Attach a PDF to your message and ask about it (up to about 80 pages of text).
-- **LOL Vibe:** ask something. Ask for something long, then press **Stop**.
+- **LOL Vibe:** ask something. Ask for something long, then press **Stop**. Ask for *"a small website: a page with a
+  button that changes the background colour"*: on the answer's `html` block press **Preview** and click the button
+  (the page runs here, without the internet).
 - **LOL Vibe ▸ Project:** the first time, press **Install the coding agent** (about 120 MB). Then **New project**, give it
   a name, and ask *"Make index.html: a page with a bouncing ball."* After
   about a minute the page appears in **Preview**. Ask for changes.

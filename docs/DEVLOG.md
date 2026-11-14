@@ -9,6 +9,45 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-14 (11:56) — LOL Vibe runs a web page from an answer: Preview on its html block
+
+**Why:** the owner's field note of 2026-11-13 ("I asked for a small website but I cannot see the result right away ...
+it should be rewarding right away") and their yes of 2026-11-14 ("yes, never mind about python"). Until now a plain
+chat answer drew only an SVG under Preview; an HTML page showed as code (a Project's Preview was the only way).
+
+**What:** a third code decorator, `code-page` (`render/code.mjs`), on a finished `html`/`htm` block or an untagged one
+that starts like a page. Preview gathers the answer's blocks (`render/page.mjs`, PURE): the page, every `css` block as
+its style, every `js`/`javascript` block appended as an inline script in the answer's order; a `<script src>` naming
+p5, three (classic build) or d3 on a CDN gets the sandbox's own copy (and p5's global mode is started once `setup()`
+exists); any other web address is named in one line above the page ("this preview has no internet"). It runs in the
+sandbox's **live guest** (the Computer's containment: opaque origin, `connect-src 'none'`, its own process and
+watchdog), in the chat's **own** sandbox, loaded on the first Preview; one page runs at a time, Code stops it. A new
+`page` flag on a live html run (`sandbox/host.mjs` → `runner.html`) makes the guest load it as a page loads:
+`DOMContentLoaded` and `load` fired after its scripts wake, and the page scrolls. The Computer never sends the flag,
+so its boxes are unchanged. The SVG decorator's tab bar became the shared `addTabs`. LOL Vibe is our own surface:
+no Open WebUI invariant is touched.
+
+**Tested:**
+- `render-page.test.mjs` (3 tests: which blocks are pages; the CSS and JavaScript joined in order, a `</script` inside a
+  script defused, Python left out; CDN p5/three/d3 mapped, Tailwind's CDN and a module import named unreachable).
+  `npm run test:chat` 1967 passed, 0 failed; chat lint 0.
+- Harness p1 48/49 then the one failure (`p1-stick-bottom`, the scroll while streaming) passed 3/3 alone: a timing
+  flake. k11 (the Computer's live and edit scenarios) 12/12.
+- **The owner's case in the real app** (a dev client on a scratch profile, the live farm, Qwen3.8 on vLLM): asked for
+  "a small website ... index.html, style.css and script.js", the model answered with the three blocks; Preview showed
+  the page with its CSS, and three clicks on its button inside the guest turned the counter to 3 and the background
+  from rgb(31, 59, 51) to rgb(123, 67, 43): the separate script.js ran. Then, in that order, a p5 box in the Computer
+  went Live (`running`) beside it. The answer took "Thought for 121 s" on Qwen3.8 before writing.
+
+**Found, not explained:** importing `sandbox/host.mjs` statically from `render/code.mjs` made 9 of k11's 12 scenarios
+fail in the harness ("The sandbox could not start"), deterministically; reverting each sandbox file did not help,
+loading it with `import()` on the first Preview did (12/12). The real app ran the Computer's live sketch after a chat
+Preview, so the module loading first is not the cause there. Unknown why the harness differs; the lazy load is the
+better design anyway (nothing loaded until a person presses Preview).
+**Limits (ponytail):** the width is taken when Preview is pressed (a later window resize keeps it, the pane scrolls);
+the page keeps running while the person is in the Computer (its own guest and process) until Code, another page's
+Preview, or the thread's change (the watchdog then ends it). Python does not run (owner: never mind).
+
 ## 2026-11-14 (11:11) — The Computer's code boxes write straight away unless Think all is ticked
 
 **Why:** the owner's answer to night n° 3's question 7 (2026-11-14): thinking "off by default but it should be possible
