@@ -9,6 +9,17 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-14 (12:34) — The real app on Qwen3.6 and vLLM 0.33.0: thinking off, LOL Vibe's pages
+
+A dev client (scratch profile) on the live farm after J14, alone on it:
+- **Creative coding** (the template, Run all), the sketch box: *Think all* unticked **10.6 s, 0 reasoning tokens**
+  (a first run, cold, 19.2 s); ticked **24.1 s, 666 reasoning tokens** (the transcript's `usage`); the sketch drew
+  every time. On Qwen3.8 the same box took 151–207 s thinking (night n° 3): on Qwen3.6 thinking costs about twice the
+  time, not ten times. A26 and CLASS_SHEETS say so.
+- **LOL Vibe**: the website ask (index.html, style.css, script.js) answered in 28.6 s, *Thought for 13 s* (Qwen3.8 this
+  morning: 121 s of thought); a p5 page "that loads p5 from a CDN" (cdnjs `p5.js/1.9.0/p5.js`) answered in 26.7 s and its
+  Preview ran with the bundled p5: a 778×420 canvas, frameCount 631 → 691 in a second.
+
 ## 2026-11-14 (12:29) — J14 on the live farm: vLLM 0.33.0, Qwen3.6 at 64k for the class; two farm bugs fixed
 
 Day session n° 4 (the owner: the box is idle on weekends, test the engines now). Everything through the panel's API
