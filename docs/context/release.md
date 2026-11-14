@@ -4,7 +4,7 @@
 > names a release or says *not released yet*. Keep it true: a change to the code it describes changes this file in the same commit.
 
 - **`sidecar/`** — `build-sidecar` bundles a relocatable standalone CPython 3.12 + OWUI + `launcher.py`;
-  `OPENWEBUI_VERSION` is the pin (**OWUI `0.11.4`** since 2026-09-27, Python 3.11/3.12; the bump notes, and what to check again at each bump, are in INTEGRATION_BRIEF); `BUNDLE_REV` is raised by hand when a fix must replace installed bundles of the same OWUI, and a packaged client downloads one by itself a minute after its start, applied at the next (`repairWanted`, owner 2026-11-09; another OWUI stays About's click; v0.2.16); the build caps PyAV below 19 and decodes a short recording. A packaged client runs
+  `OPENWEBUI_VERSION` is the pin (**OWUI `0.13.3`** since 2026-11-14, `0.11.4` from 2026-09-27, Python 3.11/3.12; before a version first starts on a data folder the client copies `webui.db` aside, `sidecar.ts` `keepDbBeforeEngine`, since the migration is one-way; the bump notes, and what to check again at each bump, are in INTEGRATION_BRIEF); `BUNDLE_REV` is raised by hand when a fix must replace installed bundles of the same OWUI, and a packaged client downloads one by itself a minute after its start, applied at the next (`repairWanted`, owner 2026-11-09; another OWUI stays About's click; v0.2.16); the build caps PyAV below 19 and decodes a short recording. A packaged client runs
   `<userData>/sidecar/python launcher.py serve`; dev uses `sidecar/.venv`'s `open-webui serve`. NOT bundled
   into the installer — CI publishes it as `owui-sidecar-<platform>-<arch>.tar.gz` release assets and the
   packaged shell downloads it to `userData/sidecar` on first run (`sidecarManager.ts`); About ▸ "Check for

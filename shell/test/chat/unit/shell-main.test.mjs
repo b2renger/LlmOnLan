@@ -1995,6 +1995,38 @@ export default (test) => {
     assert.ok(at > 0 && /^[^{]*\{\s*windowsHide: true, detached: !IS_WIN, env, stdio/.test(src.slice(at)), 'and started with those args and that env');
   });
 
+  // 2026-11-14 (owner: Open WebUI 0.13.3 before the class): 0.13 stopped putting an attached document into the
+  // conversation and drops a person's own tool servers (Blender's) unless Direct Integrations is on. Both by env.
+  test('OWUI 0.13: attached documents still go into the conversation, and the Blender tool server still reaches chats', () => {
+    const env = CB.buildSidecarEnv({ endpoint: 'http://10.0.0.5:4000/v1', dataDir: tempDir('owui013') });
+    assert.equal(JSON.parse(env.DEFAULT_MODEL_METADATA).capabilities.file_context, true, '"Preload files" on for every model');
+    assert.equal(JSON.parse(env.DEFAULT_MODEL_METADATA).capabilities.vision, true, 'vision kept');
+    assert.equal(env.ENABLE_DIRECT_INTEGRATIONS, 'true');
+  });
+
+  test('OWUI\'s one-way migration: the chats are copied once before a new Open WebUI version first starts on a folder', () => {
+    const { keepDbBeforeEngine } = require(path.join(BUILD, 'sidecar.js'));
+    const d = tempDir('keepdb');
+    assert.equal(keepDbBeforeEngine(d, '0.13.3'), null, 'an empty folder: nothing to copy');
+    assert.equal(fs.readFileSync(path.join(d, 'lol-owui-version'), 'utf8'), '0.13.3', 'but the version is recorded');
+    const e = tempDir('keepdb2');
+    fs.writeFileSync(path.join(e, 'webui.db'), 'chats of 0.11.4');
+    fs.writeFileSync(path.join(e, 'webui.db-wal'), 'the latest writes');
+    fs.writeFileSync(path.join(e, 'lol-owui-version'), '0.11.4');
+    assert.equal(keepDbBeforeEngine(e, '0.11.4'), null, 'the same version: no copy');
+    const kept = keepDbBeforeEngine(e, '0.13.3');
+    assert.equal(kept, path.join(e, 'webui.db.before-owui-0.13.3'));
+    assert.equal(fs.readFileSync(kept, 'utf8'), 'chats of 0.11.4');
+    assert.equal(fs.readFileSync(`${kept}-wal`, 'utf8'), 'the latest writes', 'with its -wal, or the copy misses the latest chats');
+    fs.writeFileSync(path.join(e, 'webui.db'), 'migrated by 0.13.3');
+    assert.equal(keepDbBeforeEngine(e, '0.13.3'), null, 'once: the next start does not copy over it');
+    assert.equal(fs.readFileSync(kept, 'utf8'), 'chats of 0.11.4');
+    const f = tempDir('keepdb3');
+    fs.writeFileSync(path.join(f, 'webui.db'), 'a folder from before this check');
+    assert.ok(keepDbBeforeEngine(f, '0.11.4'), 'no record yet: copied, to be safe');
+    assert.equal(keepDbBeforeEngine(f, 'unknown'), null, 'an unknown version never records itself');
+  });
+
   test('cleanup', () => {
     for (const d of temps) { try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* best effort */ } }
   });

@@ -29,8 +29,10 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
   `RAG_TOP_K=8` (always set; read only in retrieval mode) · `ENABLE_LOCAL_WEB_FETCH=true` (OWUI's SSRF guard
   otherwise refuses attaching any LAN/intranet page — matrix‑verified) · `ENABLE_RETRIEVAL_QUERY_GENERATION=false`
   (with files attached OWUI otherwise runs a hidden extra LLM call whose output full‑context mode never uses;
-  `ENABLE_SEARCH_QUERY_GENERATION` stays on) · `DEFAULT_MODEL_METADATA={"capabilities":{"vision":true}}`
-  (+ `"web_search":true` with a farm SearXNG) · `AUDIO_STT_ENGINE=''` + `WHISPER_MODEL=base` (local STT, unless
+  `ENABLE_SEARCH_QUERY_GENERATION` stays on) · `DEFAULT_MODEL_METADATA={"capabilities":{"vision":true,"file_context":true}}`
+  (+ `"web_search":true` with a farm SearXNG; `file_context` is 0.13's "Preload files": an attached file goes into the
+  conversation as on 0.11.4) · `ENABLE_DIRECT_INTEGRATIONS=true` (0.12.4+: else a person's own tool servers, Blender's, are
+  dropped from chats) · `AUDIO_STT_ENGINE=''` + `WHISPER_MODEL=base` (local STT, unless
   the farm advertises speech to text, below) · `AUDIO_TTS_SPLIT_ON=punctuation` (OWUI's default, restated: Call mode
   speaks a streamed reply sentence by sentence) ·
   `AUDIO_TTS_ENGINE=''` · the **TTFT trio** `ENABLE_FOLLOW_UP_GENERATION`/`ENABLE_TAGS_GENERATION`/

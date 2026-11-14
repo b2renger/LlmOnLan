@@ -7,13 +7,45 @@
 
 import { EventEmitter } from 'events';
 import { spawn, ChildProcess } from 'child_process';
-import { resolveSidecarCommand, sidecarExists } from './paths';
+import * as fs from 'fs';
+import * as path from 'path';
+import { bundledOwuiVersion, resolveSidecarCommand, sidecarExists } from './paths';
 import { net } from 'electron';
 import { adoptEmbedding, buildSidecarEnv, embedAnswers, embeddingBlocked, embeddingContract, envProxy, FarmEmbed, FarmStt, folderContract, hubAnswers, miniLmState, repairMiniLm } from './configBridge';
 import { findFreePort, killTree, waitForHttp } from './util';
 import { SidecarState } from './types';
 
 const HOST = '127.0.0.1';
+
+// Open WebUI migrates webui.db (the chats, folders, settings) forward when a new version first starts on it, and no
+// older version opens it again (0.13: "rolling updates are not supported"). So before an Open WebUI version starts on
+// a folder for the first time, the database is copied beside itself, once: webui.db.before-owui-<version> (and its -wal,
+// which holds the latest writes). The folder records the version that last started on it in lol-owui-version. A copy
+// that fails is logged and the start goes on: a chat that does not open on class day is worse than no copy.
+// ponytail: one copy per Open WebUI version, never pruned (a few MB each); a Preferences "restore" is the upgrade path.
+export function keepDbBeforeEngine(dataDir: string, version: string): string | null {
+    const db = path.join(dataDir, 'webui.db');
+    const marker = path.join(dataDir, 'lol-owui-version');
+    let last = '';
+    try { last = fs.readFileSync(marker, 'utf8').trim(); } catch { /* a folder from before this check */ }
+    if (last === version || !version || version === 'unknown') return null;
+    let kept: string | null = null;
+    if (fs.existsSync(db)) {
+        const copy = `${db}.before-owui-${version}`;
+        try {
+            if (!fs.existsSync(copy)) {
+                fs.copyFileSync(db, copy);
+                if (fs.existsSync(`${db}-wal`)) fs.copyFileSync(`${db}-wal`, `${copy}-wal`);
+            }
+            kept = copy;
+        } catch (e) {
+            console.warn(`[sidecar] could not copy the chats before Open WebUI ${version}: ${(e as Error).message}`);
+            return null;   // the marker stays: the next start tries again
+        }
+    }
+    try { fs.writeFileSync(marker, version, 'utf8'); } catch { /* tried again next start */ }
+    return kept;
+}
 
 // What start() takes — and what launchOpts() hands back, field for field.
 export interface SidecarStartOpts {
@@ -159,6 +191,9 @@ export class SidecarSupervisor extends EventEmitter {
             PYTHONUTF8: '1',
             PYTHONIOENCODING: 'utf-8',
         };
+
+        const kept = keepDbBeforeEngine(this.dataDir, bundledOwuiVersion());
+        if (kept) console.log(`[sidecar] the chats were copied to ${kept} before this Open WebUI's first start on the folder`);
 
         const fullArgs = [...args, '--host', HOST, '--port', String(this.port)];
         console.log(`[sidecar] spawning (${source}): ${command} ${fullArgs.join(' ')}  DATA_DIR=${this.dataDir} endpoint=${this.endpoint}`);

@@ -11,7 +11,7 @@ version stays the same (a laptop keeps its bundle otherwise). The next release's
 then offers it. PyAV is capped below 19 in `build-sidecar.mjs`, and the build decodes a short recording, so a pin that
 breaks the local transcriber fails the build.
 
-[`OPENWEBUI_VERSION`](OPENWEBUI_VERSION) is the **single source of truth** — currently `0.11.4`
+[`OPENWEBUI_VERSION`](OPENWEBUI_VERSION) is the **single source of truth** — currently `0.13.3` (since 2026-11-14; `0.11.4` from 2026-09-27)
 (Python 3.11/3.12; launched via the `open-webui serve` console entry, not `python -m`). The shell's
 About panel reads this file.
 

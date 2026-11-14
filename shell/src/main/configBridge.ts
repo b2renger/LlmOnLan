@@ -342,9 +342,19 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // globe toggle the same way — offered only when the farm hosts a SearXNG. Web
         // search is off by default; the globe button turns it on for a chat.
         // Env-authoritative every launch, so it's zero-config across all clients.
+        // `file_context` (OWUI 0.13.1+, "Preload files" in a model's Capabilities): with native function calling, the
+        // default, 0.13 no longer puts an attached document into the conversation and leaves the model to fetch it with a
+        // tool (utils/tools.py is_file_context_enabled). On keeps 0.11.4's behaviour, which RAG_FULL_CONTEXT and the farm's
+        // document search are tuned for; the student attaches exactly as before. Ignored by 0.11.4.
         DEFAULT_MODEL_METADATA: JSON.stringify({
-            capabilities: { vision: true, ...(input.searxngUrl ? { web_search: true } : {}) },
+            capabilities: { vision: true, file_context: true, ...(input.searxngUrl ? { web_search: true } : {}) },
         }),
+
+        // --- the Blender tool server (OWUI 0.12.4+) ---
+        // Tool servers a person adds in their own settings (the renderer registers Blender's that way: app.js) are dropped
+        // from every chat while "Direct Integrations" is off, its default since 0.12.4 (main.py: `tool_servers = None`).
+        // On, as in 0.11.4. It does not touch TOOL_SERVER_CONNECTIONS (the Computer's server below). Ignored by 0.11.4.
+        ENABLE_DIRECT_INTEGRATIONS: 'true',
 
         // --- voice: fully LOCAL speech, no cloud (privacy + works on a closed LAN) ---
         // Speech-to-text: OWUI's built-in faster-whisper runs on THIS machine's CPU.

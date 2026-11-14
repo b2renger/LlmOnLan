@@ -69,6 +69,30 @@ new pin's source and on one box:
 > The full client has run on 0.11.4 since (RIG_CHECKLIST's open items moved to HUMAN_TESTS); macOS's microphone
 > and camera are HUMAN_TESTS E2.
 >
+> **NOTE (2026-11-14): bumped to 0.13.3** (owner: the security fixes of 0.12.5, 0.13.0 and 0.13.1, before the class).
+> Read in the 0.13.3 package and run on this box (DEVLOG 2026-11-14). **Two defaults changed what students use, and
+> two env values keep them** (the owner, asked that day: "we should keep the document and blender tool working"):
+> - 0.13.1, "Preload files": with native function calling, the default, an attached file is no longer put into the
+>   conversation unless the model's capability `file_context` is on (`utils/tools.py` `is_file_context_enabled`).
+>   `DEFAULT_MODEL_METADATA` now carries `file_context: true` (merged under any per-model value, `utils/models.py`).
+>   Nothing changes for the person: they attach as before.
+> - 0.12.4, "Direct Integrations" (off by default): a person's own tool servers, as the renderer registers Blender's
+>   through the user-settings API, are dropped from chats (`main.py`: `tool_servers = None`).
+>   `ENABLE_DIRECT_INTEGRATIONS=true`. It does not gate `TOOL_SERVER_CONNECTIONS`: a fresh 0.13.3 with the Computer's
+>   entry lists `server:mcp:lol-computer` in `/api/v1/tools/`.
+>
+> Both are env (invariant 4); invariant 5's "no LOL code changes" was read as "env is configuration", and the owner
+> chose to keep both features. Also: `RAG_TOP_K`'s default became 10, ours stays 8 (env wins);
+> `WEB_SEARCH_CONCURRENT_REQUESTS` now limits searches to the provider, and the old meaning is
+> `WEB_LOADER_CONCURRENT_REQUESTS`, whose default is 10 (ours): no change. Same: requires-python `>=3.11,<3.13`,
+> huggingface_hub 1.33, onnxruntime 1.26.0. Checked on 0.13.3: signin → token, `GET /api/v1/auths/` 200, the
+> user-settings write reads back; a copied data folder (schema of 0.10.1) migrated (24 alembic steps), kept its chat,
+> and the client's window ran a chat through the live farm and answered from an attached text file (1 source).
+> **The migration is one-way** ("rolling updates are not supported"): the client now copies `webui.db` (and its
+> `-wal`) to `webui.db.before-owui-<version>` before a version first starts on a folder (`sidecar.ts`
+> `keepDbBeforeEngine`). Not checked: the Blender tools end to end (HUMAN_TESTS A27), Call mode, macOS and Linux.
+> Open WebUI shows its "What's New" note once at the first start.
+>
 > **NOTE (2026-09-27):** the sidecar bundles standalone **CPython 3.12**, not 3.11
 > (`sidecar/build-sidecar.mjs`), and a packaged client runs `<userData>/sidecar/python launcher.py serve`;
 > only dev runs `sidecar/.venv`'s `open-webui serve` console script (`shell/src/main/paths.ts`).
