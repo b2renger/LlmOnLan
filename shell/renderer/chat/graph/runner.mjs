@@ -569,7 +569,8 @@ export function createRunner(o) {
      * `given.seed` passes through untouched. The meter notes THAT a seed was sent (so the box can
      * show "last run: seed 48213") and whether any answer was cut off at max_tokens. Every `json`
      * ask carries this run's `think` (the toolbar box), and app/ask.mjs adds the yes/no decisions,
-     * which think either way; a `text` ask never turns thinking off, so it has nothing to carry.
+     * which think either way. A `text` ask turns thinking off only for a code answer with the box
+     * unticked (owner, 2026-11-14); prose thinks as the model does by default.
      * @param {{tokens: number, calls: number, seeded?: boolean, cut?: boolean}} meter
      * @param {number|string|null} salt
      */
@@ -609,7 +610,9 @@ export function createRunner(o) {
         return res;
       };
       return {
-        text: (/** @type {any} */ given) => call(base.text, given || {}),
+        // Owner, 2026-11-14: a CODE answer (the Instruction says so with `code`) writes straight away unless Think all
+        // is ticked (Creative coding on Qwen3.8: 151-207 s thinking, 13.6 s not). Prose keeps the model's own default.
+        text: (/** @type {any} */ given) => call(base.text, given && given.code && !think ? { ...given, thinking: false } : given || {}),
         json: (/** @type {any} */ given) => call(base.json, { ...(given || {}), think }),
         mode: (/** @type {string} */ m) => (typeof base.mode === 'function' ? base.mode(m) : 'json'),
         vision: (/** @type {string} */ m) => (typeof base.vision === 'function' ? base.vision(m) : 'unknown'),

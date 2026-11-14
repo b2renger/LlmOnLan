@@ -123,9 +123,9 @@ registerStrings('graph', {
   // harness window the toolbar has 0.4 px to spare with "Think first", and any label wider than
   // ~48 px wraps it to two rows (k5-lessons-every-lesson-and-template-opens-readable-and-framed).
   thinkLabel: 'Think all',
-  thinkHint: 'Think all. Unticked, the model may still think (its own default) before a yes/no decision (Condition, Filter) and before writing text or code, and answers lists, JSON and agent steps straight away. Ticked, it thinks before all of them: more careful, but several times slower and heavier on the farm. It applies from the next run.',
-  thinkOn: 'Think all is on: from the next run, lists, JSON and agent steps think too',
-  thinkOff: 'Think all is off: from the next run, lists, JSON and agent steps answer straight away; yes/no decisions still think',
+  thinkHint: 'Think all. Unticked, the model may still think (its own default) before a yes/no decision (Condition, Filter) and before writing text, and writes code, lists, JSON and agent steps straight away. Ticked, it thinks before all of them: more careful, but several times slower and heavier on the farm (a sketch can take minutes when a class shares it). It applies from the next run.',
+  thinkOn: 'Think all is on: from the next run, code, lists, JSON and agent steps think too',
+  thinkOff: 'Think all is off: from the next run, code, lists, JSON and agent steps answer straight away; yes/no decisions still think',
   capItemsTitle: 'One box would run {items} times',
   capItemsBody: 'That is more than the Cap of {cap}, so nothing ran. Raise it to {raise} to run them all: for this run with the button, or for every run with Cap in the toolbar.',
   cost: '{sec}s · {tokens} tokens',

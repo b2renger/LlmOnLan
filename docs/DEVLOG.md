@@ -9,6 +9,27 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-14 (11:11) — The Computer's code boxes write straight away unless Think all is ticked
+
+**Why:** the owner's answer to night n° 3's question 7 (2026-11-14): thinking "off by default but it should be possible
+to enable it for tests". Measured that night on the live farm (Qwen3.8, vLLM 0.30.0): the Creative coding sketch took
+151–207 s and 8,005–11,026 reasoning tokens as sent, 13.6 s and none with thinking off, all three sketches within the
+box's rules. With a class on one farm the difference is minutes a sketch.
+
+**What:** no new control. The canvas toolbar's **Think all** box (`pref:computeThink`, default `DEFAULT_THINK` = off)
+already decided thinking for lists, JSON and agent steps; it now covers code answers too. The Instruction tells its ask
+it answers in code (`call.code`, the code kind `codeKindOf` gives: p5, three, SVG, HTML, a Code box's program), and
+`graph/runner.mjs` `meteredAsk` adds `thinking: false` to such a `text` ask while the box is unticked; `app/ask.mjs`
+already turns that into the wire pair and keys its cache on it. Prose and yes/no decisions are unchanged (decision 9
+widened, not replaced). Only the runner calls a box's `run` with a model (`runner.mjs` ~903), so MCP runs follow it too.
+The toolbar hint and its two notices say "code" now; `thinkLabel` is unchanged (the k5 toolbar-width scenario).
+
+**Tested:** `computer-s2` gains a test on the real runner, Instruction and ask against a fake farm: unticked, the p5
+box's request carries `chat_template_kwargs {enable_thinking:false}` and the prose box's carries nothing; ticked, neither
+does. With the runner line taken out it fails (checked), with it 1964 passed, 0 failed; chat lint 0 violations.
+**Not checked yet:** the real app on Qwen3.6 (the class model): night n° 4, step 4 of its objective.
+Docs: context/computer.md, context/owui-contract.md, LOLCHAT_COMPUTER_TUTORIAL.md, CLASS_SHEETS.md.
+
 ## 2026-11-14 (04:25) — The Computer's text answers lose a thinking model's leading blank lines
 
 Found running lesson 1 in the real app on the live farm (Qwen3.8 on vLLM): the haiku reached the Text box as

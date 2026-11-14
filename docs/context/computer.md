@@ -62,7 +62,10 @@
   starts (`host.mjs` `createHandedGate`, inside `start`), lists them in one question, and Cancel runs nothing. MCP
   `run_graph` refuses until a person said yes; shipped templates and examples pass `shipped: true` (owner 2026-11-06,
   v0.2.16). Thinking boxes ask the farm **directly** (never through OWUI) on the background lane: one
-  request in flight, they yield to a person's chat, and a hidden window sends nothing. Every run is bounded by
+  request in flight, they yield to a person's chat, and a hidden window sends nothing. The toolbar's **Think all**
+  (default off) decides thinking: off, lists, JSON, agent steps and **code answers** (an Instruction with a code kind:
+  p5, three, SVG, HTML, a Code box's program; owner 2026‑11‑14, widening decision 9) send thinking off from
+  `runner.mjs` `meteredAsk`; yes/no decisions and prose keep the model's default. Every run is bounded by
   `RUN_LIMITS` (`core/types.mjs`): 8 passes per box, 50 generations (the toolbar **Cap**), 10 min of wall
   clock including waits, 2000 activations; a loop is legal only through a gate box (`topo.mjs`
   `GATE_TYPES`). Code/p5/three/HTML run in ONE opaque-origin sandbox iframe (`sandbox/runner.html`,

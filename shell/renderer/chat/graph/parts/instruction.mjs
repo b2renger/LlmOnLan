@@ -545,6 +545,8 @@ export const instruction = /** @type {any} */ ({
       // what the prompt leaves of the farm's window — never the silent 512.
       maxTokens,
     };
+    // A code answer: the runner turns thinking off for it unless Think all is ticked (owner, 2026-11-14).
+    if (plan.call.code) call.code = plan.call.code;
     // Critic R1 A1 (K-5): the seed the runner picked for this activation — pinned or new each run.
     // It is sent, and it is part of the ask cache's key, so a new seed is a new generation.
     if (typeof input.seed === 'number') call.seed = input.seed;

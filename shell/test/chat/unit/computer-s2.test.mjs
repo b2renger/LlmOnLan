@@ -321,4 +321,24 @@ export default (test) => {
     assert.equal(asked[1].system,
       'Answer only with whether the item matches the criterion: {"keep": true} when it matches, {"keep": false} when it does not.');
   });
+
+  test('2026-11-14 (owner): Think all unticked, a code answer is asked with thinking off and prose keeps the model default; ticked, both think', async () => {
+    // Measured on the live farm (Qwen3.8, vLLM): Creative coding's sketch took 151-207 s thinking, 13.6 s not.
+    for (const ticked of [false, true]) {
+      const app = makeApp();   // a fresh ask each time: no answer is replayed from the other run's cache
+      app.repo.kvGet = async (/** @type {string} */ k, /** @type {any} */ d) => (k === 'pref:computeThink' ? ticked : d);
+      const session = makeSession();
+      session.add('ask', { instruction: 'Draw a sun.', code: 'p5', shape: 'text' });
+      session.add('ask', { instruction: 'Write a haiku.', shape: 'text' });
+      const farm = fakeFarm();
+      await withFarm(farm, () => createRunner({ session, app }).run());
+      const sent = (/** @type {string} */ words) => farm.posts.find((b) => JSON.stringify(b.messages).includes(words));
+      const code = sent('Draw a sun.');
+      const prose = sent('Write a haiku.');
+      assert.ok(code && prose, `both boxes asked the farm (ticked: ${ticked})`);
+      assert.deepEqual(code.chat_template_kwargs, ticked ? undefined : { enable_thinking: false },
+        ticked ? 'ticked: the code box thinks (nothing sent)' : 'unticked: the code box writes straight away');
+      assert.equal('chat_template_kwargs' in prose, false, 'prose never has thinking turned off by the box');
+    }
+  });
 };

@@ -29,7 +29,8 @@
 //     as a schema failure, so two of them flip the verdict to prompt mode for good.
 //   - THINKING OFF for `json()` only (owner decision 9, 2026-10-04: the spike scored the same or
 //     better with 5-9x fewer tokens). Both rungs send it; `text()` sends it only when its caller
-//     passes `thinking:false` (Converse's spoken replies, K-V5), so a prose or code answer thinks as
+//     passes `thinking:false` (Converse's spoken replies, K-V5; and since 2026-11-14 the Computer's
+//     runner for a code answer while "Think all" is unticked, graph/runner.mjs), so a prose answer thinks as
 //     before. A model that ignores the flag lands in the reasoning trap above,
 //     exactly as it did. `think: true` sends nothing about thinking (the model's own default): the
 //     Computer's "Think all" box, which the runner passes on every json ask; unset means
