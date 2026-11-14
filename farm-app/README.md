@@ -16,7 +16,7 @@ A setup wizard runs once (needs internet), with a phase checklist + progress + a
 
 | Phase | What happens | Where it lands |
 |---|---|---|
-| **Runtime** | Downloads a relocatable standalone **CPython 3.12** ([python-build-standalone](https://github.com/astral-sh/python-build-standalone) 20260825) + the **Ollama** binary (v0.33.0) for this OS/arch: the pins in `src/main/runtimeManager.ts`. An installed farm keeps the ones it first downloaded. | `userData/farm-runtime/{python,ollama}` |
+| **Runtime** | Downloads a relocatable standalone **CPython 3.12** ([python-build-standalone](https://github.com/astral-sh/python-build-standalone) 20261110) + the **Ollama** binary (v0.33.0) for this OS/arch: the pins in `src/main/runtimeManager.ts`. An installed farm keeps the ones it first downloaded. | `userData/farm-runtime/{python,ollama}` |
 | **Farm code** | Copies the bundled farm CLI to a **writable** location + writes `lol.config.json` (gemma4:26b default, a pinned admin token). | `userData/farm/` |
 | **Model** | `ollama pull gemma4:26b` (~19 GB) with a real % bar (an app-owned Ollama) — the model people use, for GPUs of 24 GB and above, and the OCR vision model on Ollama (since 2026-11-10; gemma4:12b before). | Ollama's model store |
 | **Services** | `lol install` builds the LiteLLM / SearXNG / OCR venvs and, on an NVIDIA GPU (Windows x64, DGX Spark), sets up **document search**: the llama.cpp build with its CUDA runtime (~0.6 GB) and EmbeddingGemma 2 (~0.6 GB). The llama.cpp engine's own model comes only if `llamacpp.enabled` (off by default). | `userData/farm/.venv` · `.searxng` · `.extract` · `.llamacpp` + `.models` (document search on an NVIDIA GPU; the engine's model when enabled) |

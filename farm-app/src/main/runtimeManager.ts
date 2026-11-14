@@ -47,7 +47,7 @@ const OLLAMA_FILES: Record<string, string> = {
     'linux-arm64': 'ollama-linux-arm64.tar.zst',
 };
 // The one 3.12 on the pinned python-build-standalone release (RUNTIME_PINS), so its file has a name we know.
-const PY_PINNED = '3.12.14';
+const PY_PINNED = '3.12.16';
 const exactly = (name: string): RegExp => new RegExp(`^${name.replace(/[.+]/g, '\\$&')}$`);
 
 function key(): string { return `${process.platform}-${process.arch}`; }
@@ -82,7 +82,7 @@ function httpGet(url: string, redirects = 0): Promise<{ status: number; body: st
 // loud log rather than dead-ending the installer.
 const RUNTIME_PINS: Record<string, string> = {
     'ollama/ollama': 'v0.33.0',
-    'astral-sh/python-build-standalone': '20260825',
+    'astral-sh/python-build-standalone': '20261110',
 };
 
 async function ghLatestAssets(repo: string): Promise<{ tag: string; assets: { name: string; url: string }[] }> {
