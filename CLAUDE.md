@@ -111,7 +111,7 @@ the owner and Claude share is [docs/sessions/](docs/sessions/README.md), one dat
 2. **One objective per session** (owner, 2026-11-12): the last summary's *Next objective*, with its *Done when*, plus
    at most one small side task. Not the whole menu. The menu the objective comes from: look at the code and the latest
    changes; run the tests, and the client and a farm for real (the skill `lol-scratch-farm`); measure; research models,
-   engines and harnesses that matter to us; write a plan; build an approved plan; test what was built; prepare a human
+   engines and harnesses that matter to us, and the updates of the tools we already pin (owner, 2026-11-14); write a plan; build an approved plan; test what was built; prepare a human
    test; update the docs and the in-app help and tutorials. Finished early: the next item of the summary's queue.
 3. **End:** write the summary: what was done, with the evidence; what was not, and why; the next objective with its
    *Done when*, its side task and the queue; the questions for the owner. Commit it, and push the backup.

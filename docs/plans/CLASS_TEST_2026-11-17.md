@@ -60,7 +60,8 @@ session, with its evidence.
    client asks the farm before GitHub (question 1). Not built; **M**; it would have to land before the client freeze,
    so test 2 must be done **by Saturday evening**: a yes then means night n° 4 builds it, and the student's 20 minutes move
    to a day session. If the Wi-Fi's internet is a 4G/5G box, 30 GB may also meet its data cap.
-2. **Answered by night n° 3 (2026-11-14):** the farm now serves vLLM · Qwen3.8 27B · 32k a person · 36 seats, which holds
+2. **Answered by night n° 3 (2026-11-14), then by the owner the same day:** Qwen3.6 35B-A3B at **64k** for the class ("3.6 long
+   context is valuable"); night n° 3 had left vLLM · Qwen3.8 27B · 32k a person · 36 seats, which also holds
    30 on every shape measured; llama.cpp cannot (16 seats at most, and it collapses with documents). Kept below for the
    record: **Found 2026-11-13 15:52 (`/lol/self`): the live farm runs llama.cpp, not vLLM**: Qwen3.8-27B-NVFP4-MTP, `parallel` 1, one 262k window, so **1 seat**. From 30 addresses that refuses 29 students (*farm full*); behind NAT it admits them all and answers one at a time. The owner switches it back to vLLM (32 people at 64k) from the panel, or says otherwise, **before night n° 3**; night n° 3 checks `backend.engine` and `capacity.slots` first and runs J14 and the rehearsal only on vLLM.
    **30 at once has never run through the seat gate** (J16 was never run). Production's vLLM is **0.30.0** (read in
@@ -101,7 +102,7 @@ The cron fires each night at about 01:49 for five hours; it expires on **2026-11
 | Night | Session | Objective | Done when |
 |---|---|---|---|
 | Sat 14, 01:49 to ~06:50 | n° 3 | **Changed by the owner, 2026-11-13 16:00** ([the summary](../sessions/2026-11-13.md#next-objective)): **both engines for 30 people**, Qwen3.8-27B on llama.cpp and Qwen3.6 35B-A3B on vLLM, the session switching the live farm; the farm left on the one that holds 30 (Qwen3.8 if it does); J14 only if time is left. *Was:* **J14, then the rehearsal on the live farm.** First `/lol/self`: nobody on it, and the Farm app's version (J14 needs farm-v0.0.51+; if older, skip J14 and say so). J14 from the panel, as HUMAN_TESTS J14 writes it, its way back read before starting. Then 30 people through the gate from 30 addresses (`lol bench --people --users 30`) and from **one** (J16 step 3 at 16 and 30), with coding agents (`docs/spike/ide/run.js`) and the Computer harness (`--phase k`) beside it, and a few PDFs to OCR. | J14 done (or why not), the farm back up and answering as before; the rehearsal's table in RESULTS (refusals, first token p50/p95, decode p10, agent tasks passed, harness passes) and the defects ranked. |
-| Sun 15, 01:49 to ~06:50 | n° 4 | **A student's 20 minutes** on a scratch client against the live farm (BEFORE_TUESDAY test 5's steps), and **the words along it**: the Tour, the lessons, LOL Vibe's help, GETTING_STARTED's install, fixed where a student would stumble; the rehearsal's defects, client first. *Side task:* `docs/CLASS_SHEETS.md`. | Each step passes or is fixed with its test; the sheets written. |
+| Sun 15, 01:49 to ~06:50 | n° 4 | **Changed by the owner, 2026-11-14 11:00** ([the summary](../sessions/2026-11-14.md#next-objective)): **the engines' upgrades**: research of each pinned tool's releases, J14 (vLLM update) on the live farm with Qwen3.6 35B-A3B at 64k measured again for 30, the newer llama.cpp on a scratch farm, thinking off measured in the real app; then RELEASE READY. The farm left on Qwen3.6 64k. *Was:* **A student's 20 minutes** on a scratch client against the live farm (BEFORE_TUESDAY test 5's steps), and **the words along it**: the Tour, the lessons, LOL Vibe's help, GETTING_STARTED's install, fixed where a student would stumble; the rehearsal's defects, client first. *Side task:* `docs/CLASS_SHEETS.md`. | Each step passes or is fixed with its test; the sheets written. |
 | Mon 16, 01:49 to ~06:50 | n° 5 | **The review** (every fifth session, `lol-review`), scoped to what the students meet: the in-app tutorials and help, the guides, the sheets, against the running app. Its small fixes to words land before the client freeze (12:00), in a day session the owner opens, or wait on the owner's sheet. | The review report; each finding fixed, or on the owner's sheet. |
 | Tue 17, 01:49 to ~06:50 | n° 6 | **Checks only.** `/lol/self` answers with the right version, engine and seats; one chat, one coding-agent task and one Computer run, as one person. No restart, no config change, no commit but the summary. | The summary's first lines say the farm is ready, or what is wrong, by 06:30. |
 | Wed 18, 01:49 | n° 7 | The class's feedback into FIELD_NOTES first (the owner's notes); then Super VL (approved once). | — |
@@ -123,6 +124,7 @@ Tuesday morning (7). And a day session on Monday morning for the review's fixes,
 2. **The releases:** cut client v0.2.18 and the next Farm app now and run A24 and K16 on them (the practice since
    2026-10-09: the tests run on published releases), or a local build first? *Recommended: cut them now*: the
    students install the latest on Tuesday, and a fix release before Monday 12:00 stays possible.
+   > owner (2026-11-14): test the new vLLM and llama.cpp tonight, cut the releases after.
 3. **Today's window:** the live farm is off and the GPU free now. May a session run test 5's student path on a scratch
    client and a scratch farm today, and start the words pass? *Recommended: yes*: it takes the riskiest client work off
    the last night before the freeze.
@@ -133,3 +135,4 @@ Tuesday morning (7). And a day session on Monday morning for the review's fixes,
    the HTML preview before the client freeze?** Python needs a plan (no Python on a student's laptop is assumed).
 6. **vLLM by default** on a farm like the PRO 6000 (the owner, 2026-11-13: "it should be the default for this
    configuration"): after night n° 3's numbers, since the owner prefers Qwen3.8 on llama.cpp if it holds 30. A plan line.
+   > owner (2026-11-14): yes, vLLM as the default on big cards. A plan, after the class.

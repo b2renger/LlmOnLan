@@ -48,6 +48,9 @@ The objective is one of these kinds of work; stay on it until its *Done when* ho
   `lol-scratch-farm`. Measure with `docs/spike/spike_bench.py`.
 - **Research:** new models, engines and harnesses that matter here (the `docs` explorer reads the references). A
   finding is a dated file in `docs/research/` with its sources, and a line in the plans if it deserves work.
+  **The tools we already pin** (owner, 2026-11-14): vLLM, llama.cpp (`farm/src/llamacpp.js` `PINNED_BUILD`), Ollama and
+  python-build-standalone (`farm-app/src/main/runtimeManager.ts` `RUNTIME_PINS`), LiteLLM, Open WebUI's pin, Electron:
+  their new releases, what changed for us, and whether a bump is worth a test. Read the release pages, never memory.
 - **Plan:** a new feature gets a plan in `docs/plans/` before code. A plan that needs the owner's decision stops there.
 - **Build:** a plan that is ready. Smallest change that works (the ponytail ladder in `CLAUDE.md`), with one runnable
   check for any logic that is not trivial.

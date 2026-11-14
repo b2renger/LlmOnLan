@@ -45,6 +45,9 @@ file stays the whole list.
 2. **The ★ list** in [HUMAN_TESTS](../HUMAN_TESTS.md) (proposed 2026-11-05): agree it, then run it in its order.
 3. **On the PRO 6000, at a quiet hour:** install farm-v0.0.52, then J14 and J15. J14 is Update vLLM 0.30.0 → 0.33.0,
    which takes it from 32 to 48 people at 64k every turn. J15 is Gemma 4 26B from the panel. **M**, the owner's hour.
+   *Owner, 2026-11-14:* J14 **before** the class, by night n° 4 (the box is idle on weekends; a session may switch the
+   live farm), with the newer llama.cpp on a scratch farm; the releases are cut after. Every session's research also
+   covers the updates of the tools we pin (CLAUDE.md ▸ Sessions).
 
 ## 2. Next — the most value for the office
 
