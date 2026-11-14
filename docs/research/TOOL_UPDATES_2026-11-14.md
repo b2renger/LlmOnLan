@@ -9,7 +9,7 @@ asked to test now.
 | Tool | Our pin | Latest (date) | For us |
 |---|---|---|---|
 | vLLM | 0.30.0 live, 0.33.0 offered (`farm/vllm/install.sh` `VER`) | **0.33.0** (2026-11-02) | **Updated on the live farm today** (J14); measured below and in RESULTS |
-| llama.cpp | b11836 (`farm/src/llamacpp.js` `PINNED_BUILD`) | v1.0.0 (2026-11-13, no binaries); builds up to **b12377** (2026-11-14) | A bump needs `CUDA_TAG` too (13.4 → 13.5); test after the class |
+| llama.cpp | b11836 (`farm/src/llamacpp.js` `PINNED_BUILD`) | v1.0.0 (2026-11-13, no binaries); builds up to **b12377** (2026-11-14) | Measured: same speed alone, first token 3× sooner with 16; a bump needs `CUDA_TAG` 13.5 too; after the class |
 | Ollama | v0.33.0 (`farm-app/src/main/runtimeManager.ts` `RUNTIME_PINS`) | **v0.40.16** (2026-11-09) | Models pulled by ≥0.40 need a re-pull to go back; after the class |
 | LiteLLM | 1.97.0 (`farm/src/commands/install.js:148`) | **1.109.1** (2026-11-12) | Inside a Critical advisory, but its precondition cannot occur here (below); bump after the class |
 | Open WebUI | 0.11.4 (`sidecar/OPENWEBUI_VERSION`) | **0.13.3** (2026-11-08) | Security fixes in 0.12.5/0.13.x; a bump is invariant 5's smoke test; after the class |
@@ -39,9 +39,10 @@ asked to test now.
   CI workflow (`llamacpp.js:39-41`).
 - v1.0.0's notes remove `--defrag-thold` (the farm does not pass it; checked: `farm/src/llamacpp.js:163-219`) and add
   `--allow-unauthenticated-tools`. Whether NVFP4/MTP/Qwen3.x/batching changes landed after b11836 was not established.
-- **Verdict:** llama.cpp cannot serve 30 on this farm (16 seats at most, RESULTS 2026-11-14), so it is not on the
-  class's path. A trial of b12377 (single-person speed, 16 people, against b11836's numbers) is a plan for after the
-  class.
+- **Measured the same day** (RESULTS ▸ *llama.cpp b11836 against b12377*): both builds run on this driver; the same
+  80 tok/s alone; with 16 at once b12377's first token p95 is 1.8 s against 5.1 s; 8k conversations at 16 still fail
+  (5.8 s against 9.2 s). **Verdict:** a real gain under load, but llama.cpp cannot serve 30 here (16 seats at most), so
+  it is not on the class's path: bump `PINNED_BUILD` and `CUDA_TAG` together after the class, with the farm's tests.
 
 ## Ollama
 

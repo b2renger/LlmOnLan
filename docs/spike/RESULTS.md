@@ -1272,3 +1272,22 @@ tonight: it is llama.cpp's path through the farm, not the gate (the gate does no
 
 Results: `results/pro6000-{gate-vllm030-qwen36,gate-vllm030-qwen38,lcpp-p30-qwen38nvfp4}*20261114*`,
 `results/class-20261114/` (the `lol bench` runs), `results/ide/class-20261114-qwen38-{64k,32k}.jsonl`.
+
+# llama.cpp b11836 against b12377 (RTX PRO 6000, 2026-11-14)
+
+The owner's ask of 2026-11-14 ("llama.cpp is now version 1"): the farm's pin against the newest build. b12377
+(2026-11-14) reports `1.0.0-dev (build 12377)`; v1.0.0 itself ships no binaries (research ▸
+[TOOL_UPDATES_2026-11-14](../research/TOOL_UPDATES_2026-11-14.md)). Both run as llama-server directly (no farm, no
+gate), one after the other, with the farm's flags: Qwen3.8-27B-NVFP4-MTP-LOW GGUF, 262k shared (`--kv-unified`),
+16 slots, q4_0 KV, flash attention, `--cache-reuse 256`, `--cache-ram 24576`; the Windows CUDA builds (b11836 the
+farm's `cuda-13.4`, b12377 `cuda-13.5`) on driver 596.36 (CUDA 13.2: both ran). The live vLLM was stopped meanwhile.
+
+| Build | One person (500 tokens) | 16 at once (one address) | 8k conversations, 16 people |
+|---|---|---|---|
+| b11836 (pin) | 79.9 tok/s, first token 0.2 s | first token p50 4.1 s / p95 5.1 s, 35.4 tok/s each | fail: p95 9.2 s, p10 21.2 |
+| **b12377** | 79.9 tok/s, first token 0.2 s | **p50 1.3 s / p95 1.8 s**, 36.3 tok/s each | fail, closer: p95 5.8 s, p10 23.3 |
+
+**What it means:** the same speed alone; under 16 people the newer build answers about three times sooner, and with
+documents it misses the 5 s mark by less (5.8 against 9.2 s). It does not change the class: llama.cpp's 16 seats at most
+(the farm's cap) and documents still fail. A bump (`PINNED_BUILD` with `CUDA_TAG` `cuda-13.5`, and the arm64 CI) is worth
+its test after the class. Results: `results/pro6000-lcpp-b1{1836,2377}-qwen38nvfp4-p16-8k*`.
