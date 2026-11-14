@@ -273,7 +273,8 @@ export function ollamaModelsEnv(configText?: string): Record<string, string> {
 async function startOllama(): Promise<ChildProcess | null> {
     if (await ollamaVersion()) return null; // one's already up (reuse it, don't own it)
     const child = spawn(bundledOllamaBin(), ['serve'], {
-        env: { ...childEnv(), ...ollamaModelsEnv(), OLLAMA_HOST: `${OLLAMA_HOST}:${OLLAMA_PORT}` },
+        // OLLAMA_NO_CLOUD: local only, as farm/src/commands/up.js spawnLocalOllama (Ollama's cloud is on by default).
+        env: { ...childEnv(), ...ollamaModelsEnv(), OLLAMA_HOST: `${OLLAMA_HOST}:${OLLAMA_PORT}`, OLLAMA_NO_CLOUD: '1' },
         detached: process.platform !== 'win32',
         windowsHide: true,
         stdio: 'ignore',

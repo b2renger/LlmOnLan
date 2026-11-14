@@ -81,7 +81,7 @@ function httpGet(url: string, redirects = 0): Promise<{ status: number; body: st
 // If a pinned release disappears (repos do prune), we fall back to latest with a
 // loud log rather than dead-ending the installer.
 const RUNTIME_PINS: Record<string, string> = {
-    'ollama/ollama': 'v0.33.0',
+    'ollama/ollama': 'v0.40.16',
     'astral-sh/python-build-standalone': '20261110',
 };
 

@@ -47,7 +47,11 @@
   turned on (by a person in Preferences, or by a farm that recommends them to a client whose person never chose): pip
   installs mcpo and blender-mcp, and upgrades pip, into `<userData>/mcp-tools`. The coding agent itself talks only to the farm's
   `/v1` (its cloud, web and telemetry rows are off; checked with a netstat watch, 2026-09-28) — and, with **Use the
-  Computer** on, to the Computer's MCP server on 127.0.0.1 (this machine).
+  Computer** on, to the Computer's MCP server on 127.0.0.1 (this machine). **The farm's Ollama** pulls models from
+  ollama.com when the operator picks one; its cloud features (remote models, web search through ollama.com), on by
+  default in Ollama, are off for every Ollama the farm or the Farm app starts (`OLLAMA_NO_CLOUD=1`, 2026-11-14; before,
+  they were on but never asked for: no farm model names a cloud one). Open WebUI 0.13.3 with the client's env opened no
+  connection but the farm's, from its start through a chat and an upload (2026-11-14).
 - **The IDE's publishing, only on a person's click:** **Push** sends a project's committed files to the https git
   server a person typed (GitHub or a LAN Gitea), with a token kept encrypted by the OS (`safeStorage`,
   `<userData>/git-tokens.json`, never handed back to the page); **Pull** brings that server's commits here

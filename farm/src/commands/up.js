@@ -129,6 +129,9 @@ function spawnLocalOllama(config, baseUrl) {
         // load), so the env seed is the proven floor; the resolved value rides
         // num_ctx on every routed request, which is what governs served context.
         OLLAMA_CONTEXT_LENGTH: String(typeof config.ollama.contextLength === 'number' ? config.ollama.contextLength : 16384),
+        // Local only (CLAUDE.md): Ollama's cloud features, remote models and web search through ollama.com, are on by
+        // default (0.33 and 0.40 alike, envconfig OLLAMA_NO_CLOUD). Off for every Ollama the farm starts.
+        OLLAMA_NO_CLOUD: '1',
         // Where its models are: the farm's model folder (storage.js), else Ollama's own place.
         ...storageMod.ollamaEnv(config.storage),
     };
