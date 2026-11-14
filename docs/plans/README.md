@@ -123,6 +123,13 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     the same one 42 showed rarely on 2026-11-12 (k 175/217). First find what earlier scenario leaves the state, then
     bump (also: the sync `safeStorage` calls before Electron 46). After the class. **S–M**.
 
+15. **A better LOL Vibe, able to build a proof-of-concept web application** (owner, 2026-11-14: "I am not convinced
+    about what we have right now in lol vibe ... we need a better lol vibe experience for the users and we should be able
+    to build a poc web application"; no Qwen Code trial for now). First the facts: night n° 5's audit walks LOL Vibe
+    through building a small web application end to end, as a student would (a page with a form, a list kept in the
+    browser, two or three files), and records every stumble with its screenshot; then a plan in `docs/plans/` for the
+    owner (what the experience should be, what to build), after the class. **M–L**.
+
 ## 3. Later
 
 - **The farm:**

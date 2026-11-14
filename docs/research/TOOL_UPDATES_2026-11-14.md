@@ -12,7 +12,7 @@ Electron 45 was tried and dropped.
 |---|---|---|---|
 | vLLM | 0.30.0 live, 0.33.0 offered (`farm/vllm/install.sh` `VER`) | **0.33.0** (2026-11-02) | **Updated on the live farm today** (J14); measured below and in RESULTS |
 | llama.cpp | b11836 (`farm/src/llamacpp.js` `PINNED_BUILD`) | v1.0.0 (2026-11-13, no binaries); builds up to **b12377** (2026-11-14) | **Bumped the same afternoon** (owner: "now"): b12377 with `CUDA_TAG` 13.5; document search's vectors identical; the Spark build started |
-| Ollama | v0.33.0 (`farm-app/src/main/runtimeManager.ts` `RUNTIME_PINS`) | **v0.40.16** (2026-11-09) | Models pulled by ≥0.40 need a re-pull to go back; after the class |
+| Ollama | v0.33.0 (`farm-app/src/main/runtimeManager.ts` `RUNTIME_PINS`) | **v0.40.16** (2026-11-09) | **Bumped the same evening** (owner: "now"), for new installs; Ollama's cloud turned off on every farm (below) |
 | LiteLLM | 1.97.0 (`farm/src/commands/install.js:148`) | **1.109.1** (2026-11-12) | **Bumped the same afternoon to 1.106.9**, and installed farms are brought to it on an update (below) |
 | Open WebUI | 0.11.4 (`sidecar/OPENWEBUI_VERSION`) | **0.13.3** (2026-11-08) | **Bumped the same afternoon**, two env values keep documents and the Blender tools (INTEGRATION_BRIEF's note) |
 | Electron | ^42.5.0 (`shell/` and `farm-app/package.json`) | **45.3.2** (2026-11-13) | **Tried the same afternoon and dropped**: the sandbox fails on 45 in the harness (below); after the class |
@@ -111,3 +111,7 @@ Electron 45 was tried and dropped.
 - **LiteLLM 1.106.9's cost, measured on the live vLLM:** each person about 6 % slower at 30 (88 against 95 tok/s) and
   9 % at 48 (67 against 74), first token unchanged; kept for the security fix.
 - **CPython 3.12.16** (`RUNTIME_PINS` 20261110): new Farm app installs; an installed farm keeps its runtime.
+- **Ollama v0.40.16** (the same evening, owner: "ollama 40 now before the tests"): the farm's document reading 5/5 on
+  both versions, warm 1.6–4.1 s against 1.3–2.1 s; chat 140 against 129 tok/s alone and 134 against 93 with two;
+  the cancel test passes; new installs only. **Ollama's cloud features were on by default** on every farm: now off
+  (`OLLAMA_NO_CLOUD=1`). DEVLOG 2026-11-14 19:20.

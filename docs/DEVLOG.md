@@ -9,6 +9,38 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-14 (19:20) — Ollama v0.40.16 for new Farm app installs; Ollama's cloud off on every farm
+
+The owner, evening: "ollama 40 now before the tests". A read of every release note 0.33.1 → 0.40.16 (an explorer;
+summariser output, marked so), then an A/B on this box beside the live farm: the live farm's Ollama 0.33.0 binary and
+v0.40.16, each copied into scratch with its own copy of `gemma4:12b` (the farm's document-reading model, copied from
+`F:\LlmOnLan\ollama`, read only), the farm's env (`OLLAMA_NUM_PARALLEL=2`, `q8_0`, flash attention, one model),
+ports 11500/11501, one at a time.
+
+| | 0.33.0 | 0.40.16 |
+|---|---|---|
+| The farm's OCRProcessor on a page of text (5 facts) | 5/5 every run | 5/5 every run |
+| ... cold load | 7.9 s | 83 s the first time, 9.8 s the second |
+| ... warm (5 runs) | 1.3–2.1 s | 1.6–4.1 s |
+| `lol bench`, 1 person, 500 tokens | 129 tok/s | 140 tok/s |
+| `lol bench`, 2 people | 93 tok/s | 134 tok/s |
+
+- The 83 s was a one-off (the second cold start: 9.8 s); no model conversion happened (the folder kept its size,
+  `manifests-v2/` stayed empty): 0.40 converts only "legacy GGUF that needs Ollama's llama.cpp patches", on first run,
+  keeping the original as a backup (0.40.2's notes), which a downgrade below 0.40 cannot read.
+- `/api/ps` reports the same on both (gemma4:12b size 3.9–4.0 GB = size_vram; ctx 262144): the farm's spill check
+  reads it the same way. `/api/show` capabilities on 0.40: completion, vision, audio, tools, thinking.
+- `litellm-cancel.js` with LOL_CANCEL_ENGINE=ollama into 0.40.16 through LiteLLM 1.106.9: PASS on every path
+  (released 31–103 ms after an abort, the next request answered in 62–103 ms).
+- **Found: Ollama's cloud features are on by default** (`OLLAMA_NO_CLOUD` false, `OLLAMA_REMOTES` ollama.com, 0.33
+  and 0.40 alike) and the farm never turned them off. `OLLAMA_NO_CLOUD=1` now in both places an Ollama is started
+  (`up.js` `spawnLocalOllama`, the Farm app's `startOllama`); both versions log `OLLAMA_NO_CLOUD:true` with it and refuse
+  a cloud model ("ollama cloud is disabled"). Unlike the pin it reaches installed farms, at their Ollama's next start.
+  privacy.md says so.
+- The pin (`RUNTIME_PINS`) reaches new installs only; the asset names are unchanged (`ollama-windows-amd64.zip`
+  1,618,244,995 bytes, CUDA 12 and 13 inside). Not checked: `ollama create` with a DRAFT (Qwen3.8's MTP on Ollama),
+  macOS and Linux, a fresh Farm app install end to end (HUMAN_TESTS K17). farm 288, farm-app 11 + 3.
+
 ## 2026-11-14 (18:05) — The tool updates now (owner): llama.cpp, LiteLLM, Open WebUI 0.13.3, Python; Electron 45 dropped
 
 The owner, ~14:20: "No not after the class, i want now the updates". One commit per bump; research by three read-only

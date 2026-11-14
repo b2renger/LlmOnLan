@@ -2041,6 +2041,21 @@ offers room with document reading off; 16 GB offers nothing while document searc
 new box has no `.models`, `.stt`, `.classify`, `__pycache__` or `lol.config.json.before-*`; the updated box keeps its own.
 - [ ] Done · Found:
 
+### K17 A fresh Farm app install gets Ollama 0.40.16, with its cloud off
+*Proves:* the pin of 2026-11-14 on a box that never had the Farm app (an installed farm keeps its Ollama), and the cloud
+switch. *Needs:* the next Farm app, the K test box with its Farm app uninstalled and `%APPDATA%\LlmOnLan Farm` moved
+aside (not deleted), 30 minutes (a 1.6 GB download, then the model). *Was:* new (2026-11-14; an A/B of 0.33.0 and
+0.40.16 on the PRO 6000, DEVLOG 19:20).
+
+1. Install the Farm app and run its wizard to the end.
+2. In PowerShell: `& "$env:APPDATA\LlmOnLan Farm\farm-runtime\ollama\ollama.exe" --version`.
+3. From a laptop: a chat, then a PDF scan attached (document reading).
+
+*Expect:* step 2 says 0.40.16. Step 3 answers, and the scan is read. Settings ▸ logs: Ollama's server line shows
+`OLLAMA_NO_CLOUD:true` if its log is kept (else, the PRO 6000's Ollama after its next restart, `/api/show` of a
+`-cloud` model says "ollama cloud is disabled").
+- [ ] Done · Found:
+
 ## L. The DGX Spark
 
 **Machine:** a DGX Spark, with a screen. **Build:** the Farm app's Linux arm64 AppImage of the release under test (L3
