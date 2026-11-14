@@ -29,7 +29,7 @@ address*, then **Add**.
 
 ### 3. Try it
 
-- **Open WebUI** (the chat): ask a question. Attach a short PDF to your message and ask about it (up to about 30 pages).
+- **Open WebUI** (the chat): if the top says **Select a model**, click it and choose **assistant**. Ask a question. Attach a short PDF to your message and ask about it (up to about 30 pages).
 - **LOL Vibe:** ask something. Ask for something long, then press **Stop**.
 - **LOL Vibe ▸ Project:** the first time, press **Install the coding agent** (about 120 MB). Then **New project**, give it
   a name, and ask *"Make index.html: a page with a bouncing ball."* After
@@ -56,6 +56,7 @@ first word within 3 s for 95 % of them, 18 to 45 tokens a second each, faster th
 | Students on a farm with **2 seats** (a Spark) | "Automatic" picked another farm on the network: it picks at random between farms that look equally free. | Step 2 of their sheet: one click on the class farm pins it. Or switch the Sparks off for the day. |
 | `<farm> · not responding…` on the button | The laptop has not heard the farm for 12 s: Wi-Fi, or the farm restarting. | Check the Farm app shows the farm running; otherwise wait a minute. Do not restart the farm during the class unless nothing answers. |
 | *The sandbox could not start* (Computer) | The Computer's drawing sandbox did not start in time on that laptop. | Close and reopen the Computer; if it stays, restart the app. (The real app passed this the night of 14 November; the test harness has its own failure.) |
+| Open WebUI says *Select a model* | The laptop first landed on another farm, then moved to the class farm: Open WebUI kept that farm's model, which the class farm does not have. | Click it, choose **assistant** (once). |
 | A PDF fails, or the answer ignores its end | One chat holds about 32k tokens: roughly 30 to 40 pages of text. | Split the PDF, or ask about one part. |
 | Creative coding or a Computer template takes minutes | The model thinks a lot before writing (about 12,000 tokens for one sketch). | Say so up front; start it, then explore something else. |
 | The first start is slow on many laptops | Each laptop downloads about 1 GB (the chat engine) from the internet at the same time. | Start the install first, while you present. |
