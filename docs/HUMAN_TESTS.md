@@ -331,9 +331,10 @@ something else from the web says *This preview has no internet: what the page lo
    time the sketch box takes (its *last run* line).
 2. Tick **Think all**, then **Run all** again.
 
-*Expect:* step 1: the sketch draws within about half a minute; the Instruction's transcript (its Got tab) shows no
-reasoning. Step 2: it thinks first (reasoning in the Got tab) and takes several times longer; the sketch still draws.
-Untick Think all after.
+*Expect:* step 1: the sketch draws in about 10–20 s (alone on the farm; measured 10.6 s, 0 reasoning tokens, dev client
+on vLLM 0.33.0, 2026-11-14); the Instruction's transcript (its Got tab) shows no reasoning. Step 2: it thinks first
+(reasoning in the Got tab) and takes about twice as long (measured 24.1 s, 666 reasoning tokens); the sketch still
+draws. Untick Think all after.
 - [ ] Done · Found:
 
 ### A10 Code, pictures and files

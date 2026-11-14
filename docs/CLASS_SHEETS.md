@@ -61,7 +61,7 @@ tokens a second each, faster than anyone reads; three coding agents beside 27 ch
 | *The sandbox could not start* (Computer) | The Computer's drawing sandbox did not start in time on that laptop. | Close and reopen the Computer; if it stays, restart the app. (The real app's Preview passed this the night of 14 November; Live mode was not checked yet.) |
 | Open WebUI says *Select a model* | The laptop first landed on another farm, then moved to the class farm: Open WebUI kept that farm's model, which the class farm does not have. | Click it, choose **assistant** (once). |
 | A PDF fails, or the answer ignores its end | One chat holds about 64k tokens: roughly 80 pages of text. | Split the PDF, or ask about one part. |
-| Creative coding or a Computer template takes minutes | *Think all* is ticked in the Computer's toolbar: the model thinks before writing (about 11,000 tokens for one sketch on Qwen3.8). | Untick it, or let it run and explore something else meanwhile. |
+| Creative coding or a Computer template is slow | *Think all* is ticked in the Computer's toolbar: the model thinks before writing (on Qwen3.6, alone on the farm: 24 s ticked, 11 s unticked; longer when the class shares it). | Untick it, or let it run and explore something else meanwhile. |
 | The first start is slow on many laptops | Each laptop downloads about 1 GB (the chat engine) from the internet at the same time. | Start the install first, while you present. |
 | Voice: *one recording at a time from this computer* | Speech allows one recording at a time per network address. Only matters if your Wi-Fi hides the laptops behind one address. | One student speaks at a time. |
 
