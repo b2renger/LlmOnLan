@@ -50,7 +50,8 @@ vLLM). No automated check: a real Update in the test's root installs a real vLLM
 
 **The class row on 0.33.0** (RESULTS ▸ *30 people for the class*, the last row): 30 people from 30 addresses p95
 0.2 s, 95 tok/s each; from one address p95 0.4 s; 8k conversations pass to 64 people; near-full (~50k) to 48 (at 30:
-p95 2.5 s, p10 33 tok/s; 0.30.0 gave 3.3 s and 28). The coding agent beside 27 chatting: running.
+p95 2.5 s, p10 33 tok/s; 0.30.0 gave 3.3 s and 28). Three coding agents beside 27 chatting: the 27 got 216/216
+answers (first token p95 0.32 s, 87 tok/s), the agents passed 9/15 tasks at 29 s a task (RESULTS footnote ³).
 
 **Research** (the owner's standing ask): [TOOL_UPDATES_2026-11-14](research/TOOL_UPDATES_2026-11-14.md) (vLLM 0.33.0
 is the newest; llama.cpp's v1.0.0 is a library version and a bump needs `CUDA_TAG` 13.5; LiteLLM 1.97.0 is in a

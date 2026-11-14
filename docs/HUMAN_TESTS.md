@@ -1722,6 +1722,21 @@ count the right answers and the errors, and note which search engines answered; 
 search goes back on by default.
 - [ ] Done · Found:
 
+### J17 ★ Stop, Update and Use this from the panel, in any order
+*Proves:* the two farm bugs found by session n° 4 are fixed in the Farm app after farm-v0.0.53: Update vLLM after Stop
+without pressing Check, and a model chosen while vLLM is stopped serves after Start. *Needs:* the next Farm app
+installed, a laptop, a quiet 20 minutes (Qwen3.8 27B downloaded, or any second model of the vLLM list). *Was:* new
+(2026-11-14; automated in `farm/test/vllm-lifecycle.js` step 12 with a fake vLLM).
+
+1. vLLM section: **Stop vLLM**. Without pressing Check, press **Update vLLM**.
+2. Still stopped: **Use this** on another model (Qwen3.8 27B), then **Start vLLM**. When it says ready, chat from the laptop.
+3. Stop vLLM, Use this on **Qwen3.6 35B-A3B** with 64k and People at once Automatic, Start vLLM; chat again.
+
+*Expect:* step 1: Update starts (or says *vLLM 0.33.0 is already installed*), never *vLLM is running from this folder*.
+Step 2: the laptop gets an answer from Qwen3.8 (with farm-v0.0.53 it got *The model … does not exist*). Step 3: the same
+with Qwen3.6, and the panel shows 48 people at once. Leave the farm on step 3's setting (the class's).
+- [ ] Done · Found:
+
 ## K. A Windows test box with an RTX card (not production)
 
 **Machine:** a Windows PC with an NVIDIA RTX card that is not the production farm; ideally also the studio's 4070
