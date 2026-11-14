@@ -1273,6 +1273,25 @@ tonight: it is llama.cpp's path through the farm, not the gate (the gate does no
 Results: `results/pro6000-{gate-vllm030-qwen36,gate-vllm030-qwen38,lcpp-p30-qwen38nvfp4}*20261114*`,
 `results/class-20261114/` (the `lol bench` runs), `results/ide/class-20261114-qwen38-{64k,32k}.jsonl`.
 
+## LiteLLM 1.106.9 against 1.97.0, on the class setting (the same afternoon)
+
+The security bump (TOOL_UPDATES_2026-11-14) measured before it reaches this farm: a scratch farm (`external` → the live
+vLLM 0.33.0, Qwen3.6 35B-A3B NVFP4, its own seat gate and LiteLLM), alternated with the live farm (LiteLLM 1.97.0), `lol
+bench` in this section's shapes, one laptop of the owner's connected to the live farm.
+
+| LiteLLM | 30 people, 30 addresses | 30 from one address | 48 people |
+|---|---|---|---|
+| 1.97.0, the live farm (two rounds) | p95 0.1–0.4 s, **93–96 tok/s** | p95 0.2 s, 93–94 tok/s | — |
+| 1.97.0, the scratch farm (two rounds) | p95 0.2–0.3 s, 94–99 tok/s | p95 0.2 s, 94–96 tok/s | p95 0.3 s, **73–75 tok/s** (47 served, 1 turned away) |
+| 1.106.9, the scratch farm (three rounds) | p95 0.2–0.5 s, **87–89 tok/s** | p95 0.2–0.9 s, 88–89 tok/s | p95 0.3–0.5 s, **67–68 tok/s** |
+
+- **1.106.9 costs each person about 6 % of speed at 30 and 9 % at 48**; the first token is the same. The scratch farm on
+  1.97.0 matches the live farm, so the cost is LiteLLM's. Kept for the security fix (the owner's question 8 of n° 4).
+- `litellm-cancel.js` on 1.106.9 against the same vLLM: every path stops (GPU ≤10 % about 0.5 s after an abort).
+- Once the next Farm app updates this farm, the class row's "95 tok/s each" reads about 88 (30) and 67 (48).
+
+Results: `results/class-20261114/E-*.json`.
+
 # llama.cpp b11836 against b12377 (RTX PRO 6000, 2026-11-14)
 
 The owner's ask of 2026-11-14 ("llama.cpp is now version 1"): the farm's pin against the newest build. b12377

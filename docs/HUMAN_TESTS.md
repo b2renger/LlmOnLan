@@ -1768,7 +1768,9 @@ password. *Needs:* the next Farm app (after farm-v0.0.53) on the PRO 6000, a lap
 
 *Expect:* step 2 answers. In PowerShell, `& "$env:APPDATA\LlmOnLan Farm\farm\.venv\Scripts\python.exe" -m pip show litellm`
 says `Version: 1.106.9`. If the update could not download (offline), the farm starts on 1.97.0 and the next start tries
-again (farm.log says so).
+again (farm.log says so). **The way back** if chats fail on 1.106.9: quit the Farm app, run the same `python.exe -m pip
+install "litellm[proxy]==1.97.0" "fastapi>=0.136.3,<0.140.7"` (1.97.0 runs on the new config: checked), start it again.
+It costs each person about 6 % of speed at 30 (RESULTS ▸ *LiteLLM 1.106.9 against 1.97.0*).
 - [ ] Done · Found:
 
 ## K. A Windows test box with an RTX card (not production)
