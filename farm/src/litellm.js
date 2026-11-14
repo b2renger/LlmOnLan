@@ -264,9 +264,12 @@ function buildLitellmConfig(config, peers = []) {
     //     (b10670, 2026-10-06: max_tokens 12 + max_completion_tokens 40 wrote 40, 40 + 12 wrote 12).
     //   • NOT an external server, nor the vLLM the farm runs: vLLM refuses a request whose prompt plus max_tokens
     //     passes its window (a 33k-token document on a 64k window would get a 400), so vLLM gets max_new_tokens
-    //     in its launch (vllm.js planFor; farm/vllm/serve.sh's 32768 when an operator runs it). vLLM 0.30 makes
-    //     that a CEILING, not a default: every request gets the smallest of what the window leaves, its own
-    //     max_tokens and it. Nor coordinator peers: each farm sets its own.
+    //     in its launch (vllm.js planFor; farm/vllm/serve.sh's 32768 when an operator runs it), a CEILING, not a
+    //     default. vLLM 0.30.0 still refused a request whose prompt plus its own max_tokens passed the window (a 400,
+    //     the live farm 2026-11-14 night); from 0.32 max_tokens is an upper bound, not reserved from the window
+    //     (vLLM #57035), and 0.33.0 answered 60,024 prompt tokens + max_tokens 8192 on a 65,536 window (2026-11-14
+    //     by day). The client clamps its own requests either way (bind.mjs clampMaxTokens). Nor coordinator
+    //     peers: each farm sets its own.
     const replyCap = config.proxy.maxReplyTokens ? { max_tokens: config.proxy.maxReplyTokens } : {};
 
     // llama.cpp backend: one OpenAI-compatible deployment, exactly the shape already

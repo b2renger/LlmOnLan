@@ -9,6 +9,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-14 (12:58) — llama.cpp b12377 measured; the farm's suites after the fixes; vLLM 0.33.0 and max_tokens
+
+- **llama.cpp b12377 against the pin b11836** (RESULTS ▸ *llama.cpp b11836 against b12377*): llama-server direct, the
+  farm's flags, the live vLLM stopped 12:38:49 → started again 12:44:08 (ready 12:46:03, `/lol/self` healthy, Qwen3.6,
+  48 seats; `lol bench` 196.5 tok/s). Same speed alone (79.9 tok/s); 16 at once first token p95 1.8 s against 5.1 s;
+  8k conversations at 16 still fail (5.8 against 9.2 s). Both builds run on driver 596.36 (CUDA 13.2), b12377's
+  `cuda-13.5` too. A bump after the class (`PINNED_BUILD` + `CUDA_TAG`).
+- **The suites after the farm fixes:** `farm/vllm/test_scripts.sh` (WSL) 129 passed; `farm/test/vllm-lifecycle.js`
+  every step 173/174: the one failure is "every other vLLM on this computer is as it was", because the live vLLM was
+  stopped and restarted for the llama.cpp measurement during the run (pgid 3779 → 7581), not a regression; step 13
+  (the take-over) passes with the fake vLLM that now refuses a model it does not serve.
+- **vLLM 0.33.0 accepts prompt + max_tokens past the window:** 60,024 prompt tokens + max_tokens 8192 on the 65,536
+  window answered (0.7 s), where 0.30.0 gave a 400 the night before. `farm/src/litellm.js`'s comment now says both
+  (it claimed 0.30 clamped). No code changes: the client clamps its own requests either way.
+
 ## 2026-11-14 (12:34) — The real app on Qwen3.6 and vLLM 0.33.0: thinking off, LOL Vibe's pages
 
 A dev client (scratch profile) on the live farm after J14, alone on it:
