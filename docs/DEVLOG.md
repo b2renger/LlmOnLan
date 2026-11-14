@@ -9,7 +9,7 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-11-14 (04:22) — A student's path in the real app on the live farm; the class sheets drafted
+## 2026-11-14 (04:21) — A student's path in the real app on the live farm; the class sheets drafted
 
 The next item of the queue (night n° 4's objective), started once the night's objective was done. A dev client
 (`electron .` from `shell/`, `--user-data-dir` in the session's scratch folder, CDP on 9341, `LOL_DSH_DIR` at the installed

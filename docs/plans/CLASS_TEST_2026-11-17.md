@@ -83,8 +83,8 @@ session, with its evidence.
    owner runs test 5 on the slowest laptop. Raising the limit is a one-line fix, decided on that evidence, before the client
    freeze.
 6. **The words a first-time user reads:** the in-app Tour, lessons and help, LOL Vibe's empty state and its guide,
-   GETTING_STARTED's install section (it says the engine is "about 0.8 GB", and a student needs the SmartScreen and
-   macOS steps up front). **macOS 15 and later** no longer let right-click ▸ Open pass an app that is not notarized
+   GETTING_STARTED's install section (its "about 0.8 GB" is right: 728–776 MB in v0.2.17's assets, checked 2026-11-14;
+   the macOS 15 route was missing, added that night). **macOS 15 and later** no longer let right-click ▸ Open pass an app that is not notarized
    (ours is ad-hoc signed, [release](../context/release.md)): the student opens it once, then System Settings ▸ Privacy
    & Security ▸ *Open Anyway* (an admin password). Test 5 records what a current Mac asks; the sheets give both ways, the
    minimum systems (an Intel Mac needs macOS 14) and that a Chromebook cannot run the client. *Answer:* night n° 4 reads them along the first 20 minutes and fixes what a

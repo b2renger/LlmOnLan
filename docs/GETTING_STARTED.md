@@ -195,7 +195,7 @@ at once applies after a farm restart).
 Go to **[the latest release](https://github.com/b2renger/LlmOnLan/releases/latest)** and grab the small installer for your OS:
 
 - **Windows** — `LlmOnLan-Setup-<version>-windows-x64.exe` (SmartScreen: **More info → Run anyway**).
-- **macOS** — `LlmOnLan-<version>-mac-arm64.dmg` (Apple Silicon) or `…-mac-x64.dmg` (Intel, macOS 14+). First launch: **right-click → Open → Open** (unsigned-app bypass).
+- **macOS** — `LlmOnLan-<version>-mac-arm64.dmg` (Apple Silicon) or `…-mac-x64.dmg` (Intel, macOS 14+). First launch: **right-click → Open → Open** (unsigned-app bypass). On macOS 15 and later that may not be offered for an app that is not notarized: try to open it once, then **System Settings → Privacy & Security → Open Anyway** (an administrator's password).
 - **Linux** — `LlmOnLan-<version>-linux-x86_64.AppImage` (or `-linux-arm64.AppImage`, e.g. a DGX Spark) → `chmod +x`; Ubuntu/Mint may need `sudo apt install libfuse2`.
 
 On **first launch** the app downloads the chat engine (Open WebUI, about 0.8 GB, 1.1–1.3 GB on Linux, from GitHub) once. Then it **auto-discovers your farm** on the LAN and drops you into a chat. A farm with **document search** (farm-v0.0.44 and later; on by default with an NVIDIA GPU) indexes your documents, so nothing more is downloaded for them. On an older farm, Open WebUI's first start downloads its own search model instead (about 92 MB, from huggingface.co); if huggingface.co does not answer (no internet, or a network that blocks it), chat still opens, and a message says document uploads need one start with internet access: quit and reopen the app once the computer is online. It **auto-updates** itself from GitHub Releases after that.
