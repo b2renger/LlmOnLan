@@ -9,6 +9,44 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-14 (12:29) — J14 on the live farm: vLLM 0.33.0, Qwen3.6 at 64k for the class; two farm bugs fixed
+
+Day session n° 4 (the owner: the box is idle on weekends, test the engines now). Everything through the panel's API
+on the live farm (farm-v0.0.53).
+
+**J14, as HUMAN_TESTS writes it:** the 0.30.0 environment copied first to `~/lol-vllm-venv-0.30.0.bak` (7.9 GB,
+25 s: the way back is `stop`, move `.venv` aside, copy the backup to `~/lol-vllm/.venv`). Step 1: the checklist said
+*vLLM 0.30.0 is installed; this farm was tested with 0.33.0.* (Flint skipped, not downloaded). Step 2 could not be
+tried: the update finished inside the minute (12:06:33 → 12:07:09; the packages were in uv's cache from the
+2026-11-02 trial), so the cancel came after it. Step 3: 0.33.0 installed; with Qwen3.6 35B-A3B, 64k and Automatic
+the first start took 382 s ("preparing the GPU" about 4.5 min) and Automatic gave **48**, as J14 expects.
+
+**Bug 1, serious: the farm answered nobody after Stop → Use this → Start.** Choosing the model while vLLM was stopped
+is "Saved, for the next start of vLLM" (`up.js` `applyVllmSettings`), and Start vLLM (`startVllmJob`) never rewrote
+LiteLLM's routing: `litellm/config.generated.yaml` still named `qwen3.8-27b-nvfp4`, vLLM served `qwen3.6-35b-a3b`, and
+every chat got a 404 (*The model `qwen3.8-27b-nvfp4` does not exist*). Live from 12:14:42 to 12:17:39 (repaired with
+an Apply `forceRestart`, which reloads the routing). **Fix:** `startVllmJob`, once vLLM is ready, writes the routing
+and reloads LiteLLM when that changed the file (`routingChanged()` + `restartProxy()`, the step every Apply with a
+restart already takes). **Check:** the fake vLLM now refuses a model it does not serve, as vLLM does
+(`test/fake-vllm/fake_vllm.py`), and lifecycle step 12 goes Stop → Use this → Start twice and chats: 26/26 with the
+fix, 25/26 without it (checked).
+**Bug 2: Update vLLM was refused right after Stop vLLM** (*vLLM is running from this folder … press Stop vLLM first*)
+until Check was pressed: the pre-check read the last Check's probe, taken while vLLM ran. **Fix:** the pre-check reads
+the farm's own phase only; the probe's `running` is still read inside the job, after its fresh check (an outside
+vLLM). No automated check: a real Update in the test's root installs a real vLLM from uv's cache within seconds
+(found the hard way: one run did; its root is rebuilt on every run, nothing left running, the GPU untouched).
+**Suites:** `farm` `node test/run.js` 288 passed; lifecycle step 12 26/26.
+
+**The class row on 0.33.0** (RESULTS ▸ *30 people for the class*, the last row): 30 people from 30 addresses p95
+0.2 s, 95 tok/s each; from one address p95 0.4 s; 8k conversations pass to 64 people; near-full (~50k) to 48 (at 30:
+p95 2.5 s, p10 33 tok/s; 0.30.0 gave 3.3 s and 28). The coding agent beside 27 chatting: running.
+
+**Research** (the owner's standing ask): [TOOL_UPDATES_2026-11-14](research/TOOL_UPDATES_2026-11-14.md) (vLLM 0.33.0
+is the newest; llama.cpp's v1.0.0 is a library version and a bump needs `CUDA_TAG` 13.5; LiteLLM 1.97.0 is in a
+Critical advisory whose precondition, a database user, cannot exist on our farm; Electron 42 is past end of life;
+Open WebUI 0.13.3 and CPython 3.12.16 carry security fixes; all after the class) and
+[QWEN_CODE_2026-11-14](research/QWEN_CODE_2026-11-14.md) (the owner's request: what to borrow from Qwen Code).
+
 ## 2026-11-14 (11:56) — LOL Vibe runs a web page from an answer: Preview on its html block
 
 **Why:** the owner's field note of 2026-11-13 ("I asked for a small website but I cannot see the result right away ...

@@ -305,6 +305,37 @@ harness covers the rest: `k29-usage`). *Needs:* a client after the next release 
 types of the template under `boxesRun`. **No** word of your question, of the reply or of the graph anywhere in it.
 - [ ] Done · Found:
 
+### A25 ★ LOL Vibe runs the web page it wrote
+*Proves:* an answer's web page runs in the chat with its CSS and JavaScript, without a project and without the internet
+(the owner's field note of 2026-11-13). *Needs:* client v0.2.18, the farm, 5 minutes. *Was:* new (2026-11-14; the same
+ask passed in a dev client on the live farm, DEVLOG 2026-11-14 11:56).
+
+1. LOL Vibe, a new chat: *"Make me a small website: a page with a big button that changes the background colour each
+   time it is clicked, and a counter of the clicks. Give index.html, style.css and script.js."*
+2. On the answer's **html** block press **Preview**. Click the page's button three times.
+3. Press **Code**, then **Preview** again. Ask for a second page in the same chat and press its Preview.
+4. Ask for *"a p5.js sketch of bouncing balls, as one HTML page that loads p5 from a CDN"*; press Preview.
+
+*Expect:* step 2: the page as the CSS draws it, full width of the block; three clicks change the colour and count 3
+(the separate script.js ran). Step 3: Code stops it, Preview starts it again at 0; the second page's Preview sends the
+first back to its code. Step 4: the balls bounce (the CDN's p5 is replaced by the copy in the app). A page that loads
+something else from the web says *This preview has no internet: what the page loads from … is missing.*
+- [ ] Done · Found:
+
+### A26 ★ The Computer's code boxes write at once; Think all makes them think
+*Proves:* thinking is off for the Computer's code answers unless the toolbar's **Think all** is ticked (owner,
+2026-11-14). *Needs:* client v0.2.18, the farm on Qwen3.6, 5 minutes. *Was:* new (2026-11-14; the wire is unit-tested,
+`computer-s2`).
+
+1. Computer ▸ Learn ▸ templates ▸ **Creative coding** ▸ **Run all**, with **Think all** unticked (the default). Note the
+   time the sketch box takes (its *last run* line).
+2. Tick **Think all**, then **Run all** again.
+
+*Expect:* step 1: the sketch draws within about half a minute; the Instruction's transcript (its Got tab) shows no
+reasoning. Step 2: it thinks first (reasoning in the Got tab) and takes several times longer; the sketch still draws.
+Untick Think all after.
+- [ ] Done · Found:
+
 ### A10 Code, pictures and files
 *Proves:* the sandbox and the File box on a real disk. *Was:* 3.1, 3.5, 3.6, 3.9; LOLCHAT_RIG §15, §15b, §18 (a paused
 sandbox); COMPUTER_STATUS "What only you can check" 3 and 8.

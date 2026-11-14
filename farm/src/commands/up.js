@@ -1524,11 +1524,26 @@ async function run(args) {
 
     // A start as the job everyone sees ("Starting vLLM"); Stop cancels it. A failure falls back to Ollama, except
     // the memory guard's (never restarted, never a fallback: the operator frees memory and presses Start).
+    /** Writes LiteLLM's routing for the config as it is now; true when that changed the file LiteLLM was started with. */
+    function routingChanged() {
+        const read = () => { try { return fsMod.readFileSync(yamlPath, 'utf8'); } catch { return ''; } };
+        const before = read();
+        writeLitellmConfig(config, yamlPath, peers);
+        return read() !== before;
+    }
     function startVllmJob(label, { phase = 'starting', waitOnly = false } = {}) {
         if (phase === 'starting') setVllmPhase('starting', 'starting vLLM');
         return runJob('engine', label, async (progress, ctl) => {
             const r = await startVllm(progress, { isCancelled: ctl.cancelled, phase, waitOnly });
-            if (r.ok) return { ok: true, message: 'vLLM is ready.' };
+            if (r.ok) {
+                // A model or alias chosen while vLLM was stopped was only saved ("Saved, for the next start of vLLM"):
+                // LiteLLM still routed to the old name, and every chat got a 404 (2026-11-14, Stop → Use this → Start).
+                if (routingChanged()) {
+                    progress('reloading routing', null);
+                    if (!(await restartProxy())) return { ok: false, error: 'vLLM is ready, but the proxy did not come back.' };
+                }
+                return { ok: true, message: 'vLLM is ready.' };
+            }
             if (r.cancelled) {
                 setVllmPhase('stopped');
                 setEngineUp(false);
@@ -3151,11 +3166,13 @@ async function run(args) {
     function vllmInstall() {
         if (!vllmSup.ok) return { ok: false, error: vllmMod.UNSUPPORTED };
         if (wslMoving) return { ok: false, error: 'WSL\'s Linux disk is moving: wait for it to finish.' };
-        const runningHere = () => (engineOf(config) === 'vllm' && !['stopped', 'guard', 'failed', null].includes(vllmState.phase))
-            || !!(vllmProbe && vllmProbe.st && vllmProbe.st.running);
+        // The farm's own phase decides first; the probe's `running` is read again only after the fresh check below
+        // (the last Check's probe still said "running" after Stop vLLM, so Update was refused until Check, 2026-11-14).
+        const ownRunning = () => engineOf(config) === 'vllm' && !['stopped', 'guard', 'failed', null].includes(vllmState.phase);
+        const runningHere = () => ownRunning() || !!(vllmProbe && vllmProbe.st && vllmProbe.st.running);
         const update = !!(vllmProbe && vllmProbe.st && vllmTarget && vllmProbe.st.installs.some((i) => i.root === vllmTarget.root));
         const button = update ? 'Update vLLM' : 'Install vLLM';
-        if (runningHere()) return { ok: false, error: `vLLM is running from this folder, so it cannot be ${update ? 'updated' : 'installed'} now: press Stop vLLM first.` };
+        if (ownRunning()) return { ok: false, error: `vLLM is running from this folder, so it cannot be ${update ? 'updated' : 'installed'} now: press Stop vLLM first.` };
         const e = vllmMod.vllmEntry(config);
         let target = null;
         return runDownload('install', update ? 'Updating vLLM' : 'Installing vLLM', async (progress, ctl) => {

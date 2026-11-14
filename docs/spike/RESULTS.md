@@ -1242,6 +1242,7 @@ at 15 tok/s or more. Two shapes of traffic:
 | **vLLM 0.30.0** · Qwen3.8-27B NVFP4 · 64k · 32 (set by hand) | **pass**: 0 refused, p95 0.5 s, 45 tok/s each | pass: p95 0.3 s, 46 tok/s | **pass**: p95 1.0 s, p10 32 | **fail** at ~50k: p95 87 s, p10 1.6 (16 pass) | **12/14** ¹ |
 | **vLLM 0.30.0** · Qwen3.8-27B NVFP4 · **32k** · 32 (set by hand) | **pass**: 0 refused, p95 0.4 s, 45 tok/s each | — | not run | **pass** at ~23k: p95 2.5 s, p10 20.6 | **13/15** ² |
 | same, **36** seats (max-num-seqs 128) | **pass** with 36 people from 36 addresses: p95 0.4 s, 42 tok/s | — | — | **pass** at ~23k, 36 people: p95 3.1 s, p10 18.2 | — |
+| **vLLM 0.33.0** (J14, by day 2026-11-14) · Qwen3.6 35B-A3B NVFP4 · 64k · 48 (Automatic) | **pass**: 0 refused, p95 0.2 s, 95 tok/s each | pass: p95 0.4 s, 95 tok/s | **pass** to 64 people: at 30 p95 1.7 s, p10 62; at 64 p95 3.4 s, p10 35 | **pass** at ~50k to 48 people: at 30 p95 2.5 s, p10 33; at 48 p95 3.9 s, p10 22 (64: p95 5.2 s, fail) | ³ |
 
 ¹ One of 15 runs never started: the three runners shared one data folder and collided writing the agent's profile (the
 harness's setup, not the app's: each client has its own folder). No failed tool calls (0 of 76); 70 s a task (median,
@@ -1249,7 +1250,9 @@ three at once); no reply ended on its token limit.
 
 ² At 32k, the three agents ran **beside 27 people chatting** (`lol bench --people --users 27 --rounds 8`): the 27 got 216/216 answers, first token p95 0.5 s, 41 tok/s each (p10); the agents: 1 failed tool call of 80, 70 s a task.
 
-**The farm was left on the last row** (vLLM, Qwen3.8, 32k a person, 36 people at once: room for the owner's laptop, the box's own client and a laptop that wakes with a new address), the owner's preference once it held 30.
+**The farm was left on the Qwen3.8 row that night** (vLLM, Qwen3.8, 32k a person, 36 people at once: room for the owner's laptop, the box's own client and a laptop that wakes with a new address), the owner's preference once it held 30. **The next day the owner chose Qwen3.6 at 64k** ("3.6 long context is valuable") and vLLM 0.33.0 (J14): the farm is on the last row since 2026-11-14 12:17 (DEVLOG 2026-11-14, by day). On 0.33.0 the same model is faster per person than on 0.30.0 (95 against 80 tok/s from 30 addresses; near-full conversations at 30: p10 33 against 28). One client was connected during those runs (`usage.clients` 1; which one, and whether it chatted, is not known).
+
+³ Filled in below the table when the run ends (three coding agents beside 27 people chatting, as ²).
 
 **What it means for Tuesday:**
 - **Qwen3.8 on llama.cpp cannot serve 30**: the farm caps llama.cpp at 16 people (`up.js` `setSlots` and

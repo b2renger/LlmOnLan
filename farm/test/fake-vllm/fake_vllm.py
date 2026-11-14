@@ -129,6 +129,10 @@ class H(http.server.BaseHTTPRequestHandler):
             body = {}
         if self.path.split('?')[0] != '/v1/chat/completions':
             return self.send(404, {'error': 'not found'})
+        # As vLLM: a model it does not serve is a 404 (2026-11-14: a farm still routing to the previous model).
+        if body.get('model') not in (None, SERVED):
+            return self.send(404, {'error': {'message': f"The model `{body.get('model')}` does not exist. Valid aliases: {SERVED}.",
+                                             'type': 'NotFoundError', 'param': 'model', 'code': 404}})
         counters['gen'] += 2
         counters['prompt'] += 5
         base = {'id': 'chatcmpl-fake', 'created': int(time.time()), 'model': SERVED}

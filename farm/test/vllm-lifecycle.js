@@ -467,6 +467,17 @@ const STEPS = {
         const run = (await status()).running;
         check('Use this: one restart of vLLM, now serving fake-b', u.started && ju.job.ok && (await pgid()) !== before && run && /\/hf\/fake-b$/.test(run.argv[0]) && run.argv.includes('fake-b'), `${ju.job.error || ''} ${run && run.argv.slice(0, 4).join(' ')}`);
         check('…saved, and a chat goes through', readConfig().vllm.model === 'fake-b' && readConfig().vllm.contextLength === 4096 && replyOf(await chat('fake-12')) === 'fake reply');
+        // 2026-11-14 on the owner's farm: Stop vLLM, Use this (only saved while stopped), Start vLLM: LiteLLM still
+        // routed to the previous model and every chat got a 404. (Update refused after Stop until Check, the same day,
+        // has no check here: a real Update installs a real vLLM into this root from uv's cache within seconds.)
+        for (const [model, context] of [['fake-a', 8192], ['fake-b', 4096]]) {
+            await admin('vllm/stop'); await jobDone('Stopping vLLM');
+            const saved = await admin('apply', { model, context });
+            await jobDone('Applying the farm settings');
+            await admin('vllm/start');
+            const js = await jobDone('Starting vLLM');
+            check(`Use this on ${model} while stopped, then Start: a chat goes through (LiteLLM routes to it)`, saved.ok && js.job.ok && replyOf(await chat('fake-12')) === 'fake reply', `${saved.error || ''} ${js.job.error || ''} ${JSON.stringify((await chat('fake-12')).json || {}).slice(0, 200)}`);
+        }
         // The list: add by a link, never twice; the model serving is never removed; another goes, with its files.
         const add = await admin('vllm/library/add', { repo: 'https://huggingface.co/fake/Fake-C' });
         const added = readConfig().vllm.library.find((e) => e.repo === 'fake/Fake-C');

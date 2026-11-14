@@ -48,7 +48,9 @@
     never `busy`, resumable), installs **vLLM 0.33.0** (`vllm.version`; branch `vllm-033`, 2026-11-02: the five models
     below checked on it, Qwen3.6 48 people at 64k every turn against 0.30.0's 32 the same day; an install of another
     version is offered **Update vLLM**, never run by itself, which builds the new version in `.venv-next` and swaps it in
-    only once its check passed, so a stopped or failed update leaves the old one serving), keeps a list of seven models (Download / Use this / Remove / Add by Hugging Face name):
+    only once its check passed, so a stopped or failed update leaves the old one serving; it is refused only while the
+    farm's own vLLM runs, and the probe's "running" is read after a fresh check, 2026-11-14), keeps a list of seven models (Download / Use this / Remove / Add by Hugging Face name; a Use this while
+    vLLM is stopped is saved for the next start, and Start vLLM reloads LiteLLM's routing when it changed, 2026-11-14):
     the spike's three NVFP4 models and, since 2026-10-09 (branch `vllm-models`), two that hear sound in a
     chat message (`audio`, the snapshot's `backend.audio`; vLLM's sound extras, `vllm[audio]` in `install.sh`, an
     older install offered Update vLLM): **Gemma 4 12B** (`unsloth/gemma-4-12b-it-NVFP4`, 9.25 GiB, vLLM's
