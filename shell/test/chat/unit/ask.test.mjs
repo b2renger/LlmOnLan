@@ -266,6 +266,16 @@ export default (test) => {
     assert.ok(farm.posts[0].body.max_tokens >= MIN_MAX_TOKENS);
   });
 
+  test('text() drops the blank lines a thinking model puts before its answer, and keeps the first line\'s own indent', async () => {
+    // Qwen3.8 on vLLM begins its content with "\n\n" after the reasoning (2026-11-14): a Text box showed two empty lines.
+    const { app } = stubApp();
+    const { api } = createAsk(app);
+    const farm = fakeFarm(() => '\n\n  Grey waves roll away\ncold water laps the shore');
+    const r = await withFarm(farm, () => api.text({ task: 'blurb', prompt: 'p' }));
+    assert.equal(r.ok, true);
+    assert.equal(r.value, '  Grey waves roll away\ncold water laps the shore');
+  });
+
   test('decision 9: a structured ask that does not think turns it off on BOTH rungs; text() never does', async () => {
     const { app } = stubApp();
     const { api } = createAsk(app);

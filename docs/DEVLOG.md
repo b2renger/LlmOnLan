@@ -9,6 +9,20 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-14 (04:33) — The Computer's text answers lose a thinking model's leading blank lines
+
+Found running lesson 1 in the real app on the live farm (Qwen3.8 on vLLM): the haiku reached the Text box as
+`"
+
+Gray waves…"`, two empty lines first. `app/ask.mjs` text lane: the box's value drops leading blank lines
+(`/^(?:[ 	]*?
+)+/`), keeping the first line's own indent; `raw` stays as received. Test: `ask.test.mjs` *text() drops
+the blank lines…*; `npm run test:chat` 1,963 passed, lint 0; checked in the real app: *"Sea winds whisper low…"* from its
+first line, 4.1 s. Also read, not changed: the text lane never sends "think off" (by design, `ask.mjs` 455), so the
+Instruction and Creative coding think on Qwen3.8 (12,025 tokens, 188 s for one sketch): a question for the owner.
+
+---
+
 ## 2026-11-14 (04:21) — A student's path in the real app on the live farm; the class sheets drafted
 
 The next item of the queue (night n° 4's objective), started once the night's objective was done. A dev client

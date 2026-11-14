@@ -658,7 +658,8 @@ export function createAsk(app) {
     // Critic S1-3: `thought` marks a cut answer that went (nearly) all on thinking, so the caller
     // can say so instead of "ask for something smaller".
     /** @type {any} */ const answer = {
-      ok: true, value: raw, mode: 'text', raw, usage: out.usage, ms: out.ms, error: null,
+      // A thinking model's content may open with blank lines (Qwen3.8 on vLLM: "\n\n"); a Text box would show them.
+      ok: true, value: raw.replace(/^(?:[ \t]*\r?\n)+/, ''), mode: 'text', raw, usage: out.usage, ms: out.ms, error: null,
       finishReason: out.finishReason,
     };
     if (thoughtOut(out.content, out.reasoning, out.finishReason)) { answer.thought = true; answer.maxTokens = o.maxTokens; }
