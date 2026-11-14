@@ -12,7 +12,7 @@ On the PRO 6000.
 1. Open the Farm app. Take a photo of the panel (engine, model, people at once).
 2. Check for updates ▸ install it.
 3. Look at the panel again: same engine and model as in the photo?
-4. **For the class** (your choice of 14 November, measured for 30 people that night on vLLM 0.30.0; night n° 4 measures it again on the vLLM it keeps and leaves the farm on it): the panel must say **vLLM · Qwen3.6 35B-A3B · NVFP4**, **64k of context each**, people at once **Automatic** (48 on vLLM 0.30.0). If it says anything else, set exactly that (vLLM section ▸ Qwen3.6 35B-A3B ▸ Use this; Context per person 65536; People at once Automatic; Apply).
+4. **For the class** (your choice of 14 November; set and measured for 30 people that day on **vLLM 0.33.0**, the farm left on it): the panel must say **vLLM · Qwen3.6 35B-A3B · NVFP4**, **64k of context each**, people at once **Automatic** (48), and its checklist *vLLM 0.33.0 is installed*. If it says anything else, set exactly that (vLLM section ▸ Qwen3.6 35B-A3B ▸ Use this; Context per person 65536; People at once Automatic; Apply).
 5. Leave the farm running for the night (the night session updates vLLM and tests 30 people on it).
 
 - [X] OK

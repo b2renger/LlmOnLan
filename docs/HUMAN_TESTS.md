@@ -1675,7 +1675,7 @@ has vLLM 0.30.0: press Update vLLM first.*; vLLM keeps serving Qwen3.6. Step 2: 
 answers as before (the panel still says 0.30.0). Step 3: the checklist says 0.33.0 is installed, the warning is gone;
 the first start takes longer (kernels compile, up to ~6 min). Step 4: everything works; Automatic still says 48 people
 at 64k. Write down the times.
-- [ ] Done · Found:
+- [x] Done by session n° 4, 2026-11-14 12:01–12:17, through the panel's API (DEVLOG 2026-11-14 12:29) · Found: step 2 not testable (the update took ~1 min from uv's cache, before the cancel); Automatic 48 at 64k, first start 382 s. **Two bugs, fixed for the next Farm app:** Update refused after Stop until Check; and Stop → Use this → Start left LiteLLM routing to the old model (every chat a 404). Steps 1 and 4 by a person (the panel's words, a picture and a PDF from a laptop) are still yours.
 
 ### J15 Gemma 4 26B from the panel, for coding
 *Proves:* LOL Vibe's coding model (owner 2026-11-09) downloads, serves and behaves in Open WebUI and LOL Vibe through

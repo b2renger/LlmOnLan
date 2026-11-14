@@ -49,9 +49,9 @@ We talk about it together at the end: what worked, what confused you, what you w
 
 ## For the person running the class
 
-**The farm:** the PRO 6000, on vLLM with Qwen3.6 35B-A3B, 64k of context per person, people at once **Automatic (48)**
-(measured for 30: first word within 3.3 s for 95 % of them even in long conversations, 28 to 80 tokens a second each,
-faster than anyone reads). Before the class: BEFORE_TUESDAY test 7.
+**The farm:** the PRO 6000, on vLLM 0.33.0 with Qwen3.6 35B-A3B, 64k of context per person, people at once **Automatic
+(48)** (measured for 30 on 14 November: first word within 2.5 s for 95 % of them even in long conversations, 33 to 95
+tokens a second each, faster than anyone reads; three coding agents beside 27 chatting slowed nobody). Before the class: BEFORE_TUESDAY test 7.
 
 | If you see | What it means | What to do |
 |---|---|---|
