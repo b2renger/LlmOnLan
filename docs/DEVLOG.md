@@ -43,8 +43,12 @@ coding agent), the screen locked (`forcePageVisible`), pinned to the live farm w
   (one call, nearly all thinking), alone on the farm.
 - **Automatic picked a Spark first:** the fresh client chose spark-59f9 (2 seats) over the PRO 6000 (36): the
   least-busy rule ties farms within 15 points and picks at random (`farmSelect.ts`). One click on a card pins it.
+- **Open WebUI with a PDF** (04:35, its webview over CDP, the file through `DOM.setFileInputFiles`): a 3-page text PDF,
+  the answer from page 3 in about 3 s with the source cited. Before it: *Select a model*, because this client started on a
+  Spark and moved to the pinned farm, and Open WebUI keeps the person's last model (gone on the new farm); the sheets say
+  *choose assistant*.
 - **`docs/CLASS_SHEETS.md`** drafted from these facts: the students' sheet and the owner's (each message, its meaning, what
-  to do). Not checked: the Tour and lesson 1's words, Open WebUI with a PDF in the real app (night n° 4).
+  to do). Not checked: the Tour's words (night n° 4).
 - Everything started here was stopped (`taskkill /T` on the dev client's launcher; no process with the scratch profile
   left); the live farm unchanged by it.
 
