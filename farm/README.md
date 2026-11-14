@@ -173,7 +173,7 @@ at once, so clients fail over instead of chatting into a dead port.
 **What `lol up` bootstraps for it** (automatic on win-x64 with NVIDIA **and on the DGX Spark** —
 for linux-arm64 our own CI builds the official source at the pinned tag and the farm downloads it from
 this repo's `llamacpp-<build>` release; nothing to compile, no Docker): the pinned `llama-server` build
-(**b11836**, an official ggml-org release; the Windows zips use CUDA 13.4) plus the matching CUDA runtime
+(**b12377**, an official ggml-org release; the Windows zips use CUDA 13.5) plus the matching CUDA runtime
 into `farm/.llamacpp/`, then the weights + vision projector into
 `farm/.models/`. That is a **multi-GB first run** — `lol install` pre-fetches it so `lol up` doesn't
 stall on it later. On any other platform, install llama.cpp yourself and point `llamacpp.binDir` at the

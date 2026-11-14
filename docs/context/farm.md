@@ -22,8 +22,8 @@
     `OLLAMA_CONTEXT_LENGTH` seed). `kvCacheType` q8_0 and `numParallel` 2 only apply to an Ollama the farm
     starts; otherwise the panel flags capacity as unverified. Routed `keep_alive` MUST be a number — the
     string `'-1'` is refused by Ollama (`time: missing unit in duration`), hence `keepAliveValue()`.
-  - **llama.cpp — opt-in (`llamacpp.enabled`), the speed pick.** `llama-server` build **b11836** (official
-    ggml-org, Windows zips on CUDA 13.4; since 2026-10-23: ≥ b11454 for EmbeddingGemma 2, ≥ b11769 for the
+  - **llama.cpp — opt-in (`llamacpp.enabled`), the speed pick.** `llama-server` build **b12377** (official
+    ggml-org, Windows zips on CUDA 13.5; b12377 since 2026-11-14, b11836 from 2026-10-23: ≥ b11454 for EmbeddingGemma 2, ≥ b11769 for the
     non-streaming cancel fix, ≥ b11803 for Flint, not served by default; it refuses `--mlock`,
     `--mmap`, `--direct-io`, `--tensor-read-lazy` in `extraArgs`) serves ONE
     `.gguf` (`llamacpp.model`, default Unsloth Qwen3.8-27B-UD-IQ2_S) as `llamacpp.alias` (`assistant`).

@@ -952,7 +952,7 @@ test('the pinned llama.cpp knows EmbeddingGemma 2 and Flint, stops an abandoned 
     // in a build that new), and the runtime zip carries no build number.
     const win = llamacpp.assetsFor('win32', 'x64');
     assert.equal(win.base, `https://github.com/ggml-org/llama.cpp/releases/download/${llamacpp.PINNED_BUILD}`);
-    assert.deepEqual(win.files, [`llama-${llamacpp.PINNED_BUILD}-bin-win-cuda-13.4-x64.zip`, 'cudart-llama-bin-win-cuda-13.4-x64.zip']);
+    assert.deepEqual(win.files, [`llama-${llamacpp.PINNED_BUILD}-bin-win-cuda-13.5-x64.zip`, 'cudart-llama-bin-win-cuda-13.5-x64.zip']);
     // The Spark's tarball is ours, built from the official source at the same tag: the workflow's pin and
     // file name must be what the farm downloads, or every Spark falls back to Ollama.
     const spark = llamacpp.assetsFor('linux', 'arm64');

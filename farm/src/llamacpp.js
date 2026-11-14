@@ -39,8 +39,8 @@ const { downloadGguf, ggufPathFor } = require('./ollama');
 // --tensor-read-lazy (now --lazy-mode). ggml-org's Windows CUDA 13 zips are 13.4 since
 // 2026-09-15. A bump here must ride with LLAMACPP_BUILD in
 // .github/workflows/build-llamacpp-arm64.yml (the Spark tarball).
-const PINNED_BUILD = 'b11836';
-const CUDA_TAG = 'cuda-13.4';   // sm_120/Blackwell needs CUDA >= 12.8; 13.4 covers 40-series too
+const PINNED_BUILD = 'b12377';
+const CUDA_TAG = 'cuda-13.5';   // sm_120/Blackwell needs CUDA >= 12.8; 13.5 covers 40-series too (b12377 ships 12.4 and 13.5 only)
 
 const ROOT = path.join(__dirname, '..', '.llamacpp');
 const BIN_DIR = path.join(ROOT, 'bin');
