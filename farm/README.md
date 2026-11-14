@@ -64,7 +64,7 @@ the desktop clients auto‑discover it. To change which models are served, open 
 | Piece | How | Skipped if already present |
 |---|---|---|
 | **Ollama** | Windows → `winget install Ollama.Ollama`; macOS → `brew install ollama`; Linux → the official `install.sh`. | CLI on PATH **or** a local daemon answering. |
-| **LiteLLM** | A local `farm/.venv` (your Python 3.9–3.13) with `litellm[proxy]==1.97.0` (pinned — the version the farm is tested with) + the required fastapi bound. The farm auto‑uses this venv — no config edit. | `farm/.venv` already has `litellm`. |
+| **LiteLLM** | A local `farm/.venv` (your Python 3.9–3.13) with `litellm[proxy]==1.106.9` (pinned — the version the farm is tested with; 1.97.0 before 2026-11-14) + the fastapi bound. The farm auto‑uses this venv — no config edit. | `farm/.venv` already has `litellm`: it is brought to the pin (and the Farm app does the same on an update). |
 | **Config** | Scaffolds `farm/lol.config.json` from the defaults (named after this host) if none exists. | A config is already there. |
 | **Models** | Pulls every model in `models` **and `preinstall`** on the local Ollama (over its HTTP API), derives `source` models with their `params`, and fetches any `draft` module. | Model already pulled. (`lol up` also pulls anything missing.) |
 | **Web search + OCR** | Builds the SearXNG and document-OCR venvs (both default-on) so the first `lol up` starts instantly. Non-fatal: `lol up` retries. | Already installed. |
@@ -81,7 +81,7 @@ The pieces `lol install` automates, done by hand:
 | Tool | Why | Install |
 |---|---|---|
 | **Ollama** | Serves the models. One instance per GPU box. | https://ollama.com |
-| **LiteLLM** | The OpenAI‑compatible proxy that load‑balances + fails over across boxes. | `pip install "litellm[proxy]==1.97.0" "fastapi>=0.136.3,<0.140.7"` (Python 3.9–3.13; a venv is fine — drop it at `farm/.venv` and the farm finds it, or point `litellm.command` at it). **The fastapi bound is mandatory** — outside it the proxy dies at startup with `ImportError: cannot import name 'get_flat_dependant'` and the farm never comes up. |
+| **LiteLLM** | The OpenAI‑compatible proxy that load‑balances + fails over across boxes. | `pip install "litellm[proxy]==1.106.9" "fastapi>=0.136.3,<0.140.7"` (Python 3.9–3.13; a venv is fine — drop it at `farm/.venv` and the farm finds it, or point `litellm.command` at it). **Keep the fastapi bound**: 1.106.9 works without it, but LiteLLM 1.97.0 (a farm not updated yet) dies at startup outside it with `ImportError: cannot import name 'get_flat_dependant'` and the farm never comes up. |
 | **Node ≥ 20** | Runs this CLI. | https://nodejs.org |
 
 ```bash

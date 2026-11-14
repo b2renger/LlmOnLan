@@ -468,7 +468,7 @@ function buildLitellmConfig(config, peers = []) {
             // the client on a 1 s wait that every other request's result restarted
             // (upstream server-queue.cpp recv_with_timeout) — it ran to its end, up to
             // b11512. ggml-org/llama.cpp#29707 fixed it in b11769: on the pinned b11836
-            // all 8 paths stop (2026-10-23).
+            // all 8 paths stop (2026-10-23), and on b12377 with LiteLLM 1.106.9 (2026-11-14).
             cancel_on_disconnect: true,
         },
     };
@@ -477,6 +477,11 @@ function buildLitellmConfig(config, peers = []) {
     // (trusted LAN). LiteLLM treats master_key as the admin/virtual key clients send.
     if (config.proxy.masterKey) {
         doc.general_settings.master_key = config.proxy.masterKey;
+    } else {
+        // LiteLLM 1.106 refuses to start with no master key (proxy/auth/master_key_boot_check.py, "weak" = unset, empty
+        // or one publicly known key) unless told so. Ours is open by design: it listens on loopback only (proxy.internalPort),
+        // behind the seat gate, which is the farm's door. The farm password, when set, is the master key above.
+        doc.general_settings.dangerously_permit_weak_or_unset_master_key = true;
     }
 
     return doc;

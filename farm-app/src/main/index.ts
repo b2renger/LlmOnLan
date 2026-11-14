@@ -272,7 +272,7 @@ function registerIpc(): void {
 
 app.on('second-instance', () => { if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.focus(); } });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     const settings = loadSettings();
     applyTheme(settings.theme);
     // Linux: the autostart entry follows the AppImage (an update can move it).
@@ -288,7 +288,7 @@ app.whenReady().then(() => {
     // watches farm-state go starting → ready). A missing runtime/farm copy (e.g. a
     // wiped userData) falls back to the wizard.
     if (settings.installed && runtimeReady() && farmInstalled()) {
-        refreshFarmCodeIfUpdated(app.getVersion()); // propagate farm-side fixes on an app update
+        await refreshFarmCodeIfUpdated(app.getVersion()); // propagate farm-side fixes on an app update
         setShareMode(settings.shareWithNetwork); // enforce the persisted posture (also migrates a pre-toggle 0.0.0.0 config to private)
         // The context window and model name are NOT re-enforced here any more. They used
         // to be, from this app's own store — which meant every app launch silently

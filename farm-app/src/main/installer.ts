@@ -17,7 +17,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as http from 'http';
-import { spawn, ChildProcess, execFileSync } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import { randomBytes } from 'crypto';
 import {
     farmRoot, farmConfigFile, lolEntry, bundledFarmSource,
@@ -142,12 +142,15 @@ function writeFarmConfig(adminToken: string, share: boolean, contextLength: numb
 // skip-list preserves the built venvs (.venv/.searxng/.extract), lol.config.json, and the
 // runtime state, so this refreshes ONLY the code (src/bin/node_modules). Without this, a
 // farm-side fix shipped in an app update would never reach an already-installed farm.
-export function refreshFarmCodeIfUpdated(appVersion: string): void {
+export async function refreshFarmCodeIfUpdated(appVersion: string): Promise<void> {
     if (!fs.existsSync(lolEntry())) return; // not installed yet — setup will copy it
     if (loadSettings().farmCodeVersion === appVersion) return;
     try {
         copyFarm();
-        repairLitellmVenv(); // farm-side pip fixes (fastapi pin) reach an installed venv here
+        // farm-side pip fixes (the LiteLLM and fastapi pins) reach an installed venv here. A failed one leaves
+        // farmCodeVersion as it was, so the next start tries again (the farm starts on the LiteLLM it has).
+        const err = await repairLitellmVenv();
+        if (err) throw new Error(err);
         updateSettings({ farmCodeVersion: appVersion });
         console.log(`[farm] refreshed farm code to app v${appVersion}`);
     } catch (e) {
@@ -156,30 +159,42 @@ export function refreshFarmCodeIfUpdated(appVersion: string): void {
             + ' with the files it has, and the update is tried again at the next start of the Farm app (quitting it stops'
             + ' the vLLM the farm runs, which frees a file it holds).';
         console.warn('[farm]', msg);
-        appendFarmLog(`${msg}\n`);
+        appendFarmLog(`${msg}
+`);
     }
 }
 
 // The farm's LiteLLM venv is built ONCE at setup and never touched by a code refresh, so a
-// dependency fix wouldn't otherwise reach an already-installed farm. Enforce the fastapi
-// bound here on an app update. See farm/src/commands/install.js FASTAPI_PIN for the full
-// rationale — litellm 1.97.0's proxy needs fastapi's `get_flat_dependant`, removed in
-// 0.140.7, and the bound must stay inside litellm's own `>=0.136.3` floor (a previous
-// `<0.116` fought that floor and made pip try to source-build litellm).
-// Also repairs a venv left on the earlier over-tight pin (it upgrades fastapi/starlette
-// back into litellm's declared range). Idempotent + fast when satisfied; best-effort.
+// dependency fix wouldn't otherwise reach an already-installed farm. Enforce both pins here on
+// an app update: LiteLLM itself (2026-11-14: 1.97.0 → 1.106.9, out of the advisories
+// GHSA-7hp6-4w63-5g45 and GHSA-2rwg-2wh4-7c4f) and the fastapi bound. Keep both in lockstep
+// with farm/src/commands/install.js LITELLM_PIN and FASTAPI_PIN, where the rationale is
+// (litellm 1.97.0's proxy needs fastapi's `get_flat_dependant`, removed in 0.140.7; 1.106.9
+// works on either side of it). pip answers in seconds when both are satisfied. Asynchronous: a
+// LiteLLM download on a school network takes a minute or two, and execFileSync froze the window.
+const LITELLM_PIN = 'litellm[proxy]==1.106.9';
 const FASTAPI_PIN = 'fastapi>=0.136.3,<0.140.7';
 
-function repairLitellmVenv(): void {
+function repairLitellmVenv(): Promise<string | null> {
     const isWin = process.platform === 'win32';
     const venvPy = path.join(farmRoot(), '.venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python');
-    if (!fs.existsSync(venvPy)) return; // no venv yet — fresh setup builds it with the pin
-    try {
-        execFileSync(venvPy, ['-m', 'pip', 'install', FASTAPI_PIN], { stdio: 'ignore', timeout: 180000 });
-        console.log('[farm] enforced litellm venv fastapi pin');
-    } catch (e) {
-        console.warn('[farm] litellm venv repair skipped:', (e as Error).message);
-    }
+    if (!fs.existsSync(venvPy)) return Promise.resolve(null); // no venv yet — fresh setup builds it with the pins
+    return new Promise((resolve) => {
+        let out = '';
+        const child = spawn(venvPy, ['-m', 'pip', 'install', '--disable-pip-version-check', LITELLM_PIN, FASTAPI_PIN],
+            { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], timeout: 600000 });
+        const keep = (d: Buffer) => { out = (out + d.toString()).slice(-2000); };
+        child.stdout?.on('data', keep);
+        child.stderr?.on('data', keep);
+        child.on('error', (e) => resolve(`LiteLLM's update could not start (${e.message})`));
+        child.on('exit', (code) => {
+            if (code === 0) { console.log(`[farm] the LiteLLM venv is on ${LITELLM_PIN} and ${FASTAPI_PIN}`); return resolve(null); }
+            appendFarmLog(`[farm] pip install ${LITELLM_PIN} ended with code ${code}:
+${out}
+`);
+            resolve(`LiteLLM could not be updated to ${LITELLM_PIN.split('==')[1]} (offline?)`);
+        });
+    });
 }
 
 // Route the farm's plugins off taken ports before launch. SearXNG (default 8888 —

@@ -138,21 +138,27 @@ function venvPython() {
 // that satisfies litellm's floor AND keeps the symbol — verified in a clean venv:
 // litellm 1.97.0 + fastapi 0.140.6 + starlette 1.6.0, and `import
 // litellm.proxy.proxy_server` succeeds with no dependency conflicts.
-// Re-derive this bound when bumping litellm.
+// Re-derive this bound when bumping litellm. 2026-11-14, litellm 1.106.9: its proxy no longer
+// needs the symbol (litellm/proxy/list_api/common.py falls back to get_flat_params), and it
+// imports cleanly, `pip check` clean, both with this bound (fastapi 0.140.6) and without it
+// (0.162.7). The bound stays: a farm whose LiteLLM update fails keeps 1.97.0, which needs it.
 const FASTAPI_PIN = 'fastapi>=0.136.3,<0.140.7';
 // LiteLLM itself, pinned (multi-user plan 0.0): unpinned, every new box got whatever
-// was newest that day. 1.97.0 is what the Farm app's farms have run since 2026-08-17,
-// and the version test/litellm-cancel.js proves passes a client's cancel on to the
-// engine. A bump re-runs that check (and re-derives FASTAPI_PIN above). An existing
-// venv is left on its version: `lol install` only repairs fastapi there.
-const LITELLM_PIN = 'litellm[proxy]==1.97.0';
+// was newest that day. 1.106.9 since 2026-11-14 (owner: the security updates before the
+// class): 1.97.0 is inside GHSA-7hp6-4w63-5g45 (Critical) and GHSA-2rwg-2wh4-7c4f (High);
+// 1.106.9 is the smallest step out of every advisory read that day (docs/research/
+// TOOL_UPDATES_2026-11-14.md). test/litellm-cancel.js passed on it, fake and real llama.cpp.
+// It refuses to start with no master key unless told so (litellm.js sets that for a farm with
+// no password). An existing venv is brought to this pin too (here, and by the Farm app on an
+// update: farm-app/src/main/installer.ts LITELLM_PIN, kept in lockstep).
+const LITELLM_PIN = 'litellm[proxy]==1.106.9';
 
 function ensureLitellm() {
     if (venvLitellmPath()) {
-        // Repair a drifted venv (an older install may have pulled an incompatible fastapi):
-        // enforce the pin. Idempotent + fast when already satisfied; best-effort if offline.
-        try { sh(`"${venvPython()}" -m pip install "${FASTAPI_PIN}"`); }
-        catch { log.warn('Could not verify the LiteLLM fastapi pin (offline?) — proxy may need `lol install` re-run if it fails to start.'); }
+        // Bring an existing venv to both pins (a LiteLLM bump, a drifted fastapi). Idempotent + fast
+        // when already satisfied; best-effort if offline (the farm keeps the LiteLLM it has).
+        try { sh(`"${venvPython()}" -m pip install "${LITELLM_PIN}" "${FASTAPI_PIN}"`); }
+        catch { log.warn(`Could not bring LiteLLM to ${LITELLM_PIN} (offline?): the farm keeps the one it has; re-run \`lol install\` online.`); }
         log.ok(`LiteLLM venv ready: ${log.paint.grey(VENV_DIR)}`);
         return true;
     }

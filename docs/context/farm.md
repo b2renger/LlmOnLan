@@ -119,7 +119,10 @@
     only the routes clients use, and its own 401/429/502 carry CORS headers (agent pages read them); Retry-After =
     the soonest a seat can free.
   - `proxy.masterKey` = the shared **farm password** (LiteLLM `master_key`; panel-settable; clients prompt
-    once, verify, remember per farm). Discovery, `/health/liveliness` and the admin token stay separate.
+    once, verify, remember per farm). Discovery, `/health/liveliness` and the admin token stay separate. With no
+    password, the generated config sets `dangerously_permit_weak_or_unset_master_key` (LiteLLM 1.106, the pin since
+    2026-11-14, refuses to start keyless otherwise; ours listens on loopback behind the gate). An installed farm is
+    brought to the LiteLLM pin by `lol install` and by the Farm app on an update.
   - **Admin panel** at `http://<box>:41997/lol/admin` (bearer = `admin.token`, or a per-run token printed by
     `lol up`; the Farm app pins one; a wrong token waits 400 ms before its 401, as a wrong password does on
     `/lol/plugin-keys`). **Its layout** (owner 2026-10-12, branch `panel-engines`): the **Presets** card on
