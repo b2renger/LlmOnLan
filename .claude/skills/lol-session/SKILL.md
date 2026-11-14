@@ -17,7 +17,7 @@ down what you did not check.
 2. `git status` and `git branch --show-current`. You work on `main`, commit, and back up with `git push origin main:night` only. If the tree is dirty with work that is
    not yours, do not touch it: say so in the summary and work around it, or stop.
 3. Count the dated files in `docs/sessions/` (`20*.md`: not the README, not FIELD_NOTES). This session's number is
-   that count plus one.
+   that count plus one; its summary will be `docs/sessions/<date>-n<number>.md` (the date the session starts).
    **If the number is a multiple of 5, this session is a review: run the skill `lol-review` and skip step 2 below.**
 
 ## 1. Read the thread
@@ -79,7 +79,7 @@ If you are blocked on everything, write the summary and end the session early. A
 
 1. Stop every process you started (the scratch farm with `lol down` from its folder, a scratch Ollama, a test client)
    and check they are gone. Check the live farm still answers as it did at the start.
-2. Write `docs/sessions/<date>.md` from the template in `docs/sessions/README.md`: done with evidence, not done and
+2. Write `docs/sessions/<date>-n<number>.md` from the template in `docs/sessions/README.md`: done with evidence, not done and
    why, found, next, questions for the owner.
 3. **Is a release due?** If the unpushed commits (`git log origin/main..main`) hold something people should get (a fix
    they are hitting, a feature that is whole and tested), open the summary with `RELEASE READY`: what it brings, and

@@ -21,6 +21,9 @@ it went to). A note with no answer is still open.
   exists: a Project's Preview tab and *Open in browser* (a bouncing-ball page showed after 58 s, night n° 3); in a plain
   chat only an SVG answer gets a Preview, an HTML page shows as code; nothing runs Python. The owner was asked
   (2026-11-14) whether an HTML/JS/CSS Preview in the chat may be built by day before the client freeze (Monday 12:00).
+  → 2026-11-14 11:56: the owner said yes (Python: never mind). **Built** (6c17a63, DEVLOG): an answer's html block has
+  Preview, and the page runs there with the answer's CSS and JavaScript; the owner's own ask checked in the real app.
+  Ships with client v0.2.18.
 
 <!-- Newest first. Example:
 - 2026-11-14, class of 24, PRO 6000: three students' PDF uploads failed with "file too large"; nobody found where to

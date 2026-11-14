@@ -1,6 +1,8 @@
 # Sessions: the thread the owner and Claude share
 
-One file per work session, named by its date: `2026-11-12.md` (a second one the same day: `2026-11-12-2.md`).
+One file per work session, named by its date and its number: `2026-11-14-n4.md` (owner, 2026-11-14: sessions now run
+by day too, so a day can hold two). The three first ones kept their date alone (`2026-11-12.md` to `2026-11-14.md`, n° 1
+to 3): links point at them.
 A session starts by reading [FIELD_NOTES.md](FIELD_NOTES.md) (what happened when people used LlmOnLan, written by the
 owner after a class) and the **five last** summaries, and ends by writing one.
 
