@@ -45,6 +45,15 @@ export class FarmSupervisor extends EventEmitter {
 
     getState(): FarmState { return this.state; }
 
+    // Work done BEFORE the farm starts (the LiteLLM update after an app update, installer.ts refreshFarmCodeIfUpdated):
+    // the window shows it as a start, so the spinner turns and Start is greyed out instead of inviting a second start
+    // beside pip (review 2026-11-15, H4). Only from rest: a farm that runs, or has a child, is never relabelled.
+    // start() clears the message as it begins.
+    announce(message: string): void {
+        if (this.child || !['idle', 'stopped', 'error'].includes(this.state.status)) return;
+        this.setState({ status: 'starting', message });
+    }
+
     private setState(patch: Partial<FarmState>): void {
         this.state = { ...this.state, ...patch };
         this.emit('state', this.state);

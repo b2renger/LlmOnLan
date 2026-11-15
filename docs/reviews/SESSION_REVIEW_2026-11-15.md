@@ -43,8 +43,11 @@ class sheet's page runs (`s37-fixed-both.png`).
 c3-sandbox-isolation` with the committed `main.cjs`: *the sandbox booted: got false* (3.2 s); with the fixed one: passes
 (252 ms). Whether a run failed depended on how the command spelt the folder, not on the order of scenarios (tonight's
 first full run failed from its first sandbox scenario on; the second, with the fix: every c3 scenario passes). The installed app's path comes
-from its shortcut (`C:\Users\…\AppData\Local\Programs\…`), so students probably never met it: **not proven for the
-installed app**. plans ▸ Next 14 (Electron 45) should be measured again with the fix before its cause is sought further.
+from its shortcut: the owner's installed client, started by its updater (`--updated`), runs as
+`C:\Users\…\AppData\Local\Programs\llmonlan-shell\LlmOnLan.exe` (`Win32_Process`, read only), so installed clients
+probably never met it: **not proven for the installed app**. *Trust boundary (TRUST-7):* comparing without regard to case
+widens nothing: Chromium percent-encodes non-ASCII in the URL, so only ASCII letters can differ, and on Windows they name
+the same file; `c3-sandbox-navigate` passes. plans ▸ Next 14 (Electron 45) should be measured again with the fix before its cause is sought further.
 
 **H2 · Fixed tonight · `shell/renderer/chat/sandbox/runner.html:709` · A chat answer's web page is not laid out as
 written: the class sheet's own example draws its button at the left edge.**
@@ -69,17 +72,19 @@ password") would skip them (a password farm without a stored key is never picked
 set the Sparks' passwords **before** test 5 (a laptop keeps the farm it last used). The rule itself (prefer the farm with
 the most free seats) stays the after-the-class plan of n° 3's question 5.
 
-**H4 · Before the freeze (n° 6) · `farm-app/src/main/index.ts:289`, `installer.ts refreshFarmCodeIfUpdated` · After an
+**H4 · Fixed tonight · `farm-app/src/main/index.ts:289`, `installer.ts refreshFarmCodeIfUpdated` · After an
 update, the Farm app waits for pip before the farm starts, and the window invites a Start meanwhile.**
 Since 9038485 the start awaits `pip install litellm[proxy]==1.106.9 …` (600 s cap). Meanwhile the supervisor's state is
 `idle`: the overlay says *Starting the farm…* with no spinner, the top button says **Start** and is enabled
 (`renderer/app.js` `renderFarmState`, `transient()` false for idle). A Start then runs `startFarm` beside pip, on the venv
 pip is rewriting. Offline, `farmCodeVersion` stays unset, so this repeats at **every** launch until pip succeeds.
 *Proof:* the same pip command against an unreachable index: 20 s (connection refused, 5 retries), **98 s** (a network that
-drops packets); online it took 26 s on the PRO 6000 (n° 4). This is J18's path on Monday. *Fix (recipe):* pip
-`--retries 1 --timeout 15`; before the await, a public supervisor call that sets `{status: 'starting', message:
-'Updating LiteLLM (a minute or two)…'}` so the spinner shows and Start is disabled; one farm-app unit test on the state
-sequence if the supervisor can be built without Electron, else J18 step "the window shows Updating LiteLLM".
+drops packets); online it took 26 s on the PRO 6000 (n° 4). This is J18's path on Monday. *Fix (tonight):*
+`FarmSupervisor.announce(message)` sets `starting` with its message, only from rest (`idle`, `stopped`, `error`, no
+child), and `start()` clears it; `refreshFarmCodeIfUpdated` calls it only past its version check, so an ordinary launch
+never shows it; pip `--retries 1 --timeout 10`: offline 5 s (refused) and 20 s (dropped). Also L7 (the two literal line
+breaks) in the same file. *Check:* `farm-app` `npm test` 12 + 3 (the new supervisor test). **Unit-tested only:** the Farm
+app cannot run beside the live one here; J18 step 1 now says what the window must show.
 
 ### Medium
 
@@ -148,8 +153,8 @@ The model menu is now in the message box, not at the top (`s05-owui.png`); a *Wh
 - **L6 · before the freeze (words)** · LOLVIBE_IDE_GUIDE: line 24 says gemma4 "thinks itself out of room" and line 25
   that the panel calls Qwen3.6 "untried"; the panel's words are *is weak at editing code* and *Nobody has tried*
   (`strings/project.en.mjs:79-80`); line 163's fix names models the message itself does not (`strings/agent.en.mjs:31`).
-- **L7 · low** · `farm-app/src/main/installer.ts:162-163` and `:194-196`: two `\n` in template literals became literal line
-  breaks in the source (the tool-escape trap): same strings, odd source.
+- **L7 · fixed tonight** · `farm-app/src/main/installer.ts:162-163` and `:194-196`: two `\n` in template literals had
+  become literal line breaks in the source (the tool-escape trap): same strings, odd source.
 - **L8 · low** · RESULTS ▸ *llama.cpp b11836 against b12377* ends "A bump … is worth its test after the class": the bump
   was made the same day (`PINNED_BUILD = 'b12377'`).
 

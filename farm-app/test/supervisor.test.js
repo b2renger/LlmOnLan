@@ -253,6 +253,28 @@ test('a dev box\'s models, venvs, config backups and move journal stay out of th
         assert.deepEqual(both(rel), [true, true], rel);
 });
 
+test('the LiteLLM update after an app update shows as a start (spinner, Start greyed out), never over a running farm (review 2026-11-15, H4)', async () => {
+    const { FarmSupervisor } = fresh('farmSupervisor');
+    const sup = new FarmSupervisor();
+    const seen = [];
+    sup.on('state', (s) => seen.push(`${s.status}|${s.message || ''}`));
+    sup.announce('Updating the farm after the app update (LiteLLM): a minute or two…');
+    assert.equal(sup.getState().status, 'starting', 'from rest, the wait is a start: the renderer\'s transient state');
+    assert.equal(seen[0], 'starting|Updating the farm after the app update (LiteLLM): a minute or two…', 'and the window is told');
+    await sup.start();
+    assert.equal(sup.getState().status, 'ready');
+    assert.equal(sup.getState().message, undefined, 'the update\'s words do not outlive it');
+    sup.announce('Updating…');
+    assert.equal(sup.getState().status, 'ready', 'a running farm is never relabelled');
+    await sup.stop();
+    sup.announce('Updating again…');
+    assert.equal(sup.getState().status, 'starting', 'a stopped farm can show it');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'installer.ts'), 'utf8');
+    assert.ok(src.includes("'--retries', '1', '--timeout', '10'"), 'pip gives up quickly offline: the farm starts on the LiteLLM it has');
+    assert.ok(fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'index.ts'), 'utf8')
+        .includes('await refreshFarmCodeIfUpdated(app.getVersion(), (message) => supervisor.announce(message));'), 'the start announces it');
+});
+
 (async () => {
     try {
         for (const { name, fn } of tests) {

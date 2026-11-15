@@ -288,7 +288,8 @@ app.whenReady().then(async () => {
     // watches farm-state go starting → ready). A missing runtime/farm copy (e.g. a
     // wiped userData) falls back to the wizard.
     if (settings.installed && runtimeReady() && farmInstalled()) {
-        await refreshFarmCodeIfUpdated(app.getVersion()); // propagate farm-side fixes on an app update
+        // propagate farm-side fixes on an app update; the window shows the wait as a start (review 2026-11-15, H4)
+        await refreshFarmCodeIfUpdated(app.getVersion(), (message) => supervisor.announce(message));
         setShareMode(settings.shareWithNetwork); // enforce the persisted posture (also migrates a pre-toggle 0.0.0.0 config to private)
         // The context window and model name are NOT re-enforced here any more. They used
         // to be, from this app's own store — which meant every app launch silently

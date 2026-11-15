@@ -1762,7 +1762,9 @@ farm was set up with), and LiteLLM 1.106, which refuses to start with no master 
 password. *Needs:* the next Farm app (after farm-v0.0.53) on the PRO 6000, a laptop, 10 minutes. *Was:* new
 (2026-11-14; the exact pip command run on a scratch 1.97.0 venv, 26 s; the cancel test passes on 1.106.9).
 
-1. Install the next Farm app over farm-v0.0.53. Its first start takes up to a minute or two longer (LiteLLM downloads).
+1. Install the next Farm app over farm-v0.0.53. Its first start takes up to a minute or two longer (LiteLLM downloads):
+   the window shows a turning spinner and *Updating the farm after the app update (LiteLLM): a minute or two…*, and its
+   **Start** button is greyed out (review 2026-11-15, H4; before, it said *Idle* and offered Start).
 2. When the panel says ready, chat from a laptop.
 3. Settings ▸ logs ▸ `farm.log`: no line *pip install litellm[proxy]==1.106.9 ended with code*.
 

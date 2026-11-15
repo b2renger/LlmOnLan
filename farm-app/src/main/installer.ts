@@ -142,9 +142,11 @@ function writeFarmConfig(adminToken: string, share: boolean, contextLength: numb
 // skip-list preserves the built venvs (.venv/.searxng/.extract), lol.config.json, and the
 // runtime state, so this refreshes ONLY the code (src/bin/node_modules). Without this, a
 // farm-side fix shipped in an app update would never reach an already-installed farm.
-export async function refreshFarmCodeIfUpdated(appVersion: string): Promise<void> {
+export async function refreshFarmCodeIfUpdated(appVersion: string, onWork?: (message: string) => void): Promise<void> {
     if (!fs.existsSync(lolEntry())) return; // not installed yet — setup will copy it
     if (loadSettings().farmCodeVersion === appVersion) return;
+    // The window says what the wait is (index.ts: the supervisor's announce), only when there is one.
+    if (onWork) onWork('Updating the farm after the app update (LiteLLM): a minute or two…');
     try {
         copyFarm();
         // farm-side pip fixes (the LiteLLM and fastapi pins) reach an installed venv here. A failed one leaves
@@ -159,8 +161,7 @@ export async function refreshFarmCodeIfUpdated(appVersion: string): Promise<void
             + ' with the files it has, and the update is tried again at the next start of the Farm app (quitting it stops'
             + ' the vLLM the farm runs, which frees a file it holds).';
         console.warn('[farm]', msg);
-        appendFarmLog(`${msg}
-`);
+        appendFarmLog(`${msg}\n`);
     }
 }
 
@@ -181,7 +182,7 @@ function repairLitellmVenv(): Promise<string | null> {
     if (!fs.existsSync(venvPy)) return Promise.resolve(null); // no venv yet — fresh setup builds it with the pins
     return new Promise((resolve) => {
         let out = '';
-        const child = spawn(venvPy, ['-m', 'pip', 'install', '--disable-pip-version-check', LITELLM_PIN, FASTAPI_PIN],
+        const child = spawn(venvPy, ['-m', 'pip', 'install', '--disable-pip-version-check', '--retries', '1', '--timeout', '10', LITELLM_PIN, FASTAPI_PIN],
             { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], timeout: 600000 });
         const keep = (d: Buffer) => { out = (out + d.toString()).slice(-2000); };
         child.stdout?.on('data', keep);
@@ -189,9 +190,7 @@ function repairLitellmVenv(): Promise<string | null> {
         child.on('error', (e) => resolve(`LiteLLM's update could not start (${e.message})`));
         child.on('exit', (code) => {
             if (code === 0) { console.log(`[farm] the LiteLLM venv is on ${LITELLM_PIN} and ${FASTAPI_PIN}`); return resolve(null); }
-            appendFarmLog(`[farm] pip install ${LITELLM_PIN} ended with code ${code}:
-${out}
-`);
+            appendFarmLog(`[farm] pip install ${LITELLM_PIN} ended with code ${code}:\n${out}\n`);
             resolve(`LiteLLM could not be updated to ${LITELLM_PIN.split('==')[1]} (offline?)`);
         });
     });
