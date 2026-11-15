@@ -253,7 +253,7 @@ test('a dev box\'s models, venvs, config backups and move journal stay out of th
         assert.deepEqual(both(rel), [true, true], rel);
 });
 
-test('the LiteLLM update after an app update shows as a start (spinner, Start greyed out), never over a running farm (review 2026-11-15, H4)', async () => {
+test('the LiteLLM update after an app update shows as a start (Starting…, a spinner, the toggle greyed out), never over a running farm (review 2026-11-15, H4)', async () => {
     const { FarmSupervisor } = fresh('farmSupervisor');
     const sup = new FarmSupervisor();
     const seen = [];

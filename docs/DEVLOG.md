@@ -13,8 +13,8 @@ commit so the history records that a feature was tested + documented before it w
 
 Since 9038485 the Farm app's start awaits `pip install litellm[proxy]==1.106.9 …` after an update, and meanwhile its
 window said *Idle* with an active **Start** (a second start beside pip, on the venv pip rewrites); offline it waited 20 s
-(refused) to 98 s (dropped packets) at every launch. `FarmSupervisor.announce` shows the wait as a start (spinner, Start
-greyed out), only from rest, cleared by `start()`; `refreshFarmCodeIfUpdated` calls it only past its version check; pip
+(refused) to 98 s (dropped packets) at every launch. `FarmSupervisor.announce` shows the wait as a start (*Starting…*, a
+spinner, the top button a greyed-out **Stop**), only from rest, cleared by `start()`; `refreshFarmCodeIfUpdated` calls it only past its version check; pip
 `--retries 1 --timeout 10`: offline 5 s and 20 s, the same two commands measured. Two `\n` that had become literal line
 breaks in `installer.ts` put back (L7). farm-app `npm test` 12 + 3 (a new supervisor test). Unit-tested only (the Farm
 app cannot run beside the live one); HUMAN_TESTS J18 step 1 says what the window must show. The owner's installed

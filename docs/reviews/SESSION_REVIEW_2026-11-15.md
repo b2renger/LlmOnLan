@@ -60,7 +60,9 @@ against the left edge (`s08-vibe-preview.png`); `#root` computed `display: block
 `display: contents` on it in the live guest centred everything (as the model wrote). *Fix (tonight):* in `page` mode
 only, `#root` gets `display: contents` (reset for any other run), so p5, three.js and the Computer are untouched.
 *Check:* harness scenario `c3-sandbox-page-layout` (a 100 px button in a 600 px page whose body centres it must sit at
-x≈250); the real app: `s37-fixed-both.png`.
+x≈250); the real app: `s37-fixed-both.png`. *Known limit:* `display: contents` fixes layout, not selectors: a page rule
+`body > main` still misses, since `main`'s parent is `#root`. A real document per page is the full fix, after the class
+(plans ▸ Next 15).
 
 **H3 · Before the freeze (n° 6, owner's action) · the class Wi-Fi's Sparks · A laptop that never had LlmOnLan picked a
 Spark with 2 seats, not the PRO 6000.**
