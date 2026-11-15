@@ -42,7 +42,8 @@ class sheet's page runs (`s37-fixed-both.png`).
 (Electron 45's `--phase c` 57/73). **Proven for the harness:** `node c:/…/shell/test/chat-harness/run.js --slot 1 --only
 c3-sandbox-isolation` with the committed `main.cjs`: *the sandbox booted: got false* (3.2 s); with the fixed one: passes
 (252 ms). Whether a run failed depended on how the command spelt the folder, not on the order of scenarios (tonight's
-first full run failed from its first sandbox scenario on; the second, with the fix: every c3 scenario passes). The installed app's path comes
+first full run failed from its first sandbox scenario on). **The full harness with the fix: 415 passed, 0 failed**
+(`node test/chat-harness/run.js`, 02:28–02:44), against the k family's 174–175 of 217 on 2026-11-12 to 14. The installed app's path comes
 from its shortcut: the owner's installed client, started by its updater (`--updated`), runs as
 `C:\Users\…\AppData\Local\Programs\llmonlan-shell\LlmOnLan.exe` (`Win32_Process`, read only), so installed clients
 probably never met it: **not proven for the installed app**. *Trust boundary (TRUST-7):* comparing without regard to case
@@ -92,8 +93,10 @@ app cannot run beside the live one here; J18 step 1 now says what the window mus
 counts after a restart.** `setBoxTypes` is called only when a Computer run ends, and `report()` lists box types from that
 list, so a report saved in a launch with no Computer run has `boxesRun: {}` though the counts are stored. *Proof:*
 `rv5/usage_relaunch.mjs` (scratch): same launch `{"text":1,"instruction":1}`, next launch `{}`, stored
-`{"text":1,"instruction":1}`. *Fix:* set the box types when the Computer's parts registry is built (or from the registry
-in `main.mjs` at mount); the script becomes the unit test. BEFORE_TUESDAY 3 now restarts the app before a second save.
+`{"text":1,"instruction":1}`. *Fix:* in `chat/main.mjs`, `lolUsage.save` loads the parts registry when it is
+pressed (`const { specMap } = await import('./graph/parts/index.mjs')`) and calls `usage.setBoxTypes([...specMap().keys()])`
+before `report()`: nothing more at start-up, and the names still come from the code, never from storage. The script
+(`createUsage` twice on one storage) becomes the unit test, next to the usage tests. BEFORE_TUESDAY 3 now restarts the app before a second save.
 
 **M2 · Before the freeze if small, else plans ▸ Next 15 · `shell/src/main/studio.ts:1018` · A project's page loses what it
 kept in the browser at every restart.** The Preview server listens on port 0, so each launch serves the project from a
@@ -108,27 +111,37 @@ student as untried.** A new project says *"Nobody has tried Qwen3.6 35B-A3B · N
 not."* (`s13-project-done.png`), while the farm panel's LOL Vibe preset calls it "a model proven with the agent" and
 LOLVIBE_IDE_GUIDE:21 "11 of 15". Gemma 4 26B is `good` on 12/15. *Proof:* tonight, the coding agent's five tasks on the
 live Qwen3.6 (`docs/spike/ide/run.js`, 64k, maxTokens 8192): **3/5** (median, p5 sketch and refactor pass; the two
-test-writing tasks fail), in 9–27 s each; the POC below in 20.5 s. *Fix:* `edits: 'good'` with `measured: '10–11/15 agent
-tasks 2026-10-23, 3/5 2026-11-15'` (recommended), or a third wording for "measured, mixed".
+test-writing tasks fail), in 9–27 s each; the POC below in 20.5 s. *Fix:* the words only. **Not** `edits: 'good'`:
+`pickEditor` (`models.mjs:30-37`) keeps a project chat on a `good` model, so on a farm serving both, Qwen3.6 would no
+longer give way to Gemma 4 26B, LOL Vibe's coding model since 2026-11-09 (owner). A measured-but-mixed line for a model
+whose profile carries a `measured` text, e.g. *"Tried on code: 3 of 5 tasks on 15 November (10–11 of 15 before). Ask
+for one change at a time."* (`strings/project.en.mjs:80`, chosen at `ui/project-panel.mjs:331-332` where `modelUnknown` is today).
 
 **M4 · Before the freeze · the Computer's Text box (lesson 1) · Line breaks in an answer disappear.** The Text box renders
 the value as Markdown into a `<p>` with `white-space: normal`, so single newlines collapse: lesson 1's own example, a
-haiku, shows as one line (`s27-l1-done.png`; the value holds `"Cool waves touch the shore\nSalt wind…"`). *Fix:* soft
-breaks as line breaks in that view (`white-space: pre-line` on its paragraphs, or the renderer's breaks option), with a
-render test.
+haiku, shows as one line (`s27-l1-done.png`; the value holds `"Cool waves touch the shore\nSalt wind…"`). *Fix:*
+`white-space: pre-line;` in `#lolcomputer .graph-text-body p` (`css/computer-text.css:139`): the Text box uses the chat's
+own safe Markdown path, and its paragraph keeps the `\n`. Tried in the real app with an in-page style (not saved): the
+haiku took its 3 lines. A check in the lessons' harness shots (k5) or a CSS assertion.
 
-**M5 · Before the freeze · `computer/tutorial/lessons/00-tour.mjs` · The Tour's new Text box lands on top of the Markdown
-view.** Step 2 (*＋ Add a box ▸ Text*) placed the box over the Markdown view's left half, its output dot 90 px from the
-Markdown view's input dot, which it half covers (`s22-tour-step4.png`): step 4 (*wire it*) is fiddly on a trackpad. It
-worked with exact coordinates. *Fix:* move the Tour's Markdown view right in the lesson's document (or place a new box
-at a free spot, after the freeze).
+**M5 · Before the freeze if time allows, else after · `graph/canvas.mjs:1289-1292` · The Tour's new Text box lands on top
+of the Markdown view.** Step 2 (*＋ Add a box ▸ Text*) placed the box over the Markdown view's left half, its output dot
+90 px from the Markdown view's input dot, which it half covers (`s22-tour-step4.png`): step 4 (*wire it*) is fiddly on a
+trackpad. It worked with exact coordinates. A box added from the toolbar lands at the centre of the visible canvas; the
+Tour's view is at world x 620–960 (`00-tour.mjs:37`). By arithmetic, not measured, at zoom 1: a ~840 px canvas (a
+1,100 px window) puts the 260 px box at 290–550, clear; tonight's ~1,000 px at 370–630, the dots meeting; a ~1,660 px
+canvas (1,920 px) at 700–960, right on top. Moving the view in the lesson cannot suit every width. *Fix:* in
+`placeEntry`, when the centre spot overlaps a box, step down by the grid until it is free (bounded tries), with a canvas
+harness check.
 
 **M6 · Before the freeze · `shell/renderer/styles.css:136` · 13 buttons in Preferences and the connection popover are
 square native buttons.** `.btn-ghost` alone (never with `.btn`, checked in `index.html` and `app.js`) sets colours only:
 computed radius 0, padding 1px 6px, the browser's 13.33 px font, against design.md's 8 px buttons
 (`s17-prefs-usage.png`; *Change folder…*, *Rescan now*, *Apply*, *Test connection*, *Check for app updates*, *Save a usage
-report…*, *Check for chat-engine update*…). *Fix:* give `.btn-ghost` the radius, padding, font and cursor of `.btn`
-(without its margin), one CSS block.
+report…*, *Check for chat-engine update*…). *Fix:* the chat already defines this button (`chat/css/base.css:139-153`:
+radius 8 px, padding 8px 14px, 13 px / 500, `appearance: none`, cursor, a disabled state), scoped to `#lolchat` and
+`.chat-layer`; give the shell's `.btn-ghost` (`styles.css:136`) the same declarations. The scoped rule keeps winning
+inside the chat (`ui/dialogs.mjs`, `ui/settings.mjs`…), and the Computer uses no `.btn-ghost`.
 
 **M7 · Fixed tonight · `docs/CLASS_SHEETS.md` · Three statements made false by Open WebUI 0.13.3 and LiteLLM 1.106.9.**
 The model menu is now in the message box, not at the top (`s05-owui.png`); a *What's New* window opens at the first start
@@ -157,6 +170,8 @@ The model menu is now in the message box, not at the top (`s05-owui.png`); a *Wh
   become literal line breaks in the source (the tool-escape trap): same strings, odd source.
 - **L8 · low** · RESULTS ▸ *llama.cpp b11836 against b12377* ends "A bump … is worth its test after the class": the bump
   was made the same day (`PINNED_BUILD = 'b12377'`).
+- **L9 · after (words)** · the farm button has three names: *the connection pill* in LOL Vibe's messages
+  (`strings/net.en.mjs:35`, `composer.en.mjs:18`), *the farm button* in CLASS_SHEETS, *the pill* in GETTING_STARTED.
 
 ## Questions (suspicions not proven)
 
@@ -184,6 +199,13 @@ The model menu is now in the message box, not at the top (`s05-owui.png`); a *Wh
 - **The Computer's lessons and examples against the code** (explorer, 68 steps; each claim used here checked): 67 steps
   fine; L5's three wordings.
 - **Dark theme:** the shell's three surfaces and Open WebUI follow it (`s29-dark-vibe.png`).
+- **States:** LOL Vibe waiting for a seat (the harness's `p2-shots-waiting.png`: who holds the seats, when one frees,
+  *Try now* and *Cancel*, the composer's *Waiting for a seat…*) is plain and complete; the farm-full, model-down and
+  password messages (`strings/net.en.mjs:16-35`) say what to do next. The top bar's own states are not photographed by
+  the harness (it has no `app.js`) and were not provoked on the live farm.
+- **The farm panel** (read only): Presets, Serving, vLLM, Performance, Access (*Free an idle seat after* offers 1 min, as
+  CLASS_SHEETS asks; *Farm password* and *Apply changes*, as BEFORE_TUESDAY 4b says), Model storage, Plugins, Clients:
+  each control says what it does and what it costs (a restart, a minute of no chat); only L1's stale bar.
 - **The changed code read for failure:** `farm/src/pysvc/server.py` (the OCR caps, the client-left watcher, with their
   `check_services.py` tests), `selfServer.js` (a 400 ms cost per wrong token), `up.js routingChanged` and the vLLM
   update guard, `litellm.js`'s master-key setting, `sidecar.ts keepDbBeforeEngine`, `configBridge.ts`'s 0.13 env,
@@ -192,5 +214,6 @@ The model menu is now in the message box, not at the top (`s05-owui.png`); a *Wh
 
 ## Not checked
 
-The Farm app's wizard (it cannot run beside the live Farm app); a fresh install's download; macOS; Stop in LOL Vibe
-tonight (n° 4 measured it); a PDF in Open WebUI 0.13.3 tonight (n° 4 did); any panel button (read only).
+The Farm app's wizard and window, neither run nor read (it cannot run beside the live Farm app; its update path is
+H4's, unit-tested only); a fresh install's download; macOS; Stop in LOL Vibe tonight (n° 4 measured it); a PDF in Open
+WebUI 0.13.3 tonight (n° 4 did); any panel button (read only); the top bar's farm-full and not-responding states.

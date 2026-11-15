@@ -34,11 +34,13 @@ file stays the whole list.
    *Night n° 5's review* ([SESSION_REVIEW_2026-11-15](../reviews/SESSION_REVIEW_2026-11-15.md)) fixed the sandbox that
    could not start from a `c:\` app path (H1), the chat page's layout (H2) and the Farm app's wait for pip (H4).
    **Night n° 6, before the releases, in the order students meet them** (drop from the end if time runs short):
-   M4 the Text box's line breaks (lesson 1's haiku on one line); M5 the Tour's new box over the Markdown view
-   (`computer/tutorial/lessons/00-tour.mjs`, move the view right); M3 Qwen3.6 "untried" (`chat/projects/models.mjs:18`,
-   `edits: 'good'`); M6 `.btn-ghost` (`renderer/styles.css:136`, radius 8, padding, font, cursor); L5 and L6 (words);
-   M1 the usage report's boxes after a restart (`core/usage.mjs`, set the box types at mount; the review's script as the
-   test). The owner: BEFORE_TUESDAY 4b (the Sparks' password) before test 5.
+   M4 the Text box's line breaks (lesson 1's haiku on one line; `pre-line`, `css/computer-text.css:139`); M3 Qwen3.6
+   "untried" (words only, a measured-but-mixed line; never `edits: 'good'`, which `pickEditor` would prefer to Gemma 4
+   26B); M6 `.btn-ghost` (`renderer/styles.css:136`, the declarations of `chat/css/base.css:139-153`); L5 and L6 (words);
+   M1 the usage report's boxes after a restart (`chat/main.mjs` `lolUsage.save`: import the parts registry and
+   `setBoxTypes` before `report()`; the review's script as the test); M5, if time allows, the Tour's new box over the
+   Markdown view (`graph/canvas.mjs placeEntry`: step to a free spot). The near-patches are in the review. The owner:
+   BEFORE_TUESDAY 4b (the Sparks' password) before test 5.
 1. **The human testing phase** (owner 2026-11-09): client v0.2.16 and Farm app farm-v0.0.52 carry the review's fixes, the
    owner's decisions of 2026-11-06 and 09 and Gemma 4 26B. Run the ★ list of [HUMAN_TESTS](../HUMAN_TESTS.md) in its order;
    each finding goes back here.
