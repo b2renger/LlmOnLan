@@ -41,8 +41,10 @@ One laptop on the Wi-Fi the students will use.
 
 1. Open Open WebUI, LOL Vibe and the Computer once. Ask one question in LOL Vibe; run one template in the Computer.
 2. Preferences ▸ Usage report ▸ **Save a usage report…** ▸ save. Open the file in a text editor.
+3. Quit LlmOnLan, open it again, and save a second report at once (before running anything in the Computer).
 
-OK if: the file has counts, and **none** of your words.
+OK if: the file has counts, and **none** of your words; the second file still lists the template's boxes under
+`boxesRun` (a report saved after a restart lost them until the fix of night n° 6: review of 2026-11-15).
 
 - [] OK
 - Notes: 
@@ -57,6 +59,21 @@ over 100 MB.
 3. Attach the file over 100 MB.
 
 OK if: 2 ends with *"Pages 201 to … were not read"*; 3 is refused.
+
+- [ ] OK
+- Notes:
+
+## 4b. The Sparks' password — before test 5 (5 min)
+
+Your answer of 14 November: the Sparks get a password for the class. On Sunday 15 at 02:00 both Sparks
+(`spark-2cb5`, `spark-59f9`) had none, and a laptop that had never used LlmOnLan picked `spark-2cb5` (2 seats) by
+itself: a farm with no one on it and the PRO 6000 with one person count as equally free, so "Automatic" chooses
+between them at random. A laptop keeps the farm it last used, so set the passwords **before** test 5's laptops start.
+
+1. On each Spark: Farm app panel ▸ Access ▸ *Farm password* ▸ type one ▸ **Apply changes**.
+2. On a laptop that never had LlmOnLan (or test 5's first one): open it and look at the farm button.
+
+OK if: the farm button names the PRO 6000 farm, and the farm list shows the Sparks asking for a password.
 
 - [ ] OK
 - Notes:
@@ -100,7 +117,7 @@ OK if: every answer comes; nobody sees *farm full* or *not responding*.
 
 1. On the PRO 6000: the Farm app shows the farm running.
 2. On your laptop: the pill is green; one chat answers in Open WebUI and in LOL Vibe.
-3. Read the top of `docs/sessions/2026-11-17.md` (the night's check).
+3. Read the top of the night's summary, `docs/sessions/2026-11-17-n7.md` (the night's check).
 
 If anything is wrong, don't restart anything: read the summary first.
 

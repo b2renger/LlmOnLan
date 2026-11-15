@@ -24,7 +24,8 @@
   since 2026-11-14 (owner) a web page (`html`, or an untagged block that starts like one) RUNS in the sandbox's live
   guest with the answer's CSS and JavaScript blocks (`render/page.mjs`, `render/code.mjs` code-page; the chat's own
   sandbox, loaded on the first Preview; no network: p5, three and d3 from a CDN get the bundled copies, any other
-  address is named as missing); history in the renderer's IndexedDB `lol-chat` v2 with a one-way
+  address is named as missing; the page is laid out as written, its `body` rules reaching its own elements: `#root` is
+  `display: contents` in page mode, review 2026-11-15, not released yet); history in the renderer's IndexedDB `lol-chat` v2 with a one-way
   import of the v1 `localStorage` history; no RAG, uploads or tools — those P3/P4 plans were cancelled on 2026-09-16
   (docs/archive/plans/LOLCHAT_STUDIO_PLAN.md §6: Open WebUI does documents and search); and
   since 2026-09-28 the **IDE** (P5 v1, [docs/plans/IDE_PLAN.md](../../docs/plans/IDE_PLAN.md)): the workbench's **Project** panel binds a

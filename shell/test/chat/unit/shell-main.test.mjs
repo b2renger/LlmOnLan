@@ -1785,6 +1785,25 @@ export default (test) => {
     return src.slice(at, end > at ? end : undefined);
   };
 
+  test('the sandbox runner is the app\'s own file whatever the case of the drive letter: c:\\ against Chromium\'s C:/ (review 2026-11-15)', () => {
+    const U = require(path.join(BUILD, 'util.js'));
+    const { pathToFileURL } = require('node:url');
+    const sep = String.fromCharCode(92);
+    // What pathToFileURL makes of an app path typed in lowercase, and what Chromium reports for the same frame.
+    const fromApp = pathToFileURL(['c:', 'Users', 'a', 'shell', 'renderer', 'chat', 'sandbox', 'runner.html'].join(sep)).href;
+    const fromChromium = 'file:///C:/Users/a/shell/renderer/chat/sandbox/runner.html';
+    if (process.platform === 'win32') assert.notEqual(fromApp, fromChromium, 'the two spellings this test is about');
+    assert.equal(U.sameFileUrl(fromChromium, 'file:///c:/Users/a/shell/renderer/chat/sandbox/runner.html', 'win32'), true, 'the drive letter');
+    assert.equal(U.sameFileUrl(fromChromium + '?r=1#x', 'file:///c:/users/a/shell/renderer/chat/sandbox/runner.html', 'win32'), true, 'query, hash and folder case aside');
+    assert.equal(U.sameFileUrl('file:///C:/Users/a/projects/p/sandbox/runner.html', fromChromium, 'win32'), false, 'a project\'s own runner.html is not the app\'s');
+    assert.equal(U.sameFileUrl('file:///home/a/Runner.html', 'file:///home/a/runner.html', 'linux'), false, 'elsewhere, case counts');
+    assert.equal(U.sameFileUrl('', fromChromium, 'win32'), false);
+    assert.equal(U.sameFileUrl(undefined, undefined, 'win32'), false, 'nothing is never a match');
+    const src = indexSrc();
+    assert.ok(src.includes('if (sameFileUrl(String(e.url || \'\'), RUNNER_URL)) return;'), 'the frame veto compares with sameFileUrl');
+    assert.ok(src.includes('if (!sameFileUrl(String(e.url || \'\'), INDEX_URL)) e.preventDefault();'), 'and so does the main frame\'s');
+  });
+
   test('SHM-1: a new window Open WebUI opens goes to the system browser (its own pages excepted), and its microphone, camera and clipboard are only for its own origin', () => {
     const U = require(path.join(BUILD, 'util.js'));
     const owui = 'http://127.0.0.1:8080';
@@ -1881,7 +1900,7 @@ export default (test) => {
     }
     assert.ok(app.includes('async function ensureAuthenticated() {\n  if (!onOwui()) return;'));
     const src = indexSrc();
-    assert.ok(src.includes("if (e.isMainFrame) { if (bareUrl(String(e.url || '')) !== INDEX_URL) e.preventDefault(); return; }"), 'the window stays on the app\'s own page');
+    assert.ok(src.includes("if (e.isMainFrame) { if (!sameFileUrl(String(e.url || ''), INDEX_URL)) e.preventDefault(); return; }"), 'the window stays on the app\'s own page');
     assert.ok(src.includes("wc.on('will-navigate', (e) => {\n        if (sameOrigin(e.url, sidecar.getState().url)) return;\n        e.preventDefault();"), 'the webview stays on Open WebUI');
   });
 

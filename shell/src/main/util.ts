@@ -78,6 +78,17 @@ export function sameOrigin(url: string | null | undefined, base: string | null |
     } catch { return false; }
 }
 
+// Do two file: URLs name the same file, query and hash aside? On Windows a path ignores case, and so must this: Chromium
+// writes file:///C:/…, while pathToFileURL keeps the case app.getAppPath() came with (c:\… when the app was started from
+// a folder typed in lowercase), and the exact match then refused the app's own sandbox runner: "The sandbox could not
+// start" (review 2026-11-15; the harness's "order-dependent" sandbox failures since 2026-11-12).
+export function sameFileUrl(a: string | null | undefined, b: string | null | undefined, platform: string = process.platform): boolean {
+    const bare = (u: string | null | undefined) => String(u || '').split('#')[0].split('?')[0];
+    const x = bare(a), y = bare(b);
+    if (!x || !y) return false;
+    return platform === 'win32' ? x.toLowerCase() === y.toLowerCase() : x === y;
+}
+
 // Poll a URL until it returns 2xx or we time out. Resolves true/false.
 export async function waitForHttp(url: string, { timeoutMs = 120000, intervalMs = 750 } = {}): Promise<boolean> {
     const deadline = Date.now() + timeoutMs;

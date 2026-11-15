@@ -326,12 +326,15 @@ function createWindow(hasProjects, hasDebugLog, hasIo, hasStudio, hasHome) {
     // EXACT MATCH against the app's own runner, never a substring of the URL (S0 review, finding
     // 3): a project folder may itself contain sandbox/runner.html, and the loose regex let that
     // through. Mirrors the rule in shell/src/main/index.ts exactly, so the harness can SEE it.
+    // On Windows without regard to case, as util.ts sameFileUrl: a harness started from a folder typed `c:\…` made
+    // RUNNER_URL file:///c:/… against Chromium's file:///C:/…, and every sandbox "could not start" (review 2026-11-15).
     const RUNNER_URL = pathToFileURL(path.join(__dirname, '..', '..', 'renderer', 'chat', 'sandbox', 'runner.html')).href;
     const bareUrl = (u) => u.split('#')[0].split('?')[0];
+    const fold = (u) => (process.platform === 'win32' ? bareUrl(u).toLowerCase() : bareUrl(u));
     win.webContents.on('will-frame-navigate', (e) => {
         if (e.isMainFrame) return;
         const u = String(e.url || '');
-        if (bareUrl(u) === RUNNER_URL) return;
+        if (fold(u) === fold(RUNNER_URL)) return;
         if (studio && studio.serves(u)) return;   // the IDE's Preview (mirrors shell/src/main/index.ts)
         e.preventDefault();
         windowOpens.push({ url: u, action: 'dropped', ts: Date.now(), frameNavigate: true });

@@ -30,7 +30,9 @@ address*, then **Add**.
 
 ### 3. Try it
 
-- **Open WebUI** (the chat): if the top says **Select a model**, click it and choose **assistant**. Ask a question. Attach a PDF to your message and ask about it (up to about 80 pages of text).
+- **Open WebUI** (the chat): the first time, a *What's New* window opens: close it with **Okay, Let's Go!**. The model
+  menu is in the message box, at the bottom right: it should say **assistant** (if it says *Select a model*, click it and
+  choose **assistant**). Ask a question. Attach a PDF to your message and ask about it (up to about 80 pages of text).
 - **LOL Vibe:** ask something. Ask for something long, then press **Stop**. Ask for *"a small website: a page with a
   button that changes the background colour"*: on the answer's `html` block press **Preview** and click the button
   (the page runs here, without the internet).
@@ -50,8 +52,9 @@ We talk about it together at the end: what worked, what confused you, what you w
 ## For the person running the class
 
 **The farm:** the PRO 6000, on vLLM 0.33.0 with Qwen3.6 35B-A3B, 64k of context per person, people at once **Automatic
-(48)** (measured for 30 on 14 November: first word within 2.5 s for 95 % of them even in long conversations, 33 to 95
-tokens a second each, faster than anyone reads; three coding agents beside 27 chatting slowed nobody). Before the class: BEFORE_TUESDAY test 7.
+(48)** (measured for 30 on 14 November: first word within 2.5 s for 95 % of them even in long conversations; with the
+LiteLLM the Farm app of 16 November brings, about 88 tokens a second each for 30 people and 67 for 48, fewer in long
+conversations, faster than anyone reads; three coding agents beside 27 chatting slowed nobody). Before the class: BEFORE_TUESDAY test 7.
 
 | If you see | What it means | What to do |
 |---|---|---|
@@ -59,7 +62,7 @@ tokens a second each, faster than anyone reads; three coding agents beside 27 ch
 | Students on a farm with **2 seats** (a Spark) | The Sparks have a password for the day, so "Automatic" never picks them; a laptop gets there only if someone typed that password. | Step 2 of their sheet: one click on the class farm pins it. |
 | `<farm> · not responding…` on the button | The laptop has not heard the farm for 12 s: Wi-Fi, or the farm restarting. | Check the Farm app shows the farm running; otherwise wait a minute. Do not restart the farm during the class unless nothing answers. |
 | *The sandbox could not start* (Computer) | The Computer's drawing sandbox did not start in time on that laptop. | Close and reopen the Computer; if it stays, restart the app. (The real app's Preview passed this the night of 14 November; Live mode was not checked yet.) |
-| Open WebUI says *Select a model* | The laptop first landed on another farm, then moved to the class farm: Open WebUI kept that farm's model, which the class farm does not have. | Click it, choose **assistant** (once). |
+| Open WebUI says *Select a model* | The laptop first landed on another farm, then moved to the class farm: Open WebUI kept that farm's model, which the class farm does not have. | Click the model menu in the message box (bottom right), choose **assistant** (once). |
 | A PDF fails, or the answer ignores its end | One chat holds about 64k tokens: roughly 80 pages of text. | Split the PDF, or ask about one part. |
 | Creative coding or a Computer template is slow | *Think all* is ticked in the Computer's toolbar: the model thinks before writing (on Qwen3.6, alone on the farm: 24 s ticked, 11 s unticked; longer when the class shares it). | Untick it, or let it run and explore something else meanwhile. |
 | The first start is slow on many laptops | Each laptop downloads about 1 GB (the chat engine) from the internet at the same time. | Start the install first, while you present. |

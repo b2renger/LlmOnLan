@@ -31,6 +31,11 @@ file stays the whole list.
 
 0. **The class of Tuesday 17 November** ([its plan](CLASS_TEST_2026-11-17.md), owner 2026-11-13): until then, only what
    the 30 students touch and the farm that serves them; no new feature. After the class, the order below resumes.
+   *Night n° 5's review* ([SESSION_REVIEW_2026-11-15](../reviews/SESSION_REVIEW_2026-11-15.md)) fixed the sandbox that
+   could not start from a `c:\` app path (H1) and the chat page's layout (H2); **night n° 6, before the releases:** H4
+   (the Farm app's start waits for pip with Start offered), M1 (the usage report's boxes after a restart), M3 (Qwen3.6
+   "untried"), M4 (the Text box's line breaks), M5 (the Tour's overlapping box), M6 (`.btn-ghost`), L5 and L6 (words);
+   M2 (a project's browser storage at each restart) if it is small. The owner: BEFORE_TUESDAY 4b (the Sparks' password).
 1. **The human testing phase** (owner 2026-11-09): client v0.2.16 and Farm app farm-v0.0.52 carry the review's fixes, the
    owner's decisions of 2026-11-06 and 09 and Gemma 4 26B. Run the ★ list of [HUMAN_TESTS](../HUMAN_TESTS.md) in its order;
    each finding goes back here.
@@ -122,6 +127,8 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     k 174/217; on 42.6.0 the same tree gives 73/73), though each scenario passes alone: an order-dependent defect, maybe
     the same one 42 showed rarely on 2026-11-12 (k 175/217). First find what earlier scenario leaves the state, then
     bump (also: the sync `safeStorage` calls before Electron 46). After the class. **S–M**.
+    *2026-11-15 (review H1):* the harness's sandbox failures depend on the case of the drive letter the harness was
+    started with (`c:\` refused the runner), now fixed; measure 45 again with it before looking for another cause.
 
 15. **A better LOL Vibe, able to build a proof-of-concept web application** (owner, 2026-11-14: "I am not convinced
     about what we have right now in lol vibe ... we need a better lol vibe experience for the users and we should be able
@@ -129,11 +136,17 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     through building a small web application end to end, as a student would (a page with a form, a list kept in the
     browser, two or three files), and records every stumble with its screenshot; then a plan in `docs/plans/` for the
     owner (what the experience should be, what to build), after the class. **M–L**.
+    *The facts, 2026-11-15* ([the review](../reviews/SESSION_REVIEW_2026-11-15.md)): a reading-list app (form, list, delete,
+    kept in the browser, three files) built in 20.5 s and working; the stumbles: the page forgets its data at each restart
+    (M2), the class model introduced as untried (M3), a cramped Preview in Split (L2), an empty chat with no example,
+    jargon, and the agent sending the student to a browser the Preview already is (L3).
 
 ## 3. Later
 
 - **The farm:**
   - free a person's seat when they quit (D-F1; "Free an idle seat after" covers it today);
+  - the panel drops a finished job's bar after a few minutes (review 2026-11-15 L1: *Updating vLLM … with Qwen3.8* stayed up
+    while Qwen3.6 served);
   - load signals (busy, queued, perf) for Ollama (D-F2);
   - vision from Ollama's `/api/show` instead of the name pattern (D-F4);
   - per-host slots on a multi-host Ollama farm;

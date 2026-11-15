@@ -14,7 +14,7 @@ import { loadSettings, updateSettings } from './store';
 import { defaultDataDir, bundledOwuiVersion, sidecarRoot } from './paths';
 import { SidecarSupervisor } from './sidecar';
 import { McpoSupervisor } from './mcpoSupervisor';
-import { httpGet, tcpProbe, sameOrigin } from './util';
+import { httpGet, tcpProbe, sameOrigin, sameFileUrl } from './util';
 import { Discovery } from './discovery';
 import { moveDataDir, dirHasData, NOT_EMPTY } from './dataMigration';
 import { clientDataDir, prepareClientData, isInside, CLIENT_DIR_NAME, ClientDataNotice } from './clientData';
@@ -567,15 +567,15 @@ function createWindow(): void {
     // EXACT MATCH, not a substring test (S0 review, finding 3). A regex over the whole URL also
     // matched .../LOL Studio Projects/<id>/sandbox/runner.html — a two-segment .html path the
     // projects API happily writes — so a project could host its own "runner" and the veto would
-    // wave it through. Only the app's own file is allowed, compared after query/hash are stripped.
+    // wave it through. Only the app's own file is allowed, compared after query/hash are stripped, and on Windows without
+    // regard to case (util.ts sameFileUrl: a lowercase c:\ app path refused the runner, review 2026-11-15).
     const RUNNER_URL = pathToFileURL(path.join(app.getAppPath(), 'renderer', 'chat', 'sandbox', 'runner.html')).href;
-    const bareUrl = (u: string) => u.split('#')[0].split('?')[0];
     // The window itself stays on the app's own page: anywhere else would run with the preload bridge, and with it the
     // stored farm passwords (review 2026-11-05, TRUST-7).
     const INDEX_URL = pathToFileURL(path.join(app.getAppPath(), 'renderer', 'index.html')).href;
     win.webContents.on('will-frame-navigate', (e) => {
-        if (e.isMainFrame) { if (bareUrl(String(e.url || '')) !== INDEX_URL) e.preventDefault(); return; }
-        if (bareUrl(String(e.url || '')) === RUNNER_URL) return;
+        if (e.isMainFrame) { if (!sameFileUrl(String(e.url || ''), INDEX_URL)) e.preventDefault(); return; }
+        if (sameFileUrl(String(e.url || ''), RUNNER_URL)) return;
         // The IDE's Preview: a project this app serves on 127.0.0.1 (studio.ts), by exact origin.
         if (studioApi && studioApi.serves(String(e.url || ''))) return;
         e.preventDefault();

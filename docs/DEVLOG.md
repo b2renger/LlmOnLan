@@ -9,6 +9,31 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-15 (02:30) — Night n° 5's review: the sandbox refused from a `c:\` app path (fixed), the chat page's layout (fixed), what a student meets on Tuesday
+
+The fifth session's review ([SESSION_REVIEW_2026-11-15](reviews/SESSION_REVIEW_2026-11-15.md)): a dev client from this
+checkout with Open WebUI 0.13.3 on the live farm, walked as a student; the findings, their proofs and the screenshots
+are there. Two were fixed tonight:
+
+- **The sandbox could not start whenever the app's folder came with a lowercase drive letter.** The frame veto
+  (`index.ts`, mirrored in the harness's `main.cjs`) compared the frame's URL with `pathToFileURL(app.getAppPath())`
+  exactly; `pathToFileURL` keeps `c:`, Chromium writes `C:`. Same client, profile and code: started as `C:\…\shell` the
+  runner loads in 39 ms; as `c:\…\shell`, `net::ERR_ABORTED canceled` (the veto), every Preview and code box *could not
+  start*. `util.ts sameFileUrl` compares file URLs without regard to case on Windows; unit test in `shell-main` (85/85);
+  the `c:\` client after the fix: 41 ms. **The cause of the harness's "order-dependent" sandbox failures** since
+  2026-11-12: `run.js` started as `c:/…` fails `c3-sandbox-isolation` with the committed `main.cjs` and passes with the
+  fixed one. Not proven for the installed app (its shortcut gives `C:\`). Electron 45's 57/73 deserves a new run.
+- **A chat answer's web page was laid out wrongly:** its markup sits in the runner's `#root`, so its own `body { display:
+  flex; align-items: center }` laid out `#root` alone and the class sheet's button sat at the left edge. In page mode
+  only, `#root` is `display: contents`. Harness scenario `c3-sandbox-page-layout`; the real app checked.
+
+Also found and proven (fixes for n° 6, before the releases, or plans): the Farm app's start awaits pip after an update
+(20–98 s offline, every launch) while offering Start; the usage report loses its box counts after a restart; a project's
+page loses its browser storage at each restart (new port); Qwen3.6 shown as "untried" (3/5 agent tasks tonight); the Text
+box collapses line breaks; the Tour's new box covers the Markdown view; `.btn-ghost` buttons render square. A fresh client
+picked a 2-seat Spark (open tonight): BEFORE_TUESDAY 4b. CLASS_SHEETS corrected for Open WebUI 0.13.3 (model menu in the
+message box, What's New) and LiteLLM 1.106.9 (about 88 / 67 tok/s).
+
 ## 2026-11-14 (19:20) — Ollama v0.40.16 for new Farm app installs; Ollama's cloud off on every farm
 
 The owner, evening: "ollama 40 now before the tests". A read of every release note 0.33.1 → 0.40.16 (an explorer;

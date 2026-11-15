@@ -494,4 +494,42 @@ export default [
             await close(h);
         },
     },
+
+    {
+        // A chat answer's web page (render/code.mjs `page`) is laid out as its author wrote it: a `body` that centres its
+        // children centres them, although the runner puts the page's markup in its own #root (review 2026-11-15: the
+        // class sheet's "button that changes the background colour" drew its button at the left edge).
+        name: 'c3-sandbox-page-layout',
+        run: async (/** @type {any} */ h) => {
+            const opened = await open(h, {});
+            h.eq(opened.ok, true, 'the sandbox booted');
+            const out = await h.eval(async () => {
+                const c3 = /** @type {any} */ (window).__c3;
+                const stage = document.createElement('div');
+                document.body.appendChild(stage);
+                const html = '<!DOCTYPE html><html><head><style>body{margin:0;min-height:100vh;display:flex;flex-direction:column;'
+                    + 'align-items:center;justify-content:center}#b{width:100px;margin:0}</style></head><body><h1>Title</h1>'
+                    + '<button id="b">Change</button></body></html>';
+                const js = "window.addEventListener('load', function () { var r = document.getElementById('b').getBoundingClientRect();"
+                    + " console.log('POS ' + Math.round(r.left) + ' ' + Math.round(r.top)); });";
+                const live = c3.sb.live({ mount: stage, mode: 'html', code: html + '<script>' + js + '</script>', css: '', size: { w: 600, h: 400 }, page: true });
+                const ready = await live.ready;
+                /** @type {string} */ let pos = '';
+                for (let i = 0; i < 40 && !pos; i++) {
+                    await new Promise((r) => setTimeout(r, 100));
+                    const hit = live.logs().find((/** @type {any} */ l) => /^POS /.test(String(l.text || '')));
+                    if (hit) pos = String(hit.text);
+                }
+                live.stop();
+                stage.remove();
+                return { ok: !!(ready && ready.ok), pos };
+            }, { timeout: 30000 });
+            h.eq(out.ok, true, 'the page ran');
+            const [left, top] = out.pos.replace('POS ', '').split(' ').map(Number);
+            h.note(`the button at ${left},${top} in a 600x400 page`);
+            h.assert(Math.abs(left - 250) <= 4, `the page's body does not centre its children: the button is at x=${left}, not 250`);
+            h.assert(top > 100, `the page's body does not centre vertically: the button is at y=${top}`);
+            await close(h);
+        },
+    },
 ];

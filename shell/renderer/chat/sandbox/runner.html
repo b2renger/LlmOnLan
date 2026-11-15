@@ -709,8 +709,14 @@
       if (liveMode && kind === 'dom' && msg.page === true) {
         document.documentElement.style.overflow = 'auto';
         document.body.style.overflow = 'auto';
+        // The page's markup sits in #root (innerHTML drops its <html> and <body>), so its own `body { display: flex;
+        // align-items: center }` would lay out #root alone: its children, as written, go to the left edge. `contents`
+        // takes #root out of the layout, so the page's body rules reach the page's own elements (review 2026-11-15).
+        if (root) root.style.display = 'contents';
         document.dispatchEvent(new Event('DOMContentLoaded'));
         window.dispatchEvent(new Event('load'));
+      } else if (root && root.style.display) {
+        root.style.display = '';
       }
       var first = queued;
       queued = null;
