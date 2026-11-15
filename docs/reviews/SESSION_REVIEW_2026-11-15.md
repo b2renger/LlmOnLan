@@ -214,6 +214,10 @@ The model menu is now in the message box, not at the top (`s05-owui.png`); a *Wh
   `usage.mjs` (M1), `render/page.mjs` and `render/code.mjs` (a first Preview's `await import` lets a quick *Code* click
   leave one hidden page running until the thread is left: too small to list).
 
+- **The new install's downloads** (the Farm app's pins of 2026-11-14): every file name `runtimeManager.ts` builds exists
+  on its pinned release, HTTP 200 on `releases/download/<tag>/<file>` (the wizard's own route): CPython 3.12.16 +
+  20261110 for the five platform keys, and Ollama v0.40.16's four archives (Windows, macOS, Linux x64 and arm64).
+
 ## Not checked
 
 The Farm app's wizard and window, neither run nor read (it cannot run beside the live Farm app; its update path is
