@@ -46,7 +46,8 @@ One laptop on the Wi-Fi the students will use.
 OK if: the file has counts, and **none** of your words; the second file still lists the template's boxes under
 `boxesRun` (a report saved after a restart lost them until the fix of night n° 6: review of 2026-11-15).
 
-- [] OK
+- [x] OK (owner, 2026-11-16, client v0.2.18: both reports have counts and none of the words; the one after the
+  restart still lists the template's boxes)
 - Notes: 
 
 ## 4. PDFs on the farm (10 min)

@@ -354,7 +354,8 @@ run on a dev client with a copied folder, not on an installed one).
 and the copy (the way back is to quit, put the copy back as `webui.db`, and reinstall v0.2.17's engine: say if you
 need it). Step 3: the answer comes from the file, with its source under it (on the dev client: "gate Zanzibar-9 at
 7:42", 1 source). Step 4: the cube appears. Open WebUI shows its "What's New" note once.
-- [ ] Done · Found:
+- [x] Done (owner, 2026-11-16, installed client v0.2.18 on the PRO 6000, the live farm farm-v0.0.54): "working"; the
+  chats kept, the copy beside `webui.db`, a PDF answered from. Step 4 (Blender) not said · Found: nothing
 
 ### A10 Code, pictures and files
 *Proves:* the sandbox and the File box on a real disk. *Was:* 3.1, 3.5, 3.6, 3.9; LOLCHAT_RIG §15, §15b, §18 (a paused
