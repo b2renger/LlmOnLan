@@ -21,8 +21,10 @@ The model: two models were proven with this agent on five real tasks, on the far
 vLLM default; 11 of 15 on 2026-10-23) and **Flint** (13 of 15 on vLLM 0.33.0, 2026-11-02; not on Ollama). The farm's
 **LOL Vibe** preset serves one of them where vLLM is set up. **qwen3.8** and **nemotron** passed a single edit test (3 of 3,
 2026-09-28): when the farm serves one of those two, a project chat starts on it. The line under the project's name
-says how the chosen model did on code edits (**gemma4** is weak: it thinks itself out of room). It does not know
-Qwen3.6 and Flint yet: it calls them untried.
+says how the chosen model did on code edits: Gemma 4 26B *is good at editing code*; **gemma4** (12B) *is weak at editing
+code: it often runs out of room before it finishes*; Qwen3.6 was *tried on code: 3 of 5 tasks on 15 November (10–11 of 15
+before). Ask for one change at a time.* A model nobody measured, Flint among them, reads *Nobody has tried … on code edits
+yet*.
 
 ## 2. Ask
 
@@ -160,7 +162,7 @@ A Gitea on your LAN works the same way (an `https://` address).
 |---|---|
 | *The coding agent is not installed on this computer yet* | Press **Install the coding agent** (the panel). |
 | *No farm is connected* | The pill at the top: pick a farm. |
-| *The model ran out of room before it finished* | Ask for something smaller, or pick another model: Qwen3.6 or Gemma 4 26B (proven with the agent), or qwen3.8 / nemotron (good at code edits). |
+| *The model ran out of room before it finished* | Ask for a smaller change, or pick a model the Project panel calls *good at editing code* in the model menu (Gemma 4 26B, qwen3.8 or nemotron, when the farm serves one). |
 | *The coding agent cannot work in this folder …* | Windows only: the data folder is on a second drive, a USB stick or a network folder. Move it into your user folder (Preferences ▸ Data location), then send again. |
 | *This file changed since you opened it … so it was not saved* | The agent edited it meanwhile. Copy your changes, click the file in the list (the new version opens), paste them back, **Save**. |
 | *The coding agent stopped before it answered* | Ask again: it restarts, and it gets a short recap of the chat. |

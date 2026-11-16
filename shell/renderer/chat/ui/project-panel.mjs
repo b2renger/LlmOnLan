@@ -329,7 +329,8 @@ function createPanel(host, app) {
     const m = (info && info.underlying) || shown;
     const p = profileFor(m);
     model.textContent = !m ? '' : p.edits === 'good' ? t('project.modelGood', { model: m })
-      : p.edits === 'weak' ? t('project.modelWeak', { model: m }) : t('project.modelUnknown', { model: m });
+      : p.edits === 'weak' ? t('project.modelWeak', { model: m })
+      : p.tried ? t('project.modelTried', { model: m, tried: p.tried }) : t('project.modelUnknown', { model: m });
     model.classList.toggle('is-warn', p.edits === 'weak');
   }
 

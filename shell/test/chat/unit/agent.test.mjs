@@ -194,6 +194,8 @@ export default (test) => {
     assert.equal(profileFor('Qwen3.8 27B · NVFP4', 32768).maxTokens, 8192, 'measured: its own');
     assert.equal(profileFor('Qwen3.6 35B-A3B · NVFP4', 32768).maxTokens, 8192, 'the vLLM default, measured never near 8192');
     assert.equal(profileFor('Qwen3.6 35B-A3B · NVFP4').edits, 'unknown', 'not measured on edits');
+    assert.equal(profileFor('Qwen3.6 35B-A3B · NVFP4').tried, '3 of 5 tasks on 15 November (10–11 of 15 before)', 'the panel says it was tried (review M3)');
+    assert.equal(pickEditor('Qwen3.6 35B-A3B · NVFP4', [{ id: 'Qwen3.6 35B-A3B · NVFP4' }, { id: 'Gemma 4 26B-A4B · NVFP4' }], false), 'Gemma 4 26B-A4B · NVFP4', 'tried is not good: Gemma 4 26B stays the coding model');
     assert.equal(profileFor('gemma4:12b', 32768).maxTokens, 4096);
   });
 

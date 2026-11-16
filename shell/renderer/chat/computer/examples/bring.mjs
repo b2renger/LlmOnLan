@@ -170,7 +170,7 @@ export const BRING = [
   {
     key: 'receive',
     title: 'Receive',
-    needsFarm: 'only for "From: the farm\'s message bus" (its operator turns on the Message bus plugin). A board on USB needs no farm.',
+    needsFarm: 'only when From is set to "the farm\'s message bus" (its operator turns on the Message bus plugin). A board on USB needs no farm.',
     what: 'Hands on what a board (an Arduino, an ESP32) says over the USB cable, one line per message — or what arrives on a topic of the farm\'s message bus. A line that is JSON, like {"light": 512}, flows on as data. Over USB, nothing leaves this computer.',
     inputs: [],
     output: 'Hand on: the latest message (text, or data when it is JSON), or every new message since the last run, as a list. From the bus, each message is {topic, data}.',
@@ -178,7 +178,7 @@ export const BRING = [
       'Put the lol_serial sketch on the board (the "Talk to a board" template holds it: copy it into the Arduino IDE), plug it in, press "Choose the board…", pick it and press Run all.',
       'Wire it into a Code box: inputs.in[0].light is the reading. The box shows the board\'s last line live.',
       'Close the Arduino Serial Monitor first: only one program can hold the board. Send talks back to it (Send by: USB serial).',
-      'From the farm\'s message bus: type a topic, like lol/+/light (+ is any one level) — the "A board on Wi-Fi" template does this.',
+      'With From set to "the farm\'s message bus": type a topic, like lol/+/light (+ is any one level) — the "A board on Wi-Fi" template does this.',
     ],
     parts: [
       { id: 'e_recv', type: 'receive', x: 0, y: 0, w: 320, h: 200, settings: { transport: 'serial', take: 'latest' } },

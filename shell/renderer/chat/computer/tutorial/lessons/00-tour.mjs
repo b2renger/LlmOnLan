@@ -94,7 +94,7 @@ export default {
     },
     {
       id: 's-library',
-      text: 'Everything you make is saved in the library on the left — this tour too, as “The tour”. Below it, the Learn shelf holds the lessons.',
+      text: 'Everything you make is saved under Graphs, on the left — this tour too, as “The tour”. Below it, the Learn shelf holds the lessons.',
       hint: 'Every box has a ? next to its ▶: it opens a small working example of that box.',
       check: { manual: true },
     },

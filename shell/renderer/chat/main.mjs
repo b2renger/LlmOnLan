@@ -181,7 +181,11 @@ async function mount() {
     /** @type {any} */ (window).lolUsage = {
       ...usage,
       /** Save the report as a file the person picks. @param {string} appVersion */
-      save: (appVersion) => {
+      save: async (appVersion) => {
+        // The box types the report may name come from the code, at save time: a launch with no Computer run never
+        // listed them, and its report dropped every stored box count (review 2026-11-15, M1).
+        const { specMap } = await import('./graph/parts/index.mjs');
+        usage.setBoxTypes([...specMap().keys()]);
         const rep = usage.report({ appVersion });
         return download(`lol-usage-report-${rep.made}.json`, JSON.stringify(rep, null, 1), 'application/json', { app });
       },

@@ -1,11 +1,15 @@
 // The usage report (INSIGHTS_PLAN §6.5, owner 2026-11-12): nothing a person wrote can reach it, whatever is thrown at it.
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createUsage, COUNTS, TIMINGS, KEY, KEEP_DAYS } from '../../../renderer/chat/core/usage.mjs';
 
 const mem = (seed = {}) => {
   const m = new Map(Object.entries(seed));
   return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => { m.set(k, String(v)); }, raw: m };
 };
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DAY = Date.UTC(2026, 10, 12, 12);
 const SECRET = 'Alice wrote this private sentence';
 const FIELDS = new Set(['kind', 'format', 'app', 'made', 'keptDays', 'days', 'day', 'counts', 'timings', 'boxesRun', 'n', 'median', 'worst']);
@@ -52,6 +56,24 @@ export default (test) => {
     assert.deepEqual(d.boxesRun, { text: 1, agent: 1 }, 'a type once per run, only listed ones');
     assert.deepEqual(d.counts, { 'run.done': 1, 'run.error': 1, 'run.cancelled': 1, 'run.capped': 1, 'run.generations': 7 });
     onlyAllowed(u.report({ appVersion: '0.2.17' }), ['text', 'agent']);
+  });
+
+  test('usage: box counts survive a restart: the next launch lists the types at save time (review 2026-11-15, M1)', async () => {
+    const st = mem();
+    const first = createUsage({ storage: st, now: () => DAY });
+    first.setBoxTypes(['note', 'ask']);
+    first.run({ ran: 2 }, { parts: [{ type: 'note' }, { type: 'ask' }] });
+    assert.deepEqual(first.report().days[0].boxesRun, { note: 1, ask: 1 }, 'same launch');
+    const next = createUsage({ storage: st, now: () => DAY });
+    assert.deepEqual(next.report().days[0].boxesRun, {}, 'a launch that listed nothing names nothing (the bug, kept as the rule)');
+    // What lolUsage.save does in chat/main.mjs: the real registry, then the report.
+    const { specMap } = await import('../../../renderer/chat/graph/parts/index.mjs');
+    next.setBoxTypes([...specMap().keys()]);
+    assert.deepEqual(next.report().days[0].boxesRun, { note: 1, ask: 1 }, 'after a restart, as stored');
+    const src = fs.readFileSync(path.join(HERE, '../../../renderer/chat/main.mjs'), 'utf8');
+    const save = src.slice(src.indexOf('save: async (appVersion)'), src.indexOf('usage.report({ appVersion })'));
+    assert.ok(save.includes("import('./graph/parts/index.mjs')") && save.includes('usage.setBoxTypes([...specMap().keys()])'),
+      'lolUsage.save lists the box types before it reports');
   });
 
   test('usage: garbage in storage never reaches the report; a hostile version reads unknown', () => {

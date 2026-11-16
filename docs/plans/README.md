@@ -33,7 +33,8 @@ file stays the whole list.
    the 30 students touch and the farm that serves them; no new feature. After the class, the order below resumes.
    *Night n° 5's review* ([SESSION_REVIEW_2026-11-15](../reviews/SESSION_REVIEW_2026-11-15.md)) fixed the sandbox that
    could not start from a `c:\` app path (H1), the chat page's layout (H2) and the Farm app's wait for pip (H4).
-   **Night n° 6, before the releases, in the order students meet them** (drop from the end if time runs short):
+   **Done by night n° 6 (2026-11-16, DEVLOG 02:04): all of the list below.** M2 stays in Next 15.
+   *Night n° 6, before the releases, in the order students meet them:*
    M4 the Text box's line breaks (lesson 1's haiku on one line; `pre-line`, `css/computer-text.css:139`); M3 Qwen3.6
    "untried" (words only, a measured-but-mixed line; never `edits: 'good'`, which `pickEditor` would prefer to Gemma 4
    26B); M6 `.btn-ghost` (`renderer/styles.css:136`, the declarations of `chat/css/base.css:139-153`); L5 and L6 (words);

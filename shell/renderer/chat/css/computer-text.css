@@ -136,7 +136,8 @@
 
 #lolcomputer .graph-text-body > :first-child { margin-top: 0; }
 #lolcomputer .graph-text-body > :last-child { margin-bottom: 0; }
-#lolcomputer .graph-text-body p { margin: 0 0 8px; }
+/* pre-line: a model's single line breaks (a poem, an address) stay breaks; Markdown alone would join them (review 2026-11-15, M4). */
+#lolcomputer .graph-text-body p { margin: 0 0 8px; white-space: pre-line; }
 #lolcomputer .graph-text-body h1,
 #lolcomputer .graph-text-body h2,
 #lolcomputer .graph-text-body h3,

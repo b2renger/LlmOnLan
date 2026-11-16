@@ -124,7 +124,7 @@ export const SHOW = [
     inputs: [['text', 'text (several arrows are said in order)']],
     output: 'Text: what was said.',
     howto: [
-      'Press Run all: the box says the Text box\'s words. ▶ Say it again repeats them; the run bar\'s Stop stops the voice.',
+      'Press Run all: the box says the Text box\'s words. The box\'s ▶ (Run this box and everything after it) says them again; the run bar\'s Stop stops the voice.',
       'Voice: Automatic (the farm\'s voice if it has one, else this computer\'s), The farm\'s voice (Kokoro), or This computer\'s voice (works offline, sends nothing).',
       'Instruction → Speak reads the answer aloud; Sound (Listen) → Instruction → Speak answers a recorded question out loud — the "Ask out loud" template.',
     ],

@@ -9,7 +9,30 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-11-15 (02:41) — The Farm app shows its LiteLLM update as a start (review H4)
+## 2026-11-16 (02:04) — Night n° 6: the review's before-the-freeze fixes (M4, M3, M6, L5, L6, M1, M5)
+
+All seven, in the order students meet them, each with its check ([the review](reviews/SESSION_REVIEW_2026-11-15.md)):
+- **M4, the Text box's line breaks:** `white-space: pre-line` on `.graph-text-body p` (`css/computer-text.css`). Harness
+  `k4-text-a-poem-keeps-its-lines`: a haiku with single line breaks counts its line boxes: 2 before (joined, wrapped once), 3 after.
+- **M3, Qwen3.6's line:** a `tried` text on its profile (`projects/models.mjs`), `project.modelTried`, chosen in
+  `ui/project-panel.mjs` before `modelUnknown`. Still `edits: 'unknown'`: a unit test checks `pickEditor` still prefers
+  Gemma 4 26B when both are served. The owner's proposed words, with the model's name first like the other lines.
+- **M6, `.btn-ghost`:** the chat's ghost-button declarations in `renderer/styles.css` (radius 8, padding 8/14, 13 px 500,
+  disabled state), no `nowrap` (Preferences is narrow). Checked by a headless-Edge render of Preferences' Connection
+  fragment with the page's four stylesheets: rounded, padded.
+- **L5 and L6, words:** the Tour says *Graphs*; Show's Speak example names the ▶'s real title; Receive's examples say
+  *From* set to *the farm's message bus*; LOLVIBE_IDE_GUIDE quotes the panel's lines and its out-of-room row names models
+  the panel calls good; LOLCHAT_COMPUTER_TUTORIAL and HUMAN_TESTS follow.
+- **M1, the usage report after a restart:** `lolUsage.save` imports the parts registry and calls `setBoxTypes` before
+  `report()` (`chat/main.mjs`). Unit test: two `createUsage` on one storage, the real `specMap()`, and the save's source
+  order; red without the change.
+- **M5, the Tour's new box:** `freeSpot` (`graph/canvas.mjs`): a box meant for the view's centre steps left, by 20, until
+  40 px clear beside and 10 above and below any box, within the view; none free keeps the centre. Harness
+  `k5-lessons-the-tour-text-box-lands-clear-of-the-markdown-view` (the view centred on the Markdown view at zoom 0.5):
+  660–920 over the view before, left of it after. A first try with 40 px above and below too found no spot: the
+  Tour's title sits 38 px above the box. Unit cases in `graph-canvas`.
+
+ — The Farm app shows its LiteLLM update as a start (review H4)
 
 Since 9038485 the Farm app's start awaits `pip install litellm[proxy]==1.106.9 …` after an update, and meanwhile its
 window said *Idle* with an active **Start** (a second start beside pip, on the venv pip rewrites); offline it waited 20 s

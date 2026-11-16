@@ -240,6 +240,28 @@ export default [
         },
     },
     {
+        // Lesson 1's own answer is a haiku: three lines with single line breaks. Markdown joins
+        // them into one paragraph; the box must still show three lines (review 2026-11-15, M4).
+        name: 'k4-text-a-poem-keeps-its-lines',
+        needsMock: true,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(h) {
+            await open(h);
+            const a = await h.computer.place('note', 40, 60);
+            await h.computer.set(a, { text: 'Cool waves touch the shore\nSalt wind\nGulls cry' });
+            await h.computer.run({});
+            await settled(h);
+            const lines = await h.eval((partId) => {
+                const p = document.querySelector(`#lolcomputer .graph-part[data-id="${partId}"] .graph-text-body p`);
+                if (!p) return -1;
+                const range = document.createRange();
+                range.selectNodeContents(p);
+                return new Set(Array.from(range.getClientRects()).map((r) => Math.round(r.top))).size;
+            }, a);
+            h.eq(lines, 3, 'the haiku shows on three lines, as the model wrote it');
+        },
+    },
+    {
         // "Clicking into the box lets the user edit it (source), and the box returns to rendered
         // on commit." Plus the half that matters: an edit is not lost the moment you click away.
         name: 'k4-text-clicking-in-shows-the-source-and-editing-keeps-it',

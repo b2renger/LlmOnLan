@@ -223,6 +223,21 @@ export function marqueeHits(parts, rect) {
   )).map((p) => p.id);
 }
 
+/**
+ * Where a box meant for the view's centre lands: there when no box is near, else the first free spot to its left, since
+ * a new box usually feeds what sits on its right. The Tour's Text box landed half over the Markdown view it must be
+ * wired into, its dot on the view's (review 2026-11-15, M5). Bounded by `minX` (the view's left edge): no free spot
+ * keeps the centre, as before. @param {Array<{x: number, y: number, w?: number, h?: number}>} parts
+ * @param {{x: number, y: number, w: number, h: number}} r @param {number} minX @returns {{x: number, y: number}}
+ */
+export function freeSpot(parts, r, minX) {
+  const gap = GRID * 4;   // beside a box, where the dots are: room to aim a wire on a trackpad; above and below, one grid
+  const busy = (/** @type {number} */ x) => marqueeHits(parts, { x: x - gap, y: r.y - GRID, w: r.w + gap * 2, h: r.h + GRID * 2 }).length > 0;
+  if (!busy(r.x)) return { x: r.x, y: r.y };
+  for (let x = r.x - GRID * 2; x >= minX; x -= GRID * 2) if (!busy(x)) return { x, y: r.y };
+  return { x: r.x, y: r.y };
+}
+
 /** A part's settings without the Live choice (critic L2-1). @param {any} settings */
 function withoutLive(settings) {
   const out = { ...(settings || {}) };
@@ -1288,8 +1303,10 @@ export function createCanvas(o) {
       wy = Math.max(tl.y + m, Math.min(at.y, br.y - size.h - m));
     } else {
       const c = screenToWorld(view, v.w / 2, v.h / 2);
-      wx = c.x - size.w / 2;
-      wy = c.y - size.h / 2;
+      const tl = screenToWorld(view, 0, 0);
+      const spot = freeSpot(session.doc().parts, { x: snap(c.x - size.w / 2), y: snap(c.y - size.h / 2), w: size.w, h: size.h }, tl.x + 16 / (view.zoom || 1));
+      wx = spot.x;
+      wy = spot.y;
     }
     /** @type {any} */ const want = { type: entry.type, x: snap(wx), y: snap(wy), settings: entry.settings || {} };
     if (entry.size) { want.w = entry.size.w; want.h = entry.size.h; }

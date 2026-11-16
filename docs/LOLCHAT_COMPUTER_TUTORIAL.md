@@ -404,7 +404,7 @@ is wired: ✓, ✗ with the reason, or ? when the farm does not say.
 **＋ → Show → Speak** says what arrives, out loud, and passes the same text on, so a graph can carry on
 afterwards. Its **Voice** is either **this computer's** (the voices your operating system has: it works
 offline and sends nothing) or **the farm's** (Kokoro, when the farm offers it: the text goes to the farm
-to be spoken). **Automatic** uses the farm's voice when there is one. **▶ Say it again** repeats it; the run bar's **Stop** stops the voice.
+to be spoken). **Automatic** uses the farm's voice when there is one. The box's **▶** (*Run this box and everything after it*) says it again; the run bar's **Stop** stops the voice.
 Together with Listen, a graph can hear a question and answer it aloud: Sound (Listen) → Instruction →
 Speak — **Learn → Templates → Ask out loud** is that graph, ready to record into.
 
@@ -563,7 +563,7 @@ When the farm's operator turns on the **Message bus** (farm panel ▸ Plugins), 
 point on your network: an ESP32 on Wi-Fi (MQTT), TouchDesigner or Max (OSC) and every Computer (WebSocket)
 publish and listen on the same **topics**, like `lol/board1/light`.
 
-- **Receive** with *From: the farm's message bus* listens to a topic (`+` is any one level, `#` anything
+- **Receive** with **From** set to *the farm's message bus* listens to a topic (`+` is any one level, `#` anything
   below: `lol/+/light` hears every board's light) and hands on `{topic, data}`.
 - **Send** with *Send by: the farm's message bus* publishes on a topic (a dry run until you arm the outputs).
 - **＋ → Control → Trigger** starts a run **by itself**, on each message on a topic (a board's button) or

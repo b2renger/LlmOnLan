@@ -160,7 +160,8 @@ tools** · **Home Assistant** · startup & updates · **usage report** · about)
   → "Restart & install update"; a close-means-close note. There is no update channel.
 - **Usage report** (2026-11-12, not released yet; `docs/plans/INSIGHTS_PLAN.md` §6.5) — what the app counts, in plain
   words, and **Save a usage report…**: the day-by-day counts as JSON (`chat/core/usage.mjs` `report`, built from its
-  frozen lists, never copied from storage), saved through `ui/transfer.mjs` `download`. Nothing is sent.
+  frozen lists, never copied from storage; the box types it may name come from the Computer's parts registry, read when
+  the button is pressed, so counts stored before a restart still show), saved through `ui/transfer.mjs` `download`. Nothing is sent.
 - **About** — the app and Open WebUI versions, "Check for chat-engine update" (a staged sidecar update,
   applied on relaunch), and explicit "Powered by Open WebUI" attribution + link.
 

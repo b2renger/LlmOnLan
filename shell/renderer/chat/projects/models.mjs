@@ -4,7 +4,7 @@
 // speed slider to this page; change nothing else", 3 runs each. A model no one has measured is `unknown`, not bad.
 // Pure: no DOM, no store.
 
-/** @typedef {{edits: 'good'|'weak'|'unknown', maxTokens: number, measured: string}} ModelProfile */
+/** @typedef {{edits: 'good'|'weak'|'unknown', maxTokens: number, measured: string, tried?: string}} ModelProfile */
 
 /** First match wins; ids are matched on the name the farm serves, or the model behind its alias (`underlying`). */
 const KNOWN = [
@@ -15,7 +15,10 @@ const KNOWN = [
   { re: /^gemma[ -]?4[ :-]?26b/i, edits: 'good', maxTokens: 32768, measured: '12/15 agent tasks, 2026-11-06' },
   { re: /^gemma4/i, edits: 'weak', maxTokens: 4096, measured: '1/3 edits: it thinks itself out of budget, 2026-09-28' },
   // The farm's vLLM default, as its list names it ("Qwen3.6 35B-A3B · NVFP4"): never near 8192 a reply (DEVLOG 2026-10-23).
-  { re: /^qwen3\.6/i, edits: 'unknown', maxTokens: 8192, measured: '15 agent tasks, none cut at 8192, 2026-10-23' },
+  // `tried`: the panel's line for a model measured but mixed (review 2026-11-15, M3). Still `unknown`, never `good`: pickEditor
+  // must keep giving way to Gemma 4 26B where the farm serves both.
+  { re: /^qwen3\.6/i, edits: 'unknown', maxTokens: 8192, measured: '15 agent tasks, none cut at 8192, 2026-10-23',
+    tried: '3 of 5 tasks on 15 November (10–11 of 15 before)' },
 ];
 /** A model no one has measured, on a farm that does not say how long a reply may be. */
 const UNKNOWN = { edits: 'unknown', maxTokens: 8192, measured: '' };
@@ -47,7 +50,7 @@ export function pickEditor(current, catalog, chosen) {
 export function profileFor(model, farmReply = null) {
   const id = String(model || '');
   const hit = KNOWN.find((k) => k.re.test(id));
-  if (hit) return { edits: /** @type {any} */ (hit.edits), maxTokens: hit.maxTokens, measured: hit.measured };
+  if (hit) return { edits: /** @type {any} */ (hit.edits), maxTokens: hit.maxTokens, measured: hit.measured, ...(hit.tried ? { tried: hit.tried } : {}) };
   const room = Math.floor(Number(farmReply));
   return { ...UNKNOWN, maxTokens: Number.isFinite(room) && room > UNKNOWN.maxTokens ? room : UNKNOWN.maxTokens };
 }

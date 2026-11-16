@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import {
   GRID, MIN_ZOOM, MAX_ZOOM, CLIP_FORMAT,
   snap, clampZoom, screenToWorld, worldToScreen, zoomAbout,
-  bounds, fitView, normaliseRect, marqueeHits, toClipboard, fromClipboard, acceptSeed,
+  bounds, fitView, normaliseRect, marqueeHits, freeSpot, toClipboard, fromClipboard, acceptSeed,
 } from '../../../renderer/chat/graph/canvas.mjs';
 import { HEAD_H, portOffsetY, portPoint, wirePath, wireDistance, wireEnds } from '../../../renderer/chat/graph/wires.mjs';
 
@@ -119,6 +119,13 @@ export default (test) => {
     ];
     assert.deepEqual(marqueeHits(parts, { x: -10, y: -10, w: 60, h: 60 }), ['a']);
     assert.deepEqual(marqueeHits(parts, { x: 210, y: 110, w: 5, h: 5 }), ['a', 'c'], 'a corner overlap counts');
+    // M5 (review 2026-11-15): the Tour's Markdown view at x 620-960; a 260-wide Text box meant for the centre.
+    const view = [{ x: 620, y: 40, w: 340, h: 380 }];
+    assert.deepEqual(freeSpot(view, { x: 700, y: 200, w: 260, h: 120 }, 0), { x: 320, y: 200 }, 'over the view: steps left, 40 clear of it');
+    assert.deepEqual(freeSpot(view, { x: 290, y: 200, w: 260, h: 120 }, 0), { x: 290, y: 200 }, 'already clear: the centre');
+    assert.deepEqual(freeSpot(view, { x: 700, y: 200, w: 260, h: 120 }, 500), { x: 700, y: 200 }, 'no free spot in view: the centre, as before');
+    assert.deepEqual(freeSpot([], { x: 5, y: 5, w: 10, h: 10 }, 0), { x: 5, y: 5 }, 'an empty canvas');
+    assert.deepEqual(freeSpot([...view, { x: 40, y: 24, w: 420, h: 88 }], { x: 660, y: 150, w: 260, h: 170 }, -200), { x: 320, y: 150 }, 'the Tour title 38 px above does not block it (found in the harness)');
     assert.deepEqual(marqueeHits(parts, { x: 0, y: 0, w: 1000, h: 1000 }), ['a', 'b', 'c']);
     assert.deepEqual(marqueeHits(parts, { x: 900, y: 900, w: 10, h: 10 }), []);
   });

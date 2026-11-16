@@ -1124,7 +1124,7 @@ says `led 1` and the LED switches on. With the Serial Monitor open: the box says
 1. Farm panel ▸ Plugins ▸ **Message bus** ▸ Enable.
 2. Upload `docs/examples/arduino/lol_mqtt/lol_mqtt.ino` with the Wi-Fi, the farm's address and password. Serial
    Monitor; from a PC `mosquitto_sub -h <farm> -t 'lol/#' -v -u lol -P <password>`.
-3. A Receive box, *From: the farm's message bus*, topic `lol/+/light`.
+3. A Receive box, **From** set to *the farm's message bus*, topic `lol/+/light`.
 4. ＋ Control ▸ **Trigger** on `lol/+/light` → Code → Send (the farm's bus, `lol/<board>/led`). Disarmed, then armed.
    Switch to Open WebUI and back. Let the hourly cap hit.
 5. TouchDesigner sends `/light 0.5` to `<farm>:9001`; a Receive box on `osc/light`. With a farm password: also

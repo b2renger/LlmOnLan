@@ -19,6 +19,8 @@ checked again by hand. Screenshots: [shots-2026-11-15/](shots-2026-11-15/) (only
 
 ## Findings, by severity
 
+*Night n° 6 (2026-11-16) fixed M1, M3, M4, M5, M6, L5 and L6 (DEVLOG 2026-11-16 02:04). M2 and the other lows: after the class.*
+
 Each finding: where · what is wrong · the proof · the fix, and **when**: *before the freeze* (small, sure, for night n° 6
 before the releases) or *after* (a plan line).
 

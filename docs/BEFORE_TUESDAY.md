@@ -91,8 +91,11 @@ LlmOnLan. Use the client release that is out on Monday.
 3. **Open WebUI:** ask a question; attach a short PDF and ask about it.
 4. **LOL Vibe:** ask something; press **Stop** during a long answer.
 5. **LOL Vibe ▸ Project ▸ Install the coding agent ▸ New project.** Ask: *"Make index.html: a page with a bouncing
-   ball."* Look at **Preview**.
-6. **The Computer:** the Tour, then lesson 1, then run a template.
+   ball."* Look at **Preview**. The line under the project's name reads *Qwen3.6 35B-A3B · NVFP4, tried on code: 3 of 5
+   tasks on 15 November (10–11 of 15 before). Ask for one change at a time.* (review M3; before, *Nobody has tried…*).
+6. **The Computer:** the Tour, then lesson 1, then run a template. In the Tour, the Text box from **＋** lands to the
+   left of the Markdown view, not on it (M5); lesson 1's haiku shows on three lines (M4). Preferences' buttons
+   (*Rescan now*, *Save a usage report…*) are rounded like the rest of the app (M6).
 7. Write down anything a student would get stuck on.
 
 | | Windows | Mac | Slowest laptop |

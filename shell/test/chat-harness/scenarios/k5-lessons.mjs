@@ -329,6 +329,35 @@ export default [
     },
 
     {
+        // M5 (review 2026-11-15): the Tour's step 2 adds a Text box from ＋, which lands at the view's centre. On a wide
+        // window that centre is the Markdown view the box must be wired into; the box now steps left, clear of it.
+        name: 'k5-lessons-the-tour-text-box-lands-clear-of-the-markdown-view',
+        needsMock: true,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            await h.fresh();
+            await open(h);
+            await h.computer.welcome.press('tour');   // the Tour's door: the first-run offer
+            await h.waitFor(() => {
+                const a = window.LolComputer.app.tutorial.active();
+                return a && a.lessonId === 'l00-tour' && window.LolComputer.debug.computer.docId() === a.docId ? true : null;
+            }, { timeout: 15000 });
+            const v = await part(h, 'p_view');
+            await h.eval((vx, vy) => {
+                const c = document.querySelector('#lolcomputer .graph-canvas') || document.querySelector('#lolcomputer canvas');
+                const r = c ? c.getBoundingClientRect() : { width: 1000, height: 700 };
+                // Zoom 0.5: the harness window is narrow; this shows as much canvas as a wide window does at 1.
+                window.LolComputer.debug.computer.view({ x: r.width / 2 - vx * 0.5, y: r.height / 2 - vy * 0.5, zoom: 0.5 });
+                return true;
+            }, v.x + v.w / 2, v.y + v.h / 2);
+            const id = await h.computer.add('note');
+            h.assert(!!id, 'the ＋ menu placed a Text box');
+            const t = await part(h, id);
+            h.assert(t.x + t.w <= v.x - 20, `the Text box sits left of the Markdown view, its dot clear: box ${t.x}-${t.x + t.w}, view from ${v.x}`);
+        },
+    },
+
+    {
         name: 'k5-lessons-make-a-picture-adds-write-an-svg-from-the-plus-menu',
         needsMock: true,
         timeoutMs: 120000,

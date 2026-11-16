@@ -78,6 +78,7 @@ registerStrings('project', {
   modelGood: '{model} is good at editing code.',
   modelWeak: '{model} is weak at editing code: it often runs out of room before it finishes. If the farm serves qwen3.8 or nemotron, pick one in the model menu at the top of the chat.',
   modelUnknown: 'Nobody has tried {model} on code edits yet: it may do well, or not.',
+  modelTried: '{model}, tried on code: {tried}. Ask for one change at a time.',
   notInstalled: 'The coding agent is not installed on this computer yet.',
   install: 'Install the coding agent (about 120 MB)',
   installCheck: 'Looking for the coding agent on GitHub…',

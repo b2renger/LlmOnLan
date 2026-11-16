@@ -133,12 +133,17 @@ webview.hidden { display: none !important; }
   margin-top: 14px;
 }
 .btn:hover { filter: brightness(1.08); }
+/* Used alone (never with .btn) in Preferences and the connection popover: the chat's own ghost button
+   (chat/css/base.css "buttons"), so the shell's are not the browser's square default (review 2026-11-15, M6). */
 .btn-ghost {
+  appearance: none; font-family: inherit; font-size: 13px; font-weight: 500; line-height: 1.2;
+  padding: 8px 14px; border-radius: 8px; cursor: pointer;
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text);
 }
-.btn-ghost:hover { border-color: var(--accent); filter: none; }
+.btn-ghost:hover:not(:disabled) { border-color: var(--accent); filter: none; }
+.btn-ghost:disabled { opacity: .55; cursor: default; }
 
 /* ---- toast ---- */
 .toast {
