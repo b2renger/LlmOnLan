@@ -37,7 +37,7 @@ One laptop on the Wi-Fi the students will use.
 
 ## 3. The usage report (5 min)
 
-**Waits for client v0.2.18**, not out yet: 0.2.17 and farm 0.0.53 have no usage report. Any laptop.
+**Client v0.2.18** (out 2026-11-16 at 03:03; 0.2.17 has no usage report). Any laptop.
 
 1. Open Open WebUI, LOL Vibe and the Computer once. Ask one question in LOL Vibe; run one template in the Computer.
 2. Preferences ▸ Usage report ▸ **Save a usage report…** ▸ save. Open the file in a text editor.

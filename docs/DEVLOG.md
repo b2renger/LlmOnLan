@@ -9,7 +9,28 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-11-16 (02:04) — Night n° 6: the review's before-the-freeze fixes (M4, M3, M6, L5, L6, M1, M5)
+## 2026-11-16 (03:04) — Release client v0.2.18 and Farm app farm-v0.0.54 (night n° 6, as the owner authorized)
+
+The owner, 2026-11-14 (n° 4's summary): *"At the end of Monday session I want a new release of the farm and client that I
+can test on monday"*, *"Full release tags"*. Cut by `npm run release:patch` in `shell/` (02:29) and `farm-app/` (02:30).
+- **Client v0.2.18:** Open WebUI 0.13.3; LOL Vibe runs an answer's web page in Preview; Save a usage report; the
+  Computer's code boxes without thinking unless Think all; review 2026-11-15's H1 (the sandbox from a `c:\` path), H2
+  and tonight's M1, M3, M4, M5, M6, L5, L6.
+- **Farm app farm-v0.0.54:** LiteLLM 1.106.9 (installed farms updated at the first start, shown as a start, H4);
+  llama.cpp b12377; Ollama v0.40.16 and CPython 3.12.16 for new installs, Ollama's cloud off; vLLM's Start after a model
+  chosen while stopped, and Update after Stop (J17); OCR's 200 pages / 100 MB and its stop when the client leaves; the
+  wizard's download timeouts; the admin token's 400 ms.
+- **Before the tags**, on the tree released: farm 288; Farm app 12 + 3; `test:chat` 1971, lint 0; harness 416/417
+  (`p1-stick-bottom`, the known flake, 3/3 alone); `npm run dist` built the Windows installer. `origin/main` held nothing
+  `main` lacked; no stray local tag.
+- **CI:** farm-v0.0.54 green 02:30 → 02:33, a **Pre-release**, the same 10 files as farm-v0.0.53. v0.2.18 green 02:29 →
+  03:03, all six jobs, **Latest**, the same files as v0.2.17; `owui-sidecar-manifest.json` reads `0.13.3`, bundle rev 2;
+  `latest.yml` offers 0.2.18. The `main` push also started `build-llamacpp-arm64` (the pin changed): cancelled, the
+  release `llamacpp-b12377` keeping its build of 2026-11-14 (`llama-b12377-bin-linux-cuda-arm64.tar.gz`, the name
+  `assetsFor()` asks for). Both release pages carry a *What's new*.
+- **For a person:** A27, BEFORE_TUESDAY 4b, 3, 5, 6; J18 and J17 when the PRO 6000's Farm app updates.
+
+ — Night n° 6: the review's before-the-freeze fixes (M4, M3, M6, L5, L6, M1, M5)
 
 All seven, in the order students meet them, each with its check ([the review](reviews/SESSION_REVIEW_2026-11-15.md)):
 - **M4, the Text box's line breaks:** `white-space: pre-line` on `.graph-text-body p` (`css/computer-text.css`). Harness

@@ -14,7 +14,7 @@
 
 **The aim** (owner, 2026-11-12): teachers use it, and it shows that a small compute cluster gives a school fast, local AI.
 
-**Status:** released client `v0.2.17` (Open WebUI `0.11.4`) and Farm app `farm-v0.0.53` (2026-11-12). Work is committed
+**Status:** released client `v0.2.18` (Open WebUI `0.13.3`) and Farm app `farm-v0.0.54` (2026-11-16). Work is committed
 on `main` in this checkout and backed up to the `night` branch; `origin/main` is the last release. What is released, verified and still to check: [docs/context/status.md](docs/context/status.md).
 
 This file is the core every session loads. The detail lives in **context modules** (the table below): read the ones

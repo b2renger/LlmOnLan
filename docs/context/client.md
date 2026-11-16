@@ -25,7 +25,7 @@
   guest with the answer's CSS and JavaScript blocks (`render/page.mjs`, `render/code.mjs` code-page; the chat's own
   sandbox, loaded on the first Preview; no network: p5, three and d3 from a CDN get the bundled copies, any other
   address is named as missing; the page is laid out as written, its `body` rules reaching its own elements: `#root` is
-  `display: contents` in page mode, review 2026-11-15, not released yet); history in the renderer's IndexedDB `lol-chat` v2 with a one-way
+  `display: contents` in page mode, review 2026-11-15, v0.2.18); history in the renderer's IndexedDB `lol-chat` v2 with a one-way
   import of the v1 `localStorage` history; no RAG, uploads or tools — those P3/P4 plans were cancelled on 2026-09-16
   (docs/archive/plans/LOLCHAT_STUDIO_PLAN.md §6: Open WebUI does documents and search); and
   since 2026-09-28 the **IDE** (P5 v1, [docs/plans/IDE_PLAN.md](../../docs/plans/IDE_PLAN.md)): the workbench's **Project** panel binds a
@@ -158,7 +158,7 @@ tools** · **Home Assistant** · startup & updates · **usage report** · about)
 - **Startup & updates** — "Launch at login"; "Install app updates automatically" (off: a downloaded update installs
   only on "Restart & install", 2026-11-05, v0.2.16); "Check for app updates"
   → "Restart & install update"; a close-means-close note. There is no update channel.
-- **Usage report** (2026-11-12, not released yet; `docs/plans/INSIGHTS_PLAN.md` §6.5) — what the app counts, in plain
+- **Usage report** (2026-11-12, v0.2.18; `docs/plans/INSIGHTS_PLAN.md` §6.5) — what the app counts, in plain
   words, and **Save a usage report…**: the day-by-day counts as JSON (`chat/core/usage.mjs` `report`, built from its
   frozen lists, never copied from storage; the box types it may name come from the Computer's parts registry, read when
   the button is pressed, so counts stored before a restart still show), saved through `ui/transfer.mjs` `download`. Nothing is sent.

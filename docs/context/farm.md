@@ -124,7 +124,7 @@
     2026-11-14, refuses to start keyless otherwise; ours listens on loopback behind the gate). An installed farm is
     brought to the LiteLLM pin by `lol install` and by the Farm app on an update (before the farm starts, the window
     showing it as a start; pip `--retries 1 --timeout 10`, so offline it gives up in 5–20 s and the farm starts on the
-    LiteLLM it has, trying again at the next launch; not released yet).
+    LiteLLM it has, trying again at the next launch; farm-v0.0.54).
   - **Admin panel** at `http://<box>:41997/lol/admin` (bearer = `admin.token`, or a per-run token printed by
     `lol up`; the Farm app pins one; a wrong token waits 400 ms before its 401, as a wrong password does on
     `/lol/plugin-keys`). **Its layout** (owner 2026-10-12, branch `panel-engines`): the **Presets** card on
@@ -238,7 +238,7 @@
     password — one job at a time (Classify and speech to text answer 429 + Retry-After; OCR's vision pages wait their
     turn, and a PDF stops at the next page once its client has gone: 499, `server.py` `process`; OCR reads at most 200 pages of
     a PDF, then a last page says the rest was not read, and refuses an upload over 100 MB with 413: `OCR_MAX_PAGES`,
-    `OCR_MAX_MB`, the owner's numbers of 2026-11-13, not released yet), no body ever logged). **Plugin keys are
+    `OCR_MAX_MB`, the owner's numbers of 2026-11-13, farm-v0.0.54), no body ever logged). **Plugin keys are
     tied to the farm password** (2026-09-27): on an open farm the key rides the snapshot; with a password
     it is `null` there and a client holding the password fetches it from `GET /lol/plugin-keys`
     (`selfServer.js`; the client side is `farmSelect.ts` `applyPluginKeys` + `index.ts`).

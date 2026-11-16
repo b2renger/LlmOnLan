@@ -72,7 +72,7 @@
   `allow-scripts` only, no network, vendored three r160 / p5 / matter, and d3 7.9 (2026-09-27, loaded for code that names
   `d3.`); `sandbox/host.mjs` is the only iframe maker; the main process lets a subframe load only the app's own
   `runner.html`, compared without regard to case on Windows, `util.ts sameFileUrl`: an app path spelt `c:\` refused it
-  and no sandbox started, review 2026-11-15, not released yet)
+  and no sandbox started, review 2026-11-15, v0.2.18)
   **WebRTC out** (2026-11-06, v0.2.16; its CSP never governed WebRTC, and Chromium ignores `webrtc 'block'` here: a guest sent UDP and a TURN TCP connection to an address it chose, and an `<iframe srcdoc>` is a fresh realm): the window has `nodeIntegrationInSubFrames`, so `src/preload/index.ts` runs in every frame before its scripts, gives the `lol` door to the main frame alone (`process.isMainFrame === true`) and strips `RTC*` from every other; `setWebRTCIPHandlingPolicy` is the backstop for UDP; harness `c3-sandbox-webrtc`. Plus at most one **Live** guest that gets the mouse and keys (`lol.orbit(camera)` is the first-party
   camera control); a Preview box's **Edit code** opens a drawer editor. View tools: Select (V) · Hand (H) · − % + Fit,
   answering from anywhere on the Computer, never while typing. What leaves the machine: prompt text and an

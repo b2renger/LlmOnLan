@@ -3,11 +3,12 @@
 > Moved verbatim from CLAUDE.md on 2026-11-12 (the split into context modules). It describes `main` unless a line
 > names a release or says *not released yet*. Keep it true: a change to the code it describes changes this file in the same commit.
 
-## Build status (2026-11-12) — released: client `v0.2.17` (OWUI `0.11.4`) · Farm app `farm-v0.0.53`
+## Build status (2026-11-16) — released: client `v0.2.18` (OWUI `0.13.3`) · Farm app `farm-v0.0.54`
 
 > What each release brought, from v0.2.0 on: the DEVLOG's release entries ([docs/DEVLOG.md](../../docs/DEVLOG.md), headed
 > "Release …"; v0.2.5 is in its 2026-09-29 afternoon entry, farm-v0.0.47 and 0.0.48 in its 2026-10-13 ones).
-> `origin/main` = the last release (client v0.2.17 and Farm app farm-v0.0.53, 2026-11-12). Since that day the work is
+> `origin/main` = the last release (client v0.2.18 and Farm app farm-v0.0.54, 2026-11-16, cut by night n° 6 as the owner
+> authorized; before them v0.2.17 and farm-v0.0.53, 2026-11-12). Since that day the work is
 > committed on `main` in the owner's checkout, backed up to the `night` branch, and pushed to `main` only at a release
 > (CLAUDE.md, *How we work*). The modules
 > describe the code; a change from 2026-11-05 on names the release that brought it.
