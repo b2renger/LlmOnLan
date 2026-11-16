@@ -23,6 +23,7 @@ it went to). A note with no answer is still open.
   and vLLM serves the 48 together; the class of 30 is 30 requests at a time, inside the 48. Letting one laptop run two
   at once makes a person count twice on the farm (30 people could ask 60 at a time against 48 places). Open: a
   choice for the owner, plans ▸ 4 ▸ *The client* (after the class).
+  → 2026-11-16: the owner: **keep the rule for now.** Nothing changed; plans ▸ 4 records the middle way if it comes back.
 
 - 2026-11-13, the owner's own tests before the class, PRO 6000: in LOL Vibe, asked for a small website and could not see
   the result right away: "the clients needs a way to run directly the result of a html js css project, or python
