@@ -13,6 +13,10 @@
 > (CLAUDE.md, *How we work*). The modules
 > describe the code; a change from 2026-11-05 on names the release that brought it.
 
+**Deployed (owner, 2026-11-16 morning):** farm-v0.0.54 on the PRO 6000 (vLLM, Qwen3.6; it reads 0.0.54 at 10:31) and on
+one of the two Sparks; client v0.2.18 on the PRO 6000 and a Windows laptop. The owner: "everything looks good". The
+second Spark is not updated yet.
+
 The full plan is built, released and in multi-user testing. Where to look: the map of the docs,
 [docs/README.md](../../docs/README.md); the dated build log with how each piece was tested, [docs/DEVLOG.md](../../docs/DEVLOG.md);
 what a person must still check, [docs/HUMAN_TESTS.md](../../docs/HUMAN_TESTS.md) (★ = before the next release; its Part 4
