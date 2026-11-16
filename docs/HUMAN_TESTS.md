@@ -1778,7 +1778,9 @@ says `Version: 1.106.9`. If the update could not download (offline), the farm st
 again (farm.log says so). **The way back** if chats fail on 1.106.9: quit the Farm app, run the same `python.exe -m pip
 install "litellm[proxy]==1.97.0" "fastapi>=0.136.3,<0.140.7"` (1.97.0 runs on the new config: checked), start it again.
 It costs each person about 6 % of speed at 30 (RESULTS ▸ *LiteLLM 1.106.9 against 1.97.0*).
-- [ ] Done · Found:
+- [x] Done (owner, 2026-11-16, the PRO 6000 updated to farm-v0.0.54 that morning, no farm password: `requiresKey`
+  false at 10:31 and after; so LiteLLM 1.106.9 starts with no master key, the case at risk): chats from a
+  laptop answer; `pip show litellm` reads 1.106.9; `farm.log` has no failed pip line · Found: nothing
 
 ## K. A Windows test box with an RTX card (not production)
 

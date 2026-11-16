@@ -77,7 +77,9 @@ between them at random. A laptop keeps the farm it last used, so set the passwor
 OK if: the farm button names the PRO 6000 farm, and the farm list shows the Sparks asking for a password.
 
 - [ ] OK
-- Notes:
+- Notes: 2026-11-16, the owner's choice: a password on **one** Spark only; the other stays open on purpose, to test the
+  class with a farm without one. Expect: a new laptop may pick the open Spark by itself (step 2's risk above); the
+  PRO 6000 has no password either (`requiresKey` false). Step 2 not run yet.
 
 ## 5. A student's 20 minutes — Monday afternoon (25 min per laptop)
 
