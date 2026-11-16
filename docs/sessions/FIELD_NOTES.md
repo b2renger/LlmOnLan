@@ -11,6 +11,19 @@ it went to). A note with no answer is still open.
 
 ## Notes
 
+- 2026-11-16, the owner's tests on a Windows laptop, client v0.2.18, the PRO 6000 on farm-v0.0.54: A25, A26, A27 and
+  BEFORE_TUESDAY 3 pass. "If I have an agent running in LOL Vibe I cannot run the Computer boxes, it waits. It should
+  all be parallel; what happens if everyone uses it at the same time?"
+  → 2026-11-16 (read in the code, not changed): **by design, one request to the farm at a time per laptop.** LOL Vibe
+  (a chat or the coding agent) takes the laptop's one foreground slot (`app/controller.mjs` → `gov.acquire('foreground')`);
+  the Computer's boxes go in the background lane (`graph/runner.mjs`, `priority: 'background'`), which runs only while
+  the foreground is idle, one box at a time, and which a Send cuts (`net/governor.mjs`: "the user always wins").
+  The rule dates from farms with one llama.cpp slot, where a second request from the same laptop only slowed its own
+  answer. **Across laptops everything runs at once:** each laptop holds one seat, the farm counts a seat per computer,
+  and vLLM serves the 48 together; the class of 30 is 30 requests at a time, inside the 48. Letting one laptop run two
+  at once makes a person count twice on the farm (30 people could ask 60 at a time against 48 places). Open: a
+  choice for the owner, plans ▸ 4 ▸ *The client* (after the class).
+
 - 2026-11-13, the owner's own tests before the class, PRO 6000: in LOL Vibe, asked for a small website and could not see
   the result right away: "the clients needs a way to run directly the result of a html js css project, or python
   script ... it should be rewarding right away" (in the app, as an artifact, or live in the browser). The live farm

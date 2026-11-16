@@ -320,7 +320,8 @@ ask passed in a dev client on the live farm, DEVLOG 2026-11-14 11:56).
 (the separate script.js ran). Step 3: Code stops it, Preview starts it again at 0; the second page's Preview sends the
 first back to its code. Step 4: the balls bounce (the CDN's p5 is replaced by the copy in the app). A page that loads
 something else from the web says *This preview has no internet: what the page loads from … is missing.*
-- [ ] Done · Found:
+- [x] Done (owner, 2026-11-16, installed client v0.2.18 on a Windows laptop, farm-v0.0.54): "work very well" · Found:
+  nothing in the test; beside it, the Computer waits while LOL Vibe's agent runs (FIELD_NOTES 2026-11-16)
 
 ### A26 ★ The Computer's code boxes write at once; Think all makes them think
 *Proves:* thinking is off for the Computer's code answers unless the toolbar's **Think all** is ticked (owner,
@@ -335,7 +336,9 @@ something else from the web says *This preview has no internet: what the page lo
 on vLLM 0.33.0, 2026-11-14); the Instruction's transcript (its Got tab) shows no reasoning. Step 2: it thinks first
 (reasoning in the Got tab) and takes about twice as long (measured 24.1 s, 666 reasoning tokens); the sketch still
 draws. Untick Think all after.
-- [ ] Done · Found:
+- [x] Done (owner, 2026-11-16, installed client v0.2.18 on a Windows laptop, farm-v0.0.54): "work very well"; the
+  night n° 6 fixes seen there too (the Tour's ＋ box, the haiku on 3 lines, Preferences' buttons, Qwen3.6's line) · Found:
+  nothing
 
 ### A27 ★ Open WebUI 0.13.3: the chats stay, documents and Blender still work
 *Proves:* the bump of 2026-11-14 (owner: the security updates before the class) on a real laptop: an existing data
@@ -354,7 +357,7 @@ run on a dev client with a copied folder, not on an installed one).
 and the copy (the way back is to quit, put the copy back as `webui.db`, and reinstall v0.2.17's engine: say if you
 need it). Step 3: the answer comes from the file, with its source under it (on the dev client: "gate Zanzibar-9 at
 7:42", 1 source). Step 4: the cube appears. Open WebUI shows its "What's New" note once.
-- [x] Done (owner, 2026-11-16, installed client v0.2.18 on the PRO 6000, the live farm farm-v0.0.54): "working"; the
+- [x] Done (owner, 2026-11-16, installed client v0.2.18 on a Windows laptop, the live farm farm-v0.0.54): "working"; the
   chats kept, the copy beside `webui.db`, a PDF answered from. Step 4 (Blender) not said · Found: nothing
 
 ### A10 Code, pictures and files

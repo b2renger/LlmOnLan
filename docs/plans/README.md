@@ -203,6 +203,10 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
   - speech to text on by default on NVIDIA, Qwen3-Omni as the transcriber, and vLLM on a 16 GB card (DEVLOG
     2026-10-10).
 - **The client:**
+  - *the owner, 2026-11-16 (FIELD_NOTES):* **the Computer waits while LOL Vibe answers** (one request at a time per
+    laptop, `net/governor.mjs`). Keep it; or let the Computer run beside a chat **when the farm reports spare places**
+    (vLLM's 48, not llama.cpp's 1), the person's chat still first. After the class; a plan before code, with a measure
+    of 30 laptops × 2;
   - Open WebUI's terminal links now open nothing (xterm's blank window): accept it, or allow a blank window;
   - refuse the bus's WebSocket port 8893 in Fetch/Send;
   - LOL Vibe's wait sentence while vLLM starts;
