@@ -1,6 +1,14 @@
 # Open WebUI must survive its first start
 
-**Status: proposed 2026-11-17 after the class, waiting on the owner.** Nothing is built.
+**Status: approved by the owner, 2026-11-17** ("Do whatever now we need to fix this"). Built the same day; a client
+release waits on the owner's test.
+
+**Also found after the plan was written:** LOL Vibe and the Computer use whichever farm Open WebUI is pointed at
+(`shell/renderer/app.js:404` `activeFarm`). So every switch also moved a student's LOL Vibe and Computer to
+spark-2cb5 (2 seats, both in use at 12:31, gemma4:12b): the likely cause of "sluggish with ten people". The PRO 6000
+itself never had more than 1 request running: its gate passed 16 chat requests to the model, all between 12:21 and
+12:26, then none until it was stopped at 14:13 (LiteLLM's and vLLM's own logs; the seat gate logs no refusals, so a
+refused request would not show). Item 2 protects all three tabs.
 
 ## What happened in the class (2026-11-17)
 
@@ -74,6 +82,15 @@ client, wired, beside the farm, also moved to the Spark 2.5 s after a launch on 
    error can be read from the file, not only from a Terminal.
 
 None of these touch Open WebUI: they are the client's start, its farm choice and its log.
+
+**Built 2026-11-17 (afternoon)**, as above, plus: the health wait says *still starting* after 3 min and goes on to 10
+(an error at 3 min invited a Retry, which kills), and Retry waits while a start runs (`isBooting`). Checks:
+`npm run test:chat` 1974 passed (SA-5 split: quiet 20 s keeps the pin, Automatic and the booted farm; past 60 s or
+unhealthy fails over; a new pick stays strict; three new tests for items 1, 3, 4); and the compiled supervisor driving
+the real Open WebUI 0.13.3: a repoint 4 s into a fresh first start kept the same process and moved once it was healthy
+(`starting → ready → restarting → ready`); a quit during a first start, then a start: `webui.db` set aside, healthy in
+13.7 s; `owui.log` with no request line. Not run here: the app itself in a room with two farms (HUMAN_TESTS A28), a
+Mac.
 
 **Also to measure:** why a fresh Mac's first start takes more than 2 minutes (Windows here: 12–14 s; the Linux
 bundle: 8–9 s). Likely the first import of the bundled Python on macOS (signature checks of each library); a person

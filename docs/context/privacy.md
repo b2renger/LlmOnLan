@@ -14,7 +14,9 @@
   saves them as a file from Preferences ▸ Usage report and gives that file to whom they choose. The vectors are kept
   here; the farm's document search computes them (MiniLM on this computer for a folder that has not met it yet),
   and which model a folder uses is written in `DATA_DIR/lol-embedding.json`. Outside DATA_DIR, under userData, only app plumbing: settings, the downloaded engine,
-  OWUI's webview token/caches, logs (`logs/boot.log`, `logs/client-data.log`, the Computer's opt-in recordings), and
+  OWUI's webview token/caches, logs (`logs/boot.log`, `logs/client-data.log`, the Computer's opt-in recordings,
+  `logs/owui.log`: Open WebUI's own output, all of each start, then only its warnings and errors, never a request
+  line; 1 MB, then the old one as `.1`; since 2026-11-17, approved with OWUI_START_PLAN), and
   — after an upgrade from v0.1.x — the old LOL Vibe copy kept as a backup. Outside both, the machine's Hugging Face
   cache (`~/.cache/huggingface`, shared by every data folder) holds MiniLM, the old search model: no user content.
   The app repairs a half-downloaded copy there before the start of a folder still on it.

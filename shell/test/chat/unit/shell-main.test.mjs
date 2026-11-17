@@ -211,8 +211,21 @@ export default (test) => {
     assert.equal(FS.chooseActive(farms, base).id, 'idle', 'no pin, nothing current: the least busy farm');
     assert.equal(FS.chooseActive(farms, { ...base, activeFarmId: 'busy' }).id, 'busy',
       'unpinning keeps a healthy current farm (sticky — no needless OWUI restart)');
-    assert.equal(FS.chooseActive([{ ...busy, _stale: true }, idle], { ...base, selectedFarmId: 'busy', activeFarmId: 'busy' }).id, 'idle',
-      'a pinned farm that stops answering fails over');
+    // The class of 2026-11-17: a farm quiet for 12 s (stale) lost even its pin, and every move restarted Open WebUI.
+    const NOW = 1_000_000;
+    const quiet = (/** @type {number} */ ms) => ({ ...busy, _stale: true, _lastSeen: NOW - ms });
+    assert.equal(FS.chooseActive([quiet(20_000), idle], { ...base, selectedFarmId: 'busy', activeFarmId: 'busy', now: NOW }).id, 'busy',
+      'a pinned farm quiet for 20 s keeps Open WebUI (QUIET_GRACE_MS)');
+    assert.equal(FS.chooseActive([quiet(20_000), idle], { ...base, activeFarmId: 'busy', now: NOW }).id, 'busy',
+      'on Automatic too: the farm in use keeps Open WebUI while only quiet');
+    assert.equal(FS.chooseActive([quiet(20_000), idle], { ...base, currentEndpoint: 'http://10.0.0.5:4000/v1', now: NOW }).id, 'busy',
+      'and the farm Open WebUI was booted with');
+    assert.equal(FS.chooseActive([quiet(FS.QUIET_GRACE_MS + 1000), idle], { ...base, selectedFarmId: 'busy', activeFarmId: 'busy', now: NOW }).id, 'idle',
+      'a pinned farm silent past the grace fails over');
+    assert.equal(FS.chooseActive([{ ...busy, healthy: false, _lastSeen: NOW }, idle], { ...base, selectedFarmId: 'busy', activeFarmId: 'busy', now: NOW }).id, 'idle',
+      'a farm that says it is unhealthy is left at once');
+    assert.equal(FS.chooseActive([quiet(20_000)], { ...base, now: NOW }), null,
+      'a new pick stays strict: a quiet farm nobody uses is not chosen');
     assert.equal(FS.chooseActive([farm({ id: 'locked', requiresKey: true })], { ...base, usable: (f) => !f.requiresKey }), null,
       'a keyed farm without a password is never auto-picked');
   });
@@ -2044,6 +2057,60 @@ export default (test) => {
     fs.writeFileSync(path.join(f, 'webui.db'), 'a folder from before this check');
     assert.ok(keepDbBeforeEngine(f, '0.11.4'), 'no record yet: copied, to be safe');
     assert.equal(keepDbBeforeEngine(f, 'unknown'), null, 'an unknown version never records itself');
+  });
+
+  test('OWUI_START_PLAN 3: a first start that never finished leaves no database behind', () => {
+    const { setAsideUnfinishedDb, FIRST_START_MARKER } = require(path.join(BUILD, 'sidecar.js'));
+    const d = tempDir('unfinished');
+    fs.writeFileSync(path.join(d, 'webui.db'), 'half-migrated');
+    fs.writeFileSync(path.join(d, 'webui.db-wal'), 'wal');
+    assert.equal(setAsideUnfinishedDb(d, 't1'), null, 'no marker: a database that finished a start is never touched');
+    fs.writeFileSync(path.join(d, FIRST_START_MARKER), 'x');
+    const aside = setAsideUnfinishedDb(d, 't2');
+    assert.equal(aside, path.join(d, 'interrupted-t2'));
+    assert.ok(!fs.existsSync(path.join(d, 'webui.db')) && !fs.existsSync(path.join(d, 'webui.db-wal')), 'both moved');
+    assert.equal(fs.readFileSync(path.join(aside, 'webui.db'), 'utf8'), 'half-migrated', 'moved, not deleted');
+    assert.equal(setAsideUnfinishedDb(d, 't3'), null, 'nothing left to move');
+  });
+
+  test('OWUI_START_PLAN 1: a repoint while Open WebUI starts waits for the start to end; a move back cancels it', async () => {
+    const opts = { endpoint: 'http://10.0.0.5:4000/v1', dataDir: tempDir('defer'), apiKey: null, defaultModel: 'a',
+      searxngUrl: null, tts: null, extract: null, embed: null, stt: null, contextPerSlot: 65536 };
+    const sup = new SidecarSupervisor();
+    sup.on('state', () => {});
+    await withEnv({ LOL_SIDECAR_CMD: path.join(tempDir('nocmd2'), 'missing', 'open-webui') }, () => sup.start(opts));
+    const stops = [], starts = [];
+    sup.stop = async () => { stops.push(1); sup.child = null; };
+    sup.start = async (/** @type {any} */ o) => { starts.push(o); };
+    const child = /** @type {any} */ ({ pid: undefined });
+    sup.child = child; sup.booting = true;
+    await sup.repoint('http://10.0.0.6:4000/v1', null, 'b', null, null, null, 65536, null, null);
+    assert.equal(stops.length, 0, 'no kill while Open WebUI starts');
+    assert.equal(sup.deferred.endpoint, 'http://10.0.0.6:4000/v1');
+    await sup.repoint(opts.endpoint, null, 'a', null, null, null, 65536, null, null);
+    assert.equal(sup.deferred, null, 'back to the farm it is starting on: nothing waits');
+    await sup.repoint('http://10.0.0.6:4000/v1', null, 'b', null, null, null, 65536, null, null);
+    sup.onChildExit(child, 1);   // the start ends by a crash: the restart takes the waiting farm
+    assert.equal(starts.at(-1).endpoint, 'http://10.0.0.6:4000/v1');
+    assert.equal(sup.deferred, null);
+    sup.child = child; sup.booting = false;
+    await sup.repoint('http://10.0.0.7:4000/v1', null, 'c', null, null, null, 65536, null, null);
+    assert.equal(stops.length, 1, 'once Open WebUI runs, a repoint restarts it as before');
+  });
+
+  test('OWUI_START_PLAN 4: owui.log keeps a whole start, then only what is not INFO', () => {
+    const sup = new SidecarSupervisor();
+    const file = path.join(USER_DATA, 'logs', 'owui.log');
+    fs.rmSync(file, { force: true });
+    sup.booting = true;
+    sup.logChild(Buffer.from('INFO  [alembic.runtime.migration] Running upgrade a -> b\n\x1b[32mstarting\x1b[0m\n'));
+    sup.booting = false;
+    sup.logChild(Buffer.from('INFO:     127.0.0.1:5000 - "POST /api/chat/completions HTTP/1.1" 200\nERROR | open_webui.main - boom\n'));
+    const log = fs.readFileSync(file, 'utf8');
+    assert.match(log, /Running upgrade a -> b/, 'the start is kept whole');
+    assert.match(log, / starting\n/, 'without colour codes');
+    assert.doesNotMatch(log, /POST \/api\/chat/, 'no request line once Open WebUI runs');
+    assert.match(log, /ERROR \| open_webui\.main - boom/);
   });
 
   test('cleanup', () => {

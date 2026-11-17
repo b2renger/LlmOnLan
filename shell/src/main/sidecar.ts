@@ -10,7 +10,7 @@ import { spawn, ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { bundledOwuiVersion, resolveSidecarCommand, sidecarExists } from './paths';
-import { net } from 'electron';
+import { app, net } from 'electron';
 import { adoptEmbedding, buildSidecarEnv, embedAnswers, embeddingBlocked, embeddingContract, envProxy, FarmEmbed, FarmStt, folderContract, hubAnswers, miniLmState, repairMiniLm } from './configBridge';
 import { findFreePort, killTree, waitForHttp } from './util';
 import { SidecarState } from './types';
@@ -47,6 +47,36 @@ export function keepDbBeforeEngine(dataDir: string, version: string): string | n
     return kept;
 }
 
+// Open WebUI builds webui.db at its first start on a folder by running ~72 migrations, and on SQLite they are not
+// transactional: a kill inside one leaves the database half-migrated, and every later start exits with code 1
+// ("table … already exists", "duplicate column name …"; reproduced 2026-11-17 on 0.13.3, plans/OWUI_START_PLAN.md).
+// So a start that finds no webui.db writes FIRST_START_MARKER before Open WebUI runs and removes it once Open WebUI is
+// healthy. A start that finds the marker knows the first start never finished: the database cannot hold anything a
+// person wrote (Open WebUI never opened), so it is moved into interrupted-<time>/ and Open WebUI builds a new one.
+export const FIRST_START_MARKER = 'lol-owui-first-start';
+export function setAsideUnfinishedDb(dataDir: string, stamp = new Date().toISOString().replace(/[:.]/g, '-')): string | null {
+    if (!fs.existsSync(path.join(dataDir, FIRST_START_MARKER))) return null;
+    const files = ['webui.db', 'webui.db-wal', 'webui.db-shm'].filter((n) => fs.existsSync(path.join(dataDir, n)));
+    if (!files.length) return null;
+    const dest = path.join(dataDir, `interrupted-${stamp}`);
+    fs.mkdirSync(dest, { recursive: true });
+    for (const n of files) fs.renameSync(path.join(dataDir, n), path.join(dest, n));
+    return dest;
+}
+
+// Open WebUI's own output, kept on this computer in <userData>/logs/owui.log (1 MB, then the old one as .1), so an
+// error a person saw can be read from a file: in the class of 2026-11-17 it went to the console only.
+export function owuiLog(lines: string[]): void {
+    try {
+        const dir = path.join(app.getPath('userData'), 'logs');
+        fs.mkdirSync(dir, { recursive: true });
+        const f = path.join(dir, 'owui.log');
+        try { if (fs.statSync(f).size > 1 << 20) fs.renameSync(f, `${f}.1`); } catch { /* no file yet */ }
+        const at = new Date().toISOString();
+        fs.appendFileSync(f, lines.map((l) => `${at} ${l}\n`).join(''));
+    } catch { /* the log is a convenience */ }
+}
+
 // What start() takes — and what launchOpts() hands back, field for field.
 export interface SidecarStartOpts {
     endpoint: string | null;
@@ -65,6 +95,11 @@ const REINDEX_NOTICE = 'Documents are now indexed on the farm, with a model that
 const BLOCKED_NOTICE = 'This farm does not index documents the way your documents are indexed, so uploading a document fails here: nothing is indexed with another model. Chat works. Uploads work again on a farm that indexes documents.';
 const HEALTH_PATH = '/health';
 const MAX_CRASH_RESTARTS = 5;
+// A fresh Mac's first start took more than 137 s in the class of 2026-11-17. Past the first 3 minutes the panel says it
+// is still starting and the wait goes on, up to 10 minutes in all: an error there invited a Retry, and a Retry kills.
+const FIRST_WAIT_MS = 180_000;
+const MORE_WAIT_MS = 420_000;
+const SLOW_START = 'Open WebUI is still starting. The first start on a computer can take several minutes: leave LlmOnLan open.';
 
 export class SidecarSupervisor extends EventEmitter {
     private child: ChildProcess | null = null;
@@ -86,6 +121,10 @@ export class SidecarSupervisor extends EventEmitter {
     // child never triggers a spurious restart.
     private gen = 0;
     private crashRestarts = 0;
+    // True from the spawn until Open WebUI is healthy, gives up, or exits: a kill then can land inside a migration.
+    // A repoint meanwhile is kept in `deferred` (only the latest) and applied when the start ends.
+    private booting = false;
+    private deferred: SidecarStartOpts | null = null;
     private notice: string | undefined;   // told to the person once this launch is ready (an offline start)
     private state: SidecarState = { status: 'idle', url: null, dataDir: '', endpoint: null };
 
@@ -192,11 +231,21 @@ export class SidecarSupervisor extends EventEmitter {
             PYTHONIOENCODING: 'utf-8',
         };
 
+        // Before keepDbBeforeEngine: a half-built first database is not worth a copy.
+        try {
+            const aside = setAsideUnfinishedDb(this.dataDir);
+            if (aside) console.warn(`[sidecar] Open WebUI's first start on this folder never finished: its unfinished database was moved to ${aside}`);
+        } catch (e) { console.warn(`[sidecar] could not move an unfinished database aside: ${(e as Error).message}`); }
+        const marker = path.join(this.dataDir, FIRST_START_MARKER);
+        if (!fs.existsSync(path.join(this.dataDir, 'webui.db'))) {
+            try { fs.writeFileSync(marker, new Date().toISOString(), 'utf8'); } catch { /* the folder is checked elsewhere */ }
+        }
         const kept = keepDbBeforeEngine(this.dataDir, bundledOwuiVersion());
         if (kept) console.log(`[sidecar] the chats were copied to ${kept} before this Open WebUI's first start on the folder`);
 
         const fullArgs = [...args, '--host', HOST, '--port', String(this.port)];
         console.log(`[sidecar] spawning (${source}): ${command} ${fullArgs.join(' ')}  DATA_DIR=${this.dataDir} endpoint=${this.endpoint}`);
+        owuiLog([`--- start: Open WebUI ${bundledOwuiVersion()}, farm ${this.endpoint}${fs.existsSync(marker) ? ', first start on this folder' : ''}`]);
 
         const child = spawn(command, fullArgs, {
             windowsHide: true,
@@ -213,20 +262,39 @@ export class SidecarSupervisor extends EventEmitter {
         });
         // Compare by identity: only THIS child's unexpected exit matters.
         child.on('exit', (code) => this.onChildExit(child, code));
+        this.booting = true;
 
         // Health-wait (first run downloads the embedding model → allow generous time).
         // 300 ms polling: OWUI comes up between polls, so a coarse interval adds
         // its own tail latency to every boot the user is staring at.
-        const healthy = await waitForHttp(`${url}${HEALTH_PATH}`, { timeoutMs: 180000, intervalMs: 300 });
+        let healthy = await waitForHttp(`${url}${HEALTH_PATH}`, { timeoutMs: FIRST_WAIT_MS, intervalMs: 300 });
         if (myGen !== this.gen) return; // a newer start()/stop() superseded us
+        if (!healthy && this.child === child) {
+            this.setState({ status: 'starting', message: SLOW_START });
+            healthy = await waitForHttp(`${url}${HEALTH_PATH}`, { timeoutMs: MORE_WAIT_MS, intervalMs: 1000 });
+            if (myGen !== this.gen) return;
+        }
+        this.booting = false;
         if (healthy) {
             this.crashRestarts = 0;
+            try { fs.rmSync(marker, { force: true }); } catch { /* removed at the next healthy start */ }
             this.setState({ status: 'ready', url, message: undefined, notice: this.notice });
             console.log(`[sidecar] ready at ${url} (DATA_DIR=${this.dataDir})`);
         } else {
             this.setState({ status: 'error', url: null, message: 'Open WebUI did not become healthy in time. See logs.' });
         }
+        this.applyDeferred();
     }
+
+    // A repoint that arrived while Open WebUI was starting, applied now that the start is over.
+    private takeDeferred(): SidecarStartOpts | null { const d = this.deferred; this.deferred = null; return d; }
+    private applyDeferred(): void {
+        const d = this.takeDeferred();
+        if (d) void this.repoint(d.endpoint, d.apiKey ?? null, d.defaultModel ?? null, d.searxngUrl ?? null, d.tts ?? null, d.extract ?? null, d.contextPerSlot ?? null, d.embed ?? null, d.stt ?? null);
+    }
+
+    // True while a kill could land inside Open WebUI's start (index.ts's Retry waits instead of killing).
+    isBooting(): boolean { return this.booting && !!this.child; }
 
     // No-OWUI build: record the chosen farm endpoint WITHOUT starting any process.
     // repoint() would stop/start the OWUI sidecar — on a machine upgraded from an
@@ -251,7 +319,7 @@ export class SidecarSupervisor extends EventEmitter {
             && JSON.stringify(extract) === JSON.stringify(this.extract)
             && JSON.stringify(embed) === JSON.stringify(this.embed)
             && JSON.stringify(stt) === JSON.stringify(this.stt)
-            && contextPerSlot === this.contextPerSlot) return;
+            && contextPerSlot === this.contextPerSlot) { this.deferred = null; return; }   // back where it runs: drop a waiting move
         // A restart costs a full OWUI boot (~10-30 s of Python imports), so restart
         // only when the EFFECTIVE launch env differs — not when an input differs.
         // E.g. the farm growing its context 65536 → 131072 changes contextPerSlot
@@ -263,7 +331,14 @@ export class SidecarSupervisor extends EventEmitter {
             this.endpoint = endpoint; this.apiKey = apiKey; this.defaultModel = defaultModel;
             this.searxngUrl = searxngUrl; this.tts = tts; this.extract = extract; this.embed = embed; this.stt = stt;
             this.contextPerSlot = contextPerSlot;
+            this.deferred = null;
             console.log(`[sidecar] repoint: inputs changed but the launch env is identical — keeping the running sidecar (ctx/slot now ${contextPerSlot})`);
+            return;
+        }
+        if (this.isBooting()) {
+            // Never kill Open WebUI while it starts: a kill inside a migration breaks its database for good.
+            this.deferred = { endpoint, dataDir: this.dataDir, apiKey, defaultModel, searxngUrl, tts, extract, embed, stt, contextPerSlot };
+            console.log(`[sidecar] repoint to ${endpoint} waits until Open WebUI has finished starting`);
             return;
         }
         console.log(`[sidecar] repoint ${this.endpoint} → ${endpoint} (model ${this.defaultModel} → ${defaultModel}, search ${this.searxngUrl} → ${searxngUrl}, tts ${this.tts?.url} → ${tts?.url}, ocr ${this.extract?.url} → ${extract?.url}, documents ${this.embed?.url} → ${embed?.url}, speech ${this.stt?.url} → ${stt?.url}, ctx/slot ${this.contextPerSlot} → ${contextPerSlot})`);
@@ -284,6 +359,8 @@ export class SidecarSupervisor extends EventEmitter {
         this.gen++;                 // supersede any in-flight start()
         const child = this.child;
         this.child = null;          // null BEFORE killing so the exit event is ignored
+        this.booting = false;
+        this.deferred = null;       // whoever stops decides what starts next
         if (child) await killTree(child.pid);
         if (!opts.keepState) this.setState({ status: 'stopped', url: null });
     }
@@ -293,12 +370,13 @@ export class SidecarSupervisor extends EventEmitter {
         // this.child on stop/restart, so an intentional teardown never reaches here).
         if (child !== this.child) return;
         this.child = null;
-        // Unexpected crash → bounded auto-restart so a transient failure self-heals.
+        this.booting = false;
+        // Unexpected crash → bounded auto-restart so a transient failure self-heals (with a repoint that was waiting).
         if (this.crashRestarts < MAX_CRASH_RESTARTS) {
             this.crashRestarts++;
             console.warn(`[sidecar] exited (code ${code}); restart ${this.crashRestarts}/${MAX_CRASH_RESTARTS}`);
             this.setState({ status: 'restarting', url: null, message: `Sidecar restarted (${this.crashRestarts}/${MAX_CRASH_RESTARTS})` });
-            this.start(this.launchOpts());
+            this.start(this.takeDeferred() ?? this.launchOpts());
         } else {
             this.setState({ status: 'error', url: null, message: `Open WebUI keeps exiting (code ${code}). Check logs.` });
         }
@@ -306,6 +384,15 @@ export class SidecarSupervisor extends EventEmitter {
 
     private logChild(d: Buffer): void {
         const text = d.toString();
-        for (const line of text.split(/\r?\n/)) if (line.trim()) console.log(`[owui] ${line}`);
+        const keep: string[] = [];
+        for (const line of text.split(/\r?\n/)) {
+            if (!line.trim()) continue;
+            console.log(`[owui] ${line}`);
+            // Into owui.log: all of a start (Open WebUI has opened nothing a person wrote yet); once it runs, only what is
+            // not INFO (warnings, errors, tracebacks), so no request line or chat id is kept (docs/context/privacy.md).
+            if (!this.booting && /\bINFO\b/.test(line)) continue;
+            keep.push(line.replace(/\x1b\[[0-9;]*m/g, ''));
+        }
+        if (keep.length) owuiLog(keep);
     }
 }

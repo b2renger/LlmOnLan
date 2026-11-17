@@ -389,6 +389,7 @@ function chooseActive(farms: DiscoveredFarm[]): DiscoveredFarm | null {
         currentEndpoint,
         usable: farmUsable,
         known: farmKnown,
+        now: Date.now(),
     });
 }
 
@@ -936,6 +937,9 @@ function registerIpc(): void {
         // onFarms compares globals that did not change, so nothing self-heals).
         const activeF = discovery?.getFarms().find((f) => f.id === activeFarmId) ?? null;
         const retryKey = activeF ? farmKey(activeF as { id: string; requiresKey?: boolean }) : loadSettings().lastFarmKey;
+        // Open WebUI still starting (the panel showed an error, or a second click): let it finish. A kill inside its
+        // first start's migrations breaks its database for good (plans/OWUI_START_PLAN.md).
+        if (sidecar.isBooting()) return sidecar.getState();
         await sidecar.stop({ keepState: true });
         await sidecar.start({ endpoint: currentEndpoint, dataDir: resolveDataDir(), apiKey: retryKey, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract, embed: currentEmbed, stt: currentStt, contextPerSlot: currentCtxPerSlot });
         return sidecar.getState();

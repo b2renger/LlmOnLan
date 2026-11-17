@@ -9,6 +9,27 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-17 (15:10) — OWUI_START_PLAN built: Open WebUI is never killed while it starts (owner: "Do whatever now we need to fix this")
+
+- `farmSelect.ts` `QUIET_GRACE_MS` (60 s): the pinned, active and booted-with farm keeps Open WebUI (and with it LOL
+  Vibe and the Computer, `renderer/app.js` `activeFarm`) while only quiet; unhealthy leaves at once; a new pick takes
+  fresh farms only. `index.ts` passes `now`.
+- `sidecar.ts`: `booting` from spawn to healthy/give-up/exit; a `repoint` meanwhile is deferred (the latest, dropped
+  when the farm comes back, applied when the start ends or by the crash restart); `isBooting()` makes Retry wait; the
+  health wait says *still starting* after 3 min, gives up after 10; `lol-owui-first-start` marker and
+  `setAsideUnfinishedDb` (→ `interrupted-<time>/`, before `keepDbBeforeEngine`); `owuiLog` → `logs/owui.log` (whole
+  starts, then non-INFO, colour codes stripped, 1 MB rotation).
+- Checks: `npm run test:chat` **1974 passed**, 0 failed, lint 0 (SA-5 split into six cases; new: OWUI_START_PLAN 1, 3,
+  4). The compiled supervisor driving the real Open WebUI 0.13.3 (Electron stubbed): a repoint at 4 s of a fresh
+  first start kept the pid, `starting :9 → ready :9 → restarting :10 → starting :10 → ready :10`, marker gone after
+  healthy; `stop()` during a first start then `start()`: `interrupted-…/webui.db`, ready in 13.7 s; `owui.log` 340
+  lines, 4 `--- start` lines, 0 request lines. Not run: the app in a room with two farms, a Mac (A28); e2e (cannot run
+  here). Docs: client.md, discovery.md, privacy.md (`owui.log`), HUMAN_TESTS A28.
+- **Sluggishness** (owner: "sluggish with ten people"): LiteLLM's log passed 16 chat requests to the model, all
+  12:21–12:26 local, then only `/v1/models`; vLLM's own log: at most 1 running, 0 waiting, ~94 tok/s for one request,
+  no activity line after 12:26:32, a clean stop at 14:13:52. The seat gate logs no refusals. LOL Vibe and the Computer
+  follow Open WebUI's farm, so the switches sent them to the full 2-seat Spark too.
+
 ## 2026-11-17 (14:30) — The class: Open WebUI "keeps exiting (code 1)", the cause reproduced
 
 During the class (owner, 12:30–13:00): most students' Open WebUI tab failed. Read live, nothing restarted: the PRO

@@ -19,8 +19,12 @@ it went to). A note with no answer is still open.
   30 times in 20 minutes (a farm not heard for 12 s loses even its pin), each move killing Open WebUI; a kill inside
   one of its first start's migrations leaves its database broken for good, and every later start exits with code 1.
   Reproduced with Open WebUI 0.13.3 on Windows (3 kill points of 8) and with the released Linux sidecar (2 of 8). Repair of a laptop, and the fix proposed: [OWUI_START_PLAN](../plans/OWUI_START_PLAN.md),
-  waiting on the owner. LOL Vibe and the Computer talk to the farm directly and do not need Open WebUI (whether the
-students used them in the class was not checked).
+  waiting on the owner.
+  → 2026-11-17, later: the owner said "the app was sluggish with ten people on the farm" and approved the plan. The
+  PRO 6000 never ran more than 1 request (16 chat requests reached its model, 12:21–12:26, then none until it was
+  stopped at 14:13), but LOL Vibe and the Computer use Open WebUI's farm (`renderer/app.js` `activeFarm`), so each
+  switch also sent them to the Spark (2 seats, both in use, gemma4:12b): the likely sluggishness. **Built** (the plan,
+  all four items; tests and a run with the real Open WebUI); the release waits on the owner (HUMAN_TESTS A28).
 
 - 2026-11-16, the owner's tests on a Windows laptop, client v0.2.18, the PRO 6000 on farm-v0.0.54: A25, A26, A27 and
   BEFORE_TUESDAY 3 pass. "If I have an agent running in LOL Vibe I cannot run the Computer boxes, it waits. It should

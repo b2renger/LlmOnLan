@@ -87,17 +87,28 @@ export interface ChooseInput {
     usable: (f: DiscoveredFarm) => boolean; // false for a keyed farm we have no password for
     rng?: () => number;
     known?: (f: DiscoveredFarm) => boolean; // a farm this client trusts (pickLeastLoaded); all of them when absent
+    now?: number;                    // the clock, for QUIET_GRACE_MS (index.ts passes Date.now())
 }
+
+// How long the farm in use (pinned, active, or the one OWUI was booted with) keeps it while it is only QUIET: no beacon
+// and no answer to the 2 s poll. `_stale` (12 s) is what the farm list shows; leaving the farm costs a full Open WebUI
+// restart, and LOL Vibe and the Computer follow Open WebUI's farm (renderer activeFarm). In the class of 2026-11-17 a
+// Mac moved them all ~30 times in 20 min between the PRO 6000 and a full 2-seat Spark, and the moves broke Open
+// WebUI's database (plans/OWUI_START_PLAN.md). A farm that SAYS it is unhealthy is left at once.
+export const QUIET_GRACE_MS = 60_000;
 
 // Pick the farm OWUI should use: the user's pinned choice, else the current one
 // if still good (sticky — avoids flapping between equivalents), else the
 // least-loaded healthy farm (spreads a fleet of clients across the boxes).
 export function chooseActive(farms: DiscoveredFarm[], o: ChooseInput): DiscoveredFarm | null {
-    const good = (x: DiscoveredFarm) => x.healthy && !x._stale;
+    const now = o.now ?? Date.now();
+    // The farm in use: healthy, and heard within the grace. A new pick (pickLeastLoaded) stays strict: fresh only.
+    const good = (x: DiscoveredFarm) => x.healthy && (!x._stale || (typeof x._lastSeen === 'number' && now - x._lastSeen < QUIET_GRACE_MS));
     const known = o.known || (() => true);
     if (o.selectedFarmId) { const f = farms.find((x) => x.id === o.selectedFarmId && good(x)); if (f) return f; }
-    // Sticky, except a failover to a stranger: once a farm this client trusts is good again, it goes back there.
-    const sticky = (f?: DiscoveredFarm) => !!f && (known(f) || !farms.some((x) => good(x) && known(x) && o.usable(x)));
+    // Sticky, except a failover to a stranger: once a farm this client trusts is good (fresh) again, it goes back there.
+    const fresh = (x: DiscoveredFarm) => x.healthy && !x._stale;
+    const sticky = (f?: DiscoveredFarm) => !!f && (known(f) || !farms.some((x) => fresh(x) && known(x) && o.usable(x)));
     if (o.activeFarmId) { const f = farms.find((x) => x.id === o.activeFarmId && good(x)); if (sticky(f)) return f!; }
     // Cold boot on a multi-farm LAN: stay with LAST session's farm while it's
     // healthy. The boot sidecar was already started against its endpoint

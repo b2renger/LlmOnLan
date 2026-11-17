@@ -360,6 +360,30 @@ need it). Step 3: the answer comes from the file, with its source under it (on t
 - [x] Done (owner, 2026-11-16, installed client v0.2.18 on a Windows laptop, the live farm farm-v0.0.54): "working"; the
   chats kept, the copy beside `webui.db`, a PDF answered from. Step 4 (Blender) not said · Found: nothing
 
+### A28 ★ Open WebUI survives its first start in a room with two farms
+*Proves:* the fix of the class's failure (2026-11-17, [OWUI_START_PLAN](plans/OWUI_START_PLAN.md)): a farm change during
+Open WebUI's first start waits instead of killing it; a quit during the first start leaves no broken database; Open
+WebUI's output is kept in a file. *Needs:* the next client release (v0.2.19) on a laptop (a Mac if you have one: the
+class's failing laptop was a Mac), the PRO 6000 farm **and** one Spark farm running, both open, 15 minutes. *Was:* new
+(2026-11-17; checked on this computer with the real Open WebUI 0.13.3 driven by the fixed supervisor, not in the app).
+
+1. On the laptop: Preferences ▸ **Change folder…** ▸ a new empty folder ▸ **Start fresh**. The app restarts, and Open
+   WebUI starts for the first time on that folder (the panel: *Starting…*).
+2. While it is still starting, open the farm button and click **spark-2cb5 Farm**, then **AN-A6000PRO Farm**.
+3. Wait until the chat opens. Ask one question.
+4. Step 1 again with another new empty folder. About 10 s into the start, **quit LlmOnLan** (Cmd-Q / close it). Open it
+   again and wait.
+5. Open `logs/owui.log` (Mac `~/Library/Application Support/LlmOnLan/logs`, Windows `%APPDATA%\LlmOnLan\logs`).
+
+*Expect:* step 2 does not say *Reconnecting…* while Open WebUI starts; the start goes on. Step 3: the chat opens (on a
+slow laptop after several minutes, with *Open WebUI is still starting…* after 3) on AN-A6000PRO Farm, and answers;
+never *keeps exiting (code 1)*. Step 4: the chat opens; the folder holds an `interrupted-…` folder with a `webui.db`
+in it. Step 5: lines starting `--- start: Open WebUI 0.13.3`, and no line with `POST /api/`.
+*If a laptop still shows "keeps exiting (code 1)" from the class* (v0.2.19 does not repair those): quit LlmOnLan, move
+`webui.db`, `webui.db-shm` and `webui.db-wal` from its `owui-data` folder into a new folder `old` (never `lol-client`),
+reopen.
+- [ ] Done · Found:
+
 ### A10 Code, pictures and files
 *Proves:* the sandbox and the File box on a real disk. *Was:* 3.1, 3.5, 3.6, 3.9; LOLCHAT_RIG §15, §15b, §18 (a paused
 sandbox); COMPUTER_STATUS "What only you can check" 3 and 8.

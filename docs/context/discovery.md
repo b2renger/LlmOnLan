@@ -24,7 +24,10 @@ mDNS because ComfyQ proved multicast alone is flaky across consumer APs, and thi
   when stale). The active farm is re-polled every 2 s; stale after 12 s, dropped after 120 s. Choice
   (pure rules in `farmSelect.ts`; `index.ts` `connectTo()` saves the whole farm context, password included): the pinned
   farm → the current one (sticky) → last session's endpoint → the least-loaded healthy farm (coordinators
-  first; load = clients/slots, else GPU%; ties within 15 points picked at random). Clicking a farm card pins
+  first; load = clients/slots, else GPU%; ties within 15 points picked at random). The first three keep the farm while it
+  is only quiet, up to `QUIET_GRACE_MS` (60 s) since it was last heard; a farm that says it is unhealthy is left at
+  once, and a new pick takes fresh farms only (2026-11-17: in the class a Mac moved Open WebUI, LOL Vibe and the
+  Computer ~30 times in 20 min between two farms after 12 s silences, [OWUI_START_PLAN](../plans/OWUI_START_PLAN.md)). Clicking a farm card pins
   it; the popover's "Automatic — least busy farm" row removes the pin; entering a password does not pin. A
   farm seen under two addresses keeps the one it was first reached at while that one answers (it moves
   only after 12 s of silence). The least-busy pick skips a password-protected farm

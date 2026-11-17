@@ -100,7 +100,15 @@
   And while MiniLM is not on disk, one HEAD to huggingface.co (3 s, Electron's `net.fetch` so the system
   proxy applies; none behind an env proxy): no answer → that launch alone gets `HF_HUB_OFFLINE=1`, the chat
   opens in ~12 s instead of the hub's 123-466 s of retries, and a toast says uploads need one start online
-  (all 2026-10-08, measured with the bundled sidecar). A page OWUI loaded while the farm was not answering lists no model until reloaded:
+  (all 2026-10-08, measured with the bundled sidecar). **Open WebUI is never killed while it starts**
+  (2026-11-17, after the class, [OWUI_START_PLAN](../plans/OWUI_START_PLAN.md)): its first start builds `webui.db` by
+  ~72 migrations that SQLite does not run in a transaction, and a kill inside one broke the database for good (every
+  later start *exits (code 1)*). So `sidecar.ts` defers a `repoint` that arrives while a start has not reached healthy
+  (only the latest; dropped when the farm comes back; applied when the start ends, or by the crash restart), Retry
+  waits instead of killing (`isBooting`), and the wait shows *still starting* after 3 min and gives up after 10. A start
+  that finds no `webui.db` writes `DATA_DIR/lol-owui-first-start` and removes it when healthy; a start that finds it
+  moves `webui.db*` into `DATA_DIR/interrupted-<time>/` (a quit during the first start). Open WebUI's output goes to
+  `<userData>/logs/owui.log` (whole starts, then non-INFO lines only; privacy.md). A page OWUI loaded while the farm was not answering lists no model until reloaded:
   the renderer reloads it once when that farm answers (`app.js` `reloadIfFarmBack`). Each OWUI state, with
   the seconds since launch, goes to `<userData>/logs/boot.log` (1 MB, then `.1`): the timeline a slow-load
   report needs. It holds the states only (`starting`, `ready`, `restarting`, `stopped`, an error, with the farm in
