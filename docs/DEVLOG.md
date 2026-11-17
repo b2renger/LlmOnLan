@@ -9,6 +9,23 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-17 (14:30) — The class: Open WebUI "keeps exiting (code 1)", the cause reproduced
+
+During the class (owner, 12:30–13:00): most students' Open WebUI tab failed. Read live, nothing restarted: the PRO
+6000 healthy throughout (`/lol/self` each second for 25 s; 12 clients, 5 of 48 seats, 0 queued). A Mac's `boot.log`
+(owner): 30 switches of Open WebUI between the PRO 6000 (pinned) and spark-2cb5 in 20 min, on the Spark's 5 s beacon
+grid; the first start not healthy at 137 s; from the 4th start, every start exited with code 1 at 16–20 s.
+- **Reproduced** (Open WebUI 0.13.3 from `scratchpad/owui013`, fresh `DATA_DIR`, `taskkill /F` the moment the Nth
+  `Running upgrade` line prints, then a normal start): N = 3, 10, 20, 40, 70 healthy in 12–14 s; N = 30, 50, 60 exit 1
+  in 3 s with `table _alembic_tmp_knowledge already exists`, `duplicate column name: timer_at`, `duplicate column
+  name: version_id`. Moving `webui.db` aside: healthy in 13.5 s.
+- **Linux** (`owui-sidecar-linux-x64` of v0.2.18 in WSL, the Mac client's kill: SIGTERM to the group, SIGKILL after
+  1.5 s): 14 kills at N = 3–60, with 0–200 ms delays, all recovered (8–9 s). The window is a kill inside a migration's
+  SQL; not reproduced on Unix, and the Mac's own error text was not read.
+- Open WebUI's docs: SQLite migrations are non-transactional, an interrupted one leaves the database
+  "partially-migrated" (docs.openwebui.com/troubleshooting/manual-database-migration). No matching issue found.
+- Plan: [plans/OWUI_START_PLAN.md](plans/OWUI_START_PLAN.md), waiting on the owner. No code changed.
+
 ## 2026-11-16 (03:04) — Release client v0.2.18 and Farm app farm-v0.0.54 (night n° 6, as the owner authorized)
 
 The owner, 2026-11-14 (n° 4's summary): *"At the end of Monday session I want a new release of the farm and client that I

@@ -11,6 +11,18 @@ it went to). A note with no answer is still open.
 
 ## Notes
 
+- 2026-11-17, **the class of 30 students**, PRO 6000 (farm-v0.0.54, vLLM) and one open Spark in the room, client
+  v0.2.18: very few students got Open WebUI working. Their laptops saw the PRO 6000, but the Open WebUI tab said
+  *"Could not start the chat — Open WebUI keeps exiting (code 1)"*, Retry did not help (a Mac's screen and `boot.log`).
+  The owner: the class is a failure.
+  → 2026-11-17 (afternoon, read and reproduced, nothing changed in the code): the farm was healthy all along (never
+  more than 5 of 48 seats used). The client moved Open WebUI between the two farms about 30 times in 20 minutes (a
+  farm not heard for 12 s loses even its pin), each move killing Open WebUI; a kill inside one of its first start's
+  migrations leaves its database broken for good, and every later start exits with code 1. Reproduced with Open WebUI
+  0.13.3 (3 kill points of 8). Repair of a laptop, and the fix proposed: [OWUI_START_PLAN](../plans/OWUI_START_PLAN.md),
+  waiting on the owner. LOL Vibe and the Computer talk to the farm directly and do not need Open WebUI (whether the
+students used them in the class was not checked).
+
 - 2026-11-16, the owner's tests on a Windows laptop, client v0.2.18, the PRO 6000 on farm-v0.0.54: A25, A26, A27 and
   BEFORE_TUESDAY 3 pass. "If I have an agent running in LOL Vibe I cannot run the Computer boxes, it waits. It should
   all be parallel; what happens if everyone uses it at the same time?"

@@ -9,6 +9,9 @@ box serves the class (20–30 people, 50 at most) with vLLM; the operator does e
 processed in a cloud; the code follows the ponytail ladder.
 
 **The open plans:**
+- [OWUI_START_PLAN.md](OWUI_START_PLAN.md) — **the class's failure (2026-11-17):** Open WebUI killed during its first
+  start by the client's farm switches, its database left broken, every later start *exits (code 1)*. Reproduced; four
+  small client changes proposed, **waiting on the owner** (§4).
 - [CLASS_TEST_2026-11-17.md](CLASS_TEST_2026-11-17.md) — **the class of 30 students on Tuesday 17 November** (owner
   2026-11-13): chat, LOL Vibe and the Computer tight for that day, and the tutorials, docs and in-app tutorials refined.
   **It comes first until the class**: its nights, its freezes (the client Monday 16 at 12:00, the farm Monday evening)
@@ -177,6 +180,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 ## 4. Waiting on the owner
 
 **The ones that unblock the most:**
+0. **[OWUI_START_PLAN](OWUI_START_PLAN.md)** (2026-11-17, after the class): may a session build its four changes
+   (no kill during a start; a quiet pinned farm keeps Open WebUI for 60 s; a never-finished first database set aside;
+   Open WebUI's output in `logs/owui.log`), and cut a client release after your test? **S–M**.
 1. **The next release and the ★ list** (Now 1–2), and which build tests today's fixes: a local build or a pre-release
    tag. *Owner, 2026-11-14: full release tags at the end of Monday's session (n° 6), tested on Monday.*
 2. **A quiet hour on the PRO 6000** (Now 3, then Next 1).
