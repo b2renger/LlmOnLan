@@ -19,9 +19,11 @@ grid; the first start not healthy at 137 s; from the 4th start, every start exit
   `Running upgrade` line prints, then a normal start): N = 3, 10, 20, 40, 70 healthy in 12–14 s; N = 30, 50, 60 exit 1
   in 3 s with `table _alembic_tmp_knowledge already exists`, `duplicate column name: timer_at`, `duplicate column
   name: version_id`. Moving `webui.db` aside: healthy in 13.5 s.
-- **Linux** (`owui-sidecar-linux-x64` of v0.2.18 in WSL, the Mac client's kill: SIGTERM to the group, SIGKILL after
-  1.5 s): 14 kills at N = 3–60, with 0–200 ms delays, all recovered (8–9 s). The window is a kill inside a migration's
-  SQL; not reproduced on Unix, and the Mac's own error text was not read.
+- **Linux** (`owui-sidecar-linux-x64` of v0.2.18 in WSL): with the data folder on WSL's `/tmp` (a RAM disk) 14 kills
+  all recovered, the migrations too fast for a kill to land inside one. On **ext4**, SIGKILL to the group 50 or 150 ms
+  after the Nth line: N = 60 → exit 1 in 2 s, `duplicate column name: version_id` (2 of 8); N = 10, 30, 50 recovered.
+  SIGTERM at the line itself (the Mac client's first signal) stopped it at once, before the SQL: 3 of 3 recovered.
+  The Mac's own error text was not read (Open WebUI's output is not saved to a file).
 - Open WebUI's docs: SQLite migrations are non-transactional, an interrupted one leaves the database
   "partially-migrated" (docs.openwebui.com/troubleshooting/manual-database-migration). No matching issue found.
 - Plan: [plans/OWUI_START_PLAN.md](plans/OWUI_START_PLAN.md), waiting on the owner. No code changed.

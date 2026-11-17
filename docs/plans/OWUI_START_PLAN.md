@@ -4,16 +4,17 @@
 
 ## What happened in the class (2026-11-17)
 
-Most students could not use the Open WebUI tab: *"Could not start the chat — Open WebUI keeps exiting (code 1)"*.
-The farm was healthy the whole time (PRO 6000: 0.0.54, vLLM, 48 seats, never more than 5 in use). One student's Mac
-log (`boot.log`, read with the owner; not kept here: it holds a person's path) shows the chain:
+Few students got the Open WebUI tab working (the owner); the screens showed *"Could not start the chat — Open WebUI
+keeps exiting (code 1)"*. The farm was healthy when read (PRO 6000: 0.0.54, vLLM, 48 seats, 5 in use at 12:31). One
+student's Mac log (`boot.log`, read with the owner; not kept here: it holds a person's path) shows the chain:
 
 1. **The first start of Open WebUI on a fresh Mac was slow:** not healthy after 137 s.
 2. **The client moved Open WebUI between the two farms in the room** (the PRO 6000, pinned, and spark-2cb5) about 30
    times in 20 minutes. Every move kills Open WebUI and starts it again. The cause: a farm not heard for 12 s is
    *stale* (`shell/src/main/discovery.ts:73`), and a stale farm loses even its pin (`shell/src/main/farmSelect.ts:96-98`).
-   On a classroom Wi-Fi where 30 laptops download 740 MB each, 12 s without one 2 s poll answering (1.5 s timeout) is
-   easy. The other farm's next 5 s beacon wins, and the switch comes back as soon as the PRO 6000 answers.
+   Why the PRO 6000 went quiet for 12 s on that Mac is not known (a hypothesis: the Wi-Fi, with 30 laptops each
+   downloading 740 MB; see below). The other farm's next 5 s beacon wins, and the switch comes back as soon as the PRO
+   6000 answers.
 3. **From the fourth start on, every start exited with code 1**, 16–20 s in, with no switch between, and *Retry* did
    not help.
 
@@ -36,10 +37,20 @@ Nth migration, then started again normally (a script in the session's scratch fo
 | 60 (`Add single-parent group hierarchy`) | **exit 1**: `duplicate column name: version_id` |
 
 A broken folder **stays broken**: every later start dies the same way, which is what *Retry* met on the Mac. Moving
-`webui.db` aside repaired it (healthy in 13.5 s). On Linux (the released `owui-sidecar-linux-x64`, killed like the Mac
-client kills: SIGTERM to the group, SIGKILL 1.5 s later) 14 kills at the start of a migration all recovered: the
-window is a kill that lands *inside* a migration's SQL, which a slow first start makes far more likely. The Mac's own
-error text was not read (Open WebUI's output goes to the console only, item 4).
+`webui.db` aside repaired it (healthy in 13.5 s).
+
+**The same on Unix**, with the released `owui-sidecar-linux-x64` of v0.2.18 in WSL, its data folder on ext4, SIGKILL to
+the group 50 or 150 ms after the Nth migration's line: N = 60 → **exit 1** in 2 s, `duplicate column name:
+version_id` (2 of 8 kills); N = 10, 30, 50 recovered. (A first try on WSL's `/tmp`, a RAM disk, never broke: the
+migrations ran too fast for a kill to land inside one.) What breaks a folder is a kill that lands *inside* a
+migration's SQL, and a slow first start gives every switch more chances to. The Mac's own error text was not read:
+Open WebUI's output goes to the console only (item 4). So for the Mac, this is the cause that fits its log, proven on
+the same Open WebUI on Windows and Linux, not read on the Mac itself.
+
+**Read from one laptop:** the log is one student's Mac; the other laptops' failures were seen on their screens, not in
+their logs. That the Wi-Fi's load made the PRO 6000 go quiet for 12 s is a hypothesis: this computer's own installed
+client, wired, beside the farm, also moved to the Spark 2.5 s after a launch on 16 November and once at 21:00. So item
+2 alone will not stop every switch; **item 1 is the one that protects a first start.**
 
 ## The fix (four small changes, each with its check)
 
@@ -50,9 +61,10 @@ error text was not read (Open WebUI's output goes to the console only, item 4).
 2. **A pinned or current farm keeps Open WebUI while it is only quiet.** Stale (12 s) stays what the farm list shows;
    moving Open WebUI away from the pinned or current farm waits until it has been silent for 60 s, or the farm says
    it is unhealthy. Check: `farmSelect` tests, a stale pin with another healthy farm present → no switch before 60 s.
-3. **A database whose first start never finished is not kept.** Before a start, the client notes whether `webui.db`
-   exists. If it did not, and that start ends without reaching healthy (killed, crashed, app quit), the next start
-   first moves `webui.db*` into `owui-data/interrupted-<time>/`. Nothing a person wrote can be in it: Open WebUI never
+3. **A database whose first start never finished is not kept.** When a start finds no `webui.db`, the client writes a
+   marker file in the data folder before it starts Open WebUI, and removes it when Open WebUI is healthy. A start that
+   finds the marker (the first start was killed, crashed, or the app quit) first moves `webui.db*` into
+   `owui-data/interrupted-<time>/`. The marker is on disk so that it survives quitting the app. Nothing a person wrote can be in it: Open WebUI never
    opened. Check: the reproduction above, run through the client's sidecar code.
    *Not covered:* a folder with chats broken by an interrupted **upgrade** migration. The copy the client already makes
    before a new Open WebUI's first start on a folder (`keepDbBeforeEngine`) is the way back; the error panel should
