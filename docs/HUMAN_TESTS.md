@@ -371,9 +371,11 @@ class's failing laptop was a Mac), the PRO 6000 farm **and** one Spark farm runn
    WebUI starts for the first time on that folder (the panel: *Starting…*).
 2. While it is still starting, open the farm button and click **spark-2cb5 Farm**, then **AN-A6000PRO Farm**.
 3. Wait until the chat opens. Ask one question.
-4. Step 1 again with another new empty folder. About 10 s into the start, **quit LlmOnLan** (Cmd-Q / close it). Open it
-   again and wait.
+4. Step 1 again with another new empty folder. Watch that folder: as soon as a `webui.db` file appears in it, **quit
+   LlmOnLan** (Cmd-Q / close it). Open it again and wait.
 5. Open `logs/owui.log` (Mac `~/Library/Application Support/LlmOnLan/logs`, Windows `%APPDATA%\LlmOnLan\logs`).
+6. Back to your own data: Preferences ▸ **Change folder…** ▸ your usual folder (the one Preferences showed before step
+   1). The two test folders can then be deleted.
 
 *Expect:* step 2 does not say *Reconnecting…* while Open WebUI starts; the start goes on. Step 3: the chat opens (on a
 slow laptop after several minutes, with *Open WebUI is still starting…* after 3) on AN-A6000PRO Farm, and answers;
@@ -890,7 +892,8 @@ blocks.
 1. Power off (or stop) the second farm mid-reply. 2. Walk between access points during a reply.
 
 *Expect:* the reply ends with a network note plus Continue; the strip says *farm silent* within ~15 s; the composer
-does not freeze; clients move to the other farm. Roaming either completes or ends with a readable note plus Continue,
+does not freeze; clients move to the other farm within about a minute (a farm that only goes quiet keeps them 60 s
+since 2026-11-17, OWUI_START_PLAN; one that says it is unhealthy, at once). Roaming either completes or ends with a readable note plus Continue,
 never a stuck spinner.
 - [ ] Done · Found:
 

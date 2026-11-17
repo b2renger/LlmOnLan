@@ -17,6 +17,11 @@
 one of the two Sparks; client v0.2.18 on the PRO 6000 and a Windows laptop. The owner: "everything looks good". The
 second Spark is not updated yet.
 
+**The class of 2026-11-17 failed on Open WebUI** (FIELD_NOTES): farm switches killed its first start and broke its
+database (*keeps exiting (code 1)*). **The fix is on `main`, not released yet** ([OWUI_START_PLAN](../plans/OWUI_START_PLAN.md),
+DEVLOG 2026-11-17): the client release waits on the owner's go, then HUMAN_TESTS A28. Laptops the class broke need the
+manual repair (A28's last lines) with any version.
+
 The full plan is built, released and in multi-user testing. Where to look: the map of the docs,
 [docs/README.md](../../docs/README.md); the dated build log with how each piece was tested, [docs/DEVLOG.md](../../docs/DEVLOG.md);
 what a person must still check, [docs/HUMAN_TESTS.md](../../docs/HUMAN_TESTS.md) (★ = before the next release; its Part 4
