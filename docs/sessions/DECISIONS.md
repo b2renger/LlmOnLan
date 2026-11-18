@@ -34,6 +34,9 @@ its date, before anything else, and commits it. An unanswered question's default
 - **2026-11-05.** Clients run on people's own computers; farms on the owner's machines. No shared-computer case.
 - **2026-10-07.** The operator does everything from the Farm app: no config file or script for an operator.
 - **2026-10-04.** Scale up on big boxes with vLLM; the small GPUs are not farm capacity; no per-person identity.
+- **2026-11-18, the chat (21:14).** "Qwen 3.8 is our best local model for the ratio size quality." The owner asked for an
+  evaluation of HyperQwen (a faster vLLM for Qwen3.8) as a backend and of CodeAF as a harness for LOL Vibe and the
+  Computer, to be tried soon if it is interesting (n° 9's summary ▸ Next).
 
 ## LOL Vibe and the Computer
 
