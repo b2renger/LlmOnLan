@@ -105,23 +105,37 @@ The work runs in **sessions** of five hours: by night, 02:00 to 07:00, from a cr
 leaves open (it dies with that session; the owner asks for it again), and by day when the owner opens one. The thread
 the owner and Claude share is [docs/sessions/](docs/sessions/README.md), one dated summary per session.
 
-1. **Start:** read [the field notes](docs/sessions/FIELD_NOTES.md) (what happened when people used it: an open note
-   outranks a session's own ideas), then the five last summaries and any line the owner wrote in them (`> owner:`): it
-   outranks the summary's own "Next". Then [docs/plans/README.md](docs/plans/README.md) and `git log` since the last summary.
+1. **Start:** read [the owner's decisions](docs/sessions/DECISIONS.md) first: they are standing, and a question they
+   answer is never asked again. Then copy into it every answer the owner gave **in the chat** since the last summary
+   (the questions are asked there; see 3), with its date, and commit it. Then [the field notes](docs/sessions/FIELD_NOTES.md)
+   (what happened when people used it: an open note outranks a session's own ideas), the five last summaries and any
+   line the owner wrote in them (`> owner:`): it outranks the summary's own "Next". Then
+   [docs/plans/README.md](docs/plans/README.md) and `git log` since the last summary.
 2. **One objective per session** (owner, 2026-11-12): the last summary's *Next objective*, with its *Done when*, plus
    at most one small side task. Not the whole menu. The menu the objective comes from: look at the code and the latest
    changes; run the tests, and the client and a farm for real (the skill `lol-scratch-farm`); measure; research models,
    engines and harnesses that matter to us, and the updates of the tools we already pin (owner, 2026-11-14); write a plan; build an approved plan; test what was built; prepare a human
-   test; update the docs and the in-app help and tutorials. Finished early: the next item of the summary's queue.
-3. **End:** write the summary: what was done, with the evidence; what was not, and why; the next objective with its
-   *Done when*, its side task and the queue; the questions for the owner. Commit it, and push the backup.
+   test; update the docs and the in-app help and tutorials. Finished early: the next item of the summary's queue, then
+   the pre-approved work below. **A session uses its whole time** (owner, 2026-11-18): it stops only when its time is up
+   or when everything left needs the owner, and then its summary lists each of those items and what it needs.
+3. **End:** write the summary: `RELEASE READY` first when it is; what was done, with the evidence; what was not, and
+   why; the next objective with its *Done when*, its side task and the queue. Short: the detail goes to the DEVLOG.
+   Commit it, and push the backup. Then **ask the questions in the chat** (owner, 2026-11-18): at most five, each one
+   standing alone, with the choice recommended and **the default the next session takes if there is no answer**. The
+   owner answers there; the summary lists the same questions so the next session finds them.
 4. **Every fifth session** is an adversarial review of the code, the docs and the in-app documentation and tutorials
    (the skill `lol-review`), in place of building.
 
 **Build only what the owner approved:** code comes from an item of [docs/plans/README.md](docs/plans/README.md)'s
 sections *1. Now*, *2. Next* or *3. Later* (never *4. Waiting on the owner* or *5. Parked or dropped*), or from a plan
-whose status line reads `Status: approved by the owner, <date>`. Anything else a session thinks of becomes a plan
-or a question in its summary, not code.
+whose status line reads `Status: approved by the owner, <date>`, or from **the work the owner approved in advance**
+(2026-11-18): fixing a bug that a test or a run reproduces (with that test); a review's findings; test flakes; tests for
+behaviour that exists; docs, help and tutorials corrected to match the code; [the class rehearsal](docs/plans/CLASS_REHEARSAL_PLAN.md).
+None of these may add a feature, a button or a dependency, or touch the prime directive or the privacy boundary.
+Anything else a session thinks of becomes a plan or a question, not code.
+
+**The clock:** a hook in `.claude/settings.json` puts the system's local time before every prompt and after every Edit
+or Write (owner, 2026-11-18). A time written in a file is that time, or a `date` run just before: never a guess.
 
 **The owner's tests are the bottleneck**, so a session saves the owner's time: each human test it asks for is ready to
 run in minutes (the steps written out in HUMAN_TESTS, the files and builds ready, the expected result stated), and it

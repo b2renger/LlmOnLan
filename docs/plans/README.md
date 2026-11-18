@@ -15,6 +15,8 @@ processed in a cloud; the code follows the ponytail ladder.
 - [OWUI_REPAIR_PLAN.md](OWUI_REPAIR_PLAN.md) — **a button that repairs a laptop the class broke** (night n° 9,
   2026-11-18): on *keeps exiting (code 1)* with Open WebUI's migration error, move the database aside and put back the
   copy taken before the update, if any. **Approved by the owner and built 2026-11-18** (day session); in v0.2.19.
+- [CLASS_REHEARSAL_PLAN.md](CLASS_REHEARSAL_PLAN.md) — **the class rehearsed every night** (scratch farms, scripted
+  clients, lost beacons, 10 and 20 chats at once). **Approved by the owner 2026-11-18**; Now, first item.
 - [CLASS_TEST_2026-11-17.md](CLASS_TEST_2026-11-17.md) — **the class of 30 students on Tuesday 17 November** (owner
   2026-11-13): chat, LOL Vibe and the Computer tight for that day, and the tutorials, docs and in-app tutorials refined.
   **It comes first until the class**: its nights, its freezes (the client Monday 16 at 12:00, the farm Monday evening)
@@ -35,6 +37,9 @@ file stays the whole list.
 
 ## 1. Now
 
+- **The class rehearsal** ([CLASS_REHEARSAL_PLAN](CLASS_REHEARSAL_PLAN.md), approved 2026-11-18): two scratch farms,
+  scripted clients with fresh first starts, lost beacons, 10 and 20 chats at once, every night. Step 1 first (the
+  regression test of the class). **M**.
 0. **The class of Tuesday 17 November** ([its plan](CLASS_TEST_2026-11-17.md), owner 2026-11-13): until then, only what
    the 30 students touch and the farm that serves them; no new feature. After the class, the order below resumes.
    *Night n° 5's review* ([SESSION_REVIEW_2026-11-15](../reviews/SESSION_REVIEW_2026-11-15.md)) fixed the sandbox that

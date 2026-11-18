@@ -3,11 +3,13 @@
 One file per work session, named by its date and its number: `2026-11-14-n4.md` (owner, 2026-11-14: sessions now run
 by day too, so a day can hold two). The three first ones kept their date alone (`2026-11-12.md` to `2026-11-14.md`, n° 1
 to 3): links point at them.
-A session starts by reading [FIELD_NOTES.md](FIELD_NOTES.md) (what happened when people used LlmOnLan, written by the
+A session starts by reading [DECISIONS.md](DECISIONS.md) (the owner's standing decisions; it copies the owner's chat
+answers there first), then [FIELD_NOTES.md](FIELD_NOTES.md) (what happened when people used LlmOnLan, written by the
 owner after a class) and the **five last** summaries, and ends by writing one.
 
-**Owner:** edit any of these files. A line that starts with `> owner:` is an instruction or a comment for the next
-session, and it outranks the summary's own "Next". Answer a question under "Questions for the owner" the same way.
+**Owner:** answer the questions in the chat, where they are asked; the next session copies the answers into
+DECISIONS.md. You can also edit any of these files: a line that starts with `> owner:` is an instruction or a comment
+for the next session, and it outranks the summary's own "Next".
 
 ## What a summary holds
 
@@ -37,7 +39,8 @@ One objective, precise enough to start on without this conversation, from an app
 1. …
 
 ## Questions for the owner
-- A decision only the owner takes. One per line, with the choice recommended.
+At most five, the same ones the session's final chat message asks. Each: a decision only the owner takes, the choice
+recommended, and *Default if no answer:* what the next session does. Never one that DECISIONS.md answers.
 ```
 
 Rules for the writer:

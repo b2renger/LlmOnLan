@@ -22,6 +22,10 @@ down what you did not check.
 
 ## 1. Read the thread
 
+0. `docs/sessions/DECISIONS.md`: the owner's standing decisions. Never ask again what it answers. Then **copy into it
+   every answer the owner gave in the chat since the last summary** (the last session asked its questions at the end of
+   its final message; the conversation above holds the answers), dated, in the owner's words; for a question with no
+   answer, write *default taken, <date>* and the default. Commit it before anything else.
 1. `docs/sessions/FIELD_NOTES.md`: what happened when people used LlmOnLan. An open note (one with no `→` answer)
    outranks your own ideas; if one is urgent and approved work can answer it, it may become tonight's objective.
    Answer under a note you act on.
@@ -35,7 +39,9 @@ down what you did not check.
 how you will reach it and how you will know it is done (its *Done when*), and the one side task, if there is one.
 **Consult the advisor before you lock it.** Build only what the owner approved: an item of `docs/plans/README.md`'s sections
 *1. Now*, *2. Next* or *3. Later* (never *4. Waiting on the owner* or *5. Parked or dropped*), or a plan whose status
-line reads `Status: approved by the owner, <date>`. An idea of your own becomes a plan or a question.
+line reads `Status: approved by the owner, <date>`, or the work approved in advance (`CLAUDE.md` ▸ *Build only what the
+owner approved*: reproduced bugs with their test, review findings, flakes, tests, docs to the code, the class
+rehearsal). An idea of your own becomes a plan or a question.
 If the objective is blocked, say why in the summary and take the next item of the queue.
 
 ## 2. Work
@@ -73,17 +79,24 @@ backup, no tag, no release; never touch the farm people use, the owner's client,
 scratch folder; nothing posted to another project; the prime directive and the privacy boundary are not yours to bend.
 If the work needs one of these, stop that task and write the question in the summary.
 
-If you are blocked on everything, write the summary and end the session early. An honest short session is a good one.
+**Use the whole time** (owner, 2026-11-18). The objective done: the side task, then the queue, then the work approved in
+advance. End early only when everything left needs the owner, and list each of those items in the summary with what it
+needs (a test, a decision, the farm at a quiet hour).
 
 ## 4. End
 
 1. Stop every process you started (the scratch farm with `lol down` from its folder, a scratch Ollama, a test client)
    and check they are gone. Check the live farm still answers as it did at the start.
 2. Write `docs/sessions/<date>-n<number>.md` from the template in `docs/sessions/README.md`: done with evidence, not done and
-   why, found, next, questions for the owner.
+   why, found, next, questions for the owner. Short: the detail is in the DEVLOG.
 3. **Is a release due?** If the unpushed commits (`git log origin/main..main`) hold something people should get (a fix
    they are hitting, a feature that is whole and tested), open the summary with `RELEASE READY`: what it brings, and
-   which HUMAN_TESTS a person should run first. Raise it early, for small batches. Do not push `main` or tag.
+   which HUMAN_TESTS a person should run first. Raise it early, for small batches. Do not push `main` or tag until the
+   owner says go.
 4. Write the next session's **objective** with its *Done when*, at most one side task, and the queue after it.
-5. Commit the summary, then `git push origin main:night`. The last line of your final message is the path of the
-   summary.
+5. Commit the summary, then `git push origin main:night`.
+6. **The final message is how the owner hears from you.** It opens with `RELEASE READY` when there is one, then what was
+   done in a few lines, then **the questions, at most five**: each one standing alone (the owner may read it days later),
+   with the choice recommended and *Default if no answer: …*. Never a question `DECISIONS.md` answers. The owner
+   answers in the chat; the next session copies the answers into `DECISIONS.md`. The last line of the final message is
+   the path of the summary.

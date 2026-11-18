@@ -1,4 +1,29 @@
 {
   "model": "sonnet",
-  "advisorModel": "opus"
+  "advisorModel": "opus",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"Clock (system, local): $(date '+%Y-%m-%d %H:%M %a')\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"Clock (system, local): %s\"}}' \"$(date '+%Y-%m-%d %H:%M')\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
 }
