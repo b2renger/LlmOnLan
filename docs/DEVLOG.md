@@ -9,6 +9,38 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-18 (15:25) — LOL Vibe's page beside the chat: errors with their block and line, the code edited live (VIBE_PAGE_PLAN step 1)
+
+**Why:** the owner, in the chat: "improve the way errors in the code are shown in LOL Vibe, I want a better preview, it
+should be detachable and we should be able to see the result and the code side by side, and edit the code with live
+reload"; then three choices (the side column and a pop-out window; edits kept with the thread; the Computer's editor).
+
+**Measured first** (a harness probe on the real runner, deleted after): a page's errors all said **line 1** (the
+runner subtracted the Computer's `new Function` offset, 3, from lines that never had one); `//# sourceURL=` names a
+script in the stack, also for an error a timer throws later; a syntax error has no stack frame and `onerror` gets its
+line but not its name; running a page again in the same frame fails on a top-level `let` (*already been declared*).
+
+**What:** `pageOf` names every script it runs (`lol-h<k>.js` the page's own, `lol-b<i>.js` the answer's block i, on its
+own last line so no line moves) and returns where each one sits; the runner reports that name (from `onerror`, else the
+first named stack frame, else the script it is inserting) with the script's own line; the protocol passes only that
+shape; `blockOf` gives the block and line. The message's note now says *in JavaScript, line 3*. **Side by side**
+(beside Preview) opens a workbench panel, **Page**: a tab per block, the Computer's editor moved out of the drawer into
+`computer/code-editor.mjs` (the drawer uses it; its CSS in `css/code-editor.css`), the page filling its box, errors (a
+click selects the line; the tab turns red, the gutter marks it) and the console. A pause in typing runs a fresh guest;
+*Run as I type* off leaves Ctrl+Enter. Edits are kept on the answer's record (`pageEdits`; also on the view's own copy,
+so a pin writes them back), its block says *edited* and its Preview runs them; **Back to the model's code** asks, then
+drops them. One sandbox for the message's Preview and the panel (`render/page-run.mjs`): one page runs at a time.
+
+**Tested:** `npm run test:chat` 1979 passed, lint 0 (295 files); `render-page` (the names, `blockOf` on a page's script
+and a block's, a name the page does not have, `constructor`), `sandbox-protocol` (`source` refused unless a name).
+Harness: `k30-page-error-names-its-block-and-line` and `k30-page-edit-runs-and-is-kept` (the note, the panel's tabs,
+the error's block and line and the selected `nope();`, the gutter's line 3, the page's own width equal to its box's,
+a typed fix running again with no error and its `console.log`, the edit on the record and the view's copy with the
+answer's text unchanged, back after another thread, reset): 2/2. The Computer's editor and sandbox after the move:
+k11 12/12, c3 29/29; s0 19/19, p1 49/49, k24 2/2.
+
+**Not checked:** a real model's page (HUMAN_TESTS A29); the light theme by eye; a Mac. **Next:** step 2, the window.
+
 ## 2026-11-18 (10:24) — The repair button for a broken Open WebUI database (OWUI_REPAIR_PLAN, approved today)
 
 **Owner, 2026-11-18:** "ok for the repair button"; v0.2.19 after it. Built as [OWUI_REPAIR_PLAN](plans/OWUI_REPAIR_PLAN.md)
@@ -466,7 +498,8 @@ Found running lesson 1 in the real app on the live farm (Qwen3.8 on vLLM): the h
 `"
 
 Gray waves…"`, two empty lines first. `app/ask.mjs` text lane: the box's value drops leading blank lines
-(`/^(?:[ 	]*?
+(`/^(?:[ 	]*
+?
 )+/`), keeping the first line's own indent; `raw` stays as received. Test: `ask.test.mjs` *text() drops
 the blank lines…*; `npm run test:chat` 1,963 passed, lint 0; checked in the real app: *"Sea winds whisper low…"* from its
 first line, 4.1 s. Harness `--phase k8` after the change: 35/35 alone; 31/35 while a dev client ran beside it (a lead on

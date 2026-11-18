@@ -82,14 +82,34 @@
     };
   }
 
-  function report(phase, e, at) {
+  // A chat page's scripts are NAMED (render/page.mjs adds `//# sourceURL=lol-<n>.js`): an error in one of them
+  // carries that name and the line in that script, which has no wrapper to subtract. The name comes from
+  // onerror's own source (a syntax error has no stack frame), else from the first named frame of the stack
+  // (an error thrown later, from a timer or a click). Measured 2026-11-18 (VIBE_PAGE_PLAN): without the name,
+  // every page error said line 1.
+  var NAMED_SRC = /(?:^|\/)(lol-[\w-]+\.js)$/;
+  var NAMED_FRAME = /(lol-[\w-]+\.js):(\d+):(\d+)/;
+  var waking = '';   // the named script wakeScripts is inserting right now: a syntax error's only witness
+  function namedAt(src, stack, at) {
+    var m = NAMED_SRC.exec(String(src || ''));
+    if (m && at && at.line) return { source: m[1], line: at.line, col: at.col || 0 };
+    var f = NAMED_FRAME.exec(String(stack || ''));
+    if (f) return { source: f[1], line: Number(f[2]), col: Number(f[3]) };
+    return waking && at && at.line ? { source: waking, line: at.line, col: at.col || 0 } : null;
+  }
+
+  function report(phase, e, at, src) {
     if (errsLeft <= 0) { errsDropped++; return; }
     errsLeft--;
     var info = errOf(e, phase) || { message: clean(e), stack: '', line: 0, col: 0 };
     if (at && at.line) { info.line = Math.max(0, at.line - LINE_OFFSET); info.col = at.col || 0; }
+    var named = namedAt(src, e && e.stack, at);
+    if (named) { info.line = named.line; info.col = named.col; }
+    // Chromium wraps a syntax error raised while a script is inserted in the DOM call's own words.
+    if (waking) info.message = String(info.message).replace(/^Failed to execute '\w+' on 'Node': /, '');
     send('error', {
       phase: phase, message: info.message, stack: info.stack,
-      line: info.line, col: info.col, n: errsLeft === 0 ? errsDropped + 1 : 0
+      line: info.line, col: info.col, source: named ? named.source : '', n: errsLeft === 0 ? errsDropped + 1 : 0
     });
   }
 
@@ -290,7 +310,7 @@
   });
 
   window.onerror = function (m, src, line, col, e) {
-    report('runtime', e || { message: m }, { line: line, col: col });
+    report('runtime', e || { message: m }, { line: line, col: col }, src);
     return true;
   };
   window.onunhandledrejection = function (ev) { report('rejection', ev && ev.reason); };
@@ -663,7 +683,11 @@
       if (type && type !== 'text/javascript' && type !== 'application/javascript') continue;
       var s = document.createElement('script');
       s.text = old.textContent || '';
+      // A syntax error in this script reaches onerror with this script's line but not its name: say it here.
+      var named = /\/\/# sourceURL=(lol-[\w-]+\.js)\s*$/.exec(s.text);
+      waking = named ? named[1] : '';
       try { old.parentNode.replaceChild(s, old); } catch (e) { report('runtime', e); }
+      waking = '';
     }
   }
 

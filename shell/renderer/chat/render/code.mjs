@@ -22,7 +22,8 @@
  */
 
 import { domFactory } from './dom.mjs';
-import { isPage, pageOf } from './page.mjs';
+import { isPage, pageOf, blockOf, pageBlocks, withEdits } from './page.mjs';
+import { pageSandbox, fencesOf, readEdits } from './page-run.mjs';
 import { t } from '../core/i18n.mjs';
 import '../strings/render.en.mjs';
 
@@ -160,8 +161,8 @@ export function install(app) {
 
   // A web page in an answer (owner, 2026-11-14: LOL Vibe "should be rewarding right away"): Preview runs it here, in
   // the chat's OWN sandbox (never the Computer's: one live guest per sandbox), with the answer's CSS and JavaScript
-  // blocks (render/page.mjs). The sandbox's walls hold: no network, nothing from disk. One page runs at a time.
-  /** @type {any} */ let sandbox = null;
+  // blocks (render/page.mjs). The sandbox's walls hold: no network, nothing from disk. One page runs at a time: this
+  // Preview, another one, or the Page panel beside the chat (render/page-panel.mjs, VIBE_PAGE_PLAN) share it.
   /** @type {null | (() => void)} */ let stopRunning = null;
   app.registry.add(app.SLOTS.CODE_DECORATORS, {
     id: 'code-page',
@@ -187,19 +188,21 @@ export function install(app) {
         handle = null;
         stage.replaceChildren();
       };
+      const threadId = () => String((app.state && app.state.threadId) || '');
       /** @type {() => void} */ let showCode = () => {};
       const start = async () => {
         if (stopRunning && stopRunning !== showCode) stopRunning();   // the other page goes back to its code
         stopRunning = showCode;
         stop();
-        const msg = fig.closest('.chat-msg') || fig.parentElement || fig;
-        const fences = Array.from(msg.querySelectorAll('figure.chat-codeblock')).map((f) => ({
-          lang: f.getAttribute('data-lang') || '',
-          code: f === fig ? info.code : String((f.querySelector('pre') || {}).textContent || ''),
-        }));
-        const page = pageOf(info.code, fences);
+        const { msgId, figs, fences: model } = fencesOf(fig);
+        const pageIndex = figs.indexOf(fig);
+        if (pageIndex >= 0) model[pageIndex].code = info.code;
+        // A person's edits from the Page panel run here too (the block says "edited").
+        const fences = withEdits(model, await readEdits(app, threadId(), msgId));
+        const page = pageOf(pageIndex >= 0 ? fences[pageIndex].code : info.code, fences, { pageIndex });
         say(page.remote.length ? t('render.pageNoInternet', { hosts: page.remote.join(', ') }) : '');
-        if (!sandbox) sandbox = (await import('../sandbox/host.mjs')).createSandbox({ doc: document });
+        const sandbox = await pageSandbox();
+        if (stopRunning !== showCode) return;                         // Code was pressed while it loaded
         // The pane's width as shown (Preview has just shown it); 640 when the chat is out of sight and nothing is laid out.
         // ponytail: the size is taken once; a window resized later keeps it (the pane scrolls). Press Preview again to refit.
         // ponytail: this page keeps running while the person is in the Computer (its own guest, its own process);
@@ -210,25 +213,64 @@ export function install(app) {
           mount: stage, mode: 'html', code: page.html, css: PAGE_BASE_CSS + page.css, libs: page.libs,
           size: { w, h: 420 }, page: true,
         });
+        const blocks = pageBlocks(fences);
+        /** @param {any} err */
+        const fault = (err) => {
+          const at = blockOf(err, page.sources);
+          const b = at ? blocks.find((x) => x.fence === at.fence) : null;
+          const message = String((err && err.message) || '');
+          say(at && b ? t('render.pageErrorAt', { block: blockName(b), line: at.line, message }) : t('render.pageError', { message }));
+        };
         h.on((/** @type {any} */ ev) => {
           if (h !== handle) return;
-          if (ev.type === 'error' && ev.error) say(t('render.pageError', { message: String(ev.error.message || '') }));
+          if (ev.type === 'error' && ev.error) fault(ev.error);
           if (ev.type === 'state' && ev.state === 'stalled') say(t('render.pageStopped'));
+          // The Page panel (or another sandbox user) took the guest: back to the code, nothing left running here.
+          if (ev.type === 'stopped' && ev.why === 'replaced' && stopRunning === showCode) { handle = null; showCode(); }
         });
         const out = await h.ready;
-        if (h === handle && out && !out.ok) say(t('render.pageError', { message: String((out.error && out.error.message) || '') }));
+        if (h === handle && out && !out.ok) fault(out.error);
       };
       showCode = addTabs(fig, pane, {
         previewTip: t('render.pageTabTip'), codeTip: t('render.pageCodeTip'),
         onPreview: () => { void start(); },
         onCode: () => { stop(); if (stopRunning === showCode) stopRunning = null; },
       });
+
+      // Beside the chat (VIBE_PAGE_PLAN): the page and its code side by side, edited live. Only when the panel is in.
+      const tools = fig.querySelector('.chat-code-tools');
+      const edited = document.createElement('span');
+      edited.className = 'chat-page-edited';
+      edited.textContent = t('render.pageEdited');
+      edited.title = t('render.pageEditedTip');
+      edited.hidden = true;
+      if (tools) tools.insertBefore(edited, tools.firstChild);
+      const { msgId } = fencesOf(fig);
+      if (msgId) void readEdits(app, threadId(), msgId).then((e) => { edited.hidden = !e; });
+      if (tools && app.page && typeof app.page.open === 'function') {
+        const beside = button(t('render.pageBeside'), 'chat-page-beside', () => {
+          if (stopRunning === showCode) showCode();                   // the panel takes the one guest
+          const f = fencesOf(fig);
+          const pageIndex = f.figs.indexOf(fig);
+          if (pageIndex >= 0) f.fences[pageIndex].code = info.code;
+          app.page.open({ threadId: threadId(), msgId: f.msgId, fences: f.fences, pageIndex });
+        });
+        beside.title = t('render.pageBesideTip');
+        tools.insertBefore(beside, edited.nextSibling);
+      }
     },
   });
 }
 
+/** A block of a page, as a person reads its name: "JavaScript", or "JavaScript 2" when there are two.
+ * @param {{kind: 'html'|'css'|'js', n: number, of: number}} b @returns {string} */
+export function blockName(b) {
+  const kind = b.kind === 'html' ? t('render.pageBlockHtml') : b.kind === 'css' ? t('render.pageBlockCss') : t('render.pageBlockJs');
+  return b.of > 1 ? t('render.pageBlockN', { kind, n: b.n }) : kind;
+}
+
 /** What a page without its own colours is drawn on: a page, not the chat's dark ground. Its own CSS comes after. */
-const PAGE_BASE_CSS = 'body{background:#fff;color:#111;font-family:system-ui,sans-serif;}\n';
+export const PAGE_BASE_CSS ='body{background:#fff;color:#111;font-family:system-ui,sans-serif;}\n';
 
 /**
  * The Preview / Code tabs of a code block that can be shown (an SVG drawn, a web page run). Code is the default view.

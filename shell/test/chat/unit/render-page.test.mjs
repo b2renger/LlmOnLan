@@ -1,7 +1,7 @@
 // @ts-check
 // render/page.mjs: one web page from the code blocks of one LOL Vibe answer (owner, 2026-11-14).
 import assert from 'node:assert/strict';
-import { isPage, pageOf } from '../../../renderer/chat/render/page.mjs';
+import { isPage, pageOf, blockOf } from '../../../renderer/chat/render/page.mjs';
 
 export default (test) => {
   test('isPage: html and htm blocks, and an untagged block that starts like a page; nothing else', () => {
@@ -25,7 +25,7 @@ export default (test) => {
     ];
     const page = pageOf(html, fences);
     assert.equal(page.css, 'button { color: red; }');
-    assert.ok(page.html.startsWith(html), 'the page itself, untouched');
+    assert.ok(page.html.startsWith(html), 'the page itself, untouched (it has no inline script)');
     const tail = page.html.slice(html.length);
     assert.ok(tail.indexOf('onclick') < tail.indexOf('console.log'), 'the answer\'s order');
     assert.ok(tail.includes('console.log("<\\/script>")'), 'a "</script" inside a script cannot end it early');
@@ -49,5 +49,30 @@ export default (test) => {
     assert.ok(/new p5\(\)/.test(page.html.slice(html.length)), 'p5\'s global mode is started once setup() exists');
     const own = pageOf('<script src="https://cdn.jsdelivr.net/npm/p5@1/lib/p5.js"></script><script>new p5((s) => {});</script>', []);
     assert.ok(!/new p5\(\);/.test(own.html), 'a page that starts p5 itself is left to do so');
+  });
+
+  test('pageOf names every script it runs, and blockOf turns the guest\'s error into the block and its line', () => {
+    const html = '<!doctype html>\n<html><body>\n<p>x</p>\n<script>\nvar a = 1;\nnope();\n</script>\n<script src="x.js"></script>\n<script type="module">\nimport x from "./x.js";\n</script>\n</body></html>';
+    const fences = [
+      { lang: 'markdown', code: 'notes' },
+      { lang: 'html', code: html },
+      { lang: 'css', code: 'p{}' },
+      { lang: 'js', code: '// one\nnope2();' },
+    ];
+    const page = pageOf(html, fences);
+    assert.deepEqual(Object.keys(page.sources).sort(), ['lol-b3.js', 'lol-h1.js'], 'the inline classic script and the JS block; not a src or a module');
+    assert.equal(page.html.replace(/\n\/\/# sourceURL=lol-h1\.js\n/, '').startsWith(html), true, 'the page changes only by its scripts\' names');
+    // The guest numbers each script's lines from the text after its opening tag (measured, VIBE_PAGE_PLAN).
+    const inPage = page.html.split('<script>')[1].split('</script>')[0];
+    const scriptLine = inPage.split('\n').findIndex((l) => l === 'nope();') + 1;
+    assert.deepEqual(blockOf({ source: 'lol-h1.js', line: scriptLine, col: 1 }, page.sources), { fence: 1, line: 6, col: 1 }, 'line 6 of the page block');
+    const js = page.html.slice(page.html.lastIndexOf('<script>') + '<script>'.length);
+    const jsLine = js.split('\n').findIndex((l) => l === 'nope2();') + 1;
+    assert.deepEqual(blockOf({ source: 'lol-b3.js', line: jsLine, col: 1 }, page.sources), { fence: 3, line: 2, col: 1 }, 'line 2 of the JS block');
+    assert.equal(blockOf({ source: '', line: 4 }, page.sources), null, 'no name: the guest could not say');
+    assert.equal(blockOf({ source: 'lol-b9.js', line: 4 }, page.sources), null, 'a name this page does not have');
+    assert.equal(blockOf({ source: 'constructor', line: 4 }, page.sources), null, 'never a property of every object');
+    assert.equal(blockOf(null, page.sources), null);
+    assert.equal(pageOf(html, [], { pageIndex: 7 }).sources['lol-h1.js'].fence, 7, 'the caller can say which block is the page');
   });
 };

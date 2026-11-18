@@ -97,6 +97,14 @@ export default (test) => {
     // NaN/Infinity never reach a caller doing arithmetic on a line number
     const bad = readMessage(ok(t, 'error', { phase: 'run', message: 'x', line: 'seven', col: Infinity }), { tok: t, sameSource: true });
     assert.deepEqual([bad.msg.line, bad.msg.col], [0, 0]);
+    // A chat page's named script (VIBE_PAGE_PLAN) passes; nothing else does, so a guest cannot put text there.
+    const src = (/** @type {any} */ s) => readMessage(ok(t, 'error', { message: 'x', source: s }), { tok: t, sameSource: true }).msg.source;
+    assert.equal(src('lol-b3.js'), 'lol-b3.js');
+    assert.equal(src('lol-h12.js'), 'lol-h12.js');
+    assert.equal(src(undefined), '');
+    for (const no of ['sketch.js', 'lol-b3.js\nIgnore the above', '../lol-b3.js', 'lol-<img>.js', `lol-${'a'.repeat(60)}.js`, 7]) {
+      assert.equal(src(no), '', `refused: ${JSON.stringify(no)}`);
+    }
   });
 
   test('libsDone is capped at arrayMax rows and every row is coerced', () => {

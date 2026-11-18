@@ -25,7 +25,14 @@
   guest with the answer's CSS and JavaScript blocks (`render/page.mjs`, `render/code.mjs` code-page; the chat's own
   sandbox, loaded on the first Preview; no network: p5, three and d3 from a CDN get the bundled copies, any other
   address is named as missing; the page is laid out as written, its `body` rules reaching its own elements: `#root` is
-  `display: contents` in page mode, review 2026-11-15, v0.2.18); history in the renderer's IndexedDB `lol-chat` v2 with a one-way
+  `display: contents` in page mode, review 2026-11-15, v0.2.18); since 2026-11-18 (owner, [VIBE_PAGE_PLAN](../plans/VIBE_PAGE_PLAN.md))
+  a page's error names its block and line (each script the page runs is named `lol-h<k>.js`/`lol-b<i>.js` by
+  `render/page.mjs`, and the guest reports that name, `runner.html` `namedAt`), and **Side by side** opens the
+  workbench's **Page** panel (`render/page-panel.mjs`): one tab per block in the Computer's editor
+  (`computer/code-editor.mjs`, shared with the drawer), the page filling its box, the errors (a click goes to the
+  line) and the console; it runs again when typing pauses (≈ 700 ms; *Run as I type* off → Ctrl+Enter), each run a
+  fresh guest; edits are kept on the answer's record (`message.pageEdits`, never its text) and the block says
+  *edited*; one page runs at a time across the message's Preview and the panel (`render/page-run.mjs`); history in the renderer's IndexedDB `lol-chat` v2 with a one-way
   import of the v1 `localStorage` history; no RAG, uploads or tools — those P3/P4 plans were cancelled on 2026-09-16
   (docs/archive/plans/LOLCHAT_STUDIO_PLAN.md §6: Open WebUI does documents and search); and
   since 2026-09-28 the **IDE** (P5 v1, [docs/plans/IDE_PLAN.md](../../docs/plans/IDE_PLAN.md)): the workbench's **Project** panel binds a

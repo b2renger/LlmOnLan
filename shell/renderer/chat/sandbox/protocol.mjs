@@ -197,6 +197,8 @@ export function readMessage(raw, o) {
     msg.stack = clampText(raw.stack, LIMITS.textBytes);
     msg.line = num(raw.line, 0);
     msg.col = num(raw.col, 0);
+    // The named script of a chat page it came from (runner.html `namedAt`), or ''. Only that shape passes.
+    msg.source = /^lol-[\w-]{1,40}\.js$/.test(String(raw.source || '')) ? String(raw.source) : '';
     msg.n = num(raw.n, 0);
     return { ok: true, msg };
   }

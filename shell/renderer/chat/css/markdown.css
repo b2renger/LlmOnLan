@@ -180,8 +180,9 @@
   color: var(--grey);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   text-transform: lowercase;
+  white-space: nowrap;
 }
-#lolchat .chat-code-tools { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+#lolchat .chat-code-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px; margin-left: auto; }
 #lolchat .chat-code-tabs { display: flex; align-items: center; gap: 2px; margin-right: 6px; }
 #lolchat .chat-code-btn {
   appearance: none;
@@ -194,6 +195,7 @@
   line-height: 1;
   padding: 4px 7px;
   cursor: pointer;
+  white-space: nowrap;   /* a narrow column wraps the row of buttons, never a word (VIBE_PAGE_PLAN) */
 }
 #lolchat .chat-code-btn:hover { color: var(--text); border-color: var(--border); background: var(--surface); }
 #lolchat .chat-code-btn[aria-pressed='true'] {

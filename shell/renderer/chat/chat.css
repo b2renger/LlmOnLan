@@ -25,3 +25,5 @@
 /* C3 (the sandbox parts). Same rule again: a kickoff stub until C3-U1 lands, replaced wholesale
    by its unit. Nobody edits chat.css. */
 @import url('css/sandbox.css');
+@import url('css/code-editor.css');
+@import url('css/page-panel.css');

@@ -1,0 +1,87 @@
+/* css/page-panel.css: the Page panel beside the chat (render/page-panel.mjs, VIBE_PAGE_PLAN): a bar, the blocks' tabs,
+   the code and the running page side by side (one above the other when the column is narrow), then the errors and the
+   console. The editor inside is css/code-editor.css. ComfyQ tokens only: no colour literals (lint rule 3). */
+
+#lolchat .chat-pagep {
+  display: flex; flex-direction: column; height: 100%; min-height: 0; padding: 10px; gap: 8px; box-sizing: border-box;
+  container-type: inline-size;
+}
+#lolchat .chat-pagep-empty { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+#lolchat .chat-pagep-empty[hidden], #lolchat .chat-pagep-body[hidden] { display: none; }
+#lolchat .chat-pagep-body { display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto; min-height: 0; }
+
+#lolchat .chat-pagep-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+#lolchat .chat-pagep-title { margin: 0 auto 0 0; font-size: 14px; color: var(--text); }
+#lolchat .chat-pagep-auto { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); cursor: pointer; }
+#lolchat .chat-pagep-btn {
+  display: inline-flex; align-items: center; padding: 4px 10px; font: inherit; font-size: 12px; line-height: 1.4;
+  color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+  cursor: pointer; white-space: nowrap;
+}
+#lolchat .chat-pagep-btn:hover { border-color: var(--accent-hover); }
+#lolchat .chat-pagep-btn[hidden] { display: none; }
+
+#lolchat .chat-pagep-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+#lolchat .chat-pagep-tab {
+  appearance: none; font: inherit; font-size: 12px; padding: 4px 10px; cursor: pointer;
+  color: var(--grey); background: transparent; border: 1px solid var(--border); border-radius: 7px;
+}
+#lolchat .chat-pagep-tab[aria-selected='true'] { color: var(--text); background: var(--surface-2); border-color: var(--accent-hover); }
+#lolchat .chat-pagep-tab.has-error { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
+
+/* Side by side; one above the other in a narrow column. */
+#lolchat .chat-pagep-split {
+  flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px;
+}
+@container (max-width: 700px) {
+  #lolchat .chat-pagep-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(220px, 1fr) minmax(220px, 1fr); }
+}
+#lolchat .chat-pagep-editors { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+#lolchat .chat-pagep-editors .comp-code { padding: 0; }
+#lolchat .chat-pagep-editors .comp-code[hidden] { display: none; }
+#lolchat .chat-pagep-result {
+  display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2);
+}
+#lolchat .chat-pagep-note { margin: 0; padding: 6px 10px; font-size: 12px; line-height: 1.45; color: var(--amber); border-bottom: 1px solid var(--border); }
+#lolchat .chat-pagep-note[hidden] { display: none; }
+#lolchat .chat-pagep-stage { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+/* The page fills its box, whatever size the run started at: a panel dragged wider lays the page out again by itself
+   (the guest's own sizes are pixels, set inline, hence !important). */
+#lolchat .chat-pagep-stage iframe { position: absolute; inset: 0; display: block; width: 100% !important; height: 100% !important; border: 0; }
+
+/* Errors and the console: the page's own words, each error a way to its line. */
+#lolchat .chat-pagep-strip {
+  flex: 0 0 auto; max-height: 32%; overflow: auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 2px 12px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+}
+@container (max-width: 700px) { #lolchat .chat-pagep-strip { grid-template-columns: minmax(0, 1fr); } }
+#lolchat .chat-pagep-strip-head { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--grey); }
+#lolchat .chat-pagep-strip-head:nth-of-type(1) { grid-column: 1; grid-row: 1; }
+#lolchat .chat-pagep-errors { grid-column: 1; grid-row: 2; }
+#lolchat .chat-pagep-strip-head:nth-of-type(2) { grid-column: 2; grid-row: 1; }
+#lolchat .chat-pagep-console { grid-column: 2; grid-row: 2; }
+@container (max-width: 700px) {
+  #lolchat .chat-pagep-strip-head:nth-of-type(1), #lolchat .chat-pagep-errors,
+  #lolchat .chat-pagep-strip-head:nth-of-type(2), #lolchat .chat-pagep-console { grid-column: 1; grid-row: auto; }
+}
+#lolchat .chat-pagep-errors, #lolchat .chat-pagep-console {
+  margin: 0; padding: 0; list-style: none; min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; line-height: 1.5;
+}
+#lolchat .chat-pagep-none { color: var(--muted); font-family: inherit; }
+#lolchat .chat-pagep-error { color: var(--danger); overflow-wrap: anywhere; }
+#lolchat .chat-pagep-goto {
+  appearance: none; font: inherit; font-weight: 600; padding: 0 6px; cursor: pointer; color: var(--danger);
+  background: var(--surface-2); border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--border)); border-radius: 6px;
+}
+#lolchat .chat-pagep-line { color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; border-bottom: 1px solid var(--border); }
+#lolchat .chat-pagep-line.is-warn { color: var(--amber); }
+#lolchat .chat-pagep-line.is-error { color: var(--danger); }
+
+/* On the answer's own page block: it runs the person's version. */
+#lolchat .chat-page-edited {
+  font-size: 10.5px; padding: 1px 6px; margin-right: 4px; border-radius: 6px;
+  color: var(--amber); border: 1px solid color-mix(in srgb, var(--amber) 50%, var(--border));
+}
+#lolchat .chat-page-edited[hidden] { display: none; }

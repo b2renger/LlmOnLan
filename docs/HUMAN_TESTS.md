@@ -392,6 +392,29 @@ another cause: send its `logs/owui.log`.
 (those that are there) from its `owui-data` folder into a new folder `old` (never `lol-client`), reopen.
 - [ ] Done · Found:
 
+### A29 A page from an answer, its code beside it, edited live
+*Proves:* [VIBE_PAGE_PLAN](plans/VIBE_PAGE_PLAN.md) on a real model's page: an error says its block and line, the page
+and its code are side by side, a change runs as you type and stays with the chat. *Needs:* the next client release
+(v0.2.20) and any farm, 10 minutes. *Was:* new (2026-11-18; the harness scenarios `k30-page-*` run it on a scripted
+answer, not on a model's).
+
+1. In LOL Vibe, a new chat: *"Make a small web page with a button that counts clicks: give me index.html, style.css and
+   script.js."* Wait for the answer.
+2. On its `html` block press **Preview**: the page runs. Press **Side by side**: the side column opens on **Page**, with
+   a tab per block (*HTML*, *CSS*, *JavaScript*), the code, the page, and *Errors* / *Console* under it.
+3. In the *JavaScript* tab, change a word of a line so it breaks (for example `getElementById` → `getElementByI`).
+   Stop typing and wait one second.
+4. Press the red *JavaScript, line N* under *Errors*.
+5. Put the word back. Then change something you can see (a colour in *CSS*, the button's text in *HTML*).
+6. Open another chat, then come back to this one. Press **Side by side** again if the column closed.
+7. **Back to the model's code**, and confirm.
+
+*Expect:* step 3: within a second the page runs again, *Errors* shows *JavaScript, line N* with the browser's message,
+the *JavaScript* tab turns red and its line N is marked. Step 4: the caret goes to that line. Step 5: the error goes
+and the page changes as you stop typing; the answer's own block shows **edited**. Step 6: your change is still there.
+Step 7: the model's code is back, *edited* is gone.
+- [ ] Done · Found:
+
 ### A10 Code, pictures and files
 *Proves:* the sandbox and the File box on a real disk. *Was:* 3.1, 3.5, 3.6, 3.9; LOLCHAT_RIG §15, §15b, §18 (a paused
 sandbox); COMPUTER_STATUS "What only you can check" 3 and 8.

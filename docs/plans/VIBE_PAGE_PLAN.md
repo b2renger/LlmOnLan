@@ -84,4 +84,29 @@ message, in the chat's own sandbox. Three things are missing:
 
 ## Built
 
-*(nothing yet)*
+**Step 1, 2026-11-18 (day session, DEVLOG 15:25).** As planned, with these differences, each checked:
+- *Measured first* (a harness probe in the real runner): every page error said **line 1** (the runner subtracted the
+  Computer's 3-line `new Function` offset from lines that never had it); with `//# sourceURL` the stack names the
+  script even for an error thrown later by a timer; a **syntax** error has no stack frame and `onerror` does not get
+  the name, so the runner names it itself (the script it is inserting, `waking`); a second run in the same frame fails
+  with *Identifier 'x' has already been declared*, so each run is a fresh guest.
+- The names are `lol-h<k>.js` (the page's own inline scripts, k-th) and `lol-b<i>.js` (the answer's block i);
+  `sources` maps each to its block and line offset; the protocol passes only that shape (`source`).
+- The tabs are named by kind (*HTML*, *CSS*, *JavaScript*, *JavaScript 2* when there are two), not by the file names a
+  model writes in its text: the chat keeps only the block's language.
+- The block's button is **Side by side** (the first label, *Open beside the chat*, broke the header's words in a
+  narrow column).
+- The page **fills** its box (the frame at 100 %, the run's size measured after a layout frame), so a panel dragged
+  wider lays it out again by itself: no re-run on a resize.
+- The editor is moved, not copied: `computer/code-editor.mjs` (the drawer's field, its CSS in `css/code-editor.css`,
+  scoped to the Computer, LOL Vibe and the page window, with the Computer's tokens falling back to the shared ones).
+
+Files: `render/page.mjs` (`pageOf` names, `blockOf`, `pageBlocks`, `withEdits`), `render/page-run.mjs` (the shared
+sandbox, the blocks of a message, the edits on `message.pageEdits`, written on the view's own copy too so a later pin
+keeps them), `render/page-panel.mjs` (the panel, `app.page`), `render/code.mjs` (Side by side, *edited*, the error's
+block and line, the shared sandbox), `sandbox/runner.html` (`namedAt`, `waking`), `sandbox/protocol.mjs` (`source`),
+`computer/code-editor.mjs`, `computer/drawer.mjs` (uses it), `css/page-panel.css`, `css/code-editor.css`.
+Tests: `render-page.test.mjs` (names and `blockOf`), `sandbox-protocol.test.mjs` (`source` refused unless it is a
+name), harness `k30-page-*` (2). HUMAN_TESTS A29.
+
+**Step 2** (the pop-out window): not built yet.

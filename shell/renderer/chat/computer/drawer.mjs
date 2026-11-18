@@ -41,10 +41,7 @@
 import { t } from '../core/i18n.mjs';
 import { SLOTS } from '../core/registry.mjs';
 import { createInspector } from '../graph/inspect.mjs';
-import { lineRange } from '../graph/unfence.mjs';
-import {
-  gutterModel, gutterPatch, caretAt, tabEdit, newlineEdit, applyEdit, scrollForLine,
-} from './code-edit.mjs';
+import { createCodeEditor, CODE_CHANGE_MS } from './code-editor.mjs';
 import '../strings/computer.en.mjs';
 import '../strings/computer-edit.en.mjs';
 
@@ -65,10 +62,9 @@ export const CODE_PANEL = 'code-editor';
  * least this wide; the widening is NOT remembered, and a width dragged while editing is kept. */
 export const CODE_WIDTH = 560;
 
-/** K-8: how long typing must pause before `onChange` hears it. Short, because the caller redraws
- * on it (the Preview box's own field waits EDIT_DEBOUNCE_MS = 400 before drawing); pending text is
- * always delivered before Run code, on blur and on close, so no keystroke is ever lost. */
-export const CODE_CHANGE_MS = 250;
+/** K-8: how long typing must pause before `onChange` hears it (the Preview box's own field waits
+ * EDIT_DEBOUNCE_MS = 400 before drawing). The editor itself is computer/code-editor.mjs since 2026-11-18. */
+export { CODE_CHANGE_MS };
 
 /**
  * A width as the drawer will actually use it. PURE — a dragged pointer, a stored number from an
@@ -255,9 +251,8 @@ export function install(app) {
   }
 
   // ---- the code editor (COMPUTER_LIVE_PLAN K-8) -----------------------------------------------
-  // A textarea — the browser's own caret, selection, IME, clipboard and undo — with a line-number
-  // gutter beside it and an error band behind it. No syntax colouring and no library: the goal is
-  // a plain, roomy monospace editor whose every line has a number the error can point at.
+  // The field itself is computer/code-editor.mjs (shared with LOL Vibe's Page panel since 2026-11-18); the drawer
+  // owns what is the drawer's: one editor at a time, the panel door, the width, and where the focus goes back.
 
   /** A callback the caller gave us, called so that its exception is its own and not ours.
    * @param {any} fn @param {...any} args */
@@ -294,9 +289,6 @@ export function install(app) {
   function editCode(opts) {
     const o = opts || {};
     const partId = String(o.partId == null ? '' : o.partId);
-    const name = String(o.title == null ? '' : o.title).trim();
-    const mode = String(o.mode == null ? '' : o.mode);
-    const source = String(o.source == null ? '' : o.source);
 
     // Where the focus goes back to: whatever had it (the box's Edit code button), unless that is
     // inside this drawer — then the editor being replaced knew better.
@@ -305,234 +297,11 @@ export function install(app) {
     const active = typeof document !== 'undefined' ? /** @type {any} */ (document.activeElement) : null;
     const returnTo = active && active !== document.body && !root.contains(active) ? active : inherited;
 
-    // ---- the panel ---------------------------------------------------------------------------
-    const panel = document.createElement('section');
-    panel.className = 'comp-code';
-    panel.setAttribute('data-part', partId);
-    panel.setAttribute('data-mode', mode);
-
-    const top = div('comp-code-head', panel);
-    const heading = document.createElement('h3');
-    heading.className = 'comp-code-title';
-    heading.textContent = name ? t('computer.codeTitle', { title: name }) : t('computer.codeTitleNone');
-    const caret = document.createElement('span');
-    caret.className = 'comp-code-caret';
-    top.append(heading, caret);
-
-    const tools = div('comp-code-tools', panel);
-    const run = document.createElement('button');
-    run.type = 'button';
-    run.className = 'comp-code-run';
-    run.textContent = t('computer.codeRun');
-    run.title = t('computer.codeRunHint');
-    const hint = document.createElement('span');
-    hint.className = 'comp-code-hint';
-    hint.textContent = t('computer.codeHint');
-    tools.append(run, hint);
-
-    const body = div('comp-code-body', panel);
-    const gutter = div('comp-code-gutter', body);
-    gutter.setAttribute('aria-hidden', 'true');
-    const rows = div('comp-code-rows', gutter);
-    const field = div('comp-code-field', body);
-    const band = div('comp-code-band', field);
-    band.setAttribute('aria-hidden', 'true');
-    band.hidden = true;
-    const area = /** @type {any} */ (document.createElement('textarea'));
-    area.className = 'comp-code-area';
-    area.setAttribute('spellcheck', 'false');
-    area.setAttribute('wrap', 'off');
-    area.setAttribute('autocomplete', 'off');
-    area.setAttribute('autocapitalize', 'off');
-    area.setAttribute('data-part', partId);
-    area.setAttribute('aria-label', t('computer.codeField', { title: name || t('computer.codeTitleNone') }));
-    area.value = source;
-    field.appendChild(area);
-
-    const fault = div('comp-code-error', panel);
-    fault.setAttribute('aria-live', 'polite');
-    fault.hidden = true;
-    const faultText = document.createElement('span');
-    faultText.className = 'comp-code-error-text';
-    const gotoBtn = document.createElement('button');
-    gotoBtn.type = 'button';
-    gotoBtn.className = 'comp-code-goto';
-    gotoBtn.title = t('computer.codeGotoHint');
-    gotoBtn.hidden = true;
-    fault.append(faultText, gotoBtn);
-
-    // ---- state -------------------------------------------------------------------------------
-    let alive = true;
-    let timer = /** @type {any} */ (0);
-    let sent = source;          // what onChange last heard (the opening source counts as heard)
-    let rowCount = 0;
-    let marked = 0;             // the gutter row marked as the error line
-    let errLine = 0;
-    /** @type {{lh: number, pad: number}|null} */ let measured = null;
-
-    /** The field's line height and top padding, read once it is laid out. */
-    function metrics() {
-      if (measured) return measured;
-      let lh = 18;
-      let pad = 8;
-      try {
-        const cs = typeof getComputedStyle === 'function' ? getComputedStyle(area) : null;
-        const l = cs ? parseFloat(cs.lineHeight) : NaN;
-        const p = cs ? parseFloat(cs.paddingTop) : NaN;
-        if (Number.isFinite(l) && l > 0) {
-          lh = l;
-          if (Number.isFinite(p)) pad = p;
-          measured = { lh, pad };
-        }
-      } catch { /* not laid out yet: the defaults match the stylesheet */ }
-      return { lh, pad };
-    }
-
-    /** The gutter and the band follow the field's vertical scroll. */
-    function place() {
-      const y = Number(area.scrollTop) || 0;
-      rows.style.transform = `translateY(${-y}px)`;
-      if (marked) {
-        const m = metrics();
-        band.style.transform = `translateY(${m.pad + (marked - 1) * m.lh - y}px)`;
-        band.style.height = `${m.lh}px`;
-      }
-    }
-
-    /** Rows appended or dropped at the end only; the error row marked. */
-    function renderGutter() {
-      const model = gutterModel(area.value, errLine);
-      const patch = gutterPatch(rowCount, model.count);
-      for (let i = 0; i < patch.drop; i++) {
-        const last = rows.lastChild;
-        if (last) rows.removeChild(last);
-      }
-      for (const n of patch.add) {
-        const row = document.createElement('div');
-        row.className = 'comp-code-ln';
-        row.textContent = String(n);
-        rows.appendChild(row);
-      }
-      rowCount = model.count;
-      rows.style.minWidth = `${model.digits}ch`;
-      if (marked && marked !== model.error) {
-        const old = rows.childNodes[marked - 1];
-        if (old) old.classList.remove('is-error');
-      }
-      if (model.error) {
-        const row = rows.childNodes[model.error - 1];
-        if (row) row.classList.add('is-error');
-      }
-      marked = model.error;
-      band.hidden = !marked;
-      place();
-    }
-
-    function showCaret() {
-      caret.textContent = t('computer.codeCaret', caretAt(area.value, Number(area.selectionStart) || 0));
-    }
-
-    /** Deliver the text if it changed since onChange last heard it. */
-    function flush() {
-      if (timer) { clearTimeout(timer); timer = 0; }
-      if (!alive) return;
-      const text = String(area.value);
-      if (text === sent) return;
-      sent = text;
-      call(o.onChange, text);
-    }
-
-    function onInput() {
-      renderGutter();
-      showCaret();
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => { timer = 0; flush(); }, CODE_CHANGE_MS);
-    }
-
-    function runNow() {
-      if (!alive) return;
-      flush();                  // the box gets the code before it is asked to run it
-      if (alive) call(o.onRun);
-    }
-
-    /**
-     * One rule from code-edit.mjs, applied THROUGH the field so Ctrl+Z undoes it. When the
-     * browser will not (no execCommand), the value is set and the input path runs by hand.
-     * @param {import('./code-edit.mjs').CodeEdit} e
-     */
-    function applyToField(e) {
-      const before = String(area.value);
-      let done = false;
-      try {
-        if (typeof area.setSelectionRange === 'function') area.setSelectionRange(e.from, e.to);
-        if (typeof document.execCommand === 'function') {
-          done = e.insert ? document.execCommand('insertText', false, e.insert) : document.execCommand('delete', false);
-        }
-      } catch { done = false; }
-      if (!done) {
-        area.value = applyEdit(before, e);
-        onInput();
-      }
-      try { if (typeof area.setSelectionRange === 'function') area.setSelectionRange(e.selStart, e.selEnd); } catch { /* detached */ }
-      showCaret();
-    }
-
-    /** Select one line and bring it into view. @param {number} line */
-    function gotoLine(line) {
-      if (!alive || !(line > 0)) return;
-      const [a, b] = lineRange(String(area.value), line);
-      try { area.focus(); } catch { /* detached */ }
-      try { if (typeof area.setSelectionRange === 'function') area.setSelectionRange(a, b); } catch { /* detached */ }
-      const m = metrics();
-      const want = scrollForLine({
-        line, lineHeight: m.lh, pad: m.pad, scrollTop: Number(area.scrollTop) || 0, height: Number(area.clientHeight) || 0,
-      });
-      if (want !== null) area.scrollTop = want;
-      area.scrollLeft = 0;
-      place();
-      showCaret();
-    }
-
-    // ---- listeners ---------------------------------------------------------------------------
-    area.addEventListener('input', onInput);
-    area.addEventListener('scroll', place);
-    area.addEventListener('blur', flush);
-    for (const type of ['keyup', 'click', 'select', 'focus']) area.addEventListener(type, showCaret);
-    area.addEventListener('keydown', (/** @type {any} */ ev) => {
-      if (!ev || ev.isComposing) return;
-      const mod = !!(ev.ctrlKey || ev.metaKey);
-      if (ev.key === 'Enter' && mod) {
-        ev.preventDefault();
-        if (typeof ev.stopPropagation === 'function') ev.stopPropagation();
-        runNow();
-        return;
-      }
-      if (ev.key === 'Tab' && !mod && !ev.altKey) {
-        // Tab indents rather than leaving the field: Escape is the way out (it closes the editor
-        // and hands the focus back), and the key hint under the Run button says so.
-        ev.preventDefault();
-        const e = tabEdit(area.value, area.selectionStart, area.selectionEnd, !!ev.shiftKey);
-        if (e) applyToField(e);
-        return;
-      }
-      if (ev.key === 'Enter' && !ev.shiftKey && !ev.altKey) {
-        ev.preventDefault();
-        applyToField(newlineEdit(area.value, area.selectionStart, area.selectionEnd));
-      }
+    const ed = createCodeEditor({
+      partId, title: o.title, mode: o.mode, source: o.source, onChange: o.onChange, onRun: o.onRun,
     });
-    run.addEventListener('click', (/** @type {any} */ ev) => {
-      if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
-      runNow();
-    });
-    gotoBtn.addEventListener('click', (/** @type {any} */ ev) => {
-      if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
-      gotoLine(Number(gotoBtn.getAttribute('data-line')) || 0);
-    });
-    // The marked number in the gutter is a way to the line too.
-    rows.addEventListener('click', (/** @type {any} */ ev) => {
-      const row = ev && ev.target && typeof ev.target.closest === 'function' ? ev.target.closest('.comp-code-ln') : null;
-      if (row && row.classList.contains('is-error')) gotoLine(Number(row.textContent) || 0);
-    });
+    const panel = ed.el;
+    const area = ed.area;
 
     // ---- the session -------------------------------------------------------------------------
     const narrow = width;
@@ -541,10 +310,8 @@ export function install(app) {
       partId,
       returnTo,
       end() {
-        if (!alive) return;
-        flush();
-        alive = false;
-        if (timer) { clearTimeout(timer); timer = 0; }
+        if (!ed.alive()) return;
+        ed.end();
         // Back to the remembered width, unless the person dragged it while editing.
         if (widened && width === CODE_WIDTH) setWidth(narrow);
         call(o.onClose);
@@ -568,12 +335,11 @@ export function install(app) {
     edit = session;
     if (widened) setWidth(CODE_WIDTH);
     showPanel(CODE_PANEL);
-    renderGutter();
-    showCaret();
+    ed.refresh();
     try { area.focus(); } catch { /* detached */ }
     try { if (typeof area.setSelectionRange === 'function') area.setSelectionRange(0, 0); } catch { /* detached */ }
     area.scrollTop = 0;
-    place();
+    ed.refresh();
 
     return {
       close() {
@@ -581,49 +347,11 @@ export function install(app) {
         close();
         return true;
       },
-      /** Two-way with the box's own field: the box says what it holds now. Never echoes onChange.
-       * Keystrokes still pending here reach the box FIRST — and when they did, the box now holds
-       * the person's text and will say so: nothing is overwritten (critic L1-2, a run landing inside
-       * the typing pause used to put its text here while the box kept the typed one). */
-      setSource(text) {
-        if (!alive) return false;
-        const next = text == null ? '' : String(text);
-        if (next === String(area.value)) { sent = next; return false; }
-        const heard = sent;
-        flush();
-        if (!alive || sent !== heard) return false;
-        const a = Number(area.selectionStart) || 0;
-        const b = Number(area.selectionEnd) || 0;
-        area.value = next;
-        sent = next;
-        try { if (typeof area.setSelectionRange === 'function') area.setSelectionRange(Math.min(a, next.length), Math.min(b, next.length)); } catch { /* detached */ }
-        renderGutter();
-        showCaret();
-        return true;
-      },
-      setError(err) {
-        if (!alive) return false;
-        if (!err) {
-          errLine = 0;
-          faultText.textContent = '';
-          gotoBtn.hidden = true;
-          fault.hidden = true;
-          renderGutter();
-          return true;
-        }
-        const line = Math.max(0, Math.floor(Number(err.line) || 0));
-        errLine = line;
-        faultText.textContent = String(err.message == null ? '' : err.message);
-        gotoBtn.hidden = !(line > 0);
-        gotoBtn.textContent = line > 0 ? t('computer.codeGoto', { line }) : '';
-        gotoBtn.setAttribute('data-line', String(line));
-        fault.hidden = false;
-        renderGutter();
-        return true;
-      },
+      setSource: ed.setSource,
+      setError: ed.setError,
       isOpen: () => edit === session,
       /** What the editor really holds, typing not yet delivered included (L1-2). */
-      text: () => (alive ? String(area.value) : ''),
+      text: ed.text,
     };
   }
 

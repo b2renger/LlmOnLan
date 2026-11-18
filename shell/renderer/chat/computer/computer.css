@@ -21,6 +21,7 @@
 @import url('../css/computer-runbar.css');
 /* K1-U3, extended by K2-U3 */
 @import url('../css/computer-drawer.css');
+@import url('../css/code-editor.css');
 /* K2-U3: the Sent/Got/Cost panel inside the drawer. */
 @import url('../css/computer-transcript.css');
 /* K3-U2: the six control parts' bodies (the OK/Cancel row, the question field, the switch). */
