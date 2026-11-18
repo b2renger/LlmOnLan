@@ -67,7 +67,12 @@
     `alwaysThinks`: the route drops `chat_template_kwargs`, which leaked its `<think>` into titles); and since 2026-11-09 (owner)
     **Gemma 4 26B-A4B** (`nvidia/Gemma-4-26B-A4B-NVFP4`, 18.1 GiB, the Gemma 4 flags, pictures, no audio tower; 40 people at
     32k / 20 at 64k on the PRO 6000, its memory the limit: vLLM pages its sliding-window layers per token, 37,464 B measured
-    against the config's 10,240; 12/15 on LOL Vibe's agent tasks, docs/spike/RESULTS.md *Model trials*). A list saved before
+    against the config's 10,240; 12/15 on LOL Vibe's agent tasks, docs/spike/RESULTS.md *Model trials*). Since 2026-11-19
+    (night n° 10, [VLLM_DRAFT_PLAN](../plans/VLLM_DRAFT_PLAN.md)) **Qwen3.8 drafts ahead** with its own MTP layer
+    (`--speculative-config` method `mtp`, 3 tokens, probabilistic: about twice the speed alone and for 30 people, the same
+    quality gate); `vllm.js` `facts()` reads the flag and charges what drafting costs (× (L + 1) / L a token, + 3 state
+    pages a draft token, `DRAFT_RUNTIME_GIB` 5.5 beside the weights), a Qwen3.8 folder an operator adds gets no drafting
+    (`withoutDraft`), and the snapshot's `backend.mtp` says so; not tested on a Spark. A list saved before
     a version added models gets them at the next start, except the ids in `vllm.removed` (a Remove of a built-in);
     and sets people at once, context per person and GPU memory for conversations
     (Automatic: measured seats capped by what the pool holds; the pool from free memory less the model, ~4 GB,

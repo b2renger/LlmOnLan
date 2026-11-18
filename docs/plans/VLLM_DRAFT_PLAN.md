@@ -34,7 +34,11 @@ holds 15 people at 32k, fails 30 deep conversations and lost 5 of 28 quality ite
    `--speculative-config` (method `mtp`, `num_speculative_tokens` k): the context memory a token takes grows by the
    MTP layer (one more full-attention layer: × (L + 1) / L, L from the catalog's architecture), and the per-request
    state by k × 3 pages (vLLM's admission count, measured: 12 → 21 blocks for k = 3). The fit, the pool cap and the
-   panel's numbers then follow; the seats a person sees still come first from vLLM's own start-up line.
+   panel's numbers then follow; `draftGib` (5.5 GiB measured beside the weights) keeps the Automatic pool from
+   overshooting the card. **The panel's "room for N whole conversations" is vLLM's own line, the pool divided by the
+   context, and it leaves out each request's state**: the built farm says *room for 27* at 32k on its 55 GB pool, where
+   vLLM's admission holds about 24 (22 measured on 50 GiB, scaled to 55; not measured at 55). Automatic seats (16, Qwen3.8's measured label) are under both; **seats set by hand
+   for a class** should stay near what passed: 30 people each ~23k deep (night n° 10), not 30 whole 32k conversations.
 3. **A model the operator adds** (`FAMILY_ARGS`): a Qwen3.8 folder gets the entry's flags **without** the drafting:
    another checkpoint may have no MTP layer, and vLLM would refuse to start. Drafting is on the one checkpoint checked.
 4. **Tests** (`farm/test/run.js`): `facts()` with and without the flag (the fit falls about as measured), the family
@@ -65,4 +69,8 @@ holds 15 people at 32k, fails 30 deep conversations and lost 5 of 28 quality ite
 
 ## Built
 
-(filled in as it is built)
+2026-11-18 (DEVLOG 23:24, `a3ded3a`), night n° 10: items 1–4 as written, plus `snapshot.js` `backend.mtp` read from the
+argv; `farm/test/run.js` 288 passed. Item 5: `docs/spike/RESULTS.md` ▸ *Qwen3.8 drafting ahead*, `farm/README.md` (the
+model table and its paragraph), `docs/context/farm.md`, `docs/HUMAN_TESTS.md` J19 with its script
+`docs/spike/runs/draft_test_farm.mjs` (a test farm from the checkout; dress-rehearsed in its dry-run mode). Checked as a
+farm: the numbers in RESULTS (the argv, 16 seats, the gate, the agent 5/5, streaming, the GPU's peak, the same answers).

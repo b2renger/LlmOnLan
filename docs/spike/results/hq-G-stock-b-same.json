@@ -1,0 +1,36 @@
+{
+ "label": "G-stock-b",
+ "model": "qwen38",
+ "at": "2026-11-18T22:40:04.327Z",
+ "n": 60,
+ "questions": {
+  "train": {
+   "right": 49,
+   "of": 60,
+   "thinkingMedian": 115,
+   "answers": {
+    "The train arrives at 17:25.": 37,
+    "The train arrives at 16:25.": 8,
+    "It arrives at 17:25.": 12,
+    "It arrives at 16:25.": 3
+   }
+  },
+  "pens": {
+   "right": 60,
+   "of": 60,
+   "thinkingMedian": 364,
+   "answers": {
+    "8": 34,
+    "8 euros": 26
+   }
+  },
+  "mult": {
+   "right": 60,
+   "of": 60,
+   "thinkingMedian": 101,
+   "answers": {
+    "1591": 60
+   }
+  }
+ }
+}

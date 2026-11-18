@@ -20,6 +20,10 @@ processed in a cloud; the code follows the ponytail ladder.
 - [VIBE_PAGE_PLAN.md](VIBE_PAGE_PLAN.md) — **LOL Vibe's page preview, its code beside it** (owner, in the chat,
   2026-11-18): errors that name their block and line, the code and the page side by side in the side column, edits
   run as one types and kept with the thread, and a pop-out window. **Approved by the owner 2026-11-18**; Now, built by day.
+- [VLLM_DRAFT_PLAN.md](VLLM_DRAFT_PLAN.md) — **Qwen3.8 on vLLM drafts ahead with its own MTP layer** (owner, in the
+  chat, 2026-11-18: evaluate HyperQwen, build tonight if the verdict is *try*): twice the speed alone and for 30 people
+  at the same quality, a fifth to a third less room, counted by the farm. **Approved by the owner 2026-11-18**; Now,
+  built by night (n° 10); HUMAN_TESTS J19. Qwen3.6 with the same drafting: the owner's question.
 - [CLASS_TEST_2026-11-17.md](CLASS_TEST_2026-11-17.md) — **the class of 30 students on Tuesday 17 November** (owner
   2026-11-13): chat, LOL Vibe and the Computer tight for that day, and the tutorials, docs and in-app tutorials refined.
   **It comes first until the class**: its nights, its freezes (the client Monday 16 at 12:00, the farm Monday evening)
@@ -43,6 +47,8 @@ file stays the whole list.
 - **LOL Vibe's page preview, code beside it** ([VIBE_PAGE_PLAN](VIBE_PAGE_PLAN.md), the owner's request of 2026-11-18,
   approved with its three choices): step 1 the side column (errors with block and line, the shared editor, live
   reload, edits kept with the thread), step 2 the pop-out window. **M**. Built by day, 2026-11-18.
+- **Qwen3.8 drafts ahead** ([VLLM_DRAFT_PLAN](VLLM_DRAFT_PLAN.md), approved 2026-11-18 21:23 in the chat): MTP drafting
+  in the Qwen3.8 entry, its memory counted by `facts()`. **S**. Built by night n° 10; J19 for the owner.
 - **The class rehearsal** ([CLASS_REHEARSAL_PLAN](CLASS_REHEARSAL_PLAN.md), approved 2026-11-18): two scratch farms,
   scripted clients with fresh first starts, lost beacons, 10 and 20 chats at once, every night. Step 1 first (the
   regression test of the class). **M**.

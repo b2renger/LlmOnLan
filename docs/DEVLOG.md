@@ -9,6 +9,23 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-19 (00:04) — Qwen3.8's drafting checked as a farm, its answers unchanged; HUMAN_TESTS J19 and its test farm (night n° 10)
+
+**The built entry as a farm** (`lol up` from the checkout in a scratch folder, own ports, no beacon, Automatic seats and
+pool, 32k): the argv carries `--speculative-config`, *16 people at once, room for 27 whole conversations* (55 GB pool),
+weights 20.7 GiB as the entry says; through the gate 16 people from 16 addresses 126.5 tok/s each, 30 people ~18.5k
+deep pass (p95 3.0 s, p10 44.6), a cold 18.5k prompt 1.8 s; the GPU peaked at 85.8 of 97.9 GB (the 5.5 GiB of
+`DRAFT_RUNTIME_GIB` holds). **LOL Vibe's agent** (dsh, `ide/run.js`, the 5 tasks through the farm) 5/5 in 158 s, no
+failed call. **Streaming** (`runs/hq_stream.mjs`, 5 rounds, thinking on): the thinking stays in `reasoning_content`, no
+`</think>` in an answer, tool-call arguments valid JSON. **The same answers** (`runs/hq_same.mjs`, 210 samples a
+question each way, thinking on): a train-time question 171/210 right without drafting and 166/210 with (Fisher p = 0.62,
+the same wrong answer), two others 420/420 both. **J19** (HUMAN_TESTS): `docs/spike/runs/draft_test_farm.mjs start|stop`
+runs a test farm from the checkout in `%USERPROFILE%\lol-test-farm` with the Farm app's ports and beacon, the scratch
+vLLM root `~/lol-vllm-033`, Ollama on 11500, the plugins off; it refuses while a farm answers on 41997. Dress-rehearsed
+in its dry-run mode (`LOL_TEST_FARM_SCRATCH=1`: own ports, no beacon): wrote its config, served in 12 min, `/lol/self`
+`backend.mtp: true`, `stop` freed the GPU. **Not run:** its live-ports mode (the same file but the ports and beacon),
+a laptop on it (J19), a DGX Spark.
+
 ## 2026-11-18 (23:24) — Qwen3.8 on vLLM drafts with its own MTP layer (VLLM_DRAFT_PLAN; night n° 10, the HyperQwen evaluation)
 
 **Why:** the owner asked (chat, 21:14 and 21:23) whether HyperQwen could serve Qwen3.8 faster, and to build it tonight

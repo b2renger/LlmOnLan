@@ -6,7 +6,8 @@
 ratio size quality"; build it tonight if the verdict is *try*. The owner freed the RTX PRO 6000 for the night: every
 number here had the whole GPU (no farm, no client; ComfyUI's idle Python only).
 
-**Status:** in progress (this file is written as the night goes; the verdicts are at the end).
+**Status:** done (2026-11-19 00:05). Verdicts at the end: HyperQwen not as a backend, but its drafting idea is built
+for Qwen3.8 on stock vLLM (VLLM_DRAFT_PLAN); Qwen3.6 the same, the owner's question; CodeAF not now.
 
 ## What each one is (read 2026-11-18, sources at the end)
 
@@ -130,6 +131,34 @@ counters (`/metrics`) before and after each set: CodeAF's own count reads 0 on o
   `base` 127.0.0.1:8190/v1) and wrote no telemetry spool with telemetry off. Its JSON still names the provider
   `openrouter`, a label only. Not proven: what it sends with telemetry on (not tried), and its Windows and macOS builds
   (only the Linux one ran; whether its jail exists there was not checked).
+
+## The build, checked end to end (23:23–00:02)
+
+The approved plan ([VLLM_DRAFT_PLAN](../plans/VLLM_DRAFT_PLAN.md)) was built (`a3ded3a`) and run as a farm from the
+checkout (`lol up`, Automatic seats and pool, through the seat gate and LiteLLM), then as HUMAN_TESTS J19's own script
+in its dry-run mode. Every number is in `docs/spike/RESULTS.md` ▸ *Qwen3.8 drafting ahead*: the argv carries the flag,
+16 people at once from 16 addresses at 126.5 tok/s each, 30 people ~18.5k deep pass, LOL Vibe's agent 5/5 in 158 s
+(stock: 4/5 in 302 s), streaming with thinking and tool calls clean, the GPU at most 85.8 of 97.9 GB, and **no sign that
+drafting changes the answers**: on a question the model sometimes gets wrong, 171/210 right without drafting and 166/210
+with (Fisher p = 0.62), the same wrong answer either way.
+
+## Verdicts
+
+- **HyperQwen: not as a backend; its idea, yes, and built.** On our card its own stack is the fastest for one person
+  (351 tok/s), but it holds 15 people at 32k, 30 deep conversations collapse, and it lost 5 of 28 quality items; it
+  needs 65 patches, its own W4A16 weights and a Docker-first install. Its speed comes from drafting, which stock vLLM
+  0.33.0 (the farm's pin) already does with the MTP layer NVIDIA's checkpoint carries: **Qwen3.8 drafting with MTP is
+  twice as fast alone and for a class of 30, at the same quality, for a fifth to a third of the room.** Built tonight for
+  Qwen3.8 (the owner's approval, 21:23). Its DFlash2 drafter on stock vLLM (234 tok/s alone, but 23 people at 32k) would
+  suit one teacher at the projector: a plan, if the owner wants that mode.
+- **Qwen3.6, the farm's default, gains the same** (512 tok/s alone, 165 each for 30, 28/28; 56 → 42 people at 64k by
+  vLLM's admission): **the owner's question**, not built.
+- **CodeAF: not now.** On LOL Vibe's tasks and our model its single worker is level with dsh (4/5, a little quicker);
+  its full mode solved all five at twice the wait. The README's 26× cost claim does not show here. Against what LOL
+  Vibe needs: its checker runs tests in a **shell** (LOL Vibe's agent has none, by design); headless it returns one
+  JSON at the end (**no event stream** for the chat to show steps); telemetry is **on by default**; it ships as daily
+  **prereleases** of ~100 MB; only its Linux build was run. Worth a look again when it has a stable release and a
+  streaming headless mode; its jail for shell commands is an idea worth reading if LOL Vibe's agent ever gets a shell.
 
 ## Sources
 

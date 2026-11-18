@@ -1,0 +1,39 @@
+{
+ "label": "G-stock-c",
+ "model": "qwen38",
+ "at": "2026-11-18T22:58:58.322Z",
+ "n": 120,
+ "questions": {
+  "train": {
+   "right": 96,
+   "of": 120,
+   "thinkingMedian": 117,
+   "answers": {
+    "It arrives at 16:25.": 7,
+    "The train arrives at 17:25.": 62,
+    "It arrives at 17:25.": 34,
+    "The train arrives at 16:25, or 4:25 PM.": 1,
+    "The train arrives at 16:25.": 14,
+    "The train arrives at 16:25 (4:25 PM).": 1,
+    "The train arrives at 16:25 (4:25 p.m.).": 1
+   }
+  },
+  "pens": {
+   "right": 120,
+   "of": 120,
+   "thinkingMedian": 408,
+   "answers": {
+    "8": 57,
+    "8 euros": 63
+   }
+  },
+  "mult": {
+   "right": 120,
+   "of": 120,
+   "thinkingMedian": 96,
+   "answers": {
+    "1591": 120
+   }
+  }
+ }
+}

@@ -18,7 +18,9 @@ Two boxes, the same harness, the same flags:
 - the model research for a class, Kolibri-1 and LFM2.5 against Qwen3.6 with a RAG check (2026-11-12/13):
   [New models for a class](#new-models-for-a-class-rtx-pro-6000-2026-11-1213);
 - 30 people for the class on the live farm, Qwen3.8 on llama.cpp and on vLLM against Qwen3.6 (2026-11-14):
-  [30 people for the class](#30-people-for-the-class-rtx-pro-6000-the-live-farm-2026-11-14), the last section.
+  [30 people for the class](#30-people-for-the-class-rtx-pro-6000-the-live-farm-2026-11-14);
+- Qwen3.8 and Qwen3.6 drafting ahead with their MTP layer, and HyperQwen (2026-11-18/19):
+  [Qwen3.8 drafting ahead](#qwen38-drafting-ahead-rtx-pro-6000-2026-11-18), the last section.
 
 **Box:** `AN-A6000PRO`: one NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 96 GB (97,887 MiB), sm_120,
 ~1.8 TB/s, driver 596.36 (CUDA 13.2), Windows 11 + WSL2 Ubuntu 26.04 (16 vCPU and 94 GB RAM given to WSL).
@@ -1310,3 +1312,41 @@ farm's `cuda-13.4`, b12377 `cuda-13.5`) on driver 596.36 (CUDA 13.2: both ran). 
 documents it misses the 5 s mark by less (5.8 against 9.2 s). It does not change the class: llama.cpp's 16 seats at most
 (the farm's cap) and documents still fail. A bump (`PINNED_BUILD` with `CUDA_TAG` `cuda-13.5`, and the arm64 CI) is worth
 its test after the class. Results: `results/pro6000-lcpp-b1{1836,2377}-qwen38nvfp4-p16-8k*`.
+
+# Qwen3.8 drafting ahead (RTX PRO 6000, 2026-11-18)
+
+Night n° 10, the owner's ask (evaluate HyperQwen as a backend for Qwen3.8; research file
+[2026-11-19-codeaf-hyperqwen](../research/2026-11-19-codeaf-hyperqwen.md), which holds every table). The owner freed
+the GPU: **exclusive**, no farm, no client. vLLM 0.33.0 (`~/lol-vllm-033`), NVIDIA's NVFP4 checkpoints, the farm's flags,
+a 50 GiB KV pool for every arm. The suite is `runs/hq_suite.sh` (`lol bench` one person and 30 at once, `hq_edit.mjs`
+a code edit, `spike_bench` followup 30 deep, the quality gate); results `results/hq-*`.
+
+| Qwen3.8 27B, 32k–64k | One person | Code edit | 30 people, each | 30 deep at 23k (p95 / p10) | Quality | People at 32k (vLLM's admission, 50 GiB) |
+|---|---|---|---|---|---|---|
+| stock, the farm's flags | 67 tok/s | 67.7 | 51.2 | 2.3 s / 28.6 | 28/28 | 31 |
+| **+ MTP, 3 drafts, probabilistic** (VLLM_DRAFT_PLAN) | **155** | **192.7** | **94.4** | 2.4 s / **52.8** | 28/28 | 22 |
+| + HyperQwen's DFlash2 drafter, 7 drafts, stock vLLM | 234 | 243.4 | 69.0 | 38.7 s / 6.6: **fail** | 28/28 | (pool 23) |
+| HyperQwen as published (patched vLLM, W4A16, DFlash2) | 351 | 509 | 75.7 | 132.6 s / 8.8: **fail** | **23/28** | 15 |
+
+| Qwen3.6 35B-A3B, 64k | One person | Code edit | 30 people, each | 30 deep at 23k | 30 deep at 50k | Quality | People at 64k (admission) |
+|---|---|---|---|---|---|---|---|
+| stock, the farm's flags | 254 | 262.9 | 81.5 | 2.3 s / 44.4 | 3.2 s / 35.7 | 27/28 | 56 |
+| + MTP, 3 drafts | **512** | **627.1** | **164.8** | 2.8 s / **95.9** | 3.9 s / **51.1** | 28/28 | 42 |
+
+**The built farm** (`lol up` from the checkout, the new Qwen3.8 entry, Automatic seats and pool, 32k; 23:23–23:36 and
+the dress rehearsal of HUMAN_TESTS J19, 23:42–23:57): vLLM's argv carries the flag, *16 people at once, room for 27 whole
+conversations* on a 55 GB pool, `/lol/self` `backend.mtp: true`; through the gate 16 people from 16 addresses 126.5
+tok/s each (first token p95 0.3 s), 30 people ~18.5k deep pass (p95 3.0 s, p10 44.6; through LiteLLM the bench cannot
+count with vLLM's tokenizer, hence 18.5k), a cold 18.5k prompt answered in 1.8 s; the GPU peaked at 85.8 of 97.9 GB.
+LOL Vibe's coding agent (dsh, `ide/run.js`, 5 tasks) **5/5 in 158 s** (stock vLLM, the same night: 4/5 in 302 s), no
+failed tool call. Streaming with thinking on and tool calls (`runs/hq_stream.mjs`, 5 rounds): the thinking stays in
+`reasoning_content`, no `</think>` in an answer, every tool call's arguments valid JSON.
+
+**Does drafting change the answers?** (`runs/hq_same.mjs`, thinking on, the model's own sampling, 210 samples a
+question each way.) A train-time question the model sometimes gets wrong: **171/210 right without drafting, 166/210 with**
+(Fisher's exact test, two-sided p = 0.62), the same wrong answer either way; two others 420/420 under both. No sign
+that drafting changes what Qwen3.8 answers.
+
+**What drafting costs** (HyperQwen's log-only seat-budget patch on A's and B's exact flags): each draft token holds 3
+more pages of recurrent state a request (12 → 21 blocks), and the MTP layer is one more full-attention layer; 5.5 GiB of
+buffers and graphs beside the weights on Qwen3.8 (2.5 on Qwen3.6). Not measured: a DGX Spark.

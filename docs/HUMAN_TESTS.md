@@ -1842,6 +1842,32 @@ It costs each person about 6 % of speed at 30 (RESULTS ▸ *LiteLLM 1.106.9 agai
   false at 10:31 and after; so LiteLLM 1.106.9 starts with no master key, the case at risk): chats from a
   laptop answer; `pip show litellm` reads 1.106.9; `farm.log` has no failed pip line · Found: nothing
 
+### J19 Qwen3.8 drafting ahead: does it feel twice as fast, and do the answers stay right?
+*Proves:* [VLLM_DRAFT_PLAN](plans/VLLM_DRAFT_PLAN.md) where it matters: a real laptop on the farm, Open WebUI and LOL
+Vibe (the coding agent too) on Qwen3.8 drafting with its MTP layer. Measured without a person (night n° 10, RESULTS ▸
+*Qwen3.8 drafting ahead*): 155 tok/s alone against 67, 94 each for 30 against 51, the agent's five tasks 5/5 in 158 s.
+*Needs:* the PRO 6000 with nobody on it, this checkout, a laptop with the client, 20 minutes. The installed Farm app
+does not have it yet: a **test farm from this checkout** stands in for it, and the Farm app, its settings and
+production's vLLM stay untouched. *Was:* new (2026-11-19).
+
+1. Quit the Farm app (its tray icon ▸ Quit). In a terminal at the checkout: `node docs/spike/runs/draft_test_farm.mjs start`.
+   The first time, it writes `%USERPROFILE%\lol-test-farm\lol.config.json` (your farm's name with *(test: drafting)*,
+   the same ports and beacon, Qwen3.8 at 32k, web search and the other plugins off) and starts that farm in the
+   window. Wait for *vLLM is ready … 16 people at once* (about 10 minutes the first time: vLLM compiles).
+2. On the laptop, open the farm list (the farm's name at the top): click **… (test: drafting)** once (it is another
+   farm to the client).
+3. In Open WebUI, ask something long (*"Explain photosynthesis to a 12-year-old, in 400 words"*), then the same with
+   thinking. In LOL Vibe, a project: *"Write a small web page with a button that counts clicks"*. If you can, two or
+   three laptops at once.
+4. Read the panel (`http://<farm>:41997/lol/admin`, the Farm app's password): the model, *16 people at once*.
+
+*Expect:* answers come about twice as fast as Qwen3.8 did on 14 November (alone it streams ~155 tokens a second,
+about 110 words; Qwen3.6 today ~250 tokens); thinking stays in its fold, never in the answer; LOL Vibe's agent writes its files. **The way
+back:** `node docs/spike/runs/draft_test_farm.mjs stop` in the same terminal folder, then start the Farm app (it brings
+back Qwen3.6 as it was). In the test farm's panel, **do not Download or Remove a model**: its vLLM folder links to
+production's models. Write on *Found* how fast it felt, and any answer that came out wrong or cut.
+- [ ] Done · Found:
+
 ## K. A Windows test box with an RTX card (not production)
 
 **Machine:** a Windows PC with an NVIDIA RTX card that is not the production farm; ideally also the studio's 4070

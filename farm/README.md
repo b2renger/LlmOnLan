@@ -275,11 +275,22 @@ tools and see pictures where they can, with gate scores within a point or two of
 |---|---|---|---|
 | Qwen3.6 35B-A3B (the default) | yes | no | 48 people at 64k on an RTX PRO 6000, 8 on a DGX Spark |
 | Nemotron 3.5 Lightning 30B-A3B | no | no | 160 at 32k on an RTX PRO 6000, 16 on a DGX Spark |
-| Qwen3.8 27B | yes | no | 16 at 32k on an RTX PRO 6000; too slow on a Spark |
+| Qwen3.8 27B | yes | no | 16 at 32k on an RTX PRO 6000; too slow on a Spark. **Drafts ahead** with its own MTP layer (since 2026-11-19, below) |
 | Gemma 4 12B (`unsloth/gemma-4-12b-it-NVFP4`, 9.3 GB) | yes | yes | 16 at 32k, 8 at 64k on an RTX PRO 6000 (≥ 64 / ≥ 48 once the first follow-up is past) |
 | Qwen3-Omni 30B-A3B (`Qwen/Qwen3-Omni-30B-A3B-Instruct`, 70.5 GB, FP8 at load) | yes | yes, and writes down speech | 20 at 32k, 10 at 64k on an RTX PRO 6000 in a 30 GiB pool: its memory binds first (~30 / ~14 on a PRO 6000 of its own) |
 | Flint 40B-A2.5B (`RecursiveSI/flint-nvfp4-gguf` + `RecursiveSI/flint`'s config, 22.9 GB) | no | no | 40 at 32k, 20 at 64k on an RTX PRO 6000, its memory the limit (bf16 context only) |
 | Gemma 4 26B-A4B (`nvidia/Gemma-4-26B-A4B-NVFP4`, 18.8 GB; since 2026-11-09) | yes | no | 40 at 32k, 20 at 64k on an RTX PRO 6000, its memory the limit; LOL Vibe's coding model (12/15 on its agent tasks) |
+
+**Qwen3.8 drafts ahead** ([VLLM_DRAFT_PLAN](../docs/plans/VLLM_DRAFT_PLAN.md), 2026-11-19): its flags add
+`--speculative-config {"method":"mtp","num_speculative_tokens":3,"draft_sample_method":"probabilistic"}`, so vLLM drafts
+three tokens with the checkpoint's own MTP layer and checks them in one step. Measured on the RTX PRO 6000 with the
+whole GPU ([RESULTS.md](../docs/spike/RESULTS.md#qwen38-drafting-ahead-rtx-pro-6000-2026-11-18)): 67 → 155 tok/s for one
+person, 51 → 94 each for 30, the same quality gate; it costs memory: the MTP layer is one more full-attention layer,
+each draft token holds 3 more pages of recurrent state, and its buffers take ~5.5 GiB beside the weights, so a 50 GiB pool
+holds about 22 whole 32k conversations instead of 31 (vLLM's own admission count). `facts()` counts all three, so the
+fit and the Automatic pool follow; the Automatic seats stay on Qwen3.8's measured label (16 at 32k). A Qwen3.8 folder an
+operator adds gets the flags **without** drafting (another checkpoint may have no MTP layer), and `/lol/self` says
+`backend.mtp: true` while it drafts. Not tested on a DGX Spark.
 
 **Flint** is one GGUF file (its NVFP4 weights, served weight-only) that takes its config and tokenizer from the BF16
 repo: Download fetches the GGUF repo into `hf/flint-nvfp4-gguf/` and only the BF16 repo's json and chat template (never
