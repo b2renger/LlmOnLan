@@ -78,6 +78,13 @@ registerStrings('render', {
   pageStalled: 'The page stopped answering (a loop that never ends?), so it was closed. Change the code, or press ▶ Run.',
   pageReplaced: 'This page stopped because another page started (a Preview in the chat). Press ▶ Run to run it here again.',
   pageMore: '{n} more not shown',
+  pagePopOut: 'Pop out',
+  pagePopOutTip: 'Move this page and its code to a window of its own (for another screen or a projector)',
+  pageAway: 'This page is open in its own window. Your changes there are kept with this chat.',
+  pageBack: 'Bring it back here',
+  pageBackTip: 'Run the page here again (its window keeps what it shows until you close it)',
+  pageWindowTitle: 'Page — LlmOnLan',
+  pageWindowWaiting: 'Waiting for a page from LOL Vibe…',
 
   // branch bar (.chat-branch)
   branchPrev: 'Previous version',

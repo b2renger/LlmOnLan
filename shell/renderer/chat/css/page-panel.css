@@ -2,6 +2,12 @@
    the code and the running page side by side (one above the other when the column is narrow), then the errors and the
    console. The editor inside is css/code-editor.css. ComfyQ tokens only: no colour literals (lint rule 3). */
 
+/* In the page's own window (renderer/page-window.html) #lolchat is the panel alone: one column, not the chat's three. */
+#lolchat.lol-page-window { display: block; }
+#lolchat .chat-pagep-away { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+#lolchat .chat-pagep-away[hidden] { display: none; }
+#lolchat .chat-pagep-away-text { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+
 #lolchat .chat-pagep {
   display: flex; flex-direction: column; height: 100%; min-height: 0; padding: 10px; gap: 8px; box-sizing: border-box;
   container-type: inline-size;

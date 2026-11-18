@@ -17,7 +17,7 @@ const BUILD = path.join(SHELL, 'build', 'main');
 const SRC = path.join(SHELL, 'src', 'main');
 const MODULES = ['farmSelect', 'discovery', 'configBridge', 'sidecar', 'sidecarManager', 'clientData', 'dataMigration', 'store', 'io', 'mcp', 'serial', 'webSearch', 'comfyqPrompts',
   // Loaded by other suites with no staleness check of their own (review 2026-11-05, TST-6), and the ones loaded below.
-  'outputs', 'homeAssistant', 'debugLog', 'projectGit', 'util', 'updater'];
+  'outputs', 'homeAssistant', 'debugLog', 'projectGit', 'util', 'updater', 'pageWindow'];
 const WEB_FIXTURES = path.join(HERE, '..', 'fixtures', 'web');
 
 /** @type {string[]} */
@@ -1812,9 +1812,13 @@ export default (test) => {
     assert.equal(U.sameFileUrl('file:///home/a/Runner.html', 'file:///home/a/runner.html', 'linux'), false, 'elsewhere, case counts');
     assert.equal(U.sameFileUrl('', fromChromium, 'win32'), false);
     assert.equal(U.sameFileUrl(undefined, undefined, 'win32'), false, 'nothing is never a match');
+    // Since VIBE_PAGE_PLAN step 2 (2026-11-18) the rule is pageWindow.ts `frameAllowed`, for both app windows.
     const src = indexSrc();
-    assert.ok(src.includes('if (sameFileUrl(String(e.url || \'\'), RUNNER_URL)) return;'), 'the frame veto compares with sameFileUrl');
-    assert.ok(src.includes('if (!sameFileUrl(String(e.url || \'\'), INDEX_URL)) e.preventDefault();'), 'and so does the main frame\'s');
+    const rule = fs.readFileSync(path.join(SRC, 'pageWindow.ts'), 'utf8');
+    assert.ok(rule.includes('if (sameFileUrl(u, runnerUrl)) return true;'), 'the frame veto compares with sameFileUrl');
+    assert.ok(rule.includes('if (isMainFrame) return sameFileUrl(u, pageUrl);'), 'and so does the main frame\'s');
+    assert.ok(src.includes("if (!frameAllowed(String(e.url || ''), e.isMainFrame, INDEX_URL, runnerUrl(), serves)) e.preventDefault();"), 'the main window uses it');
+    assert.ok(src.includes("if (!frameAllowed(String(e.url || ''), e.isMainFrame, pageUrl, runnerUrl())) e.preventDefault();"), 'the page window too, with no IDE preview');
   });
 
   test('SHM-1: a new window Open WebUI opens goes to the system browser (its own pages excepted), and its microphone, camera and clipboard are only for its own origin', () => {
@@ -1913,7 +1917,7 @@ export default (test) => {
     }
     assert.ok(app.includes('async function ensureAuthenticated() {\n  if (!onOwui()) return;'));
     const src = indexSrc();
-    assert.ok(src.includes("if (e.isMainFrame) { if (!sameFileUrl(String(e.url || ''), INDEX_URL)) e.preventDefault(); return; }"), 'the window stays on the app\'s own page');
+    assert.ok(src.includes("if (!frameAllowed(String(e.url || ''), e.isMainFrame, INDEX_URL, runnerUrl(), serves)) e.preventDefault();"), 'the window stays on the app\'s own page (pageWindow.ts frameAllowed: its main frame only on INDEX_URL)');
     assert.ok(src.includes("wc.on('will-navigate', (e) => {\n        if (sameOrigin(e.url, sidecar.getState().url)) return;\n        e.preventDefault();"), 'the webview stays on Open WebUI');
   });
 
@@ -2197,6 +2201,101 @@ export default (test) => {
     assert.match(log, / starting\n/, 'without colour codes');
     assert.doesNotMatch(log, /POST \/api\/chat/, 'no request line once Open WebUI runs');
     assert.match(log, /ERROR \| open_webui\.main - boom/);
+  });
+
+  test('VIBE_PAGE_PLAN 2: the page window takes only a page, and only from the window that may send it', () => {
+    stubElectron();
+    const { validPageTarget, validPageEdits, frameAllowed, PAGE_LIMITS } = require(path.join(BUILD, 'pageWindow.js'));
+    const fences = [{ lang: 'html', code: '<p>x</p>' }, { lang: 'js', code: 'nope();' }];
+    const good = { threadId: 'mi3abc12', msgId: 'mi3abc13', fences, pageIndex: 0, edits: { 1: 'ok();' } };
+    assert.deepEqual(validPageTarget(good), { ...good, edits: { 1: 'ok();' } });
+    assert.deepEqual(validPageTarget({ ...good, edits: undefined }).edits, {}, 'no edits is none');
+    for (const [why, bad] of [
+      ['an id with a quote', { ...good, msgId: 'a"b' }], ['no blocks', { ...good, fences: [] }],
+      ['too many blocks', { ...good, fences: Array.from({ length: PAGE_LIMITS.fences + 1 }, () => fences[0]) }],
+      ['a block that is not text', { ...good, fences: [{ lang: 'html', code: 7 }] }],
+      ['the page outside the blocks', { ...good, pageIndex: 2 }], ['a page index that is not a whole number', { ...good, pageIndex: 0.5 }],
+      ['an edit of a block that is not there', { ...good, edits: { 5: 'x' } }], ['an edit under a name', { ...good, edits: { constructor: 'x' } }],
+      ['an edit that is not text', { ...good, edits: { 1: {} } }],
+      ['too much code', { ...good, fences: [{ lang: 'html', code: 'x'.repeat(PAGE_LIMITS.bytes + 1) }] }],
+      ['nothing', null],
+    ]) assert.equal(validPageTarget(bad), null, why);
+    assert.deepEqual(validPageEdits({ threadId: 't1', msgId: 'm1', edits: null }), { threadId: 't1', msgId: 'm1', edits: null }, 'a reset');
+    assert.deepEqual(validPageEdits({ threadId: 't1', msgId: 'm1', edits: { 2: 'x' } }).edits, { 2: 'x' });
+    assert.equal(validPageEdits({ threadId: 't1', msgId: 'm1', edits: { a: 'x' } }), null);
+    assert.equal(validPageEdits({ threadId: 't1', msgId: '', edits: null }), null);
+
+    // The frame rule both windows use: the page itself in the main frame, the runner (or what the IDE serves) below it.
+    const page = 'file:///C:/app/renderer/page-window.html';
+    const runner = 'file:///C:/app/renderer/chat/sandbox/runner.html';
+    assert.equal(frameAllowed(page, true, page, runner), true);
+    assert.equal(frameAllowed(runner, true, page, runner), false, 'the runner is never a main frame');
+    assert.equal(frameAllowed('https://example.com/', true, page, runner), false);
+    assert.equal(frameAllowed(runner, false, page, runner), true);
+    assert.equal(frameAllowed(runner + '?x#y', false, page, runner), true, 'its query and hash do not matter');
+    assert.equal(frameAllowed('file:///C:/app/renderer/LOL%20Studio%20Projects/p/sandbox/runner.html', false, page, runner), false, 'a project runner.html is not ours');
+    assert.equal(frameAllowed('http://127.0.0.1:5555/', false, page, runner), false, 'no IDE preview in the page window');
+    assert.equal(frameAllowed('http://127.0.0.1:5555/', false, page, runner, (u) => u.startsWith('http://127.0.0.1:5555/')), true);
+  });
+
+  test('VIBE_PAGE_PLAN 2: the page window messages go where they belong, from whom they may come', () => {
+    stubElectron();
+    const { installPageWindow } = require(path.join(BUILD, 'pageWindow.js'));
+    /** @type {Record<string, Function>} */ const handlers = {};
+    const ipc = {
+      handle: (/** @type {string} */ n, /** @type {Function} */ f) => { handlers[n] = f; },
+      on: (/** @type {string} */ n, /** @type {Function} */ f) => { handlers[n] = f; },
+    };
+    const makeWin = () => {
+      /** @type {Record<string, Function[]>} */ const ev = {};
+      /** @type {any[]} */ const sent = [];
+      return {
+        destroyed: false, sent,
+        webContents: { send: (/** @type {string} */ ch, /** @type {any} */ m) => sent.push([ch, m]), on: () => {} },
+        isDestroyed() { return this.destroyed; }, isMinimized: () => false, restore() {}, show() {}, focus() {},
+        on: (/** @type {string} */ n, /** @type {Function} */ f) => { (ev[n] = ev[n] || []).push(f); },
+        close() { this.destroyed = true; for (const f of ev.closed || []) f(); },
+      };
+    };
+    const main = makeWin();
+    /** @type {any[]} */ const made = [];
+    const pw = installPageWindow({ ipc, mainWindow: () => main, createWindow: () => { const w = makeWin(); made.push(w); return w; } });
+    const target = { threadId: 't1', msgId: 'm1', fences: [{ lang: 'html', code: '<p>x</p>' }], pageIndex: 0, edits: {} };
+    const stranger = { sender: {} };
+
+    assert.equal(handlers['page-window-open'](stranger, target).ok, false, 'only the main window opens it');
+    assert.equal(made.length, 0);
+    assert.equal(handlers['page-window-open']({ sender: main.webContents }, { ...target, pageIndex: 9 }).ok, false, 'not a page');
+    assert.equal(made.length, 0);
+    assert.equal(handlers['page-window-open']({ sender: main.webContents }, target).ok, true);
+    assert.equal(made.length, 1);
+    const win = made[0];
+    assert.deepEqual(win.sent, [], 'nothing before the window says it is ready');
+    handlers['page-window-ready'](stranger);
+    assert.deepEqual(win.sent, [], 'a ready from another window is not this one');
+    handlers['page-window-ready']({ sender: win.webContents });
+    assert.deepEqual(win.sent, [['page-window', { type: 'load', target }]]);
+
+    handlers['page-window-edits']({ sender: main.webContents }, { threadId: 't1', msgId: 'm1', edits: { 0: 'x' } });
+    handlers['page-window-edits']({ sender: win.webContents }, { threadId: 't1', msgId: 'm1', edits: { zero: 'x' } });
+    assert.deepEqual(main.sent, [], 'edits only from the page window, and only edits');
+    handlers['page-window-edits']({ sender: win.webContents }, { threadId: 't1', msgId: 'm1', edits: { 0: 'y' } });
+    assert.deepEqual(main.sent, [['page-window', { type: 'edits', threadId: 't1', msgId: 'm1', edits: { 0: 'y' } }]]);
+
+    // A second Pop out: the same window, the page at once.
+    const second = { ...target, msgId: 'm2' };
+    handlers['page-window-open']({ sender: main.webContents }, second);
+    assert.equal(made.length, 1);
+    assert.deepEqual(win.sent[1], ['page-window', { type: 'load', target: second }]);
+    // Closed: the main window hears it; the next Pop out makes a new window, which waits for its own ready.
+    pw.close();
+    assert.deepEqual(main.sent[1], ['page-window', { type: 'closed' }]);
+    assert.equal(pw.current(), null);
+    handlers['page-window-open']({ sender: main.webContents }, target);
+    assert.equal(made.length, 2);
+    assert.deepEqual(made[1].sent, []);
+    handlers['page-window-edits']({ sender: win.webContents }, { threadId: 't1', msgId: 'm1', edits: null });
+    assert.equal(main.sent.length, 2, 'the closed window speaks for nothing');
   });
 
   test('cleanup', () => {

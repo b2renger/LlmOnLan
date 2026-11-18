@@ -32,7 +32,10 @@
   (`computer/code-editor.mjs`, shared with the drawer), the page filling its box, the errors (a click goes to the
   line) and the console; it runs again when typing pauses (≈ 700 ms; *Run as I type* off → Ctrl+Enter), each run a
   fresh guest; edits are kept on the answer's record (`message.pageEdits`, never its text) and the block says
-  *edited*; one page runs at a time across the message's Preview and the panel (`render/page-run.mjs`); history in the renderer's IndexedDB `lol-chat` v2 with a one-way
+  *edited*; one page runs at a time across the message's Preview and the panel (`render/page-run.mjs`); **Pop out** moves
+  it to a window of its own (`src/main/pageWindow.ts`: built as the main window, same preload and session, the same
+  frame rule `frameAllowed`; `renderer/page-window.html`; its edits travel back over IPC and the main window writes
+  them; closing it brings the page back beside the chat); history in the renderer's IndexedDB `lol-chat` v2 with a one-way
   import of the v1 `localStorage` history; no RAG, uploads or tools — those P3/P4 plans were cancelled on 2026-09-16
   (docs/archive/plans/LOLCHAT_STUDIO_PLAN.md §6: Open WebUI does documents and search); and
   since 2026-09-28 the **IDE** (P5 v1, [docs/plans/IDE_PLAN.md](../../docs/plans/IDE_PLAN.md)): the workbench's **Project** panel binds a

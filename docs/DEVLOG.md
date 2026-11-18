@@ -9,6 +9,31 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-18 (15:39) — LOL Vibe's page pops out to a window of its own (VIBE_PAGE_PLAN step 2)
+
+**What:** **Pop out** in the Page panel moves the page and its code to a second app window (`src/main/pageWindow.ts`,
+`renderer/page-window.html`, `renderer/chat/page-window.mjs`), for another screen or a projector; the side column says
+it is there and offers **Bring it back here**; closing the window brings it back with the edits made there. The window
+is built as the main window is: the same preload in every frame (the guest's frames lose WebRTC, only our page gets the
+door), the same session (the same permission rules), WebRTC's UDP off, no menu, links to the system browser, and the
+same frame rule, now one function for both windows (`frameAllowed`: the main frame only on its own page, a subframe
+only the runner, plus the IDE's served Preview in the main window). Main checks every message: a page only from the
+main window, ready and edits only from the page window, a page's shape and size (64 blocks, 2 MB), the edits'
+indexes; the edits go back to the main window, which writes the store (one writer). The main window's close closes it.
+
+**Tested:** `shell-main.test.mjs` 2 new (every malformed page refused; the frame rule, a project's own `runner.html`
+and an IDE address refused in the page window; the routing: a stranger opens nothing, nothing is sent before the
+window's ready, edits only from it, a second Pop out reuses it, a closed one speaks for nothing) and 2 source checks
+moved to the shared rule; 93 passed. `test/page-window-e2e.cjs` (new): the real app on a temp profile over CDP, no
+farm used: Side by side → the error at the JavaScript block's line 3; Pop out → the side column idle, the window with
+the same error, the page as wide as its box (526 px of a 1100 px window, side by side), `RTCPeerConnection` and
+`webkitRTCPeerConnection` undefined in its guest, `location.href = 'https://example.com/'` from the window left it on
+`page-window.html`; a fix typed there ran (no error, its `console.log`) and reached the answer's record in the main
+window (*edited* shown); closing the window brought the page back beside the chat with that edit. `npm run test:chat`
+1981 passed, lint 0 (296 files); `node test/unit.js` 30; harness k30 2/2, k11 12/12, c3 29/29.
+
+**Not checked:** a Mac (its window and menu behaviour); a second screen; HUMAN_TESTS A29 has the steps.
+
 ## 2026-11-18 (15:25) — LOL Vibe's page beside the chat: errors with their block and line, the code edited live (VIBE_PAGE_PLAN step 1)
 
 **Why:** the owner, in the chat: "improve the way errors in the code are shown in LOL Vibe, I want a better preview, it

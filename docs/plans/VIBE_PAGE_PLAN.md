@@ -36,8 +36,8 @@ message, in the chat's own sandbox. Three things are missing:
    **Back to the model's code** throws the edits away (asks first). The block in the message shows *edited* when there
    are edits, and its Preview runs the edited page.
 4. **Pop out:** a button in the panel moves the page to **its own window** (a second screen, a projector), with the same
-   editor, page and strip; the panel in the side column closes and says *open in its own window*. Closing the window
-   brings nothing back by itself; Open beside the chat again does. The window closes with the app.
+   editor, page and strip; the panel in the side column says *open in its own window*. Closing the window brings the
+   page back beside the chat (built that way, step 2). The window closes with the app.
 
 ## How
 
@@ -99,7 +99,7 @@ message, in the chat's own sandbox. Three things are missing:
 - The page **fills** its box (the frame at 100 %, the run's size measured after a layout frame), so a panel dragged
   wider lays it out again by itself: no re-run on a resize.
 - The editor is moved, not copied: `computer/code-editor.mjs` (the drawer's field, its CSS in `css/code-editor.css`,
-  scoped to the Computer, LOL Vibe and the page window, with the Computer's tokens falling back to the shared ones).
+  scoped to the Computer and LOL Vibe (the page window is a #lolchat too), with the Computer's tokens falling back to the shared ones).
 
 Files: `render/page.mjs` (`pageOf` names, `blockOf`, `pageBlocks`, `withEdits`), `render/page-run.mjs` (the shared
 sandbox, the blocks of a message, the edits on `message.pageEdits`, written on the view's own copy too so a later pin
@@ -109,4 +109,17 @@ block and line, the shared sandbox), `sandbox/runner.html` (`namedAt`, `waking`)
 Tests: `render-page.test.mjs` (names and `blockOf`), `sandbox-protocol.test.mjs` (`source` refused unless it is a
 name), harness `k30-page-*` (2). HUMAN_TESTS A29.
 
-**Step 2** (the pop-out window): not built yet.
+**Step 2, 2026-11-18 (day session, DEVLOG 15:39).** As planned, with these differences, each checked:
+- The window uses **the main window's own preload** (not a smaller one): a preload runs sandboxed and cannot share code,
+  and the WebRTC strip in every subframe is that file's; the trust is the main window's (our `file://` page in the main
+  frame gets the door, the guest in a subframe gets none and no WebRTC). Same session, so the same permission rules.
+- **Closing the window brings the page back** beside the chat (with the edits made there), rather than leaving the
+  panel saying it is elsewhere; **Bring it back here** does the same without closing it.
+- The main window's frame veto and the window's are one rule, `pageWindow.ts` `frameAllowed` (the main window adds the
+  IDE's served Preview); the main window's close closes the page window.
+
+Files: `src/main/pageWindow.ts` (the checks: who sent it, a page's shape and size, the edits; the routing),
+`src/main/index.ts` (`buildPageWindow`, `frameAllowed` for both windows), `src/preload/index.ts` (four calls),
+`renderer/page-window.html` and `renderer/chat/page-window.mjs` (the panel, `createPanel` with its `io` over IPC),
+`render/page-panel.mjs` (Pop out, the panel's `io`). Tests: `shell-main.test.mjs` (2: the shapes refused, the frame rule,
+the routing from and to the right window only), `test/page-window-e2e.cjs` (the real app, both windows, over CDP).

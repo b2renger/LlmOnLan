@@ -394,9 +394,9 @@ another cause: send its `logs/owui.log`.
 
 ### A29 A page from an answer, its code beside it, edited live
 *Proves:* [VIBE_PAGE_PLAN](plans/VIBE_PAGE_PLAN.md) on a real model's page: an error says its block and line, the page
-and its code are side by side, a change runs as you type and stays with the chat. *Needs:* the next client release
-(v0.2.20) and any farm, 10 minutes. *Was:* new (2026-11-18; the harness scenarios `k30-page-*` run it on a scripted
-answer, not on a model's).
+and its code are side by side, a change runs as you type and stays with the chat, and the page pops out to a window. *Needs:* the next client release
+(v0.2.20) and any farm, 10 minutes (a Mac too if you can). *Was:* new (2026-11-18; the harness scenarios `k30-page-*`
+and `shell/test/page-window-e2e.cjs` run it on a scripted answer, not on a model's, on Windows).
 
 1. In LOL Vibe, a new chat: *"Make a small web page with a button that counts clicks: give me index.html, style.css and
    script.js."* Wait for the answer.
@@ -407,12 +407,16 @@ answer, not on a model's).
 4. Press the red *JavaScript, line N* under *Errors*.
 5. Put the word back. Then change something you can see (a colour in *CSS*, the button's text in *HTML*).
 6. Open another chat, then come back to this one. Press **Side by side** again if the column closed.
-7. **Back to the model's code**, and confirm.
+7. **Pop out**: the page and its code move to a window of their own. Drag it to another screen if you have one, change
+   the CSS there, then close that window.
+8. **Back to the model's code**, and confirm.
 
 *Expect:* step 3: within a second the page runs again, *Errors* shows *JavaScript, line N* with the browser's message,
 the *JavaScript* tab turns red and its line N is marked. Step 4: the caret goes to that line. Step 5: the error goes
 and the page changes as you stop typing; the answer's own block shows **edited**. Step 6: your change is still there.
-Step 7: the model's code is back, *edited* is gone.
+Step 7: the window shows the same tabs, page and strip, and the side column says the page is in its own window; your
+change there runs as you type, and when you close the window the page comes back beside the chat with that change.
+Step 8: the model's code is back, *edited* is gone.
 - [ ] Done · Found:
 
 ### A10 Code, pictures and files

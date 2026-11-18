@@ -28,11 +28,38 @@ const MAX_LINES = 200;
  * @typedef {{threadId: string, msgId: string, fences: {lang: string, code: string}[], pageIndex: number}} PageTarget
  */
 
+/**
+ * Where a panel's edits live, and its way out to a window of its own. Beside the chat: the answer's record
+ * (page-run.mjs) and the preload's `pageWindowOpen`. In that window (chat/page-window.mjs): the main window, over IPC.
+ * @typedef {{ readEdits: (t: PageTarget) => Promise<Record<string, string>|null>,
+ *   writeEdits: (t: PageTarget, edits: Record<string, string>|null) => Promise<any>,
+ *   popOut?: (t: PageTarget & {edits: Record<string, string>}) => Promise<any>|void }} PageIo
+ */
+
 /** @param {any} app */
 export function install(app) {
   /** The page each thread had open beside it, for this launch. @type {Map<string, PageTarget>} */
   const targets = new Map();
   /** @type {any} */ let live = null;
+  const door = typeof window !== 'undefined' ? /** @type {any} */ (window).lol : null;
+  /** @type {PageIo} */
+  const io = {
+    readEdits: (tg) => readEdits(app, tg.threadId, tg.msgId),
+    writeEdits: (tg, e) => writeEdits(app, tg.threadId, tg.msgId, e),
+    // Step 2 of VIBE_PAGE_PLAN: the page in a window of its own (a second screen, a projector).
+    ...(door && typeof door.pageWindowOpen === 'function' ? { popOut: (/** @type {any} */ p) => door.pageWindowOpen(p) } : {}),
+  };
+  if (door && typeof door.onPageWindow === 'function') {
+    door.onPageWindow((/** @type {any} */ ev) => {
+      if (!ev || typeof ev !== 'object') return;
+      // The window's edits are written here: one writer of the chat's store.
+      if (ev.type === 'edits' && typeof ev.threadId === 'string' && typeof ev.msgId === 'string') {
+        writeEdits(app, ev.threadId, ev.msgId, ev.edits && typeof ev.edits === 'object' ? ev.edits : null)
+          .catch((err) => console.warn('[lolchat] page edits from the window not saved', err));
+      }
+      if (ev.type === 'closed' && live && typeof live.windowClosed === 'function') live.windowClosed();
+    });
+  }
 
   app.registry.add(SLOTS.WORKBENCH_PANELS, {
     id: 'page',
@@ -42,7 +69,7 @@ export function install(app) {
     defaultWidth: 'split',
     available: () => true,
     create: (/** @type {HTMLElement} */ host) => {
-      live = createPanel(host, app, (id) => targets.get(id) || null);
+      live = createPanel(host, app, (id) => targets.get(id) || null, io);
       return live;
     },
   });
@@ -61,9 +88,10 @@ export function install(app) {
 }
 
 /**
- * @param {HTMLElement} host @param {any} app @param {(threadId: string) => PageTarget|null} targetOf
+ * @param {HTMLElement} host @param {any} app (its `dialogs` and `now`)
+ * @param {(threadId: string) => PageTarget|null} targetOf @param {PageIo} io
  */
-function createPanel(host, app, targetOf) {
+export function createPanel(host, app, targetOf, io) {
   const doc = host.ownerDocument || document;
   /** @param {string} tag @param {string} [cls] @param {string} [text] */
   const make = (tag, cls, text) => {
@@ -95,7 +123,15 @@ function createPanel(host, app, targetOf) {
   autoLabel.append(auto, doc.createTextNode(` ${t('render.pageAuto')}`));
   const reset = button(t('render.pageReset'), 'chat-pagep-reset', () => { void resetEdits(); }, t('render.pageResetTip'));
   reset.hidden = true;
-  bar.append(title, autoLabel, reset);
+  const popOut = button(t('render.pagePopOut'), 'chat-pagep-popout', () => { void popOutNow(); }, t('render.pagePopOutTip'));
+  popOut.hidden = !io.popOut;
+  bar.append(title, autoLabel, reset, popOut);
+  // While the page is in its own window: one line here, and a way to bring it back.
+  const away = make('div', 'chat-pagep-away');
+  away.hidden = true;
+  const awayText = make('p', 'chat-pagep-away-text', t('render.pageAway'));
+  const back = button(t('render.pageBack'), 'chat-pagep-back', () => { popped = false; void load(target); }, t('render.pageBackTip'));
+  away.append(awayText, back);
 
   const tabs = make('div', 'chat-pagep-tabs');
   tabs.setAttribute('role', 'tablist');
@@ -118,7 +154,7 @@ function createPanel(host, app, targetOf) {
   strip.append(errHead, errList, logHead, logList);
 
   body.append(bar, tabs, split, strip);
-  root.append(empty, body);
+  root.append(empty, away, body);
   host.replaceChildren(root);
 
   // ---- state -----------------------------------------------------------------------------------
@@ -128,6 +164,7 @@ function createPanel(host, app, targetOf) {
   /** @type {Map<number, {ed: import('../computer/code-editor.mjs').CodeEditor, tab: HTMLButtonElement}>} */
   const eds = new Map();
   let shownFence = -1;
+  let popped = false;
   let visible = false;
   let gone = false;
   /** @type {any} */ let handle = null;
@@ -151,7 +188,23 @@ function createPanel(host, app, targetOf) {
 
   function paintEmpty() {
     empty.hidden = !!target;
-    body.hidden = !target;
+    away.hidden = !(target && popped);
+    body.hidden = !target || popped;
+  }
+
+  /** The page goes to its own window, with the person's version; this panel waits. */
+  async function popOutNow() {
+    if (!target || !io.popOut) return;
+    for (const x of eds.values()) x.ed.flush();
+    const tg = target;
+    popped = true;
+    stopPage();
+    paintEmpty();
+    try { await io.popOut({ ...tg, edits: { ...edits } }); } catch (err) {
+      console.warn('[lolchat] the page window did not open', err);
+      popped = false;
+      if (target === tg) void load(tg);
+    }
   }
 
   /** @param {number} fence */
@@ -210,7 +263,7 @@ function createPanel(host, app, targetOf) {
     const snapshot = { ...edits };
     saveTimer = setTimeout(() => {
       saveTimer = 0;
-      writeEdits(app, tgt.threadId, tgt.msgId, snapshot).catch((err) => console.warn('[lolchat] page edits not saved', err));
+      Promise.resolve(io.writeEdits(tgt, snapshot)).catch((err) => console.warn('[lolchat] page edits not saved', err));
     }, SAVE_MS);
     if (auto.checked) {
       if (runTimer) clearTimeout(runTimer);
@@ -227,7 +280,7 @@ function createPanel(host, app, targetOf) {
     edits = {};
     reset.hidden = true;
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = 0; }
-    await writeEdits(app, target.threadId, target.msgId, null).catch((err) => console.warn('[lolchat] page edits not cleared', err));
+    await Promise.resolve(io.writeEdits(target, null)).catch((err) => console.warn('[lolchat] page edits not cleared', err));
     for (const [f, x] of eds) x.ed.setSource(String(target.fences[f].code || ''));
     void run();
   }
@@ -280,7 +333,7 @@ function createPanel(host, app, targetOf) {
 
   // ---- running ---------------------------------------------------------------------------------
   async function run() {
-    if (!target || !visible || gone) return;
+    if (!target || !visible || gone || popped) return;
     for (const x of eds.values()) x.ed.flush();
     stopPage();
     clearStrip();
@@ -323,11 +376,12 @@ function createPanel(host, app, targetOf) {
   /** Show this answer's page. @param {PageTarget|null} next */
   async function load(next) {
     stopPage();
+    if (next !== target) popped = false;
     target = next;
     edits = {};
     paintEmpty();
     if (!target) { build(); return; }
-    const saved = await readEdits(app, target.threadId, target.msgId);
+    const saved = await io.readEdits(target);
     if (target !== next) return;
     edits = saved || {};
     reset.hidden = !Object.keys(edits).length;
@@ -340,6 +394,8 @@ function createPanel(host, app, targetOf) {
 
   return {
     load,
+    /** The page's window was closed: the page comes back here, with the edits it made there. */
+    windowClosed() { if (popped) { popped = false; void load(target); } },
     /** @param {{thread: any}} ctx */
     show(ctx) {
       visible = true;
@@ -362,7 +418,7 @@ function createPanel(host, app, targetOf) {
       if (saveTimer && target) {
         clearTimeout(saveTimer);
         saveTimer = 0;
-        writeEdits(app, target.threadId, target.msgId, { ...edits }).catch(() => { /* written on the next change */ });
+        Promise.resolve(io.writeEdits(target, { ...edits })).catch(() => { /* written on the next change */ });
       }
     },
     /** @param {{thread: any}} ctx */
@@ -375,7 +431,7 @@ function createPanel(host, app, targetOf) {
       target: target ? { msgId: target.msgId, pageIndex: target.pageIndex } : null,
       blocks: blocks.map((b) => ({ fence: b.fence, kind: b.kind, name: blockName(b) })),
       shown: shownFence, edits: { ...edits }, errors: errors.map((e) => ({ message: e.message, at: blockOf(e, sources) })),
-      lines, runs, running: !!handle, state: handle ? handle.state() : null, auto: auto.checked,
+      lines, runs, running: !!handle, state: handle ? handle.state() : null, auto: auto.checked, popped,
     }),
   };
 }

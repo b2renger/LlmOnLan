@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <!-- The page's own window (VIBE_PAGE_PLAN step 2): a page from a LOL Vibe answer, its code beside it. It talks to
+       nothing on the network (connect-src 'self': the sandbox's vendored libraries only); the page runs in the
+       sandbox's runner, a subframe main vetoes everywhere else (src/main/pageWindow.ts). -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-src 'self';" />
+  <title>Page — LlmOnLan</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="chat/chat.css" />
+</head>
+<body>
+  <!-- #lolchat, so the chat's own rules (the editor, the panel, the dialogs) reach it; one column, not three. -->
+  <div id="lolchat" class="lol-page-window"></div>
+  <script type="module" src="chat/page-window.mjs"></script>
+</body>
+</html>

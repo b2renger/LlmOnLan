@@ -1,6 +1,6 @@
 /* code-editor.css: the code editor shared by the Computer's drawer and LOL Vibe's Page panel
    (computer/code-editor.mjs). Moved here from computer-drawer.css on 2026-11-18 (VIBE_PAGE_PLAN): the same rules,
-   reaching the Computer (#lolcomputer), LOL Vibe (#lolchat) and the page's own window (#lolpage); a Computer token
+   reaching the Computer (#lolcomputer) and LOL Vibe (#lolchat, the page window included); a Computer token
    falls back to the shared one it stands for, so the Computer looks as before. */
 
 /* ---- the code editor (COMPUTER_LIVE_PLAN K-8) -------------------------------------------------
@@ -9,7 +9,7 @@
    "Go to line". The gutter's numbers and the textarea share ONE font, size and line height — that
    is what keeps number N beside line N — and the error band sits BEHIND the (transparent) field,
    moved by the drawer as the field scrolls. It fills the drawer's height: code wants rows. */
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code {
+:is(#lolcomputer, #lolchat) .comp-code {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -22,7 +22,7 @@
   --comp-code-pad: 8px;
 }
 
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-head {
+:is(#lolcomputer, #lolchat) .comp-code-head {
   flex: 0 0 auto;
   display: flex;
   align-items: baseline;
@@ -30,7 +30,7 @@
   gap: 8px;
   min-width: 0;
 }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-title {
+:is(#lolcomputer, #lolchat) .comp-code-title {
   margin: 0;
   min-width: 0;
   overflow: hidden;
@@ -40,7 +40,7 @@
   font-weight: 600;
   color: var(--text);
 }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-caret {
+:is(#lolcomputer, #lolchat) .comp-code-caret {
   flex: 0 0 auto;
   font-family: var(--comp-code-font);
   font-size: 11px;
@@ -48,14 +48,14 @@
   font-variant-numeric: tabular-nums;
 }
 
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-tools {
+:is(#lolcomputer, #lolchat) .comp-code-tools {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 6px 10px;
 }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-run {
+:is(#lolcomputer, #lolchat) .comp-code-run {
   appearance: none;
   font: inherit;
   font-size: 12px;
@@ -67,9 +67,9 @@
   color: var(--on-accent);
   cursor: pointer;
 }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-run:hover { filter: brightness(1.08); }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-run:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 2px; }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-hint {
+:is(#lolcomputer, #lolchat) .comp-code-run:hover { filter: brightness(1.08); }
+:is(#lolcomputer, #lolchat) .comp-code-run:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 2px; }
+:is(#lolcomputer, #lolchat) .comp-code-hint {
   min-width: 0;
   font-size: 11px;
   line-height: 1.4;
@@ -77,7 +77,7 @@
 }
 
 /* The editing surface: one bordered box holding the gutter and the field. */
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-body {
+:is(#lolcomputer, #lolchat) .comp-code-body {
   flex: 1 1 auto;
   min-height: 160px;
   display: flex;
@@ -86,9 +86,9 @@
   border-radius: var(--comp-r-panel, 10px);
   background: var(--comp-panel-2, var(--surface-2));
 }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-body:focus-within { border-color: var(--accent-hover); }
+:is(#lolcomputer, #lolchat) .comp-code-body:focus-within { border-color: var(--accent-hover); }
 
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-gutter {
+:is(#lolcomputer, #lolchat) .comp-code-gutter {
   flex: 0 0 auto;
   overflow: hidden;
   padding: 0 8px 0 10px;
@@ -96,7 +96,7 @@
   background: color-mix(in srgb, var(--comp-panel, var(--surface)) 70%, var(--comp-panel-2, var(--surface-2)));
   user-select: none;
 }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-rows {
+:is(#lolcomputer, #lolchat) .comp-code-rows {
   padding: var(--comp-code-pad) 0;
   font-family: var(--comp-code-font);
   font-size: var(--comp-code-size);
@@ -106,20 +106,20 @@
   font-variant-numeric: tabular-nums;
   will-change: transform;
 }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-ln { height: var(--comp-code-lh); white-space: nowrap; }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-ln.is-error {
+:is(#lolcomputer, #lolchat) .comp-code-ln { height: var(--comp-code-lh); white-space: nowrap; }
+:is(#lolcomputer, #lolchat) .comp-code-ln.is-error {
   color: var(--danger);
   font-weight: 700;
   cursor: pointer;
 }
 
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-field {
+:is(#lolcomputer, #lolchat) .comp-code-field {
   position: relative;
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
 }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-band {
+:is(#lolcomputer, #lolchat) .comp-code-band {
   position: absolute;
   left: 0; right: 0; top: 0;
   height: var(--comp-code-lh);
@@ -127,8 +127,8 @@
   border-left: 2px solid var(--danger);
   pointer-events: none;
 }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-band[hidden] { display: none; }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-area {
+:is(#lolcomputer, #lolchat) .comp-code-band[hidden] { display: none; }
+:is(#lolcomputer, #lolchat) .comp-code-area {
   position: relative;
   flex: 1 1 auto;
   width: 100%;
@@ -150,10 +150,10 @@
   white-space: pre;
   overflow: auto;
 }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-area::selection { background: color-mix(in srgb, var(--accent-hover) 40%, transparent); }
+:is(#lolcomputer, #lolchat) .comp-code-area::selection { background: color-mix(in srgb, var(--accent-hover) 40%, transparent); }
 
 /* What went wrong, and the way to the line. */
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-error {
+:is(#lolcomputer, #lolchat) .comp-code-error {
   flex: 0 0 auto;
   display: flex;
   align-items: flex-start;
@@ -166,14 +166,14 @@
   font-size: 12px;
   line-height: 1.45;
 }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-error[hidden] { display: none; }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-error-text {
+:is(#lolcomputer, #lolchat) .comp-code-error[hidden] { display: none; }
+:is(#lolcomputer, #lolchat) .comp-code-error-text {
   flex: 1 1 auto;
   min-width: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-goto {
+:is(#lolcomputer, #lolchat) .comp-code-goto {
   flex: 0 0 auto;
   appearance: none;
   font: inherit;
@@ -186,6 +186,6 @@
   color: var(--danger);
   cursor: pointer;
 }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-goto:hover { filter: brightness(1.08); }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-goto[hidden] { display: none; }
-:is(#lolcomputer, #lolchat, #lolpage) .comp-code-goto:focus-visible { outline: 2px solid var(--danger); outline-offset: 1px; }
+:is(#lolcomputer, #lolchat) .comp-code-goto:hover { filter: brightness(1.08); }
+:is(#lolcomputer, #lolchat) .comp-code-goto[hidden] { display: none; }
+:is(#lolcomputer, #lolchat) .comp-code-goto:focus-visible { outline: 2px solid var(--danger); outline-offset: 1px; }

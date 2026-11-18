@@ -24,6 +24,13 @@ expose('lol', {
         ipcRenderer.on('sidecar-state', (_e, s) => cb(s)),
     getSidecarState: () => ipcRenderer.invoke('get-sidecar-state'),
 
+    // VIBE_PAGE_PLAN step 2: a page from LOL Vibe in a window of its own (main: src/main/pageWindow.ts). The main
+    // window opens it and hears its edits; the page window says it is ready and sends them. One event channel each way.
+    pageWindowOpen: (target: unknown) => ipcRenderer.invoke('page-window-open', target),
+    pageWindowReady: () => ipcRenderer.send('page-window-ready'),
+    pageWindowEdits: (data: unknown) => ipcRenderer.send('page-window-edits', data),
+    onPageWindow: (cb: (ev: unknown) => void) => ipcRenderer.on('page-window', (_e, ev) => cb(ev)),
+
     // Shell settings.
     getSettings: () => ipcRenderer.invoke('get-settings'),
     setTheme: (theme: 'dark' | 'light' | 'system') => ipcRenderer.invoke('set-theme', theme),

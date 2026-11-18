@@ -14,7 +14,7 @@ import { loadSettings, updateSettings } from './store';
 import { defaultDataDir, bundledOwuiVersion, sidecarRoot } from './paths';
 import { SidecarSupervisor } from './sidecar';
 import { McpoSupervisor } from './mcpoSupervisor';
-import { httpGet, tcpProbe, sameOrigin, sameFileUrl } from './util';
+import { httpGet, tcpProbe, sameOrigin } from './util';
 import { Discovery } from './discovery';
 import { moveDataDir, dirHasData, NOT_EMPTY } from './dataMigration';
 import { clientDataDir, prepareClientData, isInside, CLIENT_DIR_NAME, ClientDataNotice } from './clientData';
@@ -29,6 +29,7 @@ import { startMcpServer, pageCaller, TOOLS as MCP_TOOLS, MCP_PORT, MCP_PATH } fr
 import { createHome, withHome, armingText } from './homeAssistant';
 import { withComfyq } from './comfyqPrompts';
 import { setComputerMcp } from './configBridge';
+import { installPageWindow, frameAllowed } from './pageWindow';
 import {
     ensureSidecar, applyPendingSidecar, isSidecarInstalled,
     checkOwuiUpdate, downloadOwuiUpdate, repairWanted, updateStaged, SidecarProgress, releaseAssetUrl, installFrom,
@@ -516,6 +517,51 @@ function pushSidecarInstall(p: SidecarProgress): void {
     if (win && !win.isDestroyed()) win.webContents.send('sidecar-install', p);
 }
 
+/** The sandbox runner, the one subframe an app window may load (EXACT file, compared by util.ts sameFileUrl). */
+const runnerUrl = (): string => pathToFileURL(path.join(app.getAppPath(), 'renderer', 'chat', 'sandbox', 'runner.html')).href;
+
+/** The page's own window (VIBE_PAGE_PLAN step 2), routed by pageWindow.ts. */
+let pageWindows: ReturnType<typeof installPageWindow> | null = null;
+
+/**
+ * A page from LOL Vibe in a window of its own: built as the main window is (the same preload in every frame, so the
+ * sandbox's frames lose WebRTC and only our page gets the door; the same session, so the same permission rules; WebRTC
+ * off; no menu), with the same frame rule (only its page, and the runner below it) and links to the system browser.
+ */
+function buildPageWindow(): BrowserWindow {
+    const clientSes = mainWindowSession();
+    const pageFile = path.join(app.getAppPath(), 'renderer', 'page-window.html');
+    const pageUrl = pathToFileURL(pageFile).href;
+    const w = new BrowserWindow({
+        width: 1100,
+        height: 760,
+        minWidth: 480,
+        minHeight: 360,
+        backgroundColor: '#09090b',
+        title: 'Page — LlmOnLan',
+        icon: path.join(app.getAppPath(), 'assets', 'icon.png'),
+        show: true,
+        webPreferences: {
+            preload: path.join(__dirname, '..', 'preload', 'index.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            nodeIntegrationInSubFrames: true,
+            ...(clientSes ? { session: clientSes } : {}),
+        },
+    });
+    w.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
+    w.removeMenu();
+    w.webContents.on('will-frame-navigate', (e) => {
+        if (!frameAllowed(String(e.url || ''), e.isMainFrame, pageUrl, runnerUrl())) e.preventDefault();
+    });
+    w.webContents.setWindowOpenHandler(({ url }) => {
+        if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+        return { action: 'deny' };
+    });
+    w.loadFile(pageFile);
+    return w;
+}
+
 function createWindow(): void {
     const clientSes = mainWindowSession();
     // USB serial for the Computer (P3a-2): the window's own session, never the OWUI webview's.
@@ -570,17 +616,16 @@ function createWindow(): void {
     // projects API happily writes — so a project could host its own "runner" and the veto would
     // wave it through. Only the app's own file is allowed, compared after query/hash are stripped, and on Windows without
     // regard to case (util.ts sameFileUrl: a lowercase c:\ app path refused the runner, review 2026-11-15).
-    const RUNNER_URL = pathToFileURL(path.join(app.getAppPath(), 'renderer', 'chat', 'sandbox', 'runner.html')).href;
     // The window itself stays on the app's own page: anywhere else would run with the preload bridge, and with it the
-    // stored farm passwords (review 2026-11-05, TRUST-7).
+    // stored farm passwords (review 2026-11-05, TRUST-7). The rule is pageWindow.ts `frameAllowed`, the page window's too;
+    // here a subframe may also be the IDE's Preview: a project this app serves on 127.0.0.1 (studio.ts), by exact origin.
     const INDEX_URL = pathToFileURL(path.join(app.getAppPath(), 'renderer', 'index.html')).href;
     win.webContents.on('will-frame-navigate', (e) => {
-        if (e.isMainFrame) { if (!sameFileUrl(String(e.url || ''), INDEX_URL)) e.preventDefault(); return; }
-        if (sameFileUrl(String(e.url || ''), RUNNER_URL)) return;
-        // The IDE's Preview: a project this app serves on 127.0.0.1 (studio.ts), by exact origin.
-        if (studioApi && studioApi.serves(String(e.url || ''))) return;
-        e.preventDefault();
+        const serves = (u: string) => !!(studioApi && studioApi.serves(u));
+        if (!frameAllowed(String(e.url || ''), e.isMainFrame, INDEX_URL, runnerUrl(), serves)) e.preventDefault();
     });
+    // The page's own window (VIBE_PAGE_PLAN) belongs to this one: it goes when this one goes.
+    win.on('closed', () => pageWindows?.close());
     // ---- /LOL Studio ----
 
     // ---- LOL Studio (S0) ---- (the Computer's debug log: what the renderer cannot write itself)
@@ -696,6 +741,8 @@ function configureWebviewPermissions(): void {
 
 // --- IPC --------------------------------------------------------------------
 function registerIpc(): void {
+    // VIBE_PAGE_PLAN step 2: LOL Vibe's page in a window of its own (its messages checked and routed in pageWindow.ts).
+    pageWindows = installPageWindow({ ipc: ipcMain, mainWindow: () => win, createWindow: buildPageWindow });
     ipcMain.handle('get-sidecar-state', () => sidecar.getState());
     ipcMain.handle('get-settings', () => loadSettings());
 

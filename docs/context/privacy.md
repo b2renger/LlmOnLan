@@ -6,7 +6,8 @@
 ## Data‑flow & privacy boundary
 
 - **On the device, all under `DATA_DIR`:** every conversation, folder, prompt, document, and RAG vector
-  (OWUI's); LOL Vibe's history and the Computer's graphs and media (the main window's session,
+  (OWUI's); LOL Vibe's history (with, since 2026-11-18, a person's edits of a page from an answer, on that answer's
+  record: owner, VIBE_PAGE_PLAN) and the Computer's graphs and media (the main window's session,
   `DATA_DIR/lol-client`); the Computer's File-box outputs (`DATA_DIR/LOL Studio Projects`); and, since 2026-11-12 (not
   released yet), the **usage counts** (`chat/core/usage.mjs`, in the same session's storage): per day, which surface was
   opened, how LOL Vibe's replies ended and their timings, the Computer's runs and the box types they used, numbers and
