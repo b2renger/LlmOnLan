@@ -114,4 +114,26 @@ export default [
             }
         },
     },
+    {
+        // plans ▸ Next 13: a model going round in circles is stopped, and the box says why, instead of spending its steps.
+        name: 'k22-agent-going-round-in-circles-stops-after-three-same-steps-and-says-why',
+        needsMock: true,
+        timeoutMs: 90000,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            await h.fresh();
+            // The mock repeats its last scripted step: the same code, the same result, every step.
+            await h.mock.state({ agentSteps: [{ tool: 'run_code', why: 'look again', code: 'return 7;', answer: '' }] });
+            await open(h);
+            const agent = await h.computer.place('agent', 420, 60);
+            await h.computer.set(agent, { task: 'What is the answer?', model: 'mock-agent', maxSteps: 8 });
+            const before = (await h.mock.log({ path: '/v1/chat/completions' })).length;
+            await h.computer.runFrom(agent);
+            const r = await settle(h, agent);
+            h.eq(r.state, 'error', 'stopped as a failure, like running out of steps');
+            h.assert(/Stopped after 3 steps: it took the same step three times in a row \(run_code\)/.test(String(r.error && (r.error.message || r.error))), `the box says why: ${JSON.stringify(r.error)}`);
+            const after = (await h.mock.log({ path: '/v1/chat/completions' })).length;
+            h.eq(after - before, 3, 'three generations, not eight');
+        },
+    },
 ];

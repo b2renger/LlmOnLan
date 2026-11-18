@@ -26,7 +26,7 @@
   second opinion), **Agent** (P4, 2026-09-27, `graph/parts/agent.mjs`: a model in ≤ 12 short steps, each ONE tool —
   `run_code` in the sandbox over the labelled inputs and earlier results, `fetch` on hosts a PERSON listed on the box
   (exact names, through `io.ts`), `laya`, `answer` — JSON mode through the same ask door, one generation per step on
-  the Cap (the plan quotes `1–N` via `mostGenerations`); a failed or malformed step is fed back; the answer carries
+  the Cap (the plan quotes `1–N` via `mostGenerations`); a failed or malformed step is fed back; a run going round in circles stops early and says why (`loopOf`, 2026-11-18: the same step with the same result three times in a row, or two steps back and forth A B A B; a step whose result changed never counts; plans ▸ Next 13); the answer carries
   every step and its result; no output tool, never arms), **Converse** (2026-10-12, `graph/parts/converse.mjs` + the pure
   `graph/voice.mjs`, [docs/archive/plans/COMPUTER_VOICE_PLAN.md](../../docs/archive/plans/COMPUTER_VOICE_PLAN.md): a spoken conversation with the farm's model, for
   designing voice interaction — a person's **● Start** on THAT box opens the microphone through `capture.mjs`

@@ -9,6 +9,29 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-18 (02:14) — The Agent box stops when it goes round in circles (plans ▸ Next 13, night n° 9)
+
+**What:** `graph/parts/agent.mjs` `loopOf(steps)`, checked before each generation. A run stops when the model took
+the same step **three times in a row**, or went **back and forth between two steps (A B A B)**, each time with the
+same result. A step is its tool, what it filled in, and its result as the prompt showed it (fields in a fixed order),
+so a step that read something that changed is never a repeat. It fails like running out of steps (`partFail`, kind
+`part`), with a sentence that says why: *Stopped after 3 steps: it took the same step three times in a row (run_code)
+and got the same result each time, so it was going round in circles. Reword the task, wire in the data it needs, or
+pick another model.* (`strings/parts-agent.en.mjs` `agentLoopSame`, `agentLoopAlternate`.) Thresholds lower than Qwen
+Code's (5 in a row, ABAB three times: [the review](research/QWEN_CODE_2026-11-14.md)), because a box has 6 to 12
+steps. Twice in a row is still allowed: the model sees the repeat in "Steps so far" and may answer.
+
+**Tested:** a unit test (`agent-part`: three same steps stop at 3 generations of 6; A B A B stops at 4 of 8; twice
+then an answer answers; other arguments, other results and A B A are not loops; the same error three times is). A
+harness scenario in the real page, `k22-agent-going-round-in-circles-stops-after-three-same-steps-and-says-why`
+(the box ends in error with the sentence, 3 generations on the mock farm, not 8). `npm run test:chat`: 1975 passed,
+lint 0; `node test/unit.js` 30 passed. The full chat harness: **417/418**; the one failure,
+`k25-graph-preview-live-a-drag-on-a-node-moves-the-drawing` (0 % of the pixels changed), passed 3/3 alone; no file it
+covers changed. The second different load flake in two full runs (n° 8's was `k1-runbar-escape-stops-from-the-bar`).
+
+**Not checked:** a real model looping on a real farm (the live farm is stopped tonight). Lessons and templates: none
+relies on a repeated step (their scripted steps were read).
+
 ## 2026-11-17 (15:06) — OWUI_START_PLAN built: Open WebUI is never killed while it starts (owner: "Do whatever now we need to fix this")
 
 - `farmSelect.ts` `QUIET_GRACE_MS` (60 s): the pinned, active and booted-with farm keeps Open WebUI (and with it LOL

@@ -127,6 +127,29 @@ export function preview(v, n = PREVIEW) {
   return s.length > n ? `${s.slice(0, n)}… (${s.length - n} more characters)` : s;
 }
 
+/** PURE: one step as the model saw it — its tool, what it filled in, and the result as the prompt showed it.
+ * Fields in a fixed order, so two equal steps give the same text. @param {any} s */
+const stepKey = (s) => JSON.stringify([s.tool, s.code, s.url, s.question, s.options, s.from,
+  s.result ? (s.result.ok ? preview(s.result.value) : String(s.result.error)) : null]);
+
+/**
+ * PURE: is the run going round in circles? (plans ▸ Next 13, from Qwen Code's loop detection.) A step counts as a
+ * repeat only when its call AND its result are the ones the model already saw: it learned nothing new, so a step
+ * that reads something changing is never stopped. `same`: one step three times in a row; `alternate`: two steps
+ * back and forth, A B A B. ponytail: Qwen Code waits for 5 in a row and ABAB three times, sized for long sessions;
+ * a box of 6 to 12 steps would spend them all first. @param {any[]} steps
+ * @returns {null | {kind: 'same', tool: string} | {kind: 'alternate', a: string, b: string}}
+ */
+export function loopOf(steps) {
+  const k = steps.map(stepKey);
+  const n = k.length;
+  if (n >= 3 && k[n - 1] === k[n - 2] && k[n - 2] === k[n - 3]) return { kind: 'same', tool: String(steps[n - 1].tool) };
+  if (n >= 4 && k[n - 1] === k[n - 3] && k[n - 2] === k[n - 4] && k[n - 1] !== k[n - 2]) {
+    return { kind: 'alternate', a: String(steps[n - 2].tool), b: String(steps[n - 1].tool) };
+  }
+  return null;
+}
+
 /** PURE: a value's JavaScript type, as the prompt names it. @param {unknown} v */
 const kindOf = (v) => (typeof v === 'string' ? 'a string'
   : Array.isArray(v) ? `an array of ${v.length}`
@@ -348,6 +371,14 @@ export const agentPart = /** @type {any} */ ({
 
     for (let k = 1; k <= max; k += 1) {
       if (input.signal && input.signal.aborted) throw partFail(t('parts.errAborted'), 'aborted');
+      // Going round in circles: stop now, the way running out of steps stops (same failure kind), and say why.
+      const loop = loopOf(steps);
+      if (loop) {
+        say(id, null);
+        throw partFail(loop.kind === 'same'
+          ? t('parts.agentLoopSame', { n: steps.length, tool: loop.tool })
+          : t('parts.agentLoopAlternate', { n: steps.length, a: loop.a, b: loop.b }), 'part');
+      }
       const now = k === max ? ['answer'] : tools;
       const { system, prompt } = promptFor({ task, inputs, steps, tools: now, hosts, k, max });
       say(id, t('parts.agentThinking', { k, max }));

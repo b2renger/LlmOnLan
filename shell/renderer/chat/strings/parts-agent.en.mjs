@@ -24,6 +24,8 @@ registerStrings('parts', {
   agentDoing_laya: 'asking Laya',
   agentDone: 'Answered after {n} steps.',
   agentNoAnswer: 'No answer after {max} steps ({tools}). Give it more steps, a smaller task, or the data it needs.',
+  agentLoopSame: 'Stopped after {n} steps: it took the same step three times in a row ({tool}) and got the same result each time, so it was going round in circles. Reword the task, wire in the data it needs, or pick another model.',
+  agentLoopAlternate: 'Stopped after {n} steps: it went back and forth between the same two steps ({a} and {b}) and got the same results each time, so it was going round in circles. Reword the task, wire in the data it needs, or pick another model.',
   agentBadStep: 'your answer was not the JSON object asked for (it began: {raw}). Answer with the JSON object only.',
   agentHow: '**How it got there** — {n} steps (each result is what the tool gave back):',
   agentHowOne: '**How it got there** — 1 step (its result is what the tool gave back):',

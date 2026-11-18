@@ -4,7 +4,7 @@
 // over an earlier list, the last step forced to answer, a failed tool fed back instead of thrown, and the
 // run plan quoting "up to N generations".
 import assert from 'node:assert/strict';
-import { hostsOf, allowedUrl, toolsFor, stepSchema, promptFor, reportOf, preview, agentPart, MAX_STEPS } from '../../../renderer/chat/graph/parts/agent.mjs';
+import { hostsOf, allowedUrl, toolsFor, stepSchema, promptFor, reportOf, preview, agentPart, MAX_STEPS, loopOf } from '../../../renderer/chat/graph/parts/agent.mjs';
 import { runPlan } from '../../../renderer/chat/graph/topo.mjs';
 import { specMap } from '../../../renderer/chat/graph/parts/index.mjs';
 import { valueOf } from '../../../renderer/chat/graph/values.mjs';
@@ -116,6 +116,30 @@ export default (test) => {
     ]);
     assert.match((await runAgent({ task: 'x' }, sloppy)).data, /^Fine\./);
     assert.match(sloppy.calls[1].prompt, /1\. invalid — \n {3}ERROR: your answer was not the JSON object asked for \(it began: Sure! Here is my plan\)/);
+  });
+
+  test('agent: going round in circles stops the run and says why (plans ▸ Next 13)', async () => {
+    const A = { tool: 'run_code', why: 'sum', code: 'return 1;', url: '', answer: '' };
+    const B = { tool: 'run_code', why: 'again', code: 'return 2;', url: '', answer: '' };
+    // The same step, the same result, three times in a row: stopped at once, not after the 6 steps.
+    const same = farm([A]);
+    await assert.rejects(runAgent({ task: 'x', maxSteps: 6 }, same), /Stopped after 3 steps: it took the same step three times in a row \(run_code\)/);
+    assert.equal(same.calls.length, 3, 'three generations, then no more');
+    // Back and forth between two steps: A B A B.
+    const ab = farm([A, B, A, B, A, B]);
+    await assert.rejects(runAgent({ task: 'x', maxSteps: 8 }, ab), /Stopped after 4 steps: it went back and forth between the same two steps \(run_code and run_code\)/);
+    assert.equal(ab.calls.length, 4);
+    // Twice in a row is not a loop yet: the model may still answer.
+    assert.match((await runAgent({ task: 'x' }, farm([A, A, { tool: 'answer', why: 'ok', code: '', answer: 'One.' }]))).data, /^One\./);
+    // Pure: the same tool with other code is no repeat; the same call with a new result (a reading that changed) is none either.
+    const run = (/** @type {string} */ code, /** @type {any} */ value) => ({ tool: 'fetch', code: '', url: code, result: { ok: true, value } });
+    assert.equal(loopOf([run('u1', 1), run('u2', 1), run('u3', 1)]), null, 'other arguments');
+    assert.equal(loopOf([run('u', 1), run('u', 2), run('u', 3)]), null, 'other results');
+    assert.deepEqual(loopOf([run('u', 1), run('u', 1), run('u', 1)]), { kind: 'same', tool: 'fetch' });
+    assert.equal(loopOf([run('a', 1), run('b', 1), run('a', 1)]), null, 'A B A: not yet');
+    // The same failure three times is a loop too (the error is the result the model read).
+    const err = { tool: 'run_code', code: 'x', result: { ok: false, error: 'boom' } };
+    assert.equal(/** @type {any} */ (loopOf([err, err, err])).kind, 'same');
   });
 
   test('agent: fetch reads an allowed host through the io door; Laya classifies a list an earlier step made', async () => {
