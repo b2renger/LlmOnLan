@@ -107,7 +107,12 @@
   (only the latest; dropped when the farm comes back; applied when the start ends, or by the crash restart), Retry
   waits instead of killing (`isBooting`), and the wait shows *still starting* after 3 min and gives up after 10. A start
   that finds no `webui.db` writes `DATA_DIR/lol-owui-first-start` and removes it when healthy; a start that finds it
-  moves `webui.db*` into `DATA_DIR/interrupted-<time>/` (a quit during the first start). Open WebUI's output goes to
+  moves `webui.db*` into `DATA_DIR/interrupted-<time>/` (a quit during the first start). A database broken otherwise (a
+  laptop the class broke, an interrupted upgrade) gets a button (2026-11-18, [OWUI_REPAIR_PLAN](../plans/OWUI_REPAIR_PLAN.md)):
+  a start whose output matches `MIGRATION_BROKEN` (`(sqlite3.OperationalError) … already exists | duplicate column
+  name`) ends *keeps exiting* with `repairable`, and the panel offers **Repair Open WebUI's database** (`repair-owui-db`):
+  `webui.db*` into `DATA_DIR/broken-<time>/`, then the copy `webui.db.before-owui-<this version>` put back if there is
+  one, at most once per copy (`DATA_DIR/lol-owui-repaired`), then Retry's start. Open WebUI's output goes to
   `<userData>/logs/owui.log` (whole starts, then non-INFO lines only; privacy.md). A page OWUI loaded while the farm was not answering lists no model until reloaded:
   the renderer reloads it once when that farm answers (`app.js` `reloadIfFarmBack`). Each OWUI state, with
   the seconds since launch, goes to `<userData>/logs/boot.log` (1 MB, then `.1`): the timeline a slow-load

@@ -931,7 +931,7 @@ function registerIpc(): void {
     ipcMain.handle('reload-webview', () => { pushSidecarState(); return true; });
 
     // Retry a failed/stopped sidecar (the connection screen's Retry button).
-    ipcMain.handle('restart-sidecar', async () => {
+    const restartSidecar = async () => {
         // Preserve the farm password across a manual Retry — start() without
         // apiKey nulls it and a keyed farm then 401-loops (the change-check in
         // onFarms compares globals that did not change, so nothing self-heals).
@@ -943,6 +943,15 @@ function registerIpc(): void {
         await sidecar.stop({ keepState: true });
         await sidecar.start({ endpoint: currentEndpoint, dataDir: resolveDataDir(), apiKey: retryKey, defaultModel: currentModel, searxngUrl: currentSearxng, tts: currentTts, extract: currentExtract, embed: currentEmbed, stt: currentStt, contextPerSlot: currentCtxPerSlot });
         return sidecar.getState();
+    };
+    ipcMain.handle('restart-sidecar', restartSidecar);
+    // The repair button on "keeps exiting" with a half-built database (plans/OWUI_REPAIR_PLAN.md): its files, then Retry.
+    ipcMain.handle('repair-owui-db', async () => {
+        let done: string | null;
+        try { done = sidecar.repairDb(); } catch (e) { return { ok: false, message: `Could not repair: ${(e as Error).message}` }; }
+        if (!done) return { ok: false, message: 'Open WebUI is running or starting: nothing to repair.' };
+        void restartSidecar();
+        return { ok: true, message: done };
     });
 
     // --- local Blender assistant-tools server (mcpo) ---

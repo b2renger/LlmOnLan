@@ -2064,13 +2064,99 @@ export default (test) => {
     const d = tempDir('unfinished');
     fs.writeFileSync(path.join(d, 'webui.db'), 'half-migrated');
     fs.writeFileSync(path.join(d, 'webui.db-wal'), 'wal');
+    fs.writeFileSync(path.join(d, 'webui.db-journal'), 'journal');
     assert.equal(setAsideUnfinishedDb(d, 't1'), null, 'no marker: a database that finished a start is never touched');
     fs.writeFileSync(path.join(d, FIRST_START_MARKER), 'x');
     const aside = setAsideUnfinishedDb(d, 't2');
     assert.equal(aside, path.join(d, 'interrupted-t2'));
     assert.ok(!fs.existsSync(path.join(d, 'webui.db')) && !fs.existsSync(path.join(d, 'webui.db-wal')), 'both moved');
+    assert.equal(fs.readFileSync(path.join(aside, 'webui.db-journal'), 'utf8'), 'journal', 'and the journal, or it rolls into the new database');
     assert.equal(fs.readFileSync(path.join(aside, 'webui.db'), 'utf8'), 'half-migrated', 'moved, not deleted');
     assert.equal(setAsideUnfinishedDb(d, 't3'), null, 'nothing left to move');
+  });
+
+  test('a start whose Open WebUI exited for good keeps saying so: the wait running out does not say "not healthy in time"', async () => {
+    const util = require(path.join(BUILD, 'util.js'));
+    const real = util.waitForHttp;
+    const sup = new SidecarSupervisor();
+    sup.on('state', () => {});
+    sup.crashRestarts = 5;   // the last crash restart: the next exit is the error
+    // Node as the "sidecar": `node serve --host …` exits at once (no such file).
+    util.waitForHttp = async () => { while (sup.child) await new Promise((r) => setTimeout(r, 20)); return false; };
+    try {
+      await withEnv({ LOL_SIDECAR_CMD: process.execPath }, () => sup.start({ endpoint: null, dataDir: tempDir('exitwait') }));
+    } finally { util.waitForHttp = real; }
+    assert.equal(sup.getState().status, 'error');
+    assert.match(sup.getState().message, /keeps exiting/);
+  });
+
+  test('OWUI_REPAIR_PLAN: the repair moves the broken database aside and puts back the copy before the update, once', () => {
+    const { repairOwuiDb, REPAIRED_RECORD, FIRST_START_MARKER } = require(path.join(BUILD, 'sidecar.js'));
+    // A first start broken in a class: no copy, so Open WebUI builds a new database.
+    const d = tempDir('repair1');
+    fs.mkdirSync(path.join(d, 'lol-client'));
+    fs.writeFileSync(path.join(d, 'lol-client', 'vibe.json'), 'LOL Vibe');
+    fs.writeFileSync(path.join(d, 'webui.db'), 'half-migrated');
+    fs.writeFileSync(path.join(d, 'webui.db-shm'), 'shm');
+    fs.writeFileSync(path.join(d, 'webui.db-journal'), 'a hot journal left by the kill');
+    let r = repairOwuiDb(d, '0.13.3', 't1');
+    assert.ok(!fs.existsSync(path.join(d, 'webui.db-journal')), 'the journal goes with it, or it rolls into the new database');
+    assert.deepEqual(r, { moved: path.join(d, 'broken-t1'), restored: null });
+    assert.ok(!fs.existsSync(path.join(d, 'webui.db')) && !fs.existsSync(path.join(d, 'webui.db-shm')));
+    assert.equal(fs.readFileSync(path.join(d, 'broken-t1', 'webui.db'), 'utf8'), 'half-migrated', 'moved, not deleted');
+    assert.equal(fs.readFileSync(path.join(d, 'lol-client', 'vibe.json'), 'utf8'), 'LOL Vibe', 'lol-client untouched');
+    // An interrupted upgrade: the copy keepDbBeforeEngine took is put back, with its -wal, and stays beside it.
+    const e = tempDir('repair2');
+    fs.writeFileSync(path.join(e, 'webui.db'), 'half-migrated by 0.13.3');
+    fs.writeFileSync(path.join(e, 'webui.db-wal'), 'its wal');
+    fs.writeFileSync(path.join(e, 'webui.db.before-owui-0.13.3'), 'chats of 0.11.4');
+    fs.writeFileSync(path.join(e, 'webui.db.before-owui-0.13.3-wal'), 'the latest chats');
+    fs.writeFileSync(path.join(e, FIRST_START_MARKER), 'x');
+    r = repairOwuiDb(e, '0.13.3', 't2');
+    assert.equal(r.restored, 'webui.db.before-owui-0.13.3');
+    assert.equal(fs.readFileSync(path.join(e, 'webui.db'), 'utf8'), 'chats of 0.11.4');
+    assert.equal(fs.readFileSync(path.join(e, 'webui.db-wal'), 'utf8'), 'the latest chats');
+    assert.equal(fs.readFileSync(path.join(e, 'broken-t2', 'webui.db-wal'), 'utf8'), 'its wal', 'the broken wal moved, not mixed with the copy');
+    assert.ok(fs.existsSync(path.join(e, 'webui.db.before-owui-0.13.3')), 'the copy stays');
+    assert.ok(!fs.existsSync(path.join(e, FIRST_START_MARKER)), 'or the next start would set the copy aside');
+    assert.match(fs.readFileSync(path.join(e, REPAIRED_RECORD), 'utf8'), /webui\.db\.before-owui-0\.13\.3/);
+    // The copy itself was broken: a second click puts nothing back, so the button cannot loop.
+    r = repairOwuiDb(e, '0.13.3', 't3');
+    assert.deepEqual(r, { moved: path.join(e, 'broken-t3'), restored: null });
+    assert.ok(!fs.existsSync(path.join(e, 'webui.db')));
+    assert.equal(repairOwuiDb(e, '0.14.0', 't4').restored, null, 'another version has no copy here');
+  });
+
+  test('OWUI_REPAIR_PLAN: only a migration error offers the repair; the next start clears it; refused unless in error', async () => {
+    const { MIGRATION_BROKEN } = require(path.join(BUILD, 'sidecar.js'));
+    // The line read from the released 0.13.3 sidecar killed at migration 60 (DEVLOG 2026-11-18 02:29), and n° 8's form.
+    assert.match('2026-11-18 ERROR [open_webui.env] Error running migrations: (sqlite3.OperationalError) duplicate column name: version_id', MIGRATION_BROKEN);
+    assert.match('sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) table chat_file already exists', MIGRATION_BROKEN);
+    assert.doesNotMatch('OSError: [Errno 98] address already in use', MIGRATION_BROKEN, 'a port: Retry only');
+    const sup = new SidecarSupervisor();
+    sup.on('state', () => {});
+    sup.dataDir = tempDir('repair3');
+    assert.equal(sup.repairDb(), null, 'not in error: refused');
+    const child = /** @type {any} */ ({ pid: undefined });
+    sup.child = child; sup.booting = true; sup.crashRestarts = 5;
+    sup.logChild(Buffer.from('ERROR [open_webui.env] Error running migrations: (sqlite3.OperationalError) duplicate column name: version_id\n'));
+    sup.onChildExit(child, 1);
+    assert.equal(sup.getState().status, 'error');
+    assert.equal(sup.getState().repairable, true);
+    sup.child = child; sup.booting = true; sup.migrationBroken = false;
+    sup.logChild(Buffer.from('OSError: [Errno 98] address already in use\n'));
+    sup.onChildExit(child, 1);
+    assert.equal(sup.getState().repairable, undefined, 'another exit code 1: no button');
+    sup.migrationBroken = true; sup.onChildExit(sup.child = child, 1);
+    sup.child = /** @type {any} */ ({ pid: undefined });
+    assert.equal(sup.repairDb(), null, 'an Open WebUI running: refused');
+    sup.child = null;
+    fs.writeFileSync(path.join(sup.dataDir, 'webui.db'), 'broken');
+    assert.match(sup.repairDb(), /repaired.*broken files were moved/);
+    assert.equal(sup.crashRestarts, 0, 'the restart gets the usual budget');
+    sup.migrationBroken = true; sup.onChildExit(sup.child = child, 1);
+    await withEnv({ LOL_SIDECAR_CMD: path.join(tempDir('nocmd3'), 'missing', 'open-webui') }, () => sup.start(sup.launchOpts()));
+    assert.equal(sup.getState().repairable, undefined, 'the next start clears it, even one that fails at once');
   });
 
   test('OWUI_START_PLAN 1: a repoint while Open WebUI starts waits for the start to end; a move back cancels it', async () => {

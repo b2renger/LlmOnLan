@@ -9,6 +9,32 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-18 (10:24) — The repair button for a broken Open WebUI database (OWUI_REPAIR_PLAN, approved today)
+
+**Owner, 2026-11-18:** "ok for the repair button"; v0.2.19 after it. Built as [OWUI_REPAIR_PLAN](plans/OWUI_REPAIR_PLAN.md)
+says: `sidecar.ts` `MIGRATION_BROKEN` (set by `logChild` while a start runs) → `repairable` on *keeps exiting*;
+`repairOwuiDb` moves `webui.db*` into `broken-<time>/` and puts back `webui.db.before-owui-<version>` at most once
+(`lol-owui-repaired`); `repairDb` refuses unless in error with no child, logs `--- repaired: …` to `owui.log`, resets the
+crash budget and keeps a notice for the next ready; `index.ts` `repair-owui-db` then runs Retry's start (Retry's body
+is now a shared function); `app.js` the button and the sentence.
+
+**Found and fixed while checking it:** (1) the rollback journal: a start killed by the break script left
+`webui.db-journal` (Open WebUI's SQLite is in journal mode, not WAL); the shared move (`moveDbAside`, also n° 8's
+`setAsideUnfinishedDb`) now takes it, or a hot journal would be rolled into the new database. (2) *keeps exiting* was
+replaced after 3 min by *did not become healthy in time* (the start's health wait outlived its child); now only a
+child still running times out. Seen in the dev client.
+
+**Tests:** `npm run test:chat` 1978 passed (4 new: the repair's files, the flag and its refusals, the journal in both
+moves, the message kept), lint 0; `node test/unit.js` 30 passed. **Real Open WebUI** (the released v0.2.18 Windows
+sidecar, 0.13.3, the compiled supervisor, scratch folders): class case (first start killed at migration 60, version
+recorded as v0.2.18 does) one repair → healthy 25.2 s; a broken copy two repairs → healthy; an 0.10.1 database with a
+chat row, upgrade killed at its 3rd migration → one repair puts the copy back → healthy 13.1 s, the chat row there
+(alembic at 0.13.3's head). **Dev client** (the real window, `--user-data-dir` scratch, the released sidecar): the panel
+*Open WebUI's database was left half-built…* with **Retry** and **Repair Open WebUI's database** 19 s after launch;
+one click → *Starting…* → ready 25 s later, the chat on screen, the toast naming `broken-…`; `owui.log` has the
+`--- repaired` line. It found a farm on the LAN and pointed at it as any client does; the farm was not changed.
+**Not checked:** a Mac; the `already exists` form on a real database; the full chat harness (no file it drives changed).
+
 ## 2026-11-18 (02:29) — A class laptop's error, reproduced on the released sidecar, for OWUI_REPAIR_PLAN (night n° 9)
 
 **Why:** the repair button proposed tonight ([OWUI_REPAIR_PLAN](plans/OWUI_REPAIR_PLAN.md)) shows on Open WebUI's

@@ -898,6 +898,20 @@ function renderSidecar() {
     retry.className = 'btn'; retry.textContent = 'Retry';
     retry.onclick = () => { els.panelDetail.textContent = 'Restarting…'; window.lol.restartSidecar(); };
     els.panelActions.appendChild(retry);
+    // Open WebUI's own output said a migration left its database half-built (plans/OWUI_REPAIR_PLAN.md).
+    if (s.repairable) {
+      els.panelMsg.textContent = 'Open WebUI\'s database was left half-built, so it cannot start. Repair moves it aside and starts again. Your LOL Vibe and Computer work is not touched.';
+      const repair = document.createElement('button');
+      repair.className = 'btn'; repair.textContent = 'Repair Open WebUI\'s database';
+      repair.onclick = async () => {
+        repair.disabled = true; retry.disabled = true;
+        els.panelDetail.textContent = 'Repairing…';
+        const r = await window.lol.repairOwuiDb().catch((e) => ({ ok: false, message: String(e) }));
+        els.panelDetail.textContent = r.ok ? 'Starting again…' : r.message;
+        if (!r.ok) { repair.disabled = false; retry.disabled = false; }
+      };
+      els.panelActions.appendChild(repair);
+    }
   } else if (s.status === 'restarting') {
     els.panelIcon.innerHTML = '<div class="spinner"></div>';
     els.panelTitle.textContent = 'Reconnecting…';

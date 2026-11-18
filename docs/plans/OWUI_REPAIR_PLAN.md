@@ -1,8 +1,8 @@
 # OWUI_REPAIR_PLAN: one button repairs a laptop whose Open WebUI database was broken
 
-**Status: proposed, waiting on the owner** (session n° 8's question 3, 2026-11-17; plan written by night n° 9,
-2026-11-18). Nothing is built. It is a new button, so it needs the owner's yes; it could ship in v0.2.19 if the yes
-comes before the release.
+**Status: approved by the owner, 2026-11-18** ("ok for the repair button"; v0.2.19 after it). **Built 2026-11-18**
+(day session, DEVLOG 10:24): `sidecar.ts` `repairOwuiDb` / `MIGRATION_BROKEN` / `repairDb`, the IPC `repair-owui-db`
+in `index.ts`, the button in `renderer/app.js`. Two fixes found while checking it, below (*Built*).
 
 ## Why
 
@@ -85,6 +85,28 @@ tonight's kill there recovered).
 **S**: about 40 lines in `sidecar.ts` and `index.ts`, 15 in `renderer/app.js` (the shell's own panel; its words
 inline like Retry's), one preload line, the tests above. No new dependency, no call into Open WebUI (files only, as
 `keepDbBeforeEngine` already does).
+
+## Built (2026-11-18)
+
+As planned, with these differences, each checked:
+- **The repair's notice** comes with the next ready (the toast the offline-start notice uses), not in the panel: the
+  panel is replaced by *Starting…* at once. It names the folder of the broken files, and, when nothing was put back,
+  the `before-owui-*` copies left in the data folder.
+- **The rollback journal moves too** (`webui.db-journal`, in the shared move, so the first-start set-aside also
+  gets it): Open WebUI's SQLite runs in rollback-journal mode, and a kill left a `webui.db-journal` beside the
+  database. A hot journal left beside a new database is rolled into it, which corrupts it (sqlite.org/howtocorrupt.html).
+- **"Keeps exiting" is no longer overwritten** 3 minutes later by *did not become healthy in time*: the start's health
+  wait ran on after its child had exited for good and replaced the message (and so hid the button's reason).
+  Older than this plan; found in the dev client.
+
+**Checked** (the released v0.2.18 Windows sidecar, Open WebUI 0.13.3, driven by the compiled supervisor; DEVLOG):
+a first start killed at migration 60 as in v0.2.18 (the version recorded first): *keeps exiting* with `repairable`,
+one repair, healthy 25 s later. The same without the record (a copy of the broken database taken): the first repair
+puts the broken copy back and fails, the second builds a new database, healthy. An Open WebUI 0.10.1 database with one
+chat, its upgrade to 0.13.3 killed: one repair puts the copy back, 0.13.3 migrates it, healthy in 13 s, **the chat is
+there**. In a dev client (the real window): the panel showed the sentence and the button 19 s after launch; one click;
+ready 25 s later, the chat on screen, the notice naming the folder. *Not checked:* a Mac; the `already exists` form
+(matched by the unit test only).
 
 ## Not in this plan
 

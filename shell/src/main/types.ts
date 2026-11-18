@@ -88,6 +88,7 @@ export interface SidecarState {
     endpoint: string | null;   // the farm OpenAI base URL it's pointed at
     message?: string;          // human-readable detail (esp. on error)
     notice?: string;           // said once when this launch is ready (e.g. it started offline)
+    repairable?: boolean;      // an error from a database a migration left half-built: the panel offers the repair
 }
 
 export interface ScanRange {

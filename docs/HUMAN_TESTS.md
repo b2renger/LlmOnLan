@@ -363,7 +363,7 @@ need it). Step 3: the answer comes from the file, with its source under it (on t
 ### A28 ★ Open WebUI survives its first start in a room with two farms
 *Proves:* the fix of the class's failure (2026-11-17, [OWUI_START_PLAN](plans/OWUI_START_PLAN.md)): a farm change during
 Open WebUI's first start waits instead of killing it; a quit during the first start leaves no broken database; Open
-WebUI's output is kept in a file. *Needs:* the next client release (v0.2.19) on a laptop (a Mac if you have one: the
+WebUI's output is kept in a file; a laptop the class broke repairs itself from one button. *Needs:* the next client release (v0.2.19) on a laptop (a Mac if you have one: the
 class's failing laptop was a Mac), the PRO 6000 farm **and** one Spark farm running, both open, 15 minutes. *Was:* new
 (2026-11-17; checked on this computer with the real Open WebUI 0.13.3 driven by the fixed supervisor, not in the app).
 
@@ -381,9 +381,15 @@ class's failing laptop was a Mac), the PRO 6000 farm **and** one Spark farm runn
 slow laptop after several minutes, with *Open WebUI is still starting…* after 3) on AN-A6000PRO Farm, and answers;
 never *keeps exiting (code 1)*. Step 4: the chat opens; the folder holds an `interrupted-…` folder with a `webui.db`
 in it. Step 5: lines starting `--- start: Open WebUI 0.13.3`, and no line with `POST /api/`.
-*If a laptop still shows "keeps exiting (code 1)" from the class* (v0.2.19 does not repair those): quit LlmOnLan, move
-`webui.db`, `webui.db-shm` and `webui.db-wal` from its `owui-data` folder into a new folder `old` (never `lol-client`),
-reopen.
+7. *A laptop the class broke* (it shows *keeps exiting (code 1)*), once it has v0.2.19: open LlmOnLan and wait for
+   *Could not start the chat*. Press **Repair Open WebUI's database**.
+
+*Expect (7):* the panel says *Open WebUI's database was left half-built…* and has the button beside Retry; after the
+click, *Starting again…*, then the chat opens and a message says the database was repaired and where the broken files
+went (`owui-data/broken-…`). `lol-client` is untouched. A laptop that shows *keeps exiting* **without** the button has
+another cause: send its `logs/owui.log`.
+*By hand, on v0.2.18 or before:* quit LlmOnLan, move `webui.db`, `webui.db-shm`, `webui.db-wal` and `webui.db-journal`
+(those that are there) from its `owui-data` folder into a new folder `old` (never `lol-client`), reopen.
 - [ ] Done · Found:
 
 ### A10 Code, pictures and files

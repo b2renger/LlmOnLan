@@ -54,14 +54,42 @@ export function keepDbBeforeEngine(dataDir: string, version: string): string | n
 // healthy. A start that finds the marker knows the first start never finished: the database cannot hold anything a
 // person wrote (Open WebUI never opened), so it is moved into interrupted-<time>/ and Open WebUI builds a new one.
 export const FIRST_START_MARKER = 'lol-owui-first-start';
-export function setAsideUnfinishedDb(dataDir: string, stamp = new Date().toISOString().replace(/[:.]/g, '-')): string | null {
-    if (!fs.existsSync(path.join(dataDir, FIRST_START_MARKER))) return null;
-    const files = ['webui.db', 'webui.db-wal', 'webui.db-shm'].filter((n) => fs.existsSync(path.join(dataDir, n)));
+const timeStamp = () => new Date().toISOString().replace(/[:.]/g, '-');
+// Moves Open WebUI's database files (never lol-client, never anything else) into <dataDir>/<folder>/. Null: none there.
+// With its rollback journal: Open WebUI's SQLite runs in journal mode, a kill leaves webui.db-journal (seen 2026-11-18),
+// and a hot journal left beside a new database is rolled into it, which corrupts it (sqlite.org/howtocorrupt.html).
+function moveDbAside(dataDir: string, folder: string): string | null {
+    const files = ['webui.db', 'webui.db-wal', 'webui.db-shm', 'webui.db-journal'].filter((n) => fs.existsSync(path.join(dataDir, n)));
     if (!files.length) return null;
-    const dest = path.join(dataDir, `interrupted-${stamp}`);
+    const dest = path.join(dataDir, folder);
     fs.mkdirSync(dest, { recursive: true });
     for (const n of files) fs.renameSync(path.join(dataDir, n), path.join(dest, n));
     return dest;
+}
+export function setAsideUnfinishedDb(dataDir: string, stamp = timeStamp()): string | null {
+    if (!fs.existsSync(path.join(dataDir, FIRST_START_MARKER))) return null;
+    return moveDbAside(dataDir, `interrupted-${stamp}`);
+}
+
+// The repair button (plans/OWUI_REPAIR_PLAN.md): a database a migration left half-built, which no start heals (a laptop
+// broken before v0.2.19, an interrupted upgrade). Moves it into broken-<time>/ and puts back the copy keepDbBeforeEngine
+// took before this Open WebUI version first started on the folder: migrations run only at that first start, so a version
+// whose migrations never finished never opened and wrote nothing after the copy. At most once per copy (recorded in
+// REPAIRED_RECORD): a copy taken by a later version's first start can itself be broken, and putting it back again loops.
+export const MIGRATION_BROKEN = /\(sqlite3\.OperationalError\).*(already exists|duplicate column name)/;
+export const REPAIRED_RECORD = 'lol-owui-repaired';
+export function repairOwuiDb(dataDir: string, version: string, stamp = timeStamp()): { moved: string | null; restored: string | null } {
+    const moved = moveDbAside(dataDir, `broken-${stamp}`);
+    const copy = `webui.db.before-owui-${version}`;
+    const record = path.join(dataDir, REPAIRED_RECORD);
+    let done: string[] = [];
+    try { done = fs.readFileSync(record, 'utf8').split('\n').filter(Boolean); } catch { /* never repaired */ }
+    if (!fs.existsSync(path.join(dataDir, copy)) || done.includes(copy)) return { moved, restored: null };
+    fs.appendFileSync(record, `${copy}\n`);   // recorded first: a copy that fails half-way is not tried again either
+    fs.copyFileSync(path.join(dataDir, copy), path.join(dataDir, 'webui.db'));
+    if (fs.existsSync(path.join(dataDir, `${copy}-wal`))) fs.copyFileSync(path.join(dataDir, `${copy}-wal`), path.join(dataDir, 'webui.db-wal'));
+    fs.rmSync(path.join(dataDir, FIRST_START_MARKER), { force: true });   // or the next start would set the copy aside
+    return { moved, restored: copy };
 }
 
 // Open WebUI's own output, kept on this computer in <userData>/logs/owui.log (1 MB, then the old one as .1), so an
@@ -126,6 +154,8 @@ export class SidecarSupervisor extends EventEmitter {
     private booting = false;
     private deferred: SidecarStartOpts | null = null;
     private notice: string | undefined;   // told to the person once this launch is ready (an offline start)
+    private migrationBroken = false;      // this start printed MIGRATION_BROKEN: the error state offers the repair
+    private repaired: string | undefined; // what the repair did, told with the next ready
     private state: SidecarState = { status: 'idle', url: null, dataDir: '', endpoint: null };
 
     getState(): SidecarState { return this.state; }
@@ -164,7 +194,7 @@ export class SidecarSupervisor extends EventEmitter {
         const { command, args, source } = resolveSidecarCommand();
         if (!sidecarExists(command)) {
             this.setState({
-                status: 'error', url: null, dataDir: this.dataDir, endpoint: this.endpoint,
+                status: 'error', url: null, dataDir: this.dataDir, endpoint: this.endpoint, repairable: undefined,
                 message: `Open WebUI sidecar not found at: ${command}\n(${source}) — build it (see sidecar/) or set LOL_SIDECAR_CMD.`,
             });
             return;
@@ -178,7 +208,8 @@ export class SidecarSupervisor extends EventEmitter {
         this.port = await findFreePort(8080);
         if (myGen !== this.gen) return;
         const url = `http://${HOST}:${this.port}`;
-        this.setState({ status: 'starting', url: null, dataDir: this.dataDir, endpoint: this.endpoint, message: undefined });
+        this.migrationBroken = false;
+        this.setState({ status: 'starting', url: null, dataDir: this.dataDir, endpoint: this.endpoint, message: undefined, repairable: undefined });
 
         // The first meeting of this data folder with a farm that indexes documents: the folder adopts its contract for
         // good (configBridge EMBEDDING_CONTRACTS), before the env is built from it — once one search answered from
@@ -219,6 +250,7 @@ export class SidecarSupervisor extends EventEmitter {
             hubOffline ? 'Document uploads need one start with internet access: the search model (about 92 MB) is not on this computer yet, and huggingface.co does not answer. Chat works. Quit and reopen LlmOnLan once this computer is online.' : '',
             adopted === 'reindex' ? REINDEX_NOTICE : '',
             blocked ? BLOCKED_NOTICE : '',
+            this.repaired ?? '',
         ].filter(Boolean).join(' ') || undefined;
 
         const env = {
@@ -277,10 +309,13 @@ export class SidecarSupervisor extends EventEmitter {
         this.booting = false;
         if (healthy) {
             this.crashRestarts = 0;
+            this.repaired = undefined;   // told once, in this ready's notice
             try { fs.rmSync(marker, { force: true }); } catch { /* removed at the next healthy start */ }
             this.setState({ status: 'ready', url, message: undefined, notice: this.notice });
             console.log(`[sidecar] ready at ${url} (DATA_DIR=${this.dataDir})`);
-        } else {
+        } else if (this.child === child) {
+            // Only a start still running timed out. One whose child exited for good already said so (onChildExit:
+            // "keeps exiting", maybe with the repair button), and saying "not healthy in time" 3 min later hid it.
             this.setState({ status: 'error', url: null, message: 'Open WebUI did not become healthy in time. See logs.' });
         }
         this.applyDeferred();
@@ -378,8 +413,26 @@ export class SidecarSupervisor extends EventEmitter {
             this.setState({ status: 'restarting', url: null, message: `Sidecar restarted (${this.crashRestarts}/${MAX_CRASH_RESTARTS})` });
             this.start(this.takeDeferred() ?? this.launchOpts());
         } else {
-            this.setState({ status: 'error', url: null, message: `Open WebUI keeps exiting (code ${code}). Check logs.` });
+            this.setState({ status: 'error', url: null, message: `Open WebUI keeps exiting (code ${code}). Check logs.`, repairable: this.migrationBroken || undefined });
         }
+    }
+
+    // The repair button's files (repairOwuiDb), only on the error state with no Open WebUI running; the caller starts
+    // again as Retry does. Null: refused.
+    repairDb(): string | null {
+        if (this.child || this.state.status !== 'error') return null;
+        const { moved, restored } = repairOwuiDb(this.dataDir, bundledOwuiVersion());
+        owuiLog([`--- repaired: ${moved ? `moved to ${path.basename(moved)}` : 'no database to move'}${restored ? `, ${restored} put back` : ''}`]);
+        this.crashRestarts = 0;
+        let copies: string[] = [];
+        try { copies = fs.readdirSync(this.dataDir).filter((n) => /^webui\.db\.before-owui-[^-]+$/.test(n)); } catch { /* none listed */ }
+        this.repaired = [
+            `Open WebUI's database was repaired.`,
+            restored ? 'Your Open WebUI chats from before its update were put back.' : '',
+            moved ? `The broken files were moved to ${moved}.` : '',
+            !restored && copies.length ? `Older copies of Open WebUI's database stay in ${this.dataDir} (${copies.join(', ')}).` : '',
+        ].filter(Boolean).join(' ');
+        return this.repaired;
     }
 
     private logChild(d: Buffer): void {
@@ -388,6 +441,7 @@ export class SidecarSupervisor extends EventEmitter {
         for (const line of text.split(/\r?\n/)) {
             if (!line.trim()) continue;
             console.log(`[owui] ${line}`);
+            if (this.booting && MIGRATION_BROKEN.test(line)) this.migrationBroken = true;
             // Into owui.log: all of a start (Open WebUI has opened nothing a person wrote yet); once it runs, only what is
             // not INFO (warnings, errors, tracebacks), so no request line or chat id is kept (docs/context/privacy.md).
             if (!this.booting && /\bINFO\b/.test(line)) continue;

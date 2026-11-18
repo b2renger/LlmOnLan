@@ -72,6 +72,7 @@ expose('lol', {
     openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
     reloadWebview: () => ipcRenderer.invoke('reload-webview'),
     restartSidecar: () => ipcRenderer.invoke('restart-sidecar'),
+    repairOwuiDb: () => ipcRenderer.invoke('repair-owui-db'),
     relaunch: () => ipcRenderer.invoke('relaunch-app'),
     projects: {
         // The scratch-projects API (studio plan §3.8): ONE additive property, every method a thin
