@@ -195,7 +195,7 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
    your go to push `main` and tag it, then HUMAN_TESTS A28 on the release. `main` now also carries the Agent box's
    loop stop (Next 13, night n° 9; unit tests and the harness, not in A28) and
    [OWUI_REPAIR_PLAN](OWUI_REPAIR_PLAN.md)'s repair button (approved and built 2026-11-18; A28 step 7). Owner
-   2026-11-18: go for v0.2.19 once the repair button is in.
+   2026-11-18: go for v0.2.19 once the repair button is in. **Released 2026-11-18** (CI green); A28 is what waits on you.
 1. **The next release and the ★ list** (Now 1–2), and which build tests today's fixes: a local build or a pre-release
    tag. *Owner, 2026-11-14: full release tags at the end of Monday's session (n° 6), tested on Monday.*
 2. **A quiet hour on the PRO 6000** (Now 3, then Next 1).

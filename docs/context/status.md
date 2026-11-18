@@ -3,12 +3,12 @@
 > Moved verbatim from CLAUDE.md on 2026-11-12 (the split into context modules). It describes `main` unless a line
 > names a release or says *not released yet*. Keep it true: a change to the code it describes changes this file in the same commit.
 
-## Build status (2026-11-16) — released: client `v0.2.18` (OWUI `0.13.3`) · Farm app `farm-v0.0.54`
+## Build status (2026-11-18) — released: client `v0.2.19` (OWUI `0.13.3`) · Farm app `farm-v0.0.54`
 
 > What each release brought, from v0.2.0 on: the DEVLOG's release entries ([docs/DEVLOG.md](../../docs/DEVLOG.md), headed
 > "Release …"; v0.2.5 is in its 2026-09-29 afternoon entry, farm-v0.0.47 and 0.0.48 in its 2026-10-13 ones).
-> `origin/main` = the last release (client v0.2.18 and Farm app farm-v0.0.54, 2026-11-16, cut by night n° 6 as the owner
-> authorized; before them v0.2.17 and farm-v0.0.53, 2026-11-12). Since that day the work is
+> `origin/main` = the last release (client v0.2.19, 2026-11-18, cut by day on the owner's go; before it v0.2.18 and
+> Farm app farm-v0.0.54, 2026-11-16, and v0.2.17 and farm-v0.0.53, 2026-11-12). Since that day the work is
 > committed on `main` in the owner's checkout, backed up to the `night` branch, and pushed to `main` only at a release
 > (CLAUDE.md, *How we work*). The modules
 > describe the code; a change from 2026-11-05 on names the release that brought it.
@@ -18,9 +18,9 @@ one of the two Sparks; client v0.2.18 on the PRO 6000 and a Windows laptop. The 
 second Spark is not updated yet.
 
 **The class of 2026-11-17 failed on Open WebUI** (FIELD_NOTES): farm switches killed its first start and broke its
-database (*keeps exiting (code 1)*). **The fix is on `main`, not released yet** ([OWUI_START_PLAN](../plans/OWUI_START_PLAN.md),
+database (*keeps exiting (code 1)*). **The fix is released in client v0.2.19** (2026-11-18, CI green on all 5 builds, 28 files, the update feeds at 0.2.19; [OWUI_START_PLAN](../plans/OWUI_START_PLAN.md),
 DEVLOG 2026-11-17), with a **Repair Open WebUI's database** button for the laptops the class broke
-([OWUI_REPAIR_PLAN](../plans/OWUI_REPAIR_PLAN.md), approved 2026-11-18): v0.2.19, then HUMAN_TESTS A28. On v0.2.18
+([OWUI_REPAIR_PLAN](../plans/OWUI_REPAIR_PLAN.md), approved 2026-11-18). Next: HUMAN_TESTS A28 on the release. On v0.2.18
 and before, those laptops need the manual repair (A28's last lines).
 
 The full plan is built, released and in multi-user testing. Where to look: the map of the docs,
