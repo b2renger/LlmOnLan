@@ -93,8 +93,9 @@ So MTP's 3 drafts cost **29 % of the room at 32k and 21 % at 64k**: the MTP laye
 (1,023 → 962 blocks: 17/16 of the memory a token takes), and each draft token holds 3 more pages of recurrent state
 (one per group of the 48 GatedDeltaNet layers). Under the patched venv the pool is ~6 % smaller than stock's (A at
 64k: 1,264,968 tokens against 1,342,177), so these are a little conservative. The farm's own formula
-(`farm/src/vllm.js` `personBytes`) already says 38 people at 32k for A where this count says 31: it charges 6 pages of
-state where vLLM's admission charges 12 (a finding, apart from tonight's).
+(`farm/src/vllm.js` `personBytes`) says 38 people at 32k for A where this count says 31: the catalog charges 6 pages of
+state, *measured use* on vLLM 0.30, where admission *reserves* 12 in the worst case. **To check:** which of the two
+governs when vLLM preempts a request was not measured.
 
 C is HyperQwen's own drafter on stock vLLM 0.33.0 and NVIDIA's NVFP4, with no patch: it gives the one-person speed
 HyperQwen reports on this card (#348: 220 tok/s), accepted 4.0–5.7 tokens a step. Seven drafts a request reserve so much

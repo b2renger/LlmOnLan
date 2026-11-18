@@ -173,6 +173,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     kept in the browser, three files) built in 20.5 s and working; the stumbles: the page forgets its data at each restart
     (M2), the class model introduced as untried (M3), a cramped Preview in Split (L2), an empty chat with no example,
     jargon, and the agent sending the student to a browser the Preview already is (L3).
+16. **The capacity page knows drafting** (VLLM_DRAFT_PLAN ▸ Limits, night n° 10): `src/capacity/estimator.js` and the
+    presets' estimate work from the catalog alone and show a drafting model (Qwen3.8 since 2026-11-19) about a quarter
+    roomier than it is; `vllm.js` `facts()` already counts it. Pass the drafting to the estimator, or mark the row. **S**.
 
 ## 3. Later
 

@@ -1347,6 +1347,7 @@ question each way.) A train-time question the model sometimes gets wrong: **171/
 (Fisher's exact test, two-sided p = 0.62), the same wrong answer either way; two others 420/420 under both. No sign
 that drafting changes what Qwen3.8 answers.
 
-**What drafting costs** (HyperQwen's log-only seat-budget patch on A's and B's exact flags): each draft token holds 3
+**What drafting costs** (HyperQwen's log-only seat-budget patch on A's and B's exact flags, under its patched venv,
+whose pool is ~6 % smaller than stock's: the "people at 32k / 64k" columns above are its counts, a little low): each draft token holds 3
 more pages of recurrent state a request (12 → 21 blocks), and the MTP layer is one more full-attention layer; 5.5 GiB of
 buffers and graphs beside the weights on Qwen3.8 (2.5 on Qwen3.6). Not measured: a DGX Spark.

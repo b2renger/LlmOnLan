@@ -31,6 +31,13 @@ if (await answers(httpPort)) {
     console.log(`A farm already answers on port ${httpPort}: quit the Farm app first (its tray icon, Quit), then run this again.`);
     process.exit(1);
 }
+// Quitting the Farm app runs `lol down`, which stops its vLLM; a vLLM still on the GPU (a quit that did not finish)
+// would leave the test farm no memory. The desktop and an idle ComfyUI hold ~1–2 GB.
+const used = Number(String(spawnSync('nvidia-smi', ['--query-gpu=memory.used', '--format=csv,noheader,nounits'], { encoding: 'utf8' }).stdout || '').trim().split('\n')[0]);
+if (used > 10000) {
+    console.log(`The GPU holds ${Math.round(used / 1024)} GB: is the Farm app's vLLM still running? Quit the Farm app (it stops vLLM), wait a minute, run this again.`);
+    process.exit(1);
+}
 fs.mkdirSync(DIR, { recursive: true });
 const cfgFile = path.join(DIR, 'lol.config.json');
 if (!fs.existsSync(cfgFile)) {

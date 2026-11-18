@@ -63,9 +63,12 @@ holds 15 people at 32k, fails 30 deep conversations and lost 5 of 28 quality ite
   there, but a vLLM there that refuses MTP would not start the model. Tested only on the RTX PRO 6000.
 - A farm whose list was saved by an Add, a Remove or a take-over keeps its Qwen3.8 entry's old flags (no drafting, no
   harm). The farm people use has no saved list (read 2026-11-18 22:40: its `vllm` holds no `library`).
-- The farm's own memory formula charges 6 pages of state where vLLM's admission charges 12 (found tonight, A: 38 people
-  at 32k by the formula, 31 by vLLM's count). Not changed here: it concerns every hybrid model, and the seats a person
-  sees come from vLLM's own line.
+- **To check:** the catalog's state charge (6 pages, *measured use* on vLLM 0.30) is half what vLLM's admission
+  *reserves* in the worst case (12 blocks; HyperQwen's patched venv, whose pool is ~6 % smaller). Which one governs when
+  vLLM preempts a request was not measured; it concerns every hybrid model, not only drafting.
+- **The capacity page and the presets' estimate** (`src/capacity/estimator.js`) work from the catalog alone and do not
+  know drafting: they show Qwen3.8 about a quarter roomier than it is now. No preset picks Qwen3.8 (they favour the most
+  people) and presets set people to Automatic, so nothing over-promises seats; filed in the plans (Next).
 
 ## Built
 
