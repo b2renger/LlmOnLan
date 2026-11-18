@@ -9,7 +9,30 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-11-18 (02:14) — The Agent box stops when it goes round in circles (plans ▸ Next 13, night n° 9)
+## 2026-11-18 (02:15) — How long Open WebUI's first start takes on Windows, from the released sidecar (night n° 9)
+
+**Why:** the class's Mac was not healthy after 137 s on its first start (OWUI_START_PLAN), the window in which a
+farm switch broke its database. A Windows number is the baseline.
+
+**How:** the released `owui-sidecar-win32-x64.tar.gz` of v0.2.18 (771 MB, OWUI 0.13.3, bundle rev 2; downloaded in
+73 s, unpacked with `tar` in 30 s) into a scratch userData, started by the **compiled supervisor** as a packaged
+client runs it (`python launcher.py serve`, `isPackaged`), no farm (a refused port), scratch data folders only. The
+phases are read from the new `logs/owui.log` (its timestamps). This computer: the PRO 6000 workstation, a fast
+desktop, not a student's laptop.
+
+| Start | Python to the first migration | The 72 migrations | Healthy |
+|---|---|---|---|
+| First start, just after unpacking | 3.8 s | 1.1 s | **29.0 s** |
+| First start, a second empty folder | 2.2 s | 1.1 s | 14.2 s |
+| An ordinary start (a built folder) | 2.2 s | none | 13.1 s |
+
+A second run gave 14.2 s, 13.9 s and 13.1 s. **What it says:** the migrations are about 1 s of a start and come 2 to
+4 s in; the rest is Python importing Open WebUI (about 19 s the first time after unpacking, cold disk cache and the
+antivirus reading new files, then about 8 s). So on the Mac the 137 s was not the migrations; what it was is not
+known (the disk, macOS checking freshly unpacked binaries, the Wi-Fi of a class: hypotheses). v0.2.19's `owui.log`
+will show the phases on a Mac. Scratch downloads deleted after.
+
+## 2026-11-18 (02:12) — The Agent box stops when it goes round in circles (plans ▸ Next 13, night n° 9)
 
 **What:** `graph/parts/agent.mjs` `loopOf(steps)`, checked before each generation. A run stops when the model took
 the same step **three times in a row**, or went **back and forth between two steps (A B A B)**, each time with the
