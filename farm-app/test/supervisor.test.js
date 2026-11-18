@@ -31,18 +31,20 @@ stub('paths', {
     bundledPython: () => 'python', pythonDir: () => farmDir, ollamaDir: () => farmDir,
 });
 stub('farmLog', { appendFarmLog: () => {} });
-stub('util', {
+const UTIL_STUB = {
     killTree: async (pid) => { calls.push(['killTree', pid]); },
     killOne: async (pid) => { calls.push(['killOne', pid]); },
     waitForHttp: async () => true,
     httpGetJson: async () => ({ ips: [], proxyPort: 4000 }),
-});
+};
+stub('util', UTIL_STUB);
 let lolDownGate = null;   // a promise `lol down` waits for (a slow vLLM stop), when a test sets one
-stub('farmProcess', {
+const FARM_PROCESS_STUB = {
     reapStaleFarm: async () => { calls.push(['reap']); },
     lolDown: async (env) => { calls.push(['lolDown', env.ELECTRON_RUN_AS_NODE]); if (lolDownGate) await lolDownGate; },
     runtimeFile: () => path.join(farmDir, '.lol-runtime.json'),
-});
+};
+stub('farmProcess', FARM_PROCESS_STUB);
 // `lol up` itself: a fake child.
 let nextPid = 1000; const spawned = [];
 childProcess.spawn = (cmd, args) => {
@@ -176,11 +178,19 @@ test('reapStaleFarm kills what the runtime file records and never runs `lol down
         assert.equal(calls.filter((c) => c[0] === 'killTree').length, 9, 'LiteLLM, the plugins (document search\'s llama-server too), llama-server, Ollama');
         assert.ok(!calls.some((c) => c[0] === 'lolDown' || c[0] === 'spawn') && execs === 0, 'no `lol down`, nothing spawned');
         assert.ok(!fs.existsSync(rt), 'the stale record is dropped');
-    } finally { childProcess.execFile = realExecFile; }
+    } finally {
+        childProcess.execFile = realExecFile;
+        // The stub back (review 2026-11-19): left real, every later supervisor ran the real `lol down` and reap, and
+        // the last test hung in it.
+        stub('farmProcess', FARM_PROCESS_STUB);
+    }
 });
 
 test('the Linux autostart entry runs the AppImage, its path quoted as the Desktop Entry spec asks', () => {
     const { autostartEntry } = fresh('util');
+    // The stub back at once (review 2026-11-19): left real, every later supervisor polled 127.0.0.1:41997 for real, so
+    // the suite passed only while the farm people use was up on this box, and hung 5 minutes otherwise.
+    stub('util', UTIL_STUB);
     assert.equal(autostartEntry('/home/me/Apps/LlmOnLan Farm-0.0.43-arm64.AppImage'),
         '[Desktop Entry]\nType=Application\nName=LlmOnLan Farm\nExec="/home/me/Apps/LlmOnLan Farm-0.0.43-arm64.AppImage"\nX-GNOME-Autostart-enabled=true\n');
     assert.equal(/^Exec=(.*)$/m.exec(autostartEntry('/a/50%$x"y`z\\w.AppImage'))[1], '"/a/50%%\\$x\\"y\\`z\\\\\\\\w.AppImage"');

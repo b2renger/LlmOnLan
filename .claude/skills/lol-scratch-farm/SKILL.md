@@ -52,6 +52,11 @@ and often the owner's client. Everything below was done and checked on 2026-11-1
 
 ## A scratch Ollama
 
+**Start it before `lol up`.** Every farm runs an Ollama beside its engine, vLLM included, and pulls the config's
+`models` into it. If nothing answers on `ollama.hosts`, `lol up` starts the `ollama` on PATH, which is **the owner's
+Ollama app's binary, with the owner's models folder** (`~/.ollama/models`), and pulls there: night n° 10 (2026-11-18)
+added `gemma4:12b` (8 GB) to it that way.
+
 Never the owner's Ollama app, never the Farm app's own. Download the version the Farm app pins
 (`farm-app/src/main/runtimeManager.ts` `RUNTIME_PINS`) into the scratch folder and run it on its own port and models
 folder, with the farm's settings:

@@ -2151,6 +2151,12 @@ export default (test) => {
     sup.logChild(Buffer.from('OSError: [Errno 98] address already in use\n'));
     sup.onChildExit(child, 1);
     assert.equal(sup.getState().repairable, undefined, 'another exit code 1: no button');
+    // Main refuses too, not only the hidden button (review 2026-11-19 L1): this database is not the broken kind.
+    sup.child = null;
+    fs.writeFileSync(path.join(sup.dataDir, 'webui.db'), 'a good one');
+    assert.equal(sup.repairDb(), null, 'an error that is not the migration failure: refused');
+    assert.equal(fs.readFileSync(path.join(sup.dataDir, 'webui.db'), 'utf8'), 'a good one', 'and the database stays');
+    fs.rmSync(path.join(sup.dataDir, 'webui.db'));
     sup.migrationBroken = true; sup.onChildExit(sup.child = child, 1);
     sup.child = /** @type {any} */ ({ pid: undefined });
     assert.equal(sup.repairDb(), null, 'an Open WebUI running: refused');
@@ -2158,6 +2164,10 @@ export default (test) => {
     fs.writeFileSync(path.join(sup.dataDir, 'webui.db'), 'broken');
     assert.match(sup.repairDb(), /repaired.*broken files were moved/);
     assert.equal(sup.crashRestarts, 0, 'the restart gets the usual budget');
+    assert.equal(sup.getState().repairable, undefined, 'repaired: the button goes');
+    fs.writeFileSync(path.join(sup.dataDir, 'webui.db'), 'the copy put back');
+    assert.equal(sup.repairDb(), null, 'a second repair before the restart: refused (it would move the database just put back)');
+    assert.equal(fs.readFileSync(path.join(sup.dataDir, 'webui.db'), 'utf8'), 'the copy put back');
     sup.migrationBroken = true; sup.onChildExit(sup.child = child, 1);
     await withEnv({ LOL_SIDECAR_CMD: path.join(tempDir('nocmd3'), 'missing', 'open-webui') }, () => sup.start(sup.launchOpts()));
     assert.equal(sup.getState().repairable, undefined, 'the next start clears it, even one that fails at once');
@@ -2287,6 +2297,13 @@ export default (test) => {
     handlers['page-window-open']({ sender: main.webContents }, second);
     assert.equal(made.length, 1);
     assert.deepEqual(win.sent[1], ['page-window', { type: 'load', target: second }]);
+    // Edits only for a page this window was given (review 2026-11-19 L5): the first page's last typing, flushed as the
+    // second arrives, still passes; an answer it never showed does not.
+    handlers['page-window-edits']({ sender: win.webContents }, { threadId: 't1', msgId: 'm9', edits: { 0: 'z' } });
+    assert.equal(main.sent.length, 1, 'an answer this window never showed: dropped');
+    handlers['page-window-edits']({ sender: win.webContents }, { threadId: 't1', msgId: 'm1', edits: { 0: 'flushed' } });
+    assert.deepEqual(main.sent[1], ['page-window', { type: 'edits', threadId: 't1', msgId: 'm1', edits: { 0: 'flushed' } }], 'the page before, flushed on the switch');
+    main.sent.splice(1);
     // Closed: the main window hears it; the next Pop out makes a new window, which waits for its own ready.
     pw.close();
     assert.deepEqual(main.sent[1], ['page-window', { type: 'closed' }]);

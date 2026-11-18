@@ -97,6 +97,10 @@ export function installPageWindow(d: Deps): { close: () => void; current: () => 
     let pageWin: BrowserWindow | null = null;
     let ready = false;
     let pending: PageTarget | null = null;
+    // The answers this window was given in its life: edits for any other are dropped (review 2026-11-19 L5). Not only
+    // the last: a switch of page flushes the previous page's typing after the new one arrives.
+    const shown = new Set<string>();
+    const keyOf = (threadId: string, msgId: string) => `${threadId}\n${msgId}`;
 
     const alive = (w: BrowserWindow | null): w is BrowserWindow => !!w && !w.isDestroyed();
     const fromMain = (e: IpcMainEvent | IpcMainInvokeEvent) => { const m = d.mainWindow(); return alive(m) && e.sender === m.webContents; };
@@ -105,6 +109,7 @@ export function installPageWindow(d: Deps): { close: () => void; current: () => 
     const deliver = () => {
         if (!alive(pageWin) || !ready || !pending) return;
         pageWin.webContents.send('page-window', { type: 'load', target: pending });
+        shown.add(keyOf(pending.threadId, pending.msgId));
         pending = null;
     };
 
@@ -117,7 +122,7 @@ export function installPageWindow(d: Deps): { close: () => void; current: () => 
             const w = d.createWindow();
             pageWin = w;
             w.on('closed', () => {
-                if (pageWin === w) { pageWin = null; ready = false; pending = null; }
+                if (pageWin === w) { pageWin = null; ready = false; pending = null; shown.clear(); }
                 toMain({ type: 'closed' });
             });
             // A reload of the window (it has no menu, but a crash restarts the page) waits for its ready again.
@@ -140,7 +145,7 @@ export function installPageWindow(d: Deps): { close: () => void; current: () => 
     d.ipc.on('page-window-edits', (e, raw) => {
         if (!fromPage(e)) return;
         const edits = validPageEdits(raw);
-        if (edits) toMain({ type: 'edits', ...edits });
+        if (edits && shown.has(keyOf(edits.threadId, edits.msgId))) toMain({ type: 'edits', ...edits });
     });
 
     return {

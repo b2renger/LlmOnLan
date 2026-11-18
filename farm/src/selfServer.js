@@ -139,6 +139,9 @@ function startSelfServer({ httpPort, getSnapshot, host = '0.0.0.0', control = nu
         // panel's Clients card + the snapshot's usage.clients count.
         if (method === 'POST' && pathOnly === '/lol/client-ping') {
             if (!onClientPing) return sendJson(res, 404, { error: 'not supported' });
+            // JSON only (review 2026-11-19 L4): a page elsewhere can post text/plain without a preflight, and fake ids
+            // made a farm look full to the laptops choosing one (load = clients / slots). The client sends JSON.
+            if (!/^application\/json\b/i.test(String(req.headers['content-type'] || ''))) return sendJson(res, 415, { error: 'JSON only' });
             const body = await readJson(req, 4096);
             if (!body) return sendJson(res, 400, { error: 'bad json' });
             return sendJson(res, 200, onClientPing(body, (req.socket && req.socket.remoteAddress) || ''));

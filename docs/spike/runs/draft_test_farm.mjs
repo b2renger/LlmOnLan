@@ -1,8 +1,11 @@
 // A test farm from this checkout, for HUMAN_TESTS J19 (VLLM_DRAFT_PLAN, night n° 10): Qwen3.8 drafting with its MTP
 // layer, served on the studio's PRO 6000 in place of the Farm app for the length of a test. It never touches the Farm
 // app, its config or production's vLLM (~/lol-vllm): its own folder (%USERPROFILE%\lol-test-farm), its own vLLM root
-// (~/lol-vllm-033, vLLM 0.33.0, whose hf/ is a link to production's: do not Download or Remove models from its panel),
-// its own Ollama port (11500: the Ollama app keeps 11434). Same ports and beacon as the Farm app, so laptops find it.
+// (~/lol-vllm-033, vLLM 0.33.0, whose hf/ is a link to production's: do not Download or Remove models from its panel).
+// A farm always runs an Ollama beside its engine (standby, and its models must be on disk): this one starts the
+// `ollama` on PATH (the Ollama app's binary) on its own port, 11500, with the default models folder, the Ollama app's
+// (~/.ollama/models), where it needs gemma4:12b: night n° 10's rehearsal pulled it there (8 GB, 2026-11-18 23:11).
+// Same ports and beacon as the Farm app, so laptops find it.
 //   node docs/spike/runs/draft_test_farm.mjs start    the farm, in this window (stop it with the line below)
 //   node docs/spike/runs/draft_test_farm.mjs stop     lol down in its folder
 // Env: LOL_TEST_FARM_DIR (another folder), LOL_TEST_FARM_SCRATCH=1 (its own ports 4290/41990 and no beacon: a dry run
@@ -35,7 +38,7 @@ if (await answers(httpPort)) {
 // would leave the test farm no memory. The desktop and an idle ComfyUI hold ~1–2 GB.
 const used = Number(String(spawnSync('nvidia-smi', ['--query-gpu=memory.used', '--format=csv,noheader,nounits'], { encoding: 'utf8' }).stdout || '').trim().split('\n')[0]);
 if (used > 10000) {
-    console.log(`The GPU holds ${Math.round(used / 1024)} GB: is the Farm app's vLLM still running? Quit the Farm app (it stops vLLM), wait a minute, run this again.`);
+    console.log(`The GPU holds ${Math.round(used / 1024)} GB: the Farm app's vLLM, or another program on the GPU (ComfyUI with a model loaded)? Quit it (the Farm app stops its vLLM when it quits), wait a minute, run this again.`);
     process.exit(1);
 }
 fs.mkdirSync(DIR, { recursive: true });
@@ -61,6 +64,6 @@ if (!fs.existsSync(cfgFile)) {
     fs.writeFileSync(cfgFile, JSON.stringify(cfg, null, 2) + '\n');
     console.log(`Wrote ${cfgFile}: "${cfg.name}", vLLM from ${root}, Qwen3.8 at 32k, web search and the other plugins off.`);
 }
-console.log('Starting the test farm here (the first start takes about 10 minutes: vLLM compiles). Stop it with:');
+console.log('Starting the test farm here (10 to 15 minutes before "vLLM is ready"). Stop it with:');
 console.log('  node docs/spike/runs/draft_test_farm.mjs stop');
 process.exit(lol(['up', '--no-pick']));

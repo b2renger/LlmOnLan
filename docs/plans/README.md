@@ -176,6 +176,12 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 16. **The capacity page knows drafting** (VLLM_DRAFT_PLAN ▸ Limits, night n° 10): `src/capacity/estimator.js` and the
     presets' estimate work from the catalog alone and show a drafting model (Qwen3.8 since 2026-11-19) about a quarter
     roomier than it is; `vllm.js` `facts()` already counts it. Pass the drafting to the estimator, or mark the row. **S**.
+17. **Two findings of the review of 2026-11-19** ([SESSION_REVIEW_2026-11-19](../reviews/SESSION_REVIEW_2026-11-19.md)):
+    **L2** a first-start marker that cannot be removed (a lock on a synced Documents folder) makes the next start set a
+    used Open WebUI database aside (`sidecar.ts:268`, `:313`): retry the removal, and let `setAsideUnfinishedDb` spare a
+    database Open WebUI has opened since (a record written at ready). **L6** quitting from the main window loses the
+    page window's last ~0.85 s of typing (its `pagehide` edits reach a main window already gone): flush the page window
+    before the main one closes. **S** each.
 
 ## 3. Later
 

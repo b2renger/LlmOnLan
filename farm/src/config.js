@@ -443,7 +443,7 @@ const VLLM_LIBRARY = [
         id: 'qwen3.8-27b-nvfp4', label: 'Qwen3.8 27B · NVFP4', repo: 'nvidia/Qwen3.8-27B-NVFP4',
         sizeGb: 21.9, weightsGib: 20.7, vision: true, presencePenalty: null, args: QWEN38_ARGS,
         catalog: 'qwen3.8-27b', measured: 'qwen38',
-        note: 'The best answers of the three. Drafts ahead: about 155 tok/s alone and 94 each for 30 people on an RTX PRO 6000 (30 people 23k deep passed); a 50 GB pool holds about 22 whole 32k conversations, 15 at 64k. Too slow on a DGX Spark.',
+        note: 'The best answers of the three. Drafts ahead: about 155 tok/s alone and 94 each for 30 people on an RTX PRO 6000 (30 people 23k deep passed), for about a quarter more memory a person. Too slow on a DGX Spark.',
     },
     {
         id: 'gemma-4-12b', label: 'Gemma 4 12B · NVFP4', repo: 'unsloth/gemma-4-12b-it-NVFP4',
@@ -602,8 +602,9 @@ const AdminSchema = z.object({
     // Shared secret for the live control API (start/stop models, toggle plugins) that
     // the farm-served admin page at http://<box>:<httpPort>/lol/admin uses. null → `lol
     // up` generates an ephemeral token each run and prints it (paste it into the page).
-    // Read-only GET /lol/self + the admin page HTML stay open; only /lol/admin/state +
-    // the POST control routes require `Authorization: Bearer <token>`.
+    // Read-only GET /lol/self + the admin page HTML (GET /lol/admin) stay open; every other
+    // /lol/admin/* route (state, the vLLM log, every control) requires `Authorization: Bearer
+    // <token>` (selfServer.js authOk).
     token: z.string().nullable().default(null),
 }).strict();
 

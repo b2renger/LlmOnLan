@@ -9,6 +9,19 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-19 (00:55) — The review of night n° 10 (`docs/reviews/SESSION_REVIEW_2026-11-19.md`): one medium, seven lows, six fixed
+
+The second fifth-session review, in the second half of the extended night: the 48 commits since 2026-11-15, the
+unreleased work first (VIBE_PAGE_PLAN, VLLM_DRAFT_PLAN), the farm in depth. **M1** (tonight's own): the scratch farm
+started the Ollama app's binary on the owner's models folder and pulled `gemma4:12b` (8 GB) there: the scratch-farm
+skill and J19 now say so; the model stays (the owner's call). **Fixed, each test failing first:** L1 `repairDb` refuses
+unless the error is the migration failure, and a second call (`shell-main.test.mjs`); L4 `/lol/client-ping` takes JSON
+only, so a page elsewhere cannot make a farm look full (`farm/test/run.js`; clients have always sent JSON); L5 the page
+window's edits pass only for an answer it was given (`shell-main.test.mjs`; `page-window-e2e.cjs` ok); L7 the Farm
+app's suite hung with no farm on 41997 (two stubs left real; 12 + 3 passed with none); L3 a comment. **Filed:** L2 (a
+first-start marker that cannot be removed sets a used database aside), L6 (quitting from the main window loses the page
+window's last half-second of typing). Suites: shell 1981 passed, lint 0; farm 288; farm-app 12 + 3; vLLM scripts 129.
+
 ## 2026-11-19 (00:12) — A person's Stop still stops the GPU under drafting (VLLM_DRAFT_PLAN, night n° 10)
 
 `LOL_CANCEL_ENGINE=vllm node test/litellm-cancel.js` against Qwen3.8 drafting with MTP (trial_serve on `~/lol-vllm-033`, port

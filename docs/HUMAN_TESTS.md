@@ -1848,14 +1848,17 @@ Vibe (the coding agent too) on Qwen3.8 drafting with its MTP layer. Measured wit
 *Qwen3.8 drafting ahead*): 155 tok/s alone against 67, 94 each for 30 against 51, the agent's five tasks 5/5 in 158 s.
 *Needs:* the PRO 6000 with nobody on it, this checkout, a laptop with the client, 20 minutes. The installed Farm app
 does not have it yet: a **test farm from this checkout** stands in for it, and the Farm app, its settings and
-production's vLLM stay untouched. *Was:* new (2026-11-19).
+production's vLLM stay untouched. Like every farm it starts an Ollama beside its engine: the `ollama` on PATH (the
+Ollama app's) on port 11500, with the Ollama app's models folder, where it needs `gemma4:12b`; night n° 10 pulled it
+there (8 GB): `ollama rm gemma4:12b` after the test if you do not want it. *Was:* new (2026-11-19).
 
 1. Quit the Farm app (its tray icon ▸ Quit). In a terminal at the checkout: `node docs/spike/runs/draft_test_farm.mjs start`.
    The first time, it writes `%USERPROFILE%\lol-test-farm\lol.config.json` (your farm's name with *(test: drafting)*,
    the same ports and beacon, Qwen3.8 at 32k, web search and the other plugins off) and starts that farm in the
-   window. Wait for *vLLM is ready … 16 people at once* (about 10 minutes the first time: vLLM compiles).
-2. On the laptop, open the farm list (the farm's name at the top): click **… (test: drafting)** once (it is another
-   farm to the client).
+   window. Wait for *vLLM is ready … 16 people at once* (10 to 15 minutes: the rehearsal took 12).
+2. On the laptop, click the connection status at the top (its dot and text): the farms found are cards in that
+   popover. Click the card **… (test: drafting)** once: to the client it is another farm (it has its own id), so a
+   click pins it. After the test, click **Automatic — least busy farm** there to undo the pin.
 3. In Open WebUI, ask something long (*"Explain photosynthesis to a 12-year-old, in 400 words"*), then the same with
    thinking. In LOL Vibe, a project: *"Write a small web page with a button that counts clicks"*. If you can, two or
    three laptops at once.

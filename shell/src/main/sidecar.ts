@@ -420,7 +420,11 @@ export class SidecarSupervisor extends EventEmitter {
     // The repair button's files (repairOwuiDb), only on the error state with no Open WebUI running; the caller starts
     // again as Retry does. Null: refused.
     repairDb(): string | null {
-        if (this.child || this.state.status !== 'error') return null;
+        // Only the migration failure's error (review 2026-11-19 L1: main refuses, not only the hidden button), once:
+        // a second call before the restart would move the database just put back.
+        if (this.child || this.state.status !== 'error' || !this.state.repairable) return null;
+        this.migrationBroken = false;
+        this.setState({ repairable: undefined });
         const { moved, restored } = repairOwuiDb(this.dataDir, bundledOwuiVersion());
         owuiLog([`--- repaired: ${moved ? `moved to ${path.basename(moved)}` : 'no database to move'}${restored ? `, ${restored} put back` : ''}`]);
         this.crashRestarts = 0;

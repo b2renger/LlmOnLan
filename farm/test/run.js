@@ -699,9 +699,17 @@ test('selfServer: /lol/client-ping is open, forwards body + remote ip; bad json 
         assert.equal(pings[0].body.idleSec, 12);
         assert.ok(pings[0].ip.includes('127.0.0.1'), `remote ip captured (got ${pings[0].ip})`);
         // Malformed JSON → 400, handler never called.
-        const bad = await fetch(`${base}/lol/client-ping`, { method: 'POST', body: '{nope' });
+        const bad = await fetch(`${base}/lol/client-ping`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{nope' });
         assert.equal(bad.status, 400);
         assert.equal(pings.length, 1, 'bad json never reaches onClientPing');
+        // A web page elsewhere can post text/plain with no preflight (review 2026-11-19 L4: fake ids made a farm look
+        // full to the laptops choosing one); the client has always sent application/json (since 2026-07-05).
+        for (const type of ['text/plain', null]) {
+            const plain = await fetch(`${base}/lol/client-ping`, { method: 'POST', ...(type ? { headers: { 'content-type': type } } : {}),
+                body: JSON.stringify({ id: 'x1', name: 'fake' }) });
+            assert.equal(plain.status, 415, `${type || 'no type'} is refused`);
+        }
+        assert.equal(pings.length, 1, 'a ping that is not JSON never reaches onClientPing');
     } finally {
         server.close();
     }
