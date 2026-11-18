@@ -35,6 +35,13 @@ its date, before anything else, and commits it. An unanswered question's default
 - **2026-10-07.** The operator does everything from the Farm app: no config file or script for an operator.
 - **2026-10-04.** Scale up on big boxes with vLLM; the small GPUs are not farm capacity; no per-person identity.
 
+## LOL Vibe and the Computer
+
+- **2026-11-18, the chat.** LOL Vibe's page preview: errors shown better, the result and the code side by side, the code
+  edited with live reload, detachable ([VIBE_PAGE_PLAN](../plans/VIBE_PAGE_PLAN.md)). Detachable means **the side column
+  and a pop-out window**; edits are **kept with the thread** (the answer itself unchanged); the editor is **the
+  Computer's** (no new dependency, no syntax colours).
+
 ## Open WebUI, privacy, cloud
 
 - **2026-11-18, the chat.** The repair button (OWUI_REPAIR_PLAN): yes. v0.2.19: go, after the repair button (released

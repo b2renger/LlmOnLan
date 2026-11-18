@@ -17,6 +17,9 @@ processed in a cloud; the code follows the ponytail ladder.
   copy taken before the update, if any. **Approved by the owner and built 2026-11-18** (day session); in v0.2.19.
 - [CLASS_REHEARSAL_PLAN.md](CLASS_REHEARSAL_PLAN.md) — **the class rehearsed every night** (scratch farms, scripted
   clients, lost beacons, 10 and 20 chats at once). **Approved by the owner 2026-11-18**; Now, first item.
+- [VIBE_PAGE_PLAN.md](VIBE_PAGE_PLAN.md) — **LOL Vibe's page preview, its code beside it** (owner, in the chat,
+  2026-11-18): errors that name their block and line, the code and the page side by side in the side column, edits
+  run as one types and kept with the thread, and a pop-out window. **Approved by the owner 2026-11-18**; Now, built by day.
 - [CLASS_TEST_2026-11-17.md](CLASS_TEST_2026-11-17.md) — **the class of 30 students on Tuesday 17 November** (owner
   2026-11-13): chat, LOL Vibe and the Computer tight for that day, and the tutorials, docs and in-app tutorials refined.
   **It comes first until the class**: its nights, its freezes (the client Monday 16 at 12:00, the farm Monday evening)
@@ -37,6 +40,9 @@ file stays the whole list.
 
 ## 1. Now
 
+- **LOL Vibe's page preview, code beside it** ([VIBE_PAGE_PLAN](VIBE_PAGE_PLAN.md), the owner's request of 2026-11-18,
+  approved with its three choices): step 1 the side column (errors with block and line, the shared editor, live
+  reload, edits kept with the thread), step 2 the pop-out window. **M**. Built by day, 2026-11-18.
 - **The class rehearsal** ([CLASS_REHEARSAL_PLAN](CLASS_REHEARSAL_PLAN.md), approved 2026-11-18): two scratch farms,
   scripted clients with fresh first starts, lost beacons, 10 and 20 chats at once, every night. Step 1 first (the
   regression test of the class). **M**.
