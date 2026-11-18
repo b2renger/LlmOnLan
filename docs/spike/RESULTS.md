@@ -1351,3 +1351,8 @@ that drafting changes what Qwen3.8 answers.
 whose pool is ~6 % smaller than stock's: the "people at 32k / 64k" columns above are its counts, a little low): each draft token holds 3
 more pages of recurrent state a request (12 → 21 blocks), and the MTP layer is one more full-attention layer; 5.5 GiB of
 buffers and graphs beside the weights on Qwen3.8 (2.5 on Qwen3.6). Not measured: a DGX Spark.
+
+**A person's Stop under drafting** (`farm/test/litellm-cancel.js`, `LOL_CANCEL_ENGINE=vllm` against Qwen3.8 drafting,
+2026-11-19 00:11; its LiteLLM is `farm/.venv`'s 1.90.0): **PASS** on every path, direct, through LiteLLM and through
+the seat gate, streaming and not, alone and beside another person: no request left running 2 s after the abort, no
+token generated after it when alone, no retry, the GPU at ≤10 % 0.55–0.69 s after.

@@ -9,6 +9,15 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-19 (00:12) — A person's Stop still stops the GPU under drafting (VLLM_DRAFT_PLAN, night n° 10)
+
+`LOL_CANCEL_ENGINE=vllm node test/litellm-cancel.js` against Qwen3.8 drafting with MTP (trial_serve on `~/lol-vllm-033`, port
+8190): PASS on all ten paths (direct, client → LiteLLM, client → seat gate → LiteLLM; streaming and not; alone and beside
+another person): no request running 2 s after an abort, nothing generated after it, no retry, the GPU at ≤10 % within
+0.55–0.69 s. The harness ran `farm/.venv`'s LiteLLM 1.90.0 (the live farm runs 1.106.9, which passed on stock vLLM
+on 2026-11-14). Also: the test farm script now refuses while the GPU holds more than 10 GB (a Farm app vLLM not yet
+stopped); quitting the Farm app runs `lol down`, which stops its vLLM (`farm-app/src/main/index.ts` before-quit).
+
 ## 2026-11-19 (00:04) — Qwen3.8's drafting checked as a farm, its answers unchanged; HUMAN_TESTS J19 and its test farm (night n° 10)
 
 **The built entry as a farm** (`lol up` from the checkout in a scratch folder, own ports, no beacon, Automatic seats and
