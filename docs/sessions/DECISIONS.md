@@ -37,6 +37,10 @@ its date, before anything else, and commits it. An unanswered question's default
 - **2026-11-18, the chat (21:14).** "Qwen 3.8 is our best local model for the ratio size quality." The owner asked for an
   evaluation of HyperQwen (a faster vLLM for Qwen3.8) as a backend and of CodeAF as a harness for LOL Vibe and the
   Computer, to be tried soon if it is interesting (n° 9's summary ▸ Next).
+- **2026-11-18, the chat (21:23).** "You can start now the evaluation, and if the the verdict is try, build it tonight.
+  There is no users I closed tha apps and free the vram": an **extended night session** (n° 10) from 21:23 to 08:00 on 19
+  November, to evaluate, plan, build and test, with the whole GPU. A *try* verdict counts as the owner's approval to build
+  that piece tonight. The scheduled review moves to the next session.
 
 ## LOL Vibe and the Computer
 
