@@ -4110,6 +4110,7 @@ test('vLLM in the snapshot: the engine, its seats and window, its one name; heal
     Object.assign(c.vllm, { enabled: true, alias: 'Qwen3.6', parallelResolved: 48 });
     const be = backendInfo(c, {});
     assert.deepEqual(be, { engine: 'vllm', alias: 'Qwen3.6', model: 'Qwen3.6 35B-A3B · NVFP4', contextLength: 65536, contextAuto: false, contextPerSlot: 65536, slots: 48, slotsVerified: true, mtp: false, kvCacheType: 'fp8', audio: false, replyTokens: 32768 });
+    assert.equal(backendInfo({ ...c, vllm: { ...c.vllm, model: 'qwen3.8-27b-nvfp4' } }, {}).mtp, true, 'Qwen3.8 drafts with its MTP layer (VLLM_DRAFT_PLAN)');
     delete c.vllm.parallelResolved;
     assert.equal(backendInfo(c, {}).slots, 4, 'Automatic, before it is worked out');
     c.vllm.parallel = 12;
@@ -4303,11 +4304,21 @@ test('vLLM sizing: the pool, people per pool, Automatic seats and vLLM\'s own ca
     assert.match(V.poolGib({ totalGib: 119.2, unified: true, memAvailableGib: 40, weightsGib: 20.37, ocrReserveGib: 9, marginPct: 8, minFreeGb: 8 }).reason, /^This computer has 40 GB of memory available\. After the model .*, the 8 GB kept so the computer cannot run out and a safety margin, 0 GB are left/);
     const lib = defaultConfig().vllm.library;
     const q36 = V.facts(lib[0]);
-    assert.deepEqual(q36, { kvBytesPerToken: 10240, stateBytes: 128778240, nativeCtx: 262144 });
+    assert.deepEqual(q36, { kvBytesPerToken: 10240, stateBytes: 128778240, nativeCtx: 262144, draftGib: 0 });
     assert.equal(V.peopleFit(50, 65536, q36), 67, 'vLLM itself said 65.82x for this pool');
     assert.equal(V.peopleFit(8, 65536, q36), 10);
     assert.equal(V.facts({ ...lib[0], args: [] }).kvBytesPerToken, 20480, 'no fp8 flag: 16-bit context memory');
-    assert.equal(V.facts(lib[2]).kvBytesPerToken, 32768, 'fp8_e4m3 is fp8');
+    // Qwen3.8 drafts with its MTP layer, 3 tokens (VLLM_DRAFT_PLAN): one more full-attention layer of the 16, and 3 more
+    // pages of state a draft token; vLLM's own admission count fell 31 → 22 people at 32k on 50 GiB, 19 → 15 at 64k.
+    const q38 = V.facts(lib[2]);
+    assert.deepEqual(q38, { kvBytesPerToken: 34816, stateBytes: 770703360, nativeCtx: 262144, draftGib: 5.5 }, 'fp8_e4m3 is fp8, plus the MTP layer');
+    const plain38 = V.facts({ ...lib[2], args: lib[2].args.filter((a, i, all) => a !== '--speculative-config' && all[i - 1] !== '--speculative-config') });
+    assert.equal(plain38.kvBytesPerToken, 32768, 'without drafting: the catalog figure');
+    assert.deepEqual([32768, 65536].map((c) => [V.peopleFit(50, c, plain38), V.peopleFit(50, c, q38)]), [[38, 28], [21, 17]], 'drafting costs about what vLLM counted');
+    assert.ok(lib[2].args.includes('--speculative-config') && JSON.parse(V.flagMap(lib[2].args)['--speculative-config']).draft_sample_method === 'probabilistic');
+    assert.ok(!V.familyArgs('Qwen3.8-27B-AWQ').includes('--speculative-config'), 'another Qwen3.8 checkpoint may have no MTP layer: no drafting');
+    assert.ok(!V.newLibraryEntry({ folder: 'Qwen3.8-27B-Uncensored' }, lib, []).entry.args.includes('--speculative-config'));
+    assert.ok(V.newLibraryEntry({ repo: 'nvidia/Qwen3.8-27B-NVFP4' }, lib.filter((e) => e.id !== 'qwen3.8-27b-nvfp4'), []).entry.args.includes('--speculative-config'), 'the built-in added back by its name drafts again');
     assert.equal(V.peopleFit(50, 65536, V.facts({ id: 'x', catalog: null })), null, 'unknown model: unknown');
     assert.deepEqual([1, 8, 16, 17, 48, 64, 96, 200, 512].map(V.maxNumSeqsAuto), [32, 32, 32, 64, 128, 128, 256, 512, 512]);
     const seats = (e, gpu, ctx, fit = null) => V.seatsAuto(e, gpu, ctx, fit);
@@ -4885,7 +4896,10 @@ test('the vLLM list: a model added by name or link gets its family\'s flags, a f
     for (const bad of ['', 'qwen', 'https://example.com/a/b', 'a b/c', '../x/y']) assert.equal(V.repoOf(bad), null, bad);
     // Families: the measured models' own flags for theirs; a generic Qwen3 set; else prefix caching only.
     assert.deepEqual(V.familyArgs('nvidia/Qwen3.5-122B-A10B-NVFP4'), lib[0].args);
-    assert.deepEqual(V.familyArgs('nvidia/Qwen3.8-14B-NVFP4'), lib[2].args);
+    // The 27B's flags without its drafting: another Qwen3.8 checkpoint may have no MTP layer (VLLM_DRAFT_PLAN).
+    const i38 = lib[2].args.indexOf('--speculative-config');
+    assert.ok(i38 > 0);
+    assert.deepEqual(V.familyArgs('nvidia/Qwen3.8-14B-NVFP4'), [...lib[2].args.slice(0, i38), ...lib[2].args.slice(i38 + 2)]);
     assert.deepEqual(V.familyArgs('nvidia/NVIDIA-Nemotron-Nano-9B'), lib[1].args);
     assert.deepEqual(V.familyArgs('Qwen/Qwen3-0.6B'), ['--enable-prefix-caching', '--reasoning-parser', 'qwen3', '--enable-auto-tool-choice', '--tool-call-parser', 'hermes']);
     assert.deepEqual(V.familyArgs('mistralai/Mistral-Small'), ['--enable-prefix-caching']);

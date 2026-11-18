@@ -66,6 +66,35 @@ prompt-lookup drafting copies a file at 509 tok/s. It is not a farm: its own sea
 (`finish: stop`) before closing their code block, one failed its tests, one sum was wrong (61 for 76). The same items
 pass under A, B and C; whether the W4A16 weights or its sampler patches cause it was not looked into.
 
+**The farm's default, Qwen3.6 35B-A3B, carries an MTP layer too** (19 `mtp.*` tensors). The same A/B at its 64k
+setting, its farm flags (`QWEN36_ARGS`), plus a 50k-deep step (`long50`: 30 people each ~50k tokens into a
+conversation, what a 64k setting allows):
+
+| Qwen3.6 35B-A3B NVFP4, 64k | One person | Code edit | 30 people, each | 30 deep at 23k (p95 / p10) | 30 deep at 50k (p95 / p10) | Quality | Pool |
+|---|---|---|---|---|---|---|---|
+| **E-A** stock, the farm's flags | 254 tok/s | 262.9, exact | 81.5 | 2.3 s / 44.4: pass | 3.2 s / 35.7: pass | 27/28 | 3.97 M tokens |
+| **E-B** + MTP, 3 drafts, probabilistic | **512** | **627.1**, exact | **164.8** | 2.8 s / **95.9**: pass | 3.9 s / **51.1**: pass | 28/28 | 2.93 M |
+
+Twice the speed for everyone at the same quality, on the model the farm serves every day, accepted 3.55 tokens a
+step (per position 0.94, 0.85, 0.75); the pool falls by about a quarter. Not built tonight: the owner's question.
+
+**What drafting costs in people** (22:31–22:42). Stock vLLM's "Maximum concurrency" divides its pool by the context
+and leaves out each request's recurrent state. HyperQwen's log-only patch `kv-cache-seat-budget.patch` counts it,
+with vLLM's own admission arithmetic; A's and B's exact flags were started under HyperQwen's patched venv (the farm's
+`serve.sh`, a probe root, `seatprobe.sh` in this session's scratch) just long enough to read it:
+
+| 50 GiB pool, Qwen3.8 NVFP4 | Usable blocks (1,600 tokens) | Blocks a request holds whatever its length | People at 32k | At 64k |
+|---|---|---|---|---|
+| A, no drafting | 1,023 | 12 | 31 | 19 |
+| B, MTP, 3 drafts | 962 | 21 (+3 a draft token) | 22 | 15 |
+
+So MTP's 3 drafts cost **29 % of the room at 32k and 21 % at 64k**: the MTP layer is one more full-attention layer
+(1,023 → 962 blocks: 17/16 of the memory a token takes), and each draft token holds 3 more pages of recurrent state
+(one per group of the 48 GatedDeltaNet layers). Under the patched venv the pool is ~6 % smaller than stock's (A at
+64k: 1,264,968 tokens against 1,342,177), so these are a little conservative. The farm's own formula
+(`farm/src/vllm.js` `personBytes`) already says 38 people at 32k for A where this count says 31: it charges 6 pages of
+state where vLLM's admission charges 12 (a finding, apart from tonight's).
+
 C is HyperQwen's own drafter on stock vLLM 0.33.0 and NVIDIA's NVFP4, with no patch: it gives the one-person speed
 HyperQwen reports on this card (#348: 220 tok/s), accepted 4.0–5.7 tokens a step. Seven drafts a request reserve so much
 recurrent state (vLLM also warns "Add 4 padding layers, may waste at most 25.00% KV cache memory" for the drafter's

@@ -1,0 +1,68 @@
+# VLLM_DRAFT_PLAN: Qwen3.8 drafts ahead with its own MTP layer
+
+**Status: approved by the owner, 2026-11-18** (in the chat, 21:23: "You can start now the evaluation, and if the the
+verdict is try, build it tonight"; the ask, 21:14: HyperQwen as a backend option for Qwen3.8, "our best local model
+for the ratio size quality"). The verdict is *try*, as plain vLLM rather than HyperQwen:
+[docs/research/2026-11-19-codeaf-hyperqwen.md](../research/2026-11-19-codeaf-hyperqwen.md). Size **S**.
+
+## Why
+
+HyperQwen's speed comes from speculative decoding: the model drafts a few tokens ahead and checks them in one step.
+vLLM 0.33.0, the farm's pin, already does it, and NVIDIA's NVFP4 Qwen3.8 that the farm serves already carries the
+layer that drafts (`mtp_num_hidden_layers: 1`). Measured on the RTX PRO 6000 with the whole GPU, the farm's flags plus
+`--speculative-config {"method":"mtp","num_speculative_tokens":3,"draft_sample_method":"probabilistic"}`:
+
+| | Today | With MTP |
+|---|---|---|
+| One person | 67 tok/s | **155** |
+| A code edit (the answer repeats the file) | 67.7 | **192.7** |
+| 30 people at once, each | 51.2 | **94.4** |
+| 30 people each ~23k deep (first token p95 / p10) | 2.3 s / 28.6 | 2.4 s / **52.8** |
+| Quality gate | 28/28 | 28/28 |
+| People the pool holds (vLLM's admission count, 50 GiB) | 31 at 32k, 19 at 64k | **22** at 32k, **15** at 64k |
+
+About twice the speed for everyone, alone or in a class of 30, at the same quality; it costs a fifth to a third of
+the room. HyperQwen itself (its patches, W4A16 weights and DFlash2 drafter) is faster for one person (351 tok/s) but
+holds 15 people at 32k, fails 30 deep conversations and lost 5 of 28 quality items: not a farm.
+
+## What changes
+
+1. **`farm/src/config.js`**: the Qwen3.8 entry's flags (`QWEN38_ARGS`) draft with MTP, 3 tokens, probabilistic
+   (HyperQwen's issue #73: greedy drafts are the wrong default); `weightsGib` 19.92 → 20.7 (vLLM's "Model loading
+   took 20.7 GiB" with the MTP layer loaded); its note says what it does and holds.
+2. **`farm/src/vllm.js` `facts()`**: what drafting costs each person, read from the entry's own
+   `--speculative-config` (method `mtp`, `num_speculative_tokens` k): the context memory a token takes grows by the
+   MTP layer (one more full-attention layer: × (L + 1) / L, L from the catalog's architecture), and the per-request
+   state by k × 3 pages (vLLM's admission count, measured: 12 → 21 blocks for k = 3). The fit, the pool cap and the
+   panel's numbers then follow; the seats a person sees still come first from vLLM's own start-up line.
+3. **A model the operator adds** (`FAMILY_ARGS`): a Qwen3.8 folder gets the entry's flags **without** the drafting:
+   another checkpoint may have no MTP layer, and vLLM would refuse to start. Drafting is on the one checkpoint checked.
+4. **Tests** (`farm/test/run.js`): `facts()` with and without the flag (the fit falls about as measured), the family
+   flags carry no `--speculative-config`, the Qwen3.8 argv carries it.
+5. **Docs**: `docs/spike/RESULTS.md` (a section for tonight), `farm/README.md` and `docs/context/farm.md` (what the
+   Qwen3.8 entry runs), the root README's model row, `docs/HUMAN_TESTS.md` (a test the owner runs in minutes).
+
+## Not in it
+
+- **Qwen3.6, the farm's default, also carries an MTP layer.** Measured tonight (the research file); whether its entry
+  drafts too is the owner's call, not this plan's.
+- No panel switch: drafting is part of the Qwen3.8 entry, as its parsers are. An operator who wants it off removes and
+  adds the model (its family flags have none).
+- The DFlash2 drafter (234 tok/s alone on stock vLLM, but 23 people at 32k and 30 deep conversations fail): a "one
+  teacher at the projector" mode, if the owner wants one, is another plan.
+- The Automatic seats for Qwen3.8 keep their measured label (16 at 32k, `measured.json`, measured without drafting:
+  conservative now); re-measuring the label with drafting is later work.
+
+## Limits
+
+- **Untested on a DGX Spark** (GB10, arm64). Qwen3.8 is "too slow on a DGX Spark" today; drafting should help most
+  there, but a vLLM there that refuses MTP would not start the model. Tested only on the RTX PRO 6000.
+- A farm whose list was saved by an Add, a Remove or a take-over keeps its Qwen3.8 entry's old flags (no drafting, no
+  harm). The farm people use has no saved list (read 2026-11-18 22:40: its `vllm` holds no `library`).
+- The farm's own memory formula charges 6 pages of state where vLLM's admission charges 12 (found tonight, A: 38 people
+  at 32k by the formula, 31 by vLLM's count). Not changed here: it concerns every hybrid model, and the seats a person
+  sees come from vLLM's own line.
+
+## Built
+
+(filled in as it is built)

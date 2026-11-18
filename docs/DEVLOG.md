@@ -9,6 +9,24 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-18 (23:24) — Qwen3.8 on vLLM drafts with its own MTP layer (VLLM_DRAFT_PLAN; night n° 10, the HyperQwen evaluation)
+
+**Why:** the owner asked (chat, 21:14 and 21:23) whether HyperQwen could serve Qwen3.8 faster, and to build it tonight
+if the verdict was *try*. The verdict (`docs/research/2026-11-19-codeaf-hyperqwen.md`): HyperQwen's speed is
+speculative decoding, which vLLM 0.33.0 already has, and NVIDIA's NVFP4 Qwen3.8 already carries the drafting layer. On
+the RTX PRO 6000 with the whole GPU, the farm's flags plus MTP drafting (3 tokens, probabilistic): 67 → 155 tok/s
+alone, 51 → 94 each for 30 people, 30 people 23k deep p10 28.6 → 52.8, quality 28/28 both; vLLM's admission count
+31 → 22 people at 32k on 50 GiB. HyperQwen as published: 351 tok/s alone, but 15 people at 32k, 30 deep fail, 23/28.
+
+**Built:** `farm/src/config.js` `QWEN38_ARGS` + `--speculative-config {"method":"mtp","num_speculative_tokens":3,
+"draft_sample_method":"probabilistic"}`, `weightsGib` 20.7, the note; `farm/src/vllm.js` `draftOf`, `facts()` charges
+drafting (× 17/16 a token for the MTP layer, + 3 state pages a draft token, half the 6-page charge: the fit at 50 GiB
+goes 38 → 28 at 32k, 21 → 17 at 64k, as vLLM's own admission count fell 31 → 22 and 19 → 15) and `draftGib` (5.5 GiB
+of buffers and graphs measured beside the weights: the Automatic pool leaves it room); a Qwen3.8 folder an operator adds
+gets the flags **without** drafting (`withoutDraft`: another checkpoint may have no MTP layer); `snapshot.js` reports
+`backend.mtp` from the argv. **Tests:** `node test/run.js` 288 passed (facts with and without, the fit, the family
+flags, the re-added built-in, the snapshot).
+
 ## 2026-11-18 (15:46) — The page window's edits: three ways to lose or misplace them, fixed (VIBE_PAGE_PLAN, the advisor's review)
 
 **Found** (reading the new paths, before calling the plan done): (1) a Pop out main refuses (too big, a language over 32

@@ -191,10 +191,12 @@ function resolveRoot(config, st) {
 // path is per-entry args.
 // A message limit (--limit-mm-per-prompt) for a sound the model cannot hear (a Gemma 4 31B) is ignored by vLLM.
 const argsOf = (id) => [...VLLM_LIBRARY.find((e) => e.id === id).args];
+const withoutDraft = (args) => { const i = args.indexOf('--speculative-config'); return i >= 0 ? [...args.slice(0, i), ...args.slice(i + 2)] : args; };
 const FAMILY_ARGS = [
     [/qwen3-?omni/i, () => argsOf('qwen3-omni-30b-a3b')],
     [/qwen3\.[56]|qwen3-?next/i, () => argsOf('qwen3.6-35b-a3b')],
-    [/qwen3\.8/i, () => argsOf('qwen3.8-27b-nvfp4')],
+    // Without its drafting: another Qwen3.8 checkpoint may have no MTP layer, and vLLM would not start (VLLM_DRAFT_PLAN).
+    [/qwen3\.8/i, () => withoutDraft(argsOf('qwen3.8-27b-nvfp4'))],
     [/nemotron/i, () => argsOf('nemotron-3.5-lightning')],
     [/gemma-?4/i, () => argsOf('gemma-4-12b')],
     [/flint/i, () => argsOf('flint')],
@@ -273,19 +275,37 @@ function newLibraryEntry(input = {}, library = [], disk = []) {
     return { entry: { ...blank, id: idFor(name), label: label(name), repo, folder, args: familyArgs(repo) } };
 }
 
+// The drafting a model's flags ask for (--speculative-config): {method, tokens}, or null.
+function draftOf(args) {
+    try { const c = JSON.parse(flagMap(args || [])['--speculative-config'] || 'null'); return c && c.method ? { method: c.method, tokens: Number(c.num_speculative_tokens) || 0 } : null; } catch { return null; }
+}
+
+// What MTP drafting adds beside the model, measured on Qwen3.8 with 3 drafts (docs/research/2026-11-19-codeaf-hyperqwen.md):
+// the GPU held 6.4 GiB more with the same pool, 0.9 of it the MTP layer's weights (vLLM's "Model loading" line), the rest
+// its buffers and CUDA graphs. ponytail: one figure, for the one entry that drafts; the upgrade path is a per-entry one.
+const DRAFT_RUNTIME_GIB = 5.5;
+
 // The memory one person's conversation takes, from src/capacity/catalog.json: the context memory per token (twice
 // the fp8 figure when the model's flags keep the context in 16 bits), and what vLLM charges each request for the
-// model's recurrent state.
+// model's recurrent state. MTP drafting (VLLM_DRAFT_PLAN) costs each person more: its layer is one more full-attention
+// layer (× (L + 1) / L), and each draft token holds 3 more pages of recurrent state, half the 6-page charge (vLLM's own
+// admission count, 2026-11-18: 12 → 21 blocks a request with 3 drafts; 31 → 22 people at 32k on a 50 GiB pool).
 function facts(entry) {
     const m = entry && entry.catalog && CATALOG.models.find((x) => x.id === entry.catalog);
-    if (!m || !m.kv_bytes_per_token_fp8) return { kvBytesPerToken: null, stateBytes: null, nativeCtx: m ? m.context_native ?? null : null };
+    const draft = draftOf(entry && entry.args);
+    const draftGib = draft && draft.method === 'mtp' ? DRAFT_RUNTIME_GIB : 0;
+    if (!m || !m.kv_bytes_per_token_fp8) return { kvBytesPerToken: null, stateBytes: null, nativeCtx: m ? m.context_native ?? null : null, draftGib };
     const fp8 = /^fp8/.test(String(flagMap(entry.args || [])['--kv-cache-dtype'] || ''));
+    const mtp = draft && draft.method === 'mtp' ? draft.tokens : 0;
+    const full = (m.arch && m.arch.full_attn_layers) || 0;
+    const charge = m.vllm_state_charge_bytes ?? 2 * (m.recurrent_state_bytes || 0);
     return {
-        kvBytesPerToken: m.kv_bytes_per_token_fp8 * (fp8 ? 1 : 2),
+        kvBytesPerToken: m.kv_bytes_per_token_fp8 * (fp8 ? 1 : 2) * (mtp && full ? (full + 1) / full : 1),
         // Plus the sliding-window layers' share, which stops growing past the window (Gemma 4: 168 MB a person;
         // measured 2026-10-09, 64 people at 30k filled 52 % of a 52 GiB pool).
-        stateBytes: (m.vllm_state_charge_bytes ?? 2 * (m.recurrent_state_bytes || 0)) + (m.kv_constant_bytes_per_request || 0) * (fp8 ? 1 : 2),
+        stateBytes: charge * (1 + mtp / 2) + (m.kv_constant_bytes_per_request || 0) * (fp8 ? 1 : 2),
         nativeCtx: m.context_native ?? null,
+        draftGib,
     };
 }
 
@@ -421,7 +441,9 @@ function planFor(config, st, mem = memOf(st), { ocrEnabled = !!(config.ocr && co
     const s = settingsOf(config, root);
     const f = facts(entry);
     const onDisk = diskOf(st, entry);
-    const weightsGib = entry.weightsGib ?? (onDisk ? onDisk.gb * 1e9 / GIB : (entry.sizeGb || 0) * 1e9 / GIB);
+    // Drafting's buffers and graphs sit beside the weights: the pool must leave them room (on WSL2 a shortfall is silent,
+    // the driver backs it with system memory and prefill runs several times slower).
+    const weightsGib = (entry.weightsGib ?? (onDisk ? onDisk.gb * 1e9 / GIB : (entry.sizeGb || 0) * 1e9 / GIB)) + (f.draftGib || 0);
     const pb = personBytes(s.ctx, f);
     const minFreeGb = minFreeOf(v.minFreeGb, mem.unified);
     const poolIn = {

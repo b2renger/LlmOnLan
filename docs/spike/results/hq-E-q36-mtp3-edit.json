@@ -1,0 +1,30 @@
+{
+ "label": "E-q36-mtp3",
+ "model": "qwen36",
+ "at": "2026-11-18T21:56:48.037Z",
+ "prompt_chars": 8202,
+ "runs": [
+  {
+   "ttft": 0.1755445,
+   "tokens": 2545,
+   "tps": 627.0055891485246,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.038597000000000665,
+   "tokens": 2545,
+   "tps": 627.0639004735219,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.03567350000000079,
+   "tokens": 2545,
+   "tps": 627.0673317984317,
+   "right": true,
+   "close": true
+  }
+ ],
+ "median_tps": 627.0639004735219
+}

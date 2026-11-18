@@ -112,7 +112,7 @@ function backendInfo(config, health = {}) {
             contextPerSlot: v.contextLength,
             slots: Math.max(1, v.parallelResolved ?? (typeof v.parallel === 'number' ? v.parallel : 4)),
             slotsVerified: true,
-            mtp: false,
+            mtp: !!(e && /"method"\s*:\s*"mtp"/.test(String(flagMap(e.args || [])['--speculative-config'] || ''))),   // VLLM_DRAFT_PLAN
             kvCacheType: e && /^fp8/.test(String(flagMap(e.args || [])['--kv-cache-dtype'] || '')) ? 'fp8' : 'auto',
             // The model hears sound in a chat message (Gemma 4 12B, Qwen3-Omni): for a client that would send it.
             audio: !!(e && e.audio),

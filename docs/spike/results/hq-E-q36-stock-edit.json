@@ -1,0 +1,30 @@
+{
+ "label": "E-q36-stock",
+ "model": "qwen36",
+ "at": "2026-11-18T21:50:46.452Z",
+ "prompt_chars": 8202,
+ "runs": [
+  {
+   "ttft": 0.3974719,
+   "tokens": 2545,
+   "tps": 262.86586053298385,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.07764109999999891,
+   "tokens": 2545,
+   "tps": 263.7290020295522,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.07033170000000245,
+   "tokens": 2545,
+   "tps": 262.76097540922905,
+   "right": true,
+   "close": true
+  }
+ ],
+ "median_tps": 262.86586053298385
+}
