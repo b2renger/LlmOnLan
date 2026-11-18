@@ -1,0 +1,30 @@
+{
+ "label": "A-stock",
+ "model": "qwen38",
+ "at": "2026-11-18T20:36:56.823Z",
+ "prompt_chars": 8202,
+ "runs": [
+  {
+   "ttft": 0.8510458,
+   "tokens": 2545,
+   "tps": 67.67668442984548,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 1.0523453999999983,
+   "tokens": 2545,
+   "tps": 67.37391623070482,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.11137440000000061,
+   "tokens": 2545,
+   "tps": 67.82961411036638,
+   "right": true,
+   "close": true
+  }
+ ],
+ "median_tps": 67.67668442984548
+}
