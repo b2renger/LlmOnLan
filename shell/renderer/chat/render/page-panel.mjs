@@ -200,10 +200,15 @@ export function createPanel(host, app, targetOf, io) {
     popped = true;
     stopPage();
     paintEmpty();
-    try { await io.popOut({ ...tg, edits: { ...edits } }); } catch (err) {
-      console.warn('[lolchat] the page window did not open', err);
+    /** @type {any} */ let r = null;
+    try { r = await io.popOut({ ...tg, edits: { ...edits } }); } catch (err) { r = { ok: false, error: String(err) }; }
+    // Main refuses a page it will not carry (too big, a name it does not take): it answers, it does not throw.
+    if (!r || r.ok === false) {
+      console.warn('[lolchat] the page window did not open', r && r.error);
+      if (target !== tg) return;
       popped = false;
-      if (target === tg) void load(tg);
+      await load(tg);
+      say(t('render.pagePopOutFailed'));
     }
   }
 
@@ -375,6 +380,8 @@ export function createPanel(host, app, targetOf, io) {
 
   /** Show this answer's page. @param {PageTarget|null} next */
   async function load(next) {
+    // Typing not yet delivered belongs to the page it was typed in: hand it over (and to its save) before the switch.
+    for (const x of eds.values()) x.ed.flush();
     stopPage();
     if (next !== target) popped = false;
     target = next;

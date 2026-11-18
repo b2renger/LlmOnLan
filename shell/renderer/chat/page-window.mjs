@@ -48,6 +48,9 @@ if (door && typeof door.onPageWindow === 'function') {
     panel.show({ thread: { id: String(target.threadId || '') } });
   });
 }
+// The window closes: typing not yet saved (the editor waits 250 ms, the save 600 ms) goes to the main window now.
+window.addEventListener('pagehide', () => panel.destroy());
+
 // Ready for a page: main sends it once this is heard (the first one, and each later Pop out).
 if (door && typeof door.pageWindowReady === 'function') door.pageWindowReady();
 /** For a test driving this window over CDP. */

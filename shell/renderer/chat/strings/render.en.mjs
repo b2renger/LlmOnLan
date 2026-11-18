@@ -83,6 +83,7 @@ registerStrings('render', {
   pageAway: 'This page is open in its own window. Your changes there are kept with this chat.',
   pageBack: 'Bring it back here',
   pageBackTip: 'Run the page here again (its window keeps what it shows until you close it)',
+  pagePopOutFailed: 'The page could not open in a window of its own (it may be too big for one). It runs here.',
   pageWindowTitle: 'Page — LlmOnLan',
   pageWindowWaiting: 'Waiting for a page from LOL Vibe…',
 

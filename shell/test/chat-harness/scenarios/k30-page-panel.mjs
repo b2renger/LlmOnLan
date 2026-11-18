@@ -122,6 +122,19 @@ export default [
             h.eq(kept.content, true, 'the answer\'s own text is unchanged');
             await h.screenshot('k30-page-panel-fixed');
 
+            // The message's own Pin writes the message the view holds: the edit must survive it.
+            await h.eval((msgId) => {
+                const b = document.querySelector(`.chat-msg[data-id="${msgId}"] .chat-action[data-action="pin"]`);
+                if (!b) throw new Error('no pin action on the answer');
+                /** @type {HTMLElement} */ (b).click();
+                return true;
+            }, ids.msgId);
+            const pinned = await h.waitFor((msgId, threadId) => (async () => {
+                const stored = (await window.LolChat.app.repo.getMessages(threadId)).find((/** @type {any} */ m) => m.id === msgId);
+                return stored && stored.pinned ? { edits: !!(stored.pageEdits && /fixed/.test(stored.pageEdits.blocks['2'] || '')) } : null;
+            })(), { timeout: 5000, args: [ids.msgId, ids.threadId] });
+            h.eq(pinned.edits, true, 'a pin after an edit keeps the edit');
+
             // Another thread and back: the panel shows the page with the person's version.
             await h.eval(async () => {
                 const app = window.LolChat.app;
@@ -136,6 +149,11 @@ export default [
                 return d && d.target && d.edits['2'] && d.runs >= 1 ? d : null;
             }, { timeout: 15000 });
             h.assert(/fixed/.test(back.edits['2']), 'the edit came back with the thread');
+            const chipBack = await h.waitFor(() => {
+                const c = document.querySelector('.chat-page-edited');
+                return c && !(/** @type {HTMLElement} */ (c)).hidden ? 'shown' : null;
+            }, { timeout: 5000 });
+            h.eq(chipBack, 'shown', 'the answer\'s block says "edited" when the thread is drawn again');
 
             // Back to the model's code (its confirm answered yes): the error is back, the edit gone everywhere.
             await h.eval(() => { window.LolChat.app.dialogs.confirm = async () => true; });

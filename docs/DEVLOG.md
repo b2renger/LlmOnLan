@@ -9,6 +9,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-18 (15:45) — The page window's edits: three ways to lose or misplace them, fixed (VIBE_PAGE_PLAN, the advisor's review)
+
+**Found** (reading the new paths, before calling the plan done): (1) a Pop out main refuses (too big, a language over 32
+characters) answers `{ok:false}`, it does not throw, so the panel said *open in its own window* with no window;
+(2) the panel's `load()` set its new page before the editors' last typing (under 250 ms) reached `changed()`, which
+then saved it on the NEW page's answer, or dropped it; (3) closing the page window within the save's pause lost the
+last keystrokes (its panel was never destroyed).
+**Fixed:** (1) the answer is read; refused, the page runs here with a line saying so; (2) `load()` flushes every editor
+first; (3) the window destroys its panel on `pagehide`, which delivers and writes at once.
+**Tested:** `test/page-window-e2e.cjs` now also types and closes the window at once (the text is on the answer's
+record: **fails** with the `pagehide` line taken out, a timeout, and passes with it), refuses a page directly
+(`not a page`) and through the panel (the note, no window), and runs a p5 page from a CDN in the window (`p5 function
+200`, no error: the vendored copy loads under its `connect-src 'self'`). k30 now pins the answer after an edit (the
+edit survives the pin) and checks *edited* when the thread is drawn again. test:chat 1981, lint 0, k30 2/2.
+
 ## 2026-11-18 (15:39) — LOL Vibe's page pops out to a window of its own (VIBE_PAGE_PLAN step 2)
 
 **What:** **Pop out** in the Page panel moves the page and its code to a second app window (`src/main/pageWindow.ts`,
