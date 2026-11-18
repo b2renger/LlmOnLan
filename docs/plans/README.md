@@ -124,7 +124,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
       several times in a row, or two calls alternating, and tell the student why (today it spends its 12 steps and says
       "out of steps"); one unit test. **Built 2026-11-18 (n° 9, on `main`, not released):** `agent.mjs` `loopOf`, the
       same step and result 3 times in a row or A B A B; unit test and harness `k22-agent-going-round-in-circles…`.
-      **Still open: never write from a cut tool call** (**S**): first check what dsh and the
+      **Never write from a cut tool call: checked 2026-11-18 (n° 9), nothing to fix** (DEVLOG): dsh drops every tool
+      call of a reply cut at max_tokens before running tools; the Agent box never repairs a cut object and writes no
+      file. The item was: **never write from a cut tool call** (**S**): first check what dsh and the
       Agent box do with a tool call cut by `finish_reason: length`; the fix only where a file can be written from it.
     - **n° 11: tool-call examples in each model's own style** (**S**, research then measure): the Agent box's prompt on
       Qwen3.6 with JSON examples against the model's own format, the 28-item check or the Agent harness; adopted only if

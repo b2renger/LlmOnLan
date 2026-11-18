@@ -9,6 +9,25 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-18 (02:17) — Never write from a cut tool call: checked, nothing to fix (plans ▸ Next 13, night n° 9)
+
+**The question** (from Qwen Code, which marks repaired tool-call arguments so a write refuses them): when a reply is
+cut at max_tokens in the middle of a tool call, can a half-written file land on disk?
+
+**The coding agent (dsh 0.1.7-rc.2, read from the pinned lockfile installed in scratch, `npm ci --ignore-scripts`):**
+its model library, `@earendil-works/pi-ai` 0.85.1, does repair a cut call (`utils/json-parse.js` `parseStreamingJson`:
+partial parse, then `repairJson`), and maps `finish_reason: length` to `max-tokens` (`dsh-llm-pi-ai` `mapStopReason`;
+a length stop with fewer tokens than asked counts as a context overflow, an error). But dsh then **drops every tool
+call** of a max-tokens reply (`dsh-llm` `BlockAssembler.assembled()`: "max-token truncation drops tool calls that
+cannot be executed safely") and the agent loop returns *max-tokens* before `executeToolCalls`
+(`dsh-agent-loop` line 1136). So no write or edit runs from a cut call.
+
+**The Agent box:** each step is one JSON object through `ask.json`; `app/json.mjs` `extractJson` parses strictly (the
+whole body, a fence, a balanced span), never repairs, and the schema requires every field, so a cut step fails as
+*not the JSON asked for* and is fed back. The box has no tool that writes a file.
+
+**Not checked:** a stream that ends with no finish reason at all (a dropped connection) in dsh. Scratch install deleted.
+
 ## 2026-11-18 (02:15) — How long Open WebUI's first start takes on Windows, from the released sidecar (night n° 9)
 
 **Why:** the class's Mac was not healthy after 137 s on its first start (OWUI_START_PLAN), the window in which a
