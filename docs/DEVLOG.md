@@ -97,7 +97,7 @@ A second run gave 14.2 s, 13.9 s and 13.1 s. **What it says, on this workstation
 about 1 s and come 2 to 4 s in; the rest is Python importing Open WebUI (about 19 s the first time after unpacking,
 then about 8 s; the cold disk cache and the antivirus reading new files are the likely cause of the difference, not
 measured apart). How long the migrations took on the class's Mac, and what filled its 137 s, is not known: v0.2.19's
-`owui.log` will show the phases on a Mac. Scratch downloads deleted after.
+`owui.log` will show the phases on a Mac. *(The owner, 2026-11-18: "explainable by the download time".)* Scratch downloads deleted after.
 
 ## 2026-11-18 (02:12) — The Agent box stops when it goes round in circles (plans ▸ Next 13, night n° 9)
 

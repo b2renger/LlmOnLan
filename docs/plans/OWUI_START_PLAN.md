@@ -16,7 +16,8 @@ Few students got the Open WebUI tab working (the owner); the screens showed *"Co
 keeps exiting (code 1)"*. The farm was healthy when read (PRO 6000: 0.0.54, vLLM, 48 seats, 5 in use at 12:31). One
 student's Mac log (`boot.log`, read with the owner; not kept here: it holds a person's path) shows the chain:
 
-1. **The first start of Open WebUI on a fresh Mac was slow:** not healthy after 137 s. *For comparison (2026-11-18,
+1. **The first start of Open WebUI on a fresh Mac was slow:** not healthy after 137 s. *The owner, 2026-11-18: "explainable
+   by the download time".* *For comparison (2026-11-18,
    night n° 9, DEVLOG): the released Windows sidecar on the PRO 6000 workstation, freshly unpacked, was healthy in
    29 s (its 72 migrations took 1.1 s, 4 s in); a second first start 14 s, an ordinary start 13 s. On this
    workstation the migrations are about 1 s of a start; on the Mac, not known (`owui.log` will show its phases).*
@@ -107,5 +108,6 @@ Reopen. Leave the `lol-client` folder: it holds LOL Vibe's and the Computer's wo
 in the moved file (none on a laptop whose first start never finished). The client signs in again by itself
 (`WEBUI_AUTH=false`, `renderer/app.js` drops a stale token).
 
-**Before the next class, without code:** one farm in the room (the other farms stopped or behind a password), and the
-students open LlmOnLan and wait for the first start to finish before anything else.
+**Before the next class, without code:** the students open LlmOnLan and wait for the first start to finish before
+anything else. (The Sparks stay live and open: the owner's choice, 2026-11-18. Two farms in a room is the client's to
+handle, as item 2 does; a session never asks to stop them or put a password on them.)

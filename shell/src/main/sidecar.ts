@@ -123,7 +123,7 @@ const REINDEX_NOTICE = 'Documents are now indexed on the farm, with a model that
 const BLOCKED_NOTICE = 'This farm does not index documents the way your documents are indexed, so uploading a document fails here: nothing is indexed with another model. Chat works. Uploads work again on a farm that indexes documents.';
 const HEALTH_PATH = '/health';
 const MAX_CRASH_RESTARTS = 5;
-// A fresh Mac's first start took more than 137 s in the class of 2026-11-17. Past the first 3 minutes the panel says it
+// A fresh Mac was not healthy after 137 s in the class of 2026-11-17 (the owner: the download time explains it). Past the first 3 minutes the panel says it
 // is still starting and the wait goes on, up to 10 minutes in all: an error there invited a Retry, and a Retry kills.
 const FIRST_WAIT_MS = 180_000;
 const MORE_WAIT_MS = 420_000;

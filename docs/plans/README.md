@@ -47,8 +47,7 @@ file stays the whole list.
    26B); M6 `.btn-ghost` (`renderer/styles.css:136`, the declarations of `chat/css/base.css:139-153`); L5 and L6 (words);
    M1 the usage report's boxes after a restart (`chat/main.mjs` `lolUsage.save`: import the parts registry and
    `setBoxTypes` before `report()`; the review's script as the test); M5, if time allows, the Tour's new box over the
-   Markdown view (`graph/canvas.mjs placeEntry`: step to a free spot). The near-patches are in the review. The owner:
-   BEFORE_TUESDAY 4b (the Sparks' password) before test 5.
+   Markdown view (`graph/canvas.mjs placeEntry`: step to a free spot). The near-patches are in the review.
 1. **The human testing phase** (owner 2026-11-09): client v0.2.16 and Farm app farm-v0.0.52 carry the review's fixes, the
    owner's decisions of 2026-11-06 and 09 and Gemma 4 26B. Run the ★ list of [HUMAN_TESTS](../HUMAN_TESTS.md) in its order;
    each finding goes back here.
