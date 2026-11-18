@@ -9,7 +9,7 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-11-18 (15:45) — The page window's edits: three ways to lose or misplace them, fixed (VIBE_PAGE_PLAN, the advisor's review)
+## 2026-11-18 (15:46) — The page window's edits: three ways to lose or misplace them, fixed (VIBE_PAGE_PLAN, the advisor's review)
 
 **Found** (reading the new paths, before calling the plan done): (1) a Pop out main refuses (too big, a language over 32
 characters) answers `{ok:false}`, it does not throw, so the panel said *open in its own window* with no window;

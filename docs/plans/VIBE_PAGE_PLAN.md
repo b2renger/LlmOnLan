@@ -118,7 +118,7 @@ name), harness `k30-page-*` (2). HUMAN_TESTS A29.
 - The main window's frame veto and the window's are one rule, `pageWindow.ts` `frameAllowed` (the main window adds the
   IDE's served Preview); the main window's close closes the page window.
 
-Fixed the same day (DEVLOG 15:45, the advisor's reading): a refused Pop out now runs the page here and says so; a
+Fixed the same day (DEVLOG 15:46, the advisor's reading): a refused Pop out now runs the page here and says so; a
 switch of page flushes the editors first; the window writes its last typing when it closes (`pagehide`).
 
 Files: `src/main/pageWindow.ts` (the checks: who sent it, a page's shape and size, the edits; the routing),
