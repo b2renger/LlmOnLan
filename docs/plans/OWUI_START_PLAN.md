@@ -18,8 +18,8 @@ student's Mac log (`boot.log`, read with the owner; not kept here: it holds a pe
 
 1. **The first start of Open WebUI on a fresh Mac was slow:** not healthy after 137 s. *For comparison (2026-11-18,
    night n° 9, DEVLOG): the released Windows sidecar on the PRO 6000 workstation, freshly unpacked, was healthy in
-   29 s (its 72 migrations took 1.1 s, 4 s in); a second first start 14 s, an ordinary start 13 s. So the
-   migrations are not what is slow; on that Mac something else took the time (not measured: `owui.log` will show it).*
+   29 s (its 72 migrations took 1.1 s, 4 s in); a second first start 14 s, an ordinary start 13 s. On this
+   workstation the migrations are about 1 s of a start; on the Mac, not known (`owui.log` will show its phases).*
 2. **The client moved Open WebUI between the two farms in the room** (the PRO 6000, pinned, and spark-2cb5) about 30
    times in 20 minutes. Every move kills Open WebUI and starts it again. The cause: a farm not heard for 12 s is
    *stale* (`shell/src/main/discovery.ts:73`), and a stale farm loses even its pin (`shell/src/main/farmSelect.ts:96-98`).

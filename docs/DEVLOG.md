@@ -20,7 +20,10 @@ partial parse, then `repairJson`), and maps `finish_reason: length` to `max-toke
 a length stop with fewer tokens than asked counts as a context overflow, an error). But dsh then **drops every tool
 call** of a max-tokens reply (`dsh-llm` `BlockAssembler.assembled()`: "max-token truncation drops tool calls that
 cannot be executed safely") and the agent loop returns *max-tokens* before `executeToolCalls`
-(`dsh-agent-loop` line 1136). So no write or edit runs from a cut call.
+(`dsh-agent-loop` line 1136). The other branch, a length stop counted as an overflow (likely on an Ollama or
+llama.cpp farm that hits its window): `finish.kind === "error"` records the reply as an *attempt* only, then retries
+or throws (`dsh-agent-loop` lines 1103-1118, `agent/request-error`), never reaching `executeToolCalls`, whose only
+caller is line 1139. So no write or edit runs from a cut call, on either branch.
 
 **The Agent box:** each step is one JSON object through `ask.json`; `app/json.mjs` `extractJson` parses strictly (the
 whole body, a fence, a balanced span), never repairs, and the schema requires every field, so a cut step fails as
@@ -42,14 +45,14 @@ desktop, not a student's laptop.
 | Start | Python to the first migration | The 72 migrations | Healthy |
 |---|---|---|---|
 | First start, just after unpacking | 3.8 s | 1.1 s | **29.0 s** |
-| First start, a second empty folder | 2.2 s | 1.1 s | 14.2 s |
+| First start, a second empty folder | 2.2 s | 1.1 s | 13.9 s |
 | An ordinary start (a built folder) | 2.2 s | none | 13.1 s |
 
-A second run gave 14.2 s, 13.9 s and 13.1 s. **What it says:** the migrations are about 1 s of a start and come 2 to
-4 s in; the rest is Python importing Open WebUI (about 19 s the first time after unpacking, cold disk cache and the
-antivirus reading new files, then about 8 s). So on the Mac the 137 s was not the migrations; what it was is not
-known (the disk, macOS checking freshly unpacked binaries, the Wi-Fi of a class: hypotheses). v0.2.19's `owui.log`
-will show the phases on a Mac. Scratch downloads deleted after.
+A second run gave 14.2 s, 13.9 s and 13.1 s. **What it says, on this workstation only:** the 72 migrations take
+about 1 s and come 2 to 4 s in; the rest is Python importing Open WebUI (about 19 s the first time after unpacking,
+then about 8 s; the cold disk cache and the antivirus reading new files are the likely cause of the difference, not
+measured apart). How long the migrations took on the class's Mac, and what filled its 137 s, is not known: v0.2.19's
+`owui.log` will show the phases on a Mac. Scratch downloads deleted after.
 
 ## 2026-11-18 (02:12) — The Agent box stops when it goes round in circles (plans ▸ Next 13, night n° 9)
 
