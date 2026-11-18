@@ -1,0 +1,30 @@
+{
+ "label": "C-dflash2",
+ "model": "qwen38",
+ "at": "2026-11-18T21:17:37.936Z",
+ "prompt_chars": 8202,
+ "runs": [
+  {
+   "ttft": 0.48663239999999996,
+   "tokens": 2545,
+   "tps": 241.61732712313486,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.5021383999999999,
+   "tokens": 2545,
+   "tps": 243.41196987929965,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.1256241000000009,
+   "tokens": 2545,
+   "tps": 244.69937296939923,
+   "right": true,
+   "close": true
+  }
+ ],
+ "median_tps": 243.41196987929965
+}

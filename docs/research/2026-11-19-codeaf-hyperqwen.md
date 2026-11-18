@@ -54,6 +54,26 @@ Each way of serving Qwen3.8-27B ran the same suite (`docs/spike/runs/hq_suite.sh
 | Serving | One person | Code edit | 30 people, each | 30 deep (p95 / p10) | Quality | Room at 32k |
 |---|---|---|---|---|---|---|
 | **A** stock vLLM 0.33.0, NVFP4, the farm's flags | 67 tok/s | 67.7 tok/s, exact | 51.2 tok/s (1,536 total) | 2.3 s / 28.6: pass | 28/28 | 40 (1.34 M tokens) |
+| **B** A + `--speculative-config {"method":"mtp","num_speculative_tokens":3,"draft_sample_method":"probabilistic"}` | **155 tok/s** | **192.7 tok/s**, exact | **94.4 tok/s** | 2.4 s / **52.8**: pass | 28/28 | 32 (1.07 M) |
+
+| **C** A + `{"method":"dflash","model":"Qwen3.8-27B-DFlash2" (incoai, bf16),"num_speculative_tokens":7,"draft_sample_method":"probabilistic"}`, stock vLLM | **234 tok/s** | **243.4 tok/s**, exact | 69.0 tok/s | **38.7 s / 6.6: fail** | 28/28 | 23 (756 k) |
+
+| **D** HyperQwen as published: its patched vLLM 0.33.0 (65 patches, all applied), its prepared W4A16 checkpoint, its DFlash2 W4A16 drafter, `SPEC=dflash2` single-user mode (bf16 KV), `MAX_SEQS=32`, the same 50 GiB | **351 tok/s** | **509 tok/s**, exact | 75.7 tok/s | **132.6 s / 8.8: fail** | **23/28** | 15 (its own count) |
+
+D is the fastest for one person by far (it beats the 220 tok/s its issue #348 reports on this card), and its
+prompt-lookup drafting copies a file at 509 tok/s. It is not a farm: its own seat budget (below) holds 15 people at
+32k and 9 at 64k, 30 deep conversations collapse, and it **lost 5 of 28 quality items**: three code answers stopped
+(`finish: stop`) before closing their code block, one failed its tests, one sum was wrong (61 for 76). The same items
+pass under A, B and C; whether the W4A16 weights or its sampler patches cause it was not looked into.
+
+C is HyperQwen's own drafter on stock vLLM 0.33.0 and NVIDIA's NVFP4, with no patch: it gives the one-person speed
+HyperQwen reports on this card (#348: 220 tok/s), accepted 4.0–5.7 tokens a step. Seven drafts a request reserve so much
+recurrent state (vLLM also warns "Add 4 padding layers, may waste at most 25.00% KV cache memory" for the drafter's
+sliding-window layers) that the room falls to 23 people at 32k, under a class, and 30 deep conversations collapse.
+
+B's drafts were accepted 3.1–3.6 tokens a step (mean acceptance length; per-position 0.84–0.96, 0.68–0.88,
+0.56–0.79). The room it loses (a fifth) is the recurrent state each request reserves for its drafts (HyperQwen's
+`start_qwen.sh` says the same: pages are reserved for `num_speculative_tokens`).
 
 ## CodeAF against dsh, on LOL Vibe's five agent tasks
 

@@ -1,0 +1,30 @@
+{
+ "label": "B-mtp3",
+ "model": "qwen38",
+ "at": "2026-11-18T21:05:28.466Z",
+ "prompt_chars": 8202,
+ "runs": [
+  {
+   "ttft": 0.4073761,
+   "tokens": 2545,
+   "tps": 192.70722825572764,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.8115442999999996,
+   "tokens": 2545,
+   "tps": 191.6361054535523,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.1151807000000008,
+   "tokens": 2545,
+   "tps": 192.86873463849625,
+   "right": true,
+   "close": true
+  }
+ ],
+ "median_tps": 192.70722825572764
+}

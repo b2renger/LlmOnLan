@@ -1,0 +1,30 @@
+{
+ "label": "D-hyperqwen-dflash2",
+ "model": "qwen3.8-27b",
+ "at": "2026-11-18T21:24:39.723Z",
+ "prompt_chars": 8202,
+ "runs": [
+  {
+   "ttft": 0.5094419,
+   "tokens": 2545,
+   "tps": 509.5389333611604,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.08590930000000026,
+   "tokens": 2545,
+   "tps": 507.946598919156,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.08489599999999882,
+   "tokens": 2545,
+   "tps": 509.2486786408033,
+   "right": true,
+   "close": true
+  }
+ ],
+ "median_tps": 509.2486786408033
+}
