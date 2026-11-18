@@ -30,9 +30,13 @@ After the click: *Moved to `<folder>`. Starting again…*, then the usual start.
 `/\(sqlite3\.OperationalError\).*(already exists|duplicate column name)/` sets `migrationBroken = true` (reset at each
 `start()`). The supervisor's error state carries `repairable: true` (`types.ts` `SidecarState`, one optional field)
 only when the last start ended with that flag. Any other exit code 1 (a port, a missing library) shows Retry only.
-*To check when built:* the exact line on a real broken database, with n° 8's reproduction (a kill inside migration
-30, 50 or 60; DEVLOG 2026-11-17 14:30, its scripts are not in the repository); the pattern is taken from SQLAlchemy's message form
-and the reproduction's errors (`table _alembic_tmp_knowledge already exists`, `duplicate column name: timer_at`).
+*Checked 2026-11-18 (night n° 9, DEVLOG 02:29):* the released v0.2.18 sidecar on Windows, its first start killed at
+migration 60 (*Add single-parent group hierarchy*), then started by the compiled supervisor: every one of the six
+starts printed `ERROR [open_webui.env] Error running migrations: (sqlite3.OperationalError) duplicate column name:
+version_id` (and the same in SQLAlchemy's `sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) …`), about
+2.3 s in, and its last error line reached `owui.log` about 0.3 s **before** the child's exit, so the flag is set
+before the error state. Not checked: the order on a Mac, and the `already exists` form (n° 8 saw it at migration 30;
+tonight's kill there recovered).
 
 ## What the click does (main, one IPC `repair-owui-db`)
 
@@ -46,17 +50,29 @@ and the reproduction's errors (`table _alembic_tmp_knowledge already exists`, `d
    then migrates the copy again, now with no kill (v0.2.19's rule).
    **If no copy exists**, the database was being built for the first time (it can hold nothing a person wrote), and
    Open WebUI builds a new one. The client signs in again by itself (`WEBUI_AUTH=false`).
+   **A copy is put back at most once.** The copy can itself be broken: a laptop the class broke that stays broken
+   until a later client bumps the pin gets, at that pin's first start, a `before-owui-<new>` copy *of the broken
+   database* (`keepDbBeforeEngine` copies whatever `webui.db` is there). Putting it back would fail the same way, and
+   the button would loop. So the repair records the copy it put back (`lol-owui-repaired`, the copy's name); a click
+   that finds that copy already recorded moves the database aside **without** putting anything back, Open WebUI builds
+   a new one, and the panel names the folder that holds the moved files and every `before-owui-*` copy (an older,
+   good copy, such as a teacher's `before-owui-0.13.3`, stays there for a later restore; not this plan).
 4. Reset the crash counter and start, as Retry does (`restart-sidecar`'s path, the farm's password kept).
 5. Log one line to `owui.log`: `--- repaired: moved to broken-<time>[, the copy before Open WebUI <v> put back]`.
 
-What the person can lose: nothing on the first-start case; on the upgrade case, nothing that the copy does not hold,
-and by the reasoning in 3, the copy holds everything Open WebUI had. The broken files stay in `broken-<time>/`.
+**What the person can lose, case by case** (the broken files stay in `broken-<time>/` in every case):
+- *An interrupted first start* (no copy): nothing; the database never opened.
+- *An interrupted upgrade, the copy made at the start that broke*: nothing, by the reasoning in 3.
+- *A database broken under one pin and copied by a later pin's first start*: the first click puts back a broken copy
+  and fails again; the second builds a new database. Open WebUI's chats are then only in the moved files and the older
+  copies, and the panel says so. v0.2.19 keeps the 0.13.3 pin, so it makes no such copy; a pin bump before the class's
+  laptops are repaired would.
 
 ## Checks
 
 - **Unit** (`shell-main`): a folder with a fake `webui.db` and a `-wal`: moved to `broken-*`, `lol-client` untouched;
-  with a `webui.db.before-owui-0.13.3`: it is back as `webui.db` and still beside it; no button flag without the
-  error line; the flag is cleared by the next start.
+  with a `webui.db.before-owui-0.13.3`: it is back as `webui.db` and still beside it; a second click with that copy
+  recorded puts nothing back; no button flag without the error line; the flag is cleared by the next start.
 - **Real Open WebUI** (scratch, the released sidecar as in DEVLOG 2026-11-18 02:15): break a first start with the
   kill script, see the flag; repair, healthy. Then a database with one chat made under an older pin, upgrade start
   killed inside a migration, repair: the chat is there.

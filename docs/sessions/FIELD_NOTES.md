@@ -25,6 +25,9 @@ it went to). A note with no answer is still open.
   stopped at 14:13), but LOL Vibe and the Computer use Open WebUI's farm (`renderer/app.js` `activeFarm`), so each
   switch also sent them to the Spark (2 seats, both in use, gemma4:12b): the likely sluggishness. **Built** (the plan,
   all four items; tests and a run with the real Open WebUI); the release waits on the owner (HUMAN_TESTS A28).
+  → 2026-11-18 (night n° 9): the laptops the class already broke are not repaired by v0.2.19. A button that does it
+  is planned, **not built, waiting on the owner**: [OWUI_REPAIR_PLAN](../plans/OWUI_REPAIR_PLAN.md) (its error line
+  checked on the released sidecar, DEVLOG 02:29). Until then, the manual repair at the end of HUMAN_TESTS A28.
 
 - 2026-11-16, the owner's tests on a Windows laptop, client v0.2.18, the PRO 6000 on farm-v0.0.54: A25, A26, A27 and
   BEFORE_TUESDAY 3 pass. "If I have an agent running in LOL Vibe I cannot run the Computer boxes, it waits. It should

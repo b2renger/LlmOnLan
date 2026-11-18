@@ -9,6 +9,25 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-18 (02:29) — A class laptop's error, reproduced on the released sidecar, for OWUI_REPAIR_PLAN (night n° 9)
+
+**Why:** the repair button proposed tonight ([OWUI_REPAIR_PLAN](plans/OWUI_REPAIR_PLAN.md)) shows on Open WebUI's
+migration error; its exact line, and whether it reaches the client before the process exits, were guesses.
+
+**How:** the released v0.2.18 Windows sidecar (downloaded and unpacked again in scratch), a first start on an empty
+folder killed (`taskkill /T /F`) the moment it printed its Nth *Running upgrade* line, the way a class laptop's farm
+switch killed it; then the compiled supervisor (`isPackaged`) started that folder, with no first-start marker (as on
+a class laptop). N = 30 and N = 50: the next start **recovered** (healthy in 25 s and 13 s). N = 60 (*Add
+single-parent group hierarchy*): **broken**, like n° 8's run: six starts, each `child exit code 1` about 3.1 s in, then
+*Open WebUI keeps exiting (code 1). Check logs.* 19 s after the first.
+
+**Found:** each start's `owui.log` holds `ERROR [open_webui.env] Error running migrations: (sqlite3.OperationalError)
+duplicate column name: version_id` at 2.3 s, the same in `sqlalchemy.exc.OperationalError: (sqlite3.OperationalError)
+…`, and its last error line about 0.3 s **before** the supervisor saw the exit (six of six). So the plan's pattern
+`/\(sqlite3\.OperationalError\).*(already exists|duplicate column name)/` matches, and the flag would be set before
+the error state, on Windows. **Not checked:** the order on a Mac; the `already exists` form (n° 8's kill at 30;
+tonight's recovered). Scratch deleted.
+
 ## 2026-11-18 (02:17) — Never write from a cut tool call: checked, nothing to fix (plans ▸ Next 13, night n° 9)
 
 **The question** (from Qwen Code, which marks repaired tool-call arguments so a write refuses them): when a reply is
