@@ -92,8 +92,11 @@ type Deps = {
     createWindow: () => BrowserWindow;
 };
 
-/** The page window's routes. Returns `close()` for the main window's own close. */
-export function installPageWindow(d: Deps): { close: () => void; current: () => BrowserWindow | null } {
+/** How long quitting waits, once the page window closed, for its last edits to be written by the main window. */
+export const FLUSH_MS = 300;
+
+/** The page window's routes. Returns `close()` for the main window's own close, and `closeAndFlush()` for quitting. */
+export function installPageWindow(d: Deps): { close: () => void; current: () => BrowserWindow | null; closeAndFlush: () => Promise<void> } {
     let pageWin: BrowserWindow | null = null;
     let ready = false;
     let pending: PageTarget | null = null;
@@ -151,5 +154,14 @@ export function installPageWindow(d: Deps): { close: () => void; current: () => 
     return {
         close: () => { if (alive(pageWin)) pageWin.close(); },
         current: () => (alive(pageWin) ? pageWin : null),
+        // Quitting (review 2026-11-19 L6): the app exits with app.exit, which fires no page events, so the page window
+        // is closed first, while the main window is still open: its pagehide sends the last typing (handled before
+        // `closed`), and the main window gets a moment to write it on the answer's record.
+        closeAndFlush: () => new Promise<void>((resolve) => {
+            const w = pageWin;
+            if (!alive(w)) return resolve();
+            w.on('closed', () => setTimeout(resolve, FLUSH_MS));
+            w.close();
+        }),
     };
 }

@@ -2079,6 +2079,32 @@ export default (test) => {
     assert.equal(setAsideUnfinishedDb(d, 't3'), null, 'nothing left to move');
   });
 
+  test('review 2026-11-19 L2: a first-start marker that cannot be removed does not set a used database aside', async () => {
+    const { setAsideUnfinishedDb, FIRST_START_MARKER, READY_RECORD } = require(path.join(BUILD, 'sidecar.js'));
+    const util = require(path.join(BUILD, 'util.js'));
+    const real = util.waitForHttp;
+    const d = tempDir('stuckmarker');
+    // A marker that cannot be removed (as under a lock on a synced folder): a folder of that name refuses rmSync.
+    fs.mkdirSync(path.join(d, FIRST_START_MARKER));
+    const sup = new SidecarSupervisor();
+    sup.on('state', () => {});
+    util.waitForHttp = async () => true;   // Open WebUI healthy at once (Node stands in for it)
+    try {
+      await withEnv({ LOL_SIDECAR_CMD: process.execPath }, () => sup.start({ endpoint: null, dataDir: d }));
+    } finally { util.waitForHttp = real; await sup.stop(); }
+    assert.ok(fs.existsSync(path.join(d, FIRST_START_MARKER)), 'the marker is still there');
+    assert.ok(fs.existsSync(path.join(d, READY_RECORD)), 'Open WebUI said it was ready: recorded');
+    fs.writeFileSync(path.join(d, 'webui.db'), 'a session of chats');
+    assert.equal(setAsideUnfinishedDb(d, 'next'), null, 'the next start leaves a database Open WebUI opened since');
+    assert.equal(fs.readFileSync(path.join(d, 'webui.db'), 'utf8'), 'a session of chats');
+    // A first start that really never finished, after an older ready (a deleted database): still set aside.
+    const old = (Date.now() - 3600_000) / 1000;
+    fs.utimesSync(path.join(d, READY_RECORD), old, old);
+    fs.rmSync(path.join(d, FIRST_START_MARKER), { recursive: true, force: true });
+    fs.writeFileSync(path.join(d, FIRST_START_MARKER), 'x');
+    assert.equal(setAsideUnfinishedDb(d, 'again'), path.join(d, 'interrupted-again'), 'a marker newer than the last ready is a start that never finished');
+  });
+
   test('a start whose Open WebUI exited for good keeps saying so: the wait running out does not say "not healthy in time"', async () => {
     const util = require(path.join(BUILD, 'util.js'));
     const real = util.waitForHttp;
@@ -2162,6 +2188,13 @@ export default (test) => {
     assert.equal(sup.repairDb(), null, 'an Open WebUI running: refused');
     sup.child = null;
     fs.writeFileSync(path.join(sup.dataDir, 'webui.db'), 'broken');
+    // A move the system refuses (a lock on a synced folder): the error comes back, the button stays, nothing moved
+    // (review 2026-11-19 L1, the advisor's check of the fix).
+    const realRename = fs.renameSync;
+    fs.renameSync = () => { throw Object.assign(new Error('EPERM: operation not permitted, rename'), { code: 'EPERM' }); };
+    try { assert.throws(() => sup.repairDb(), /EPERM/); } finally { fs.renameSync = realRename; }
+    assert.equal(sup.getState().repairable, true, 'a repair that failed leaves the Repair button');
+    assert.equal(fs.readFileSync(path.join(sup.dataDir, 'webui.db'), 'utf8'), 'broken', 'and the database where it was');
     assert.match(sup.repairDb(), /repaired.*broken files were moved/);
     assert.equal(sup.crashRestarts, 0, 'the restart gets the usual budget');
     assert.equal(sup.getState().repairable, undefined, 'repaired: the button goes');
@@ -2313,6 +2346,42 @@ export default (test) => {
     assert.deepEqual(made[1].sent, []);
     handlers['page-window-edits']({ sender: win.webContents }, { threadId: 't1', msgId: 'm1', edits: null });
     assert.equal(main.sent.length, 2, 'the closed window speaks for nothing');
+  });
+
+  test('VIBE_PAGE_PLAN 2, review L6: quitting closes the page window first and waits a moment for its last edits', async () => {
+    stubElectron();
+    const { installPageWindow } = require(path.join(BUILD, 'pageWindow.js'));
+    /** @type {Record<string, Function>} */ const handlers = {};
+    const ipc = { handle: (/** @type {string} */ n, /** @type {Function} */ f) => { handlers[n] = f; }, on: (/** @type {string} */ n, /** @type {Function} */ f) => { handlers[n] = f; } };
+    const makeWin = () => {
+      /** @type {Record<string, Function[]>} */ const ev = {};
+      /** @type {any[]} */ const sent = [];
+      return {
+        destroyed: false, sent,
+        webContents: { send: (/** @type {string} */ ch, /** @type {any} */ m) => sent.push([ch, m]), on: () => {} },
+        isDestroyed() { return this.destroyed; }, isMinimized: () => false, restore() {}, show() {}, focus() {},
+        on: (/** @type {string} */ n, /** @type {Function} */ f) => { (ev[n] = ev[n] || []).push(f); },
+        // As Electron does: the page's pagehide message (its last edits) is handled before `closed`.
+        close() { if (this.onClosing) this.onClosing(); this.destroyed = true; for (const f of ev.closed || []) f(); },
+      };
+    };
+    const main = makeWin();
+    /** @type {any[]} */ const made = [];
+    const pw = installPageWindow({ ipc, mainWindow: () => main, createWindow: () => { const w = makeWin(); made.push(w); return w; } });
+    let t = Date.now();
+    await pw.closeAndFlush();
+    assert.ok(Date.now() - t < 100, 'no page window: nothing to wait for');
+    handlers['page-window-open']({ sender: main.webContents }, { threadId: 't1', msgId: 'm1', fences: [{ lang: 'html', code: '<p>x</p>' }], pageIndex: 0, edits: {} });
+    const w = made[0];
+    handlers['page-window-ready']({ sender: w.webContents });
+    w.onClosing = () => handlers['page-window-edits']({ sender: w.webContents }, { threadId: 't1', msgId: 'm1', edits: { 0: 'typed last' } });
+    t = Date.now();
+    await pw.closeAndFlush();
+    assert.equal(w.destroyed, true, 'the page window is closed');
+    assert.deepEqual(main.sent.find((m) => m[1] && m[1].type === 'edits'), ['page-window', { type: 'edits', threadId: 't1', msgId: 'm1', edits: { 0: 'typed last' } }], 'its last edits reached the main window, still open');
+    assert.ok(Date.now() - t >= 250, 'and quitting waited a moment for the main window to write them');
+    const src = fs.readFileSync(path.join(SHELL, 'src', 'main', 'index.ts'), 'utf8');
+    assert.match(src, /const cleanup = Promise\.allSettled\(\[pageWindows \? pageWindows\.closeAndFlush\(\) : Promise\.resolve\(\),/, 'before-quit runs it with the cleanup, while the main window is still open');
   });
 
   test('cleanup', () => {

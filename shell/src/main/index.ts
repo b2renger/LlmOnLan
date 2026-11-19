@@ -1486,7 +1486,8 @@ app.on('before-quit', async (e) => {
     // either way: a lingering background process is the exact thing the owner
     // asked to be rid of (2026-09-10).
     // Lights a graph turned on go dark when the app quits (release critic: Panic on the way out).
-    const cleanup = Promise.allSettled([sidecar.stop(), mcpo.stop(), panicOutputs(), studioApi ? studioApi.dispose() : Promise.resolve()]);
+    // The page window first, while the main window can still write its last typing (VIBE_PAGE_PLAN, review L6).
+    const cleanup = Promise.allSettled([pageWindows ? pageWindows.closeAndFlush() : Promise.resolve(), sidecar.stop(), mcpo.stop(), panicOutputs(), studioApi ? studioApi.dispose() : Promise.resolve()]);
     const deadline = new Promise((r) => setTimeout(r, 4000));
     await Promise.race([cleanup, deadline]);
     app.exit(0);

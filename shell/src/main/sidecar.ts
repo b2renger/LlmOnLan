@@ -66,8 +66,19 @@ function moveDbAside(dataDir: string, folder: string): string | null {
     for (const n of files) fs.renameSync(path.join(dataDir, n), path.join(dest, n));
     return dest;
 }
+// A marker that could not be removed at the ready (a lock on a synced folder; review 2026-11-19 L2) must not set the
+// database aside at the next start, by then full of chats: so the ready writes READY_RECORD first, and a marker older
+// than it is a start that did finish. ponytail: if the record cannot be written either, the old behaviour stays.
+export const READY_RECORD = 'lol-owui-ready';
 export function setAsideUnfinishedDb(dataDir: string, stamp = timeStamp()): string | null {
-    if (!fs.existsSync(path.join(dataDir, FIRST_START_MARKER))) return null;
+    const marker = path.join(dataDir, FIRST_START_MARKER);
+    if (!fs.existsSync(marker)) return null;
+    try {
+        if (fs.statSync(path.join(dataDir, READY_RECORD)).mtimeMs >= fs.statSync(marker).mtimeMs) {
+            try { fs.rmSync(marker, { recursive: true, force: true }); } catch { /* spared again next start */ }
+            return null;
+        }
+    } catch { /* no ready since: the first start never finished */ }
     return moveDbAside(dataDir, `interrupted-${stamp}`);
 }
 
@@ -310,7 +321,10 @@ export class SidecarSupervisor extends EventEmitter {
         if (healthy) {
             this.crashRestarts = 0;
             this.repaired = undefined;   // told once, in this ready's notice
-            try { fs.rmSync(marker, { force: true }); } catch { /* removed at the next healthy start */ }
+            if (fs.existsSync(marker)) {
+                try { fs.writeFileSync(path.join(this.dataDir, READY_RECORD), new Date().toISOString(), 'utf8'); } catch { /* see READY_RECORD */ }
+                try { fs.rmSync(marker, { force: true }); } catch { /* spared by READY_RECORD, removed next start */ }
+            }
             this.setState({ status: 'ready', url, message: undefined, notice: this.notice });
             console.log(`[sidecar] ready at ${url} (DATA_DIR=${this.dataDir})`);
         } else if (this.child === child) {
@@ -421,11 +435,12 @@ export class SidecarSupervisor extends EventEmitter {
     // again as Retry does. Null: refused.
     repairDb(): string | null {
         // Only the migration failure's error (review 2026-11-19 L1: main refuses, not only the hidden button), once:
-        // a second call before the restart would move the database just put back.
+        // a second call before the restart would move the database just put back. Cleared only once the files moved:
+        // a move the system refuses (a lock) throws, and the Repair button stays. Synchronous, so no call slips between.
         if (this.child || this.state.status !== 'error' || !this.state.repairable) return null;
+        const { moved, restored } = repairOwuiDb(this.dataDir, bundledOwuiVersion());
         this.migrationBroken = false;
         this.setState({ repairable: undefined });
-        const { moved, restored } = repairOwuiDb(this.dataDir, bundledOwuiVersion());
         owuiLog([`--- repaired: ${moved ? `moved to ${path.basename(moved)}` : 'no database to move'}${restored ? `, ${restored} put back` : ''}`]);
         this.crashRestarts = 0;
         let copies: string[] = [];

@@ -45,16 +45,24 @@ failure.** It checks that Open WebUI is in the error state and not running, neve
 the code; no path calls `repair-owui-db` but that button, and the button disables itself on click, and the panel is
 re-rendered only on Open WebUI's state events (`app.js:1114-1118`), the next of which after a repair is *starting*: no
 double repair was found. *Fix (tonight):* `repairDb` refuses unless the state is `repairable`, and clears it as it repairs, so a second call is
-refused too; `shell-main.test.mjs` failed first (a good database was moved aside), then passed.
+refused too; `shell-main.test.mjs` failed first (a good database was moved aside), then passed. *The fix's own defect,
+found by the advisor's last check (03:20):* it cleared `repairable` before the move, so a move that threw (a locked
+file) took the button away with nothing repaired; now the state is cleared only after `repairOwuiDb` returns, and a test
+stubs the rename to throw EPERM (the error reaches the caller, the button stays, the database is untouched).
 
-**L2 · `shell/src/main/sidecar.ts:313` · a first-start marker that cannot be removed sets a used database aside at the
+**L2 · Fixed tonight · `shell/src/main/sidecar.ts:313` · a first-start marker that cannot be removed sets a used database aside at the
 next start.** On a healthy first start the marker is removed with `rmSync(…, {force:true})` in a `try` whose catch says
 "removed at the next healthy start"; but the next start runs `setAsideUnfinishedDb` **first** (`:268`), which finds the
 marker and moves `webui.db`, by then holding the session's chats, into `interrupted-<time>/`. Moved, not deleted, but
 the person meets an empty Open WebUI. *Proof:* the code path, not reproduced (needs `rmSync` to fail: a lock on a
 synced Documents folder is the plausible case). *Fix:* when the removal fails, keep that in memory and retry it, and
 make `setAsideUnfinishedDb` leave a database alone when the marker is older than Open WebUI's last ready (a
-`lol-owui-version`-style record written at ready).
+`lol-owui-version`-style record written at ready). *Reproduced after all (03:35):* `rmSync(…, {force:true})` throws on
+a folder, so a marker made a folder stands in for one that cannot be removed. *Fix (tonight):* a ready that finds the
+marker writes `lol-owui-ready` first, then removes the marker; `setAsideUnfinishedDb` spares the database, and clears
+the marker, when that record is as new as the marker. A marker newer than the record (a first start after the database
+was deleted) still sets aside. The test failed first, then passed. If the record cannot be written either, the old
+behaviour stays (a `ponytail:` note says so).
 
 **L3 · Fixed tonight · `farm/src/config.js:605` · the admin token's comment said only `/lol/admin/state` and the POST
 routes need the token.** The code requires it on every `/lol/admin/*` route but the page itself, the vLLM log's GET
@@ -77,12 +85,17 @@ our own page script can send it (the guest frame has no door), so this is harden
 that window in its life (not only the last: a switch flushes the previous page's typing after the new page arrives);
 the routing test failed first, then passed; `page-window-e2e.cjs` ok on the real app.
 
-**L6 · `shell/src/main/index.ts` (the main window's `closed`) · quitting from the main window loses the page window's
+**L6 · Fixed tonight · `shell/src/main/index.ts` (the main window's `closed`) · quitting from the main window loses the page window's
 last half-second of typing.** The main window's `closed` closes the page window, whose `pagehide` then sends its
 pending edits (`page-window.mjs`), but main forwards them to a main window that is gone. *Proof:* the order of the code
 (not run). Typing in the page window and quitting the app within ~0.85 s (the editor's 250 ms and the save's 600 ms).
 *Fix:* on the main window's `close` (before `closed`), ask the page window to flush and wait briefly, or close the page
-window first.
+window first. *Fix (tonight):* quitting (`before-quit`, which ends in `app.exit` and fires no page events) closes the
+page window first, while the main window is open, and waits `FLUSH_MS` (300 ms) after its `closed` for the main window
+to write the edits (`pageWindow.ts` `closeAndFlush`), alongside the other cleanups. The test (a page window whose
+closing sends its last typing) failed first, then passed; `page-window-e2e.cjs` ok on the real app. Every quit goes
+this way: the main window's X holds its close, asks, and calls `app.quit()` (`index.ts:658-677`), whose `before-quit`
+runs before any window closes.
 
 **L7 · Fixed tonight · `farm-app/test/supervisor.test.js` · the Farm app's suite passed only while the farm people use
 was up on this box, and hung otherwise.** Two tests swapped a stub for the real module and left it in Node's cache:

@@ -9,6 +9,32 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-19 (03:44) — The review's last two lows fixed, and a defect in tonight's L1 fix (night n° 10, after the advisor)
+
+The advisor's check before calling the night done found one defect in tonight's own work and showed that L2 could be
+reproduced after all. All three are client fixes, unreleased, each test failing first:
+- **L1's fix had its own defect.** `repairDb` cleared `repairable` before `repairOwuiDb` moved anything, so a move that
+  threw (a locked `webui.db`) left the person with no button and nothing repaired. The state is now cleared only after
+  the move returns. The test stubs `fs.renameSync` to throw EPERM: the error reaches the caller, `repairable` stays true
+  and the database is untouched.
+- **L6, a page window's last typing lost on quit.** `before-quit` (which ends in `app.exit`, with no page events) now
+  runs `pageWindows.closeAndFlush()` alongside the other cleanups. It closes the page window while the main window is
+  still open; the page's `pagehide` sends its pending edits, which main passes on before `closed`, and quitting then
+  waits `FLUSH_MS` (300 ms) for the main window to write them. The X button holds its close, asks, and calls
+  `app.quit()`, so every quit goes this way.
+  The test uses a fake page window whose closing sends edits, waits for them, and checks the source wires it in.
+- **L2, a used database set aside by a marker that could not be removed.** `rmSync(…, {force:true})` throws on a
+  folder, so a marker made a folder reproduces a marker that cannot be removed. A ready that finds the marker now writes
+  `lol-owui-ready` before removing the marker, and `setAsideUnfinishedDb` spares the database (and clears the marker)
+  when that record is at least as new as the marker. The test starts a supervisor (Node standing in for Open WebUI,
+  healthy at once) on a folder whose marker is a folder; the record is written, and the next start leaves `webui.db`
+  alone. A marker newer than the record (a first start after the database was deleted) still sets the database aside.
+  `ponytail:` if the record cannot be written either, the old behaviour stays.
+
+**Tests:** shell `npm run test:chat` 1983 passed, 0 failed, 1 skipped; `chat-lint` 0 violations in 296 files; `tsc`
+clean; `test:unit` 30; `page-window-e2e.cjs` ok on the real app; no Electron left. Docs: the review file (L1, L2, L6),
+plans ▸ Next 17 struck.
+
 ## 2026-11-19 (03:26) — Qwen3.6 through a farm, with and without drafting; a bench trap ruled out; the harness's full run (night n° 10)
 
 **The owner's Qwen3.6 question, measured through a farm** (scratch, vLLM 0.33.0 started by the farm, 64k, 32 seats by
