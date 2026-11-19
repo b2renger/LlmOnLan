@@ -72,7 +72,11 @@ holds 15 people at 32k, fails 30 deep conversations and lost 5 of 28 quality ite
   vLLM preempts a request was not measured; it concerns every hybrid model, not only drafting.
 - **The capacity page and the presets' estimate** (`src/capacity/estimator.js`) work from the catalog alone and do not
   know drafting: they show Qwen3.8 about a quarter roomier than it is now. No preset picks Qwen3.8 (they favour the most
-  people) and presets set people to Automatic, so nothing over-promises seats; filed in the plans (Next).
+  people) and presets set people to Automatic, so nothing over-promises seats; filed in the plans (Next). *Marked the
+  same night (plans ▸ Next 16):* the capacity page's Qwen3.8 row says the farm drafts and what it changes (the
+  catalog's `drafting`, shown in the row's notes), and a preset whose vLLM pick drafts says so in its reasons. The
+  estimate's numbers are still the stock model's: drafting raises one limit (words a second) and lowers another
+  (memory), so no single factor corrects them.
 
 ## Built
 

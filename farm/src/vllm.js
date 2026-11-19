@@ -1471,7 +1471,7 @@ async function setMarker(t, on) {
 module.exports = {
     GIB, VLLM_DIR, UNSUPPORTED, CANDIDATE_ROOTS,
     supported, decodeWsl, parseWslList, defaultDistro, scriptCommand,
-    parseStatus, memOf, vllmEntry, folderOf, modelDir, configDir, diskOf, resolveRoot, facts, peopleFit, measuredFor, seatsAuto, maxNumSeqsAuto, poolGib,
+    parseStatus, memOf, vllmEntry, folderOf, modelDir, configDir, diskOf, resolveRoot, facts, draftOf, peopleFit, measuredFor, seatsAuto, maxNumSeqsAuto, poolGib,
     familyArgs, isGeneric, repoOf, newLibraryEntry, syncFolderEntries, applyChange, ocrFit,
     settingsOf, argvFor, planFor, flagMap, adoptable,
     bootDecision, unanswered, keepRunning, gpuFit, hostGpuOf, downDecision, isOrphan, takeOverPlan, startPhase, logOffset, explainFailure, installStepText, downloadFailure, problemsFrom, tooOld, diskCheck, baseUrl,

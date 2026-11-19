@@ -185,9 +185,12 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     kept in the browser, three files) built in 20.5 s and working; the stumbles: the page forgets its data at each restart
     (M2), the class model introduced as untried (M3), a cramped Preview in Split (L2), an empty chat with no example,
     jargon, and the agent sending the student to a browser the Preview already is (L3).
-16. **The capacity page knows drafting** (VLLM_DRAFT_PLAN ▸ Limits, night n° 10): `src/capacity/estimator.js` and the
-    presets' estimate work from the catalog alone and show a drafting model (Qwen3.8 since 2026-11-19) about a quarter
-    roomier than it is; `vllm.js` `facts()` already counts it. Pass the drafting to the estimator, or mark the row. **S**.
+16. ~~**The capacity page knows drafting**~~ *marked 2026-11-19 (night n° 10, 04:40): the capacity page's Qwen3.8 row
+    and a preset that picks a drafting model say what drafting changes and that the estimate leaves it out (the
+    catalog's `drafting`; `presets.js` reads the flags the farm starts the model with). The numbers stay the stock
+    model's (drafting moves two limits in opposite directions). Test: farm `run.js` "presets and the capacity page".*
+    The item was: `src/capacity/estimator.js` and the presets' estimate work from the catalog alone; pass the drafting
+    to the estimator, or mark the row. **S**.
 17. ~~**Two findings of the review of 2026-11-19**~~ *both fixed in the same night (n° 10, 03:45, unreleased): L2 by
     a ready record (`lol-owui-ready`) that spares the database, L6 by closing the page window first on quit; the
     review file says how.* ([SESSION_REVIEW_2026-11-19](../reviews/SESSION_REVIEW_2026-11-19.md)):

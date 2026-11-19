@@ -9,6 +9,22 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-19 (04:40) — The capacity page and the presets say when a model drafts (plans ▸ Next 16, night n° 10)
+
+The capacity estimator works from `catalog.json` alone, so it shows Qwen3.8 as the stock model. Drafting moves two of
+its limits in opposite directions: words a second about ×2.3 alone and ×1.8 for 30 people, and memory about a quarter
+more a person. No single factor corrects the number, so the row is marked rather than scaled, as the item allowed:
+- **The capacity page.** The catalog's Qwen3.8 gets a `drafting` sentence, which the estimator adds to the row's
+  notes. It is in `docs/spike/explorer/build_catalog.py` too, so a rebuild keeps it.
+- **The presets.** A preset whose vLLM pick drafts says so in its reasons (the panel's *Why these*). It reads the
+  flags the farm will start the entry with (`vllm.js` `draftOf`, now exported), so an operator's own Qwen3.8 folder,
+  which runs without drafting, says nothing.
+
+Test first (farm `run.js` "presets and the capacity page…", failing, then passing): a PRO 6000 whose list holds only
+Qwen3.8 picks it for Documents with the line; Qwen3.6 and an operator's own Qwen3.8 folder have none; the estimator's
+Qwen3.8 row has the note and Qwen3.6's does not. Farm 289 passed. `calibrate/validate.js` was not run: it needs
+`rows.json` from `extract.py`, missing before this change too, and no number changed.
+
 ## 2026-11-19 (04:32) — Tool calls in each model's own style: measured, nothing to win (plans ▸ Next 13, n° 11's item; night n° 10)
 
 The Agent box shows no tool-call examples: each step is one JSON object held to a schema (`agent.mjs` `stepSchema`).

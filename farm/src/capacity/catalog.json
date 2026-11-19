@@ -1082,6 +1082,7 @@
   {
    "id": "qwen3.8-27b",
    "name": "Qwen3.8-27B (dense)",
+   "drafting": "The farm serves this model drafting ahead with its MTP layer (3 tokens, since 2026-11-19), which these numbers leave out: on an RTX PRO 6000 it measured about 2.3 times the words a second alone and 1.8 times for 30 people, and each conversation takes about a quarter more memory, so about a quarter fewer people fit where memory is the limit.",
    "vendor": "Alibaba Qwen",
    "released": "2026-08-05",
    "role": "measured (quality model; dense = slow on Spark)",

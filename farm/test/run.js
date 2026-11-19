@@ -7181,6 +7181,26 @@ test('presets: the picks for an RTX PRO 6000 with vLLM — the capacity page\'s 
     assert.deepEqual(picks.balanced.plugins, { websearch: true, ocr: true, tts: false, classify: false, stt: false, bus: false });
 });
 
+test('presets and the capacity page: a model the farm serves drafting ahead says the estimate does not count it (plans Next 16)', () => {
+    const box = PR_BOX.pro6000(); box.vllm.library = prLib(['qwen3.8-27b-nvfp4']).filter((e) => e.id === 'qwen3.8-27b-nvfp4'); box.vllm.current = 'qwen3.8-27b-nvfp4';
+    const rag = PR.pickFor('rag', box);
+    assert.equal(rag.model, 'qwen3.8-27b-nvfp4');
+    assert.ok(rag.reasons.some((r) => /^Qwen3\.8 27B · NVFP4 drafts ahead with its MTP layer: .*about a quarter more memory.* The estimate above counts neither; the seats the farm sets when it starts count both\.$/.test(r)), rag.reasons.join('\n'));
+    // Qwen3.6 does not draft: no such line.
+    assert.ok(!PR.pickFor('rag', PR_BOX.pro6000()).reasons.some((r) => /drafts ahead/.test(r)));
+    // An operator's own Qwen3.8 folder runs without drafting (vllm.js FAMILY_ARGS): no line either.
+    const own = PR_BOX.pro6000(); own.vllm.library = [{ id: 'my-qwen38', label: 'My Qwen3.8', catalog: 'qwen3.8-27b', path: '/m', args: ['--max-model-len', '32768'], downloaded: true }]; own.vllm.current = 'my-qwen38';
+    const ownRag = PR.pickFor('rag', own);
+    assert.equal(ownRag.model, 'my-qwen38');
+    assert.ok(!ownRag.reasons.some((r) => /drafts ahead/.test(r)));
+    // The capacity page's row for the model says it too.
+    const E = require('../src/capacity/estimator');
+    E.init(require('../src/capacity/catalog.json'), require('../src/capacity/measured.json'));
+    const r = E.estimate('rtx-pro-6000-ws', 'qwen3.8-27b', { context: 32768 });
+    assert.ok(r.notes.some((n) => /drafting ahead with its MTP layer/.test(n)), r.notes.join('\n'));
+    assert.ok(!E.estimate('rtx-pro-6000-ws', 'qwen3.6-35b-a3b', { context: 32768 }).notes.some((n) => /drafting ahead/.test(n)));
+});
+
 test('presets: the picks for a DGX Spark, a 24 GB and a 12 GB card, and a box without vLLM', () => {
     assert.deepEqual(prShort(PR_BOX.spark()), {
         balanced: 'vllm qwen3.6-35b-a3b 65536 auto', rag: 'vllm qwen3.6-35b-a3b 65536 auto',   // Qwen3.8 serves < 8 at 64k on a Spark

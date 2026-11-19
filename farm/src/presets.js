@@ -23,7 +23,8 @@ const E = require('./capacity/estimator');
 const S = require('./capacity/scenarios');
 const CATALOG = require('./capacity/catalog.json');
 const MEASURED = require('./capacity/measured.json');
-const { defaultConfig } = require('./config');
+const { defaultConfig, VLLM_LIBRARY } = require('./config');
+const { draftOf } = require('./vllm');
 const { engineOf, defaultModelEntry } = require('./litellm');
 
 E.init(CATALOG, MEASURED);
@@ -198,6 +199,8 @@ function pickFor(id, box) {
         out.reasons.push(`${e.label} on vLLM, for ${sc.people} people at once (the capacity page's "${sc.title}"): ${v.pair.reason}`);
         out.reasons.push(...poolReasons(p, v.pair, sc));
         out.reasons.push(contextReason(p, v.context, 'vllm'));
+        const draft = draftOf(e.args || (VLLM_LIBRARY.find((b) => b.id === e.id) || {}).args);   // the flags the farm will start it with
+        if (draft && draft.method === 'mtp') out.reasons.push(`${e.label} drafts ahead with its MTP layer: on an RTX PRO 6000 about twice the words a second for each person, and about a quarter more memory for each conversation. The estimate above counts neither; the seats the farm sets when it starts count both.`);
         out.reasons.push('People at once and GPU memory for conversations: Automatic (what was measured on this card, never more than its memory holds).');
         if (!e.downloaded) out.needs.push({ kind: 'vllm', id: e.id, label: e.label, gb: e.sizeGb ?? null, text: `Download ${e.label}${e.sizeGb ? ` (${Math.round(e.sizeGb)} GB)` : ''} in the vLLM list first.` });
     } else {

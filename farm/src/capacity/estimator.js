@@ -221,6 +221,7 @@
     if (ck.bits === 3) res.notes.push('Fits only at <= 3-bit (GGUF): quality loss likely.');
     if (ck.gguf) res.notes.push('GGUF runs on llama.cpp: the spike measured it serving far fewer people than vLLM; people below assume vLLM-class batching.');
     if (lay.guessed) res.notes.push('KV size unknown: 4 KB/token assumed.');
+    if (m.drafting) res.notes.push(m.drafting);   // the farm serves it drafting ahead, which these numbers leave out (plans Next 16)
     const runs = [0, 1, 2].map(r => solve(physics(H, m, ck, lay, r, cluster), lay, o, r, poolBytes));
     const tri = f => ({ low: f(runs[0]), mid: f(runs[1]), high: f(runs[2]) });
     if (poolGiB <= onePerson) {

@@ -276,7 +276,10 @@ M(id="nemotron-3.5-lightning-30b-a3b", name="NVIDIA Nemotron 3.5 Lightning 30B-A
   spike_quality={"pro6000_think_on_off": "25/28 (68k) / 26/28 (7k)", "spark_think_on_off": "26/28 (61k) / 27/28 (7k)", "llamacpp": "26/28 (65k)", "source": "repo-results"},
   aggregate_index={"benchlm_open": 20.8, "rank": 90, "source": "benchlm-open", "note": "looks like sparse coverage, not a quality verdict"})
 
-M(id="qwen3.8-27b", name="Qwen3.8-27B (dense)", vendor="Alibaba Qwen", released="2026-08-05", role="measured (quality model; dense = slow on Spark)",
+M(id="qwen3.8-27b", name="Qwen3.8-27B (dense)",
+  # The farm's Qwen3.8 drafts ahead (VLLM_DRAFT_PLAN); the estimator shows this on the row (plans Next 16).
+  drafting="The farm serves this model drafting ahead with its MTP layer (3 tokens, since 2026-11-19), which these numbers leave out: on an RTX PRO 6000 it measured about 2.3 times the words a second alone and 1.8 times for 30 people, and each conversation takes about a quarter more memory, so about a quarter fewer people fit where memory is the limit.",
+  vendor="Alibaba Qwen", released="2026-08-05", role="measured (quality model; dense = slow on Spark)",
   params_total_b=27.78, params_active_b=27.0, params_note="dense 27B; 27.78B in safetensors incl. vision + MTP",
   arch={"type": "dense", "layers": 64, "attention": "hybrid: 48 Gated DeltaNet + 16 full gated-attention layers", "full_attn_layers": 16, "kv_heads": 4, "head_dim": 256,
         "linear": {"kind": "Gated DeltaNet", "layers": 48, "v_heads": 48, "qk_heads": 16, "head_dim": 128}},
