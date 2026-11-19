@@ -52,3 +52,30 @@ One command (`node test/rehearsal/run.js`, from `shell/`), one result file in `d
 - The farm people use is never touched; the rehearsal's farms and clients are scratch, stopped at the end.
 - No change to the client's behaviour comes from this plan: what the rehearsal finds becomes a fix (with its test) or a
   plan.
+
+## Built
+
+**Step 1** (night n° 10, 2026-11-19, DEVLOG 01:57): `shell/test/rehearsal/run.js` and `client.cjs`.
+- **The beacons stay on this computer**, decided as the plan asked: the farms' own beacons are **off**; a relay in
+  `run.js` reads each farm's `/lol/self` every 5 s (a farm's default) and sends it by **UDP unicast to 127.0.0.1**, to
+  each client on its own rehearsal port (42101+, group 239.255.43.99, never the office's 239.255.43.10:41998); every
+  address a snapshot advertises is rewritten to 127.0.0.1, and the clients' 2 s polls go through a lossy proxy. Checked
+  on each run: a listener on the office group heard nothing of the rehearsal (`sealHeard: 0`), and every connection the
+  clients and their Open WebUIs held was to 127.0.0.1.
+- **The clients** run the client's compiled `discovery.js`, `farmSelect.js` (`chooseActive`, `farmContext`,
+  `connectPlan`) and `sidecar.js` (the Open WebUI supervisor) in plain Node, Electron stubbed, each with a fresh data
+  folder and the released Open WebUI 0.13.3 sidecar (v0.2.19's asset, through a junction as `userData/sidecar`). **Not
+  run, mirrored:** `index.ts`'s wiring (wait up to 4.5 s for a farm, start Open WebUI on it or on none; on each farms
+  event choose and repoint when `connectPlan` says so), without pins, passwords or plugin keys. The first chat is a
+  question through the chosen farm's gate, not a chat in Open WebUI. The rehearsal holds 127.0.0.1:8080, Open WebUI's
+  preferred port: clients on ONE machine raced for it (`findFreePort` checks, Open WebUI binds ~10 s later), which a
+  laptop with one Open WebUI never does.
+- **Results** (2 clients, 5 min, farm A silent 20 s every 60 s, the same farms and Open WebUI; `docs/spike/results/
+  rehearsal-2026-11-19*`): **v0.2.18** (built from its tag in a worktree, `REH_BUILD`): each client moved farm **10
+  times**, every move a restart of Open WebUI, one killing a start mid-way: the class's Mac (30 switches in 20 min) at
+  a smaller scale. **v0.2.19**: **no move**; the client that missed the first beacon started on no farm and its repoint
+  waited for the start to end (ready on its farm at 30.7 s), the other ready at 16.4 s; first chats at 26.1 and 23.9 s.
+  No *keeps exiting* in either: on this desktop a first start's migrations end in ~14 s, before the first switch (the
+  class's Mac took 137 s); a slow first start is not rehearsed yet.
+- **Next:** step 2 (10, then 20 clients, memory measured: each Open WebUI is a Python process of its own); a slower
+  first start (a throttled sidecar, or a kill timed inside the migrations) to rehearse *keeps exiting* itself.

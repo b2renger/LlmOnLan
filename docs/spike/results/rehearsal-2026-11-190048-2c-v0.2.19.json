@@ -1,0 +1,64 @@
+{
+ "at": "2026-11-19T00:48:06.043Z",
+ "clients": 2,
+ "minutes": 5,
+ "outage": {
+  "silentS": 20,
+  "everyS": 60
+ },
+ "owui": "0.13.3",
+ "sealHeard": [],
+ "connections": {
+  "client0": [
+   "127.0.0.1"
+  ],
+  "client1": [
+   "127.0.0.1"
+  ]
+ },
+ "perClient": [
+  {
+   "client": 0,
+   "farmMoves": 0,
+   "farms": [
+    "5.0s Rehearsal farm A (lossy)"
+   ],
+   "states": [
+    "4.6s starting",
+    "18.6s ready",
+    "18.6s restarting",
+    "18.6s starting",
+    "30.7s ready",
+    "304.0s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 30.651,
+   "starts": 2,
+   "chatError": null,
+   "launchedS": 81.811,
+   "firstChatS": 26.11,
+   "chatFarm": "Rehearsal farm A (lossy)"
+  },
+  {
+   "client": 1,
+   "farmMoves": 0,
+   "farms": [
+    "2.8s Rehearsal farm B"
+   ],
+   "states": [
+    "2.8s starting",
+    "16.4s ready",
+    "301.7s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 16.4,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 84.093,
+   "firstChatS": 23.855,
+   "chatFarm": "Rehearsal farm B"
+  }
+ ]
+}

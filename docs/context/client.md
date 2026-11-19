@@ -143,7 +143,13 @@
   not a gate today; `asar-probe.js`; `node test/chat-harness/run.js [--slot n] [--phase p]` (a chat-only
   Electron driven over CDP against a NON-beaconing `mock-farm.js`; `--phase perf` = the perf budgets). The
   legacy `npm test` = `e2e.js` drives the real app against a beaconing mock — a spare box only (Electron's
-  single-instance lock and the owner's real DATA_DIR make it unsafe on a box with a client open).
+  single-instance lock and the owner's real DATA_DIR make it unsafe on a box with a client open). **The class rehearsal**
+  (CLASS_REHEARSAL_PLAN step 1, 2026-11-19): `REH_SIDECAR=<a released Open WebUI sidecar> node test/rehearsal/run.js
+  [--clients 2] [--minutes 5] [--outage 20/40]` runs two scratch farms (beacons off) and N windowless clients
+  (`test/rehearsal/client.cjs`: the compiled discovery, `farmSelect` and Open WebUI supervisor, Electron stubbed; the
+  wiring of `index.ts` mirrored), with a relay that sends the beacons by unicast to 127.0.0.1 and a lossy `/lol/self`
+  proxy that silences one farm; `REH_BUILD` drives another release's build (a worktree). Sealed on 127.0.0.1: the office
+  group is listened to and must hear nothing; each client's connections are listed.
 
 ## Client shell
 

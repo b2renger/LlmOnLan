@@ -1,0 +1,133 @@
+{
+ "at": "2026-11-19T00:55:03.797Z",
+ "clients": 2,
+ "minutes": 5,
+ "outage": {
+  "silentS": 20,
+  "everyS": 60
+ },
+ "owui": "0.13.3",
+ "sealHeard": [],
+ "connections": {
+  "client0": [
+   "127.0.0.1"
+  ],
+  "client1": [
+   "127.0.0.1"
+  ]
+ },
+ "perClient": [
+  {
+   "client": 0,
+   "farmMoves": 10,
+   "farms": [
+    "5.0s Rehearsal farm A (lossy)",
+    "30.1s Rehearsal farm B",
+    "40.1s Rehearsal farm A (lossy)",
+    "90.1s Rehearsal farm B",
+    "100.2s Rehearsal farm A (lossy)",
+    "150.2s Rehearsal farm B",
+    "160.3s Rehearsal farm A (lossy)",
+    "210.3s Rehearsal farm B",
+    "220.3s Rehearsal farm A (lossy)",
+    "270.4s Rehearsal farm B",
+    "280.4s Rehearsal farm A (lossy)"
+   ],
+   "states": [
+    "4.7s starting",
+    "5.0s restarting",
+    "5.1s starting",
+    "19.5s ready",
+    "30.1s restarting",
+    "30.1s starting",
+    "40.1s restarting",
+    "40.2s starting",
+    "52.5s ready",
+    "90.1s restarting",
+    "90.2s starting",
+    "100.2s restarting",
+    "100.2s starting",
+    "112.6s ready",
+    "150.2s restarting",
+    "150.3s starting",
+    "160.3s restarting",
+    "160.3s starting",
+    "172.5s ready",
+    "210.3s restarting",
+    "210.4s starting",
+    "220.4s restarting",
+    "220.4s starting",
+    "232.7s ready",
+    "270.4s restarting",
+    "270.5s starting",
+    "280.4s restarting",
+    "280.5s starting",
+    "292.6s ready",
+    "304.7s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 292.594,
+   "starts": 12,
+   "chatError": null,
+   "launchedS": 82.557,
+   "firstChatS": 20.475,
+   "chatFarm": "Rehearsal farm A (lossy)"
+  },
+  {
+   "client": 1,
+   "farmMoves": 10,
+   "farms": [
+    "2.2s Rehearsal farm A (lossy)",
+    "25.1s Rehearsal farm B",
+    "37.0s Rehearsal farm A (lossy)",
+    "85.2s Rehearsal farm B",
+    "97.1s Rehearsal farm A (lossy)",
+    "145.3s Rehearsal farm B",
+    "157.2s Rehearsal farm A (lossy)",
+    "205.4s Rehearsal farm B",
+    "217.3s Rehearsal farm A (lossy)",
+    "265.5s Rehearsal farm B",
+    "277.4s Rehearsal farm A (lossy)"
+   ],
+   "states": [
+    "2.2s starting",
+    "16.3s ready",
+    "25.1s restarting",
+    "25.2s starting",
+    "37.0s restarting",
+    "37.1s starting",
+    "49.2s ready",
+    "85.2s restarting",
+    "85.3s starting",
+    "97.1s restarting",
+    "97.2s starting",
+    "109.5s ready",
+    "145.3s restarting",
+    "145.4s starting",
+    "157.2s restarting",
+    "157.3s starting",
+    "169.4s ready",
+    "205.4s restarting",
+    "205.5s starting",
+    "217.3s restarting",
+    "217.4s starting",
+    "229.7s ready",
+    "265.5s restarting",
+    "265.5s starting",
+    "277.4s restarting",
+    "277.5s starting",
+    "289.6s ready",
+    "301.7s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 289.56,
+   "starts": 11,
+   "chatError": null,
+   "launchedS": 85.591,
+   "firstChatS": 17.463,
+   "chatFarm": "Rehearsal farm A (lossy)"
+  }
+ ]
+}

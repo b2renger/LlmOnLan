@@ -9,6 +9,19 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-19 (01:57) — The class rehearsed on this computer: v0.2.18 moves farm 10 times in 5 minutes, v0.2.19 never (CLASS_REHEARSAL_PLAN step 1, night n° 10)
+
+`shell/test/rehearsal/run.js` + `client.cjs` (the plan ▸ Built says how it is sealed and what is mirrored): two scratch
+farms on a scratch Ollama (`qwen3:0.6b`), beacons off, a relay sending them by unicast to 127.0.0.1, a lossy `/lol/self`
+proxy silencing farm A 20 s every 60 s; 2 windowless clients (the compiled discovery, `farmSelect` and Open WebUI
+supervisor) on the released Open WebUI 0.13.3 sidecar, fresh data folders. **v0.2.19**: 0 farm moves, no *keeps
+exiting*; a start on no farm repointed at its end (ready on the farm at 30.7 s), the other ready at 16.4 s; first chats
+26.1 and 23.9 s. **v0.2.18** (its tag built in a scratch worktree, `REH_BUILD`): **10 moves per client**, each a restart
+of Open WebUI. Seal: the office group heard nothing, every connection was to 127.0.0.1. Harness bugs found and fixed on
+the way (the farm's LAN address in proxied snapshots; two clients on one machine racing for port 8080; a first chat
+never reported): the two runs they spoiled are deleted. Not rehearsed: a first start slow enough to be killed inside
+its migrations (*keeps exiting* itself), 10 and 20 clients (step 2).
+
 ## 2026-11-19 (00:55) — The review of night n° 10 (`docs/reviews/SESSION_REVIEW_2026-11-19.md`): one medium, seven lows, six fixed
 
 The second fifth-session review, in the second half of the extended night: the 48 commits since 2026-11-15, the
