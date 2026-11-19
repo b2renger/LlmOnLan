@@ -124,6 +124,17 @@ back (`UTIL_STUB`, `FARM_PROCESS_STUB`); 12 passed twice with nothing on 41997, 
   root (`isOrphan` applies only when the engine is not vLLM), and quitting the Farm app runs `lol down`, which stops its
   vLLM (`farm-app/src/main/index.ts` before-quit). A person's Stop under drafting: `litellm-cancel.js` PASS on all ten
   paths.
+- **The panel, walked (pass 3, 01:00):** a scratch farm from the checkout serving the new Qwen3.8 entry, on a scratch
+  Ollama with its own models folder (no pull), the panel captured in headless Edge with its token: the Qwen3.8 row
+  shows its new note and *serving*; *16 people at once · 32k of context each*; *Automatic — 16, measured on this card*;
+  the GPU 81.5/96 GB. Its "the memory for conversations holds 27 people at that size" is vLLM's own count (state left
+  out), as VLLM_DRAFT_PLAN says. Seen, not a finding: on a scratch root linked to production's `hf/`, the rows offer
+  Remove on production's models (J19 says not to press it); with an Ollama the farm did not start, *Ollama's models*
+  shows the Ollama app's last folder from its own `server.log` (`storage.js` `ollamaStoreFromLog`), right for an
+  operator, misleading only on a scratch Ollama.
+- **The Update vLLM swap:** refused while vLLM runs from that folder, checked twice (the farm's phase, then a fresh
+  probe inside the job); Start refuses while an install runs; a farm restart stops an install left running before it
+  starts vLLM (`up.js:795`).
 - **Docs of tonight's work against the code:** `farm/README.md` (the table and its paragraph), `docs/context/farm.md`
   (seven models in the list: counted), HUMAN_TESTS J19 (the panel's address `/lol/admin`, the farm popover's cards and
   *Automatic — least busy farm*, the ready line, 10–15 minutes as rehearsed: corrected tonight).
