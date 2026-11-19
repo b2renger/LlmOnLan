@@ -41,6 +41,13 @@ its date, before anything else, and commits it. An unanswered question's default
   There is no users I closed tha apps and free the vram": an **extended night session** (n° 10) from 21:23 to 08:00 on 19
   November, to evaluate, plan, build and test, with the whole GPU. A *try* verdict counts as the owner's approval to build
   that piece tonight. The scheduled review moves to the next session.
+- **2026-11-19, the chat (09:03).** HyperQwen's batch mode, the one built for many people, was the one to evaluate:
+  "considering the context of Lol it is pretty obvious that we want the batch mode". A tool with modes is evaluated in
+  its many-people mode first, and an evaluation says which modes it did not run.
+- **2026-11-19, the chat (12:30).** "1- Yes": write the plan for Qwen3.8's recurrent state in fp16
+  ([QWEN38_FP16_STATE_PLAN](../plans/QWEN38_FP16_STATE_PLAN.md)). That is a plan, not approval to build: its step 1 is
+  a measurement, and steps 2–4 wait for the plan's approval. "2- Yes delete": HyperQwen's install `~/lol-hq` (37 GB),
+  deleted the same day; `docs/spike/runs/hq_batch.sh` holds the recipe.
 
 ## LOL Vibe and the Computer
 

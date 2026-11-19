@@ -124,7 +124,8 @@ re-read prompts at ~25k tok/s while generating 4 tok/s: the follow-up turns did 
 did with fp32 state. Why was not found. The pass without fp16 (3.9 s / 51.1) is the night's single run, not measured
 again as a control on 2026-11-19. Qwen3.8 past 23k deep with fp16 state was not run (the farm serves it at 32k): where
 between 23k and 50k Qwen3.6 starts failing is unknown, so a plan for Qwen3.8 starts with a test ~30k deep. Seat counts:
-`runs/hq_seatprobe.sh`.
+`runs/hq_seatprobe.sh` (its install, `~/lol-hq`, was deleted on the owner's yes, 2026-11-19: rebuild it first from
+`hq_batch.sh`'s header). The plan is [QWEN38_FP16_STATE_PLAN](../plans/QWEN38_FP16_STATE_PLAN.md) (written 2026-11-19).
 
 **The farm's default, Qwen3.6 35B-A3B, carries an MTP layer too** (19 `mtp.*` tensors). The same A/B at its 64k
 setting, its farm flags (`QWEN36_ARGS`), plus a 50k-deep step (`long50`: 30 people each ~50k tokens into a

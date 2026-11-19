@@ -276,11 +276,11 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 7. **Qwen3.8's recurrent state in fp16?** (2026-11-19, learnt from HyperQwen's batch mode;
    [research](../research/2026-11-19-codeaf-hyperqwen.md) ▸ *HyperQwen's batch mode*.) One stock vLLM flag,
    `--mamba-ssm-cache-dtype float16`, on the built-in Qwen3.8 entry: 30 people 93 → 124 tok/s each, seats at 32k
-   22 → 30, 28/28 and the same answers (210 samples). A plan first: the flag, the capacity formula
-   (`farm/src/vllm.js:297-306` `facts()` charges the catalog's state bytes, measured at the default fp32, and does
-   not read the flag), HUMAN_TESTS J19 again. **Not Qwen3.6:** there it
-   fails 30 people ~50k deep (twice), cause not found. Not measured: Qwen3.8 past 23k deep with the flag, so the plan's
-   first step is 30 people ~30k deep on Qwen3.8 with it (seats: `docs/spike/runs/hq_seatprobe.sh`).
+   22 → 30, 28/28 and the same answers (210 samples). **The plan is written** (the owner's yes, 2026-11-19):
+   [QWEN38_FP16_STATE_PLAN](QWEN38_FP16_STATE_PLAN.md). **Its step 1 is a measurement any session may run:** 30
+   people ~30k deep, a long-text check, people at once like for like with today's label, and seats from stock vLLM's
+   own line. **Steps 2–4 (the flag, `facts()`, J19 again) wait for the plan's approval.** Not Qwen3.6: there it fails
+   30 people ~50k deep (twice), cause not found.
 
 **Choices to make, one line each:**
 - **The farm:**

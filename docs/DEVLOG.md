@@ -22,7 +22,9 @@ but 73.9 each for 30. The farm's drafting entry measured again as a control (93.
 deep, 30 seats at 32k, 28/28, same answers** (`hq_same.mjs` 175/210, p = 0.32). On Qwen3.6 the same flag fails 30
 people ~50k deep twice (the block halves; the prefix stopped being reused). **Verdict:** batch mode is not a backend
 either; the fp16 state for Qwen3.8 is plans ▸ Waiting on the owner 7. Nothing in the farm changed. `~/lol-hq` (37 GB)
-kept for the owner to rule. Research file, RESULTS (Qwen3.8 drafting ahead) updated.
+kept for the owner to rule. Research file, RESULTS (Qwen3.8 drafting ahead) updated. **12:30, the owner:** yes to the plan
+(QWEN38_FP16_STATE_PLAN written by 12:39: step 1 a measurement, steps 2–4 wait for approval), yes to deleting `~/lol-hq`
+(deleted; WSL 370 GB free after).
 
 ## 2026-11-19 (05:57) — After the advisor's last check: three corrections (night n° 10)
 

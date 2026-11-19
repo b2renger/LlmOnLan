@@ -1,7 +1,9 @@
 #!/bin/bash
 # Seat counts of the HyperQwen evaluation (night n° 10 and 2026-11-19; research/2026-11-19-codeaf-hyperqwen.md): a stock
-# configuration started through HyperQwen's log-only kv-cache-seat-budget patch. Needs ~/lol-hq/HyperQwen/venv (hq_batch.sh's
-# install). Run in WSL; the GPU must have room for the pool.
+# configuration started through HyperQwen's log-only kv-cache-seat-budget patch. Needs ~/lol-hq/HyperQwen/venv (deleted 2026-11-19
+# on the owner's yes: rebuild it first from hq_batch.sh's
+# install; stock vLLM's "Maximum concurrency for N tokens per request" line gives the count at --max-model-len without
+# it). Run in WSL; the GPU must have room for the pool.
 #   hq_seatprobe.sh <label> <checkpoint folder> <served name> <context> <pool GiB> [vllm flags...]
 set -u
 LABEL="$1"; shift
