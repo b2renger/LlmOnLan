@@ -9,6 +9,20 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-19 (05:06) — The rehearsal every night; *keeps exiting* aimed at and missed (CLASS_REHEARSAL_PLAN steps 4 and after, night n° 10)
+
+- **Step 4:** the skill `lol-session` ▸ *End* step 0 runs `run.js --clients 2 --minutes 3` (4 minutes, no GPU) and
+  puts its numbers in the summary. Tonight's baseline: 0 moves, ready at 22.8 and 39.4 s, first chats at 25.7 and
+  29.7 s, `sealHeard` 0.
+- **`--slow-start K`** (`run.js`): every Open WebUI process of the clients is held to CPU 0 beside K busy loops,
+  re-checked each second. K = 6, 2 clients: a first start took 94 s instead of about 20. Its log still puts the
+  migrations at about 13 s after the spawn, over 1.5 s; the time added is the loading after them.
+- **v0.2.18 (its worktree rebuilt) with a blip at 16 s and then at 13 s** (4 and 6 clients): 10 kills of a first
+  start, at about 0.3, 10 or 15 s after the spawn or as it became ready. No *keeps exiting*. v0.2.18 has no
+  `owui.log`, so where each kill fell against the 1.5 s of migrations is unknown. Next: start the blip on the first
+  `Running upgrade` line, which both builds print as `[owui] …` on the client's stdout.
+- Files: `rehearsal-2026-11-190355-2c-slow6.json`, `…190400-4c-v0.2.18-blip16.json`, `…190404-6c-v0.2.18-blip13.json`.
+
 ## 2026-11-19 (04:40) — The capacity page and the presets say when a model drafts (plans ▸ Next 16, night n° 10)
 
 The capacity estimator works from `catalog.json` alone, so it shows Qwen3.8 as the stock model. Drafting moves two of

@@ -45,6 +45,11 @@ const SEATS = process.argv.includes('--seats');
 const BURSTS = Number(arg('--bursts', '0'));
 // --no-think: the rounds ask with thinking off (Qwen3's chat_template_kwargs), to compare with the default people chat on.
 const THINK = !process.argv.includes('--no-think');
+// --slow-start K: a slow laptop's first start. Every Open WebUI process of the clients is held to CPU 0, beside K busy
+// loops of the rehearsal's own on CPU 0 at the same priority, so it gets about 1/(K+1) of one core: its ~72 migrations
+// then take minutes, as on the class's slowest Mac (137 s), and a farm switch (--blip) lands inside them. Nothing of
+// Open WebUI or the client changes; the busy loops stop with the rehearsal.
+const SLOW = arg('--slow-start', null) == null ? 0 : Number(arg('--slow-start'));
 const PROMPT = 'Explain photosynthesis to a 12-year-old, in about 250 words.';
 // Room for the whole answer: with thinking on (as people chat) Qwen3.6 thinks ~1,000 words on this question first, and
 // 1,500 tokens cut most answers before their first word (night n° 10's first run).
@@ -238,6 +243,24 @@ async function main() {
     };
     const relayTimer = setInterval(relayTick, 5000); void relayTick();
 
+    // --slow-start: the busy loops on CPU 0, then every new Open WebUI process of a client held there (checked each second).
+    const slowed = new Set();
+    let slowTimer = null;
+    if (SLOW) {
+        const hogs = Array.from({ length: SLOW }, () => own(spawn(process.execPath, ['-e', 'for(;;){}'], { stdio: 'ignore', env: { ...process.env, ELECTRON_RUN_AS_NODE: '' } })));
+        spawnSync('powershell.exe', ['-NoProfile', '-Command', hogs.map((h) => `(Get-Process -Id ${h.pid}).ProcessorAffinity = 1`).join('; ')]);
+        log(`slow start: ${SLOW} busy loops on CPU 0`);
+        slowTimer = setInterval(() => {
+            const out = spawnSync('powershell.exe', ['-NoProfile', '-Command', 'Get-CimInstance Win32_Process -Filter "Name=\'python.exe\'" | ForEach-Object { "$($_.ProcessId) $($_.ParentProcessId)" }'], { encoding: 'utf8' }).stdout || '';
+            const parent = new Map(out.split(/\r?\n/).map((l) => l.trim().split(' ').map(Number)).filter((x) => x.length === 2));
+            const clientPids = new Set(results.map((r) => r.proc.pid));
+            const ofClient = (pid) => { for (let p = pid, k = 0; p && k < 6; k++) { const up = parent.get(p); if (clientPids.has(up)) return true; p = up; } return false; };
+            const fresh = [...parent.keys()].filter((pid) => !slowed.has(pid) && ofClient(pid));
+            if (!fresh.length) return;
+            for (const pid of fresh) slowed.add(pid);
+            spawnSync('powershell.exe', ['-NoProfile', '-Command', fresh.map((pid) => `try { (Get-Process -Id ${pid} -ErrorAction Stop).ProcessorAffinity = 1 } catch {}`).join('; ')]);
+        }, 1000);
+    }
     // N clients on one machine race for Open WebUI's preferred port 8080 (findFreePort checks, Open WebUI binds ~10 s
     // later): held here, each gets its own from the system. A laptop runs one Open WebUI and has no such race.
     const hold8080 = require('net').createServer().listen(8080, '127.0.0.1');
@@ -343,6 +366,7 @@ async function main() {
         }
     }
     done = true;
+    if (slowTimer) clearInterval(slowTimer);
     clearInterval(memTimer); sampleMemory();
 
     // 8. The connections each client and its Open WebUI hold now (the seal, from the other side).
@@ -364,6 +388,7 @@ async function main() {
     const report = {
         at: new Date().toISOString(), clients: CLIENTS, minutes: MINUTES, outage: { silentS: OUT_ON, everyS: OUT_ON + OUT_OFF }, blipS: BLIP,
         farm: EXTERNAL ? { name: FARMS[0].snap.name, backend: FARMS[0].snap.backend } : 'two scratch farms', seats: SEATS ? 'one address a client' : 'all on 127.0.0.1',
+        slowStart: SLOW ? { busyLoopsOnCpu0: SLOW, openWebUiProcessesHeld: slowed.size } : null,
         bursts: bursts.length ? { prompt: PROMPT, maxTokens: MAX_TOKENS, model: MODEL, thinking: THINK ? 'the model default (on)' : 'off', rounds: bursts.map(({ per, ...b }) => ({ ...b, per })) } : null,
         // Review L2 (night n° 10), live: a healthy first start leaves the ready record and no first-start marker.
         firstStartRecords: results.map((r) => { const dd = path.join(ROOT, `client${r.client}`, 'data'); return { ready: fs.existsSync(path.join(dd, 'lol-owui-ready')), marker: fs.existsSync(path.join(dd, 'lol-owui-first-start')) }; }),

@@ -1,0 +1,204 @@
+{
+ "at": "2026-11-19T03:55:13.386Z",
+ "clients": 2,
+ "minutes": 6,
+ "outage": {
+  "silentS": 0,
+  "everyS": 60
+ },
+ "blipS": null,
+ "farm": "two scratch farms",
+ "seats": "all on 127.0.0.1",
+ "slowStart": {
+  "busyLoopsOnCpu0": 6,
+  "openWebUiProcessesHeld": 3
+ },
+ "bursts": null,
+ "firstStartRecords": [
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  }
+ ],
+ "owui": "0.13.3",
+ "build": "this checkout",
+ "sealHeard": [],
+ "connections": {
+  "client0": [
+   "127.0.0.1"
+  ],
+  "client1": [
+   "127.0.0.1"
+  ]
+ },
+ "memory": [
+  {
+   "atS": 39,
+   "perClientMiB": [
+    51,
+    51
+   ],
+   "totalMiB": 102,
+   "freeMiB": 103524
+  },
+  {
+   "atS": 69,
+   "perClientMiB": [
+    282,
+    282
+   ],
+   "totalMiB": 564,
+   "freeMiB": 103580
+  },
+  {
+   "atS": 99,
+   "perClientMiB": [
+    635,
+    633
+   ],
+   "totalMiB": 1268,
+   "freeMiB": 106135
+  },
+  {
+   "atS": 130,
+   "perClientMiB": [
+    772,
+    772
+   ],
+   "totalMiB": 1544,
+   "freeMiB": 105863
+  },
+  {
+   "atS": 160,
+   "perClientMiB": [
+    285,
+    794
+   ],
+   "totalMiB": 1079,
+   "freeMiB": 106138
+  },
+  {
+   "atS": 190,
+   "perClientMiB": [
+    641,
+    794
+   ],
+   "totalMiB": 1435,
+   "freeMiB": 105845
+  },
+  {
+   "atS": 220,
+   "perClientMiB": [
+    797,
+    795
+   ],
+   "totalMiB": 1592,
+   "freeMiB": 105719
+  },
+  {
+   "atS": 250,
+   "perClientMiB": [
+    797,
+    795
+   ],
+   "totalMiB": 1592,
+   "freeMiB": 105719
+  },
+  {
+   "atS": 280,
+   "perClientMiB": [
+    797,
+    795
+   ],
+   "totalMiB": 1592,
+   "freeMiB": 105726
+  },
+  {
+   "atS": 310,
+   "perClientMiB": [
+    796,
+    795
+   ],
+   "totalMiB": 1591,
+   "freeMiB": 105722
+  },
+  {
+   "atS": 340,
+   "perClientMiB": [
+    796,
+    795
+   ],
+   "totalMiB": 1591,
+   "freeMiB": 105728
+  },
+  {
+   "atS": 370,
+   "perClientMiB": [
+    797,
+    795
+   ],
+   "totalMiB": 1592,
+   "freeMiB": 105722
+  },
+  {
+   "atS": 400,
+   "perClientMiB": [
+    796,
+    794
+   ],
+   "totalMiB": 1590,
+   "freeMiB": 105737
+  }
+ ],
+ "perClient": [
+  {
+   "client": 0,
+   "farmMoves": 0,
+   "farms": [
+    "4.8s Rehearsal farm A (lossy)"
+   ],
+   "states": [
+    "4.6s starting",
+    "99.0s ready",
+    "99.0s restarting",
+    "99.0s starting",
+    "180.8s ready",
+    "364.6s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 180.806,
+   "starts": 2,
+   "chatError": null,
+   "launchedS": 36.767,
+   "firstChatS": 100.076,
+   "chatFarm": "Rehearsal farm A (lossy)",
+   "owuiSignIn": null
+  },
+  {
+   "client": 1,
+   "farmMoves": 0,
+   "farms": [
+    "3.2s Rehearsal farm B"
+   ],
+   "states": [
+    "3.2s starting",
+    "96.4s ready",
+    "362.4s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 96.405,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 39.008,
+   "firstChatS": 97.859,
+   "chatFarm": "Rehearsal farm B",
+   "owuiSignIn": null
+  }
+ ]
+}

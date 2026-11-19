@@ -145,4 +145,16 @@ Results (`docs/spike/results/rehearsal-2026-11-19031*-q36*.json`), per person, p
 a `sealHeard` above 0 or a much slower ready is a finding. Baseline (`rehearsal-2026-11-190347-2c.json`): 0 moves, ready
 at 22.8 and 39.4 s, first chats at 25.7 and 29.7 s, `sealHeard` 0.
 
-**Next:** a first start slow enough that a switch interrupts its migrations, to rehearse *keeps exiting* itself.
+***Keeps exiting* itself, tried (the same night, 04:48–05:05, not reproduced):**
+- **`--slow-start K`:** each client's Open WebUI processes are held to CPU 0 beside K busy loops of the rehearsal's own.
+  With K = 6 and 2 clients a first start took 94 s against about 20 (the class's slowest Mac: 137 s;
+  `rehearsal-2026-11-190355-2c-slow6.json`). But its own log shows the migrations unchanged: they start about 13 s
+  after the spawn and last 1.5 s. The minute added is the loading after them.
+- **v0.2.18 with a blip at 16 s (4 clients), then at 13 s (6 clients):** 10 first starts killed, at about 0.3, 10 or
+  15 s after their spawn, or as they became ready. None of them showed *keeps exiting*. v0.2.18 writes no Open WebUI
+  log, so whether a kill fell inside those 1.5 s is not known. On 2026-11-17 a kill made by hand mid-migration did
+  break the database, and only some do.
+
+**Next:** aim the switch: start the blip on the first `Running upgrade` line a client prints (both builds print each
+Open WebUI line as `[owui] …` on the client's stdout, which `run.js` already reads), then expect the kill on v0.2.18
+and the set-aside on v0.2.19.
