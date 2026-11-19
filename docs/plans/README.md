@@ -51,7 +51,10 @@ file stays the whole list.
   in the Qwen3.8 entry, its memory counted by `facts()`. **S**. Built by night n° 10; J19 for the owner.
 - **The class rehearsal** ([CLASS_REHEARSAL_PLAN](CLASS_REHEARSAL_PLAN.md), approved 2026-11-18): two scratch farms,
   scripted clients with fresh first starts, lost beacons, 10 and 20 chats at once, every night. Step 1 first (the
-  regression test of the class). **M**.
+  regression test of the class). **M**. **Steps 1 and 2 built 2026-11-19 (night n° 10):** `shell/test/rehearsal/run.js`,
+  sealed on 127.0.0.1; v0.2.18 moves farm 10 times in 5 min where v0.2.19 never does, and kills first starts under a
+  blip where v0.2.19 waits; 20 clients ready and answered, ~793 MiB each. Next: step 3 (a real model, a seat per
+  client), *keeps exiting* itself, step 4.
 0. **The class of Tuesday 17 November** ([its plan](CLASS_TEST_2026-11-17.md), owner 2026-11-13): until then, only what
    the 30 students touch and the farm that serves them; no new feature. After the class, the order below resumes.
    *Night n° 5's review* ([SESSION_REVIEW_2026-11-15](../reviews/SESSION_REVIEW_2026-11-15.md)) fixed the sandbox that

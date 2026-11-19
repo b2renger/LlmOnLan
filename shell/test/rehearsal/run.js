@@ -10,7 +10,8 @@
 // office's 239.255.43.10:41998); the relayed snapshot points the client's polls at a lossy proxy here, so an outage
 // silences a farm's beacons AND the client's polls of it, as a Wi-Fi does. Before any client starts, a listener on the
 // office group checks it hears nothing of the rehearsal; at the end every connection a client opened is listed.
-// Needs: the released Open WebUI sidecar unpacked (REH_SIDECAR, a folder with python/ and launcher.py), `ollama` on PATH
+// Needs: the released Open WebUI sidecar unpacked (REH_SIDECAR, a folder with python/ and launcher.py: `gh release download
+// v0.2.19 -R b2renger/LlmOnLan -p owui-sidecar-win32-x64.tar.gz`, 771 MB, then `tar -xzf` it), `ollama` on PATH
 // (run on 127.0.0.1:11500 with a scratch models folder, never the Ollama app's), the farm's venv (farm/.venv).
 'use strict';
 const fs = require('fs');
