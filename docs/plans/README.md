@@ -163,6 +163,10 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     k 174/217; on 42.6.0 the same tree gives 73/73), though each scenario passes alone: an order-dependent defect, maybe
     the same one 42 showed rarely on 2026-11-12 (k 175/217). First find what earlier scenario leaves the state, then
     bump (also: the sync `safeStorage` calls before Electron 46). After the class. **S–M**.
+    *On Electron 42, three full runs lost one scenario each, a different one each time* (n° 8:
+    `k1-runbar-escape-stops-from-the-bar`; n° 9: `k25-graph-preview-live-a-drag-on-a-node-moves-the-drawing`; n° 10,
+    2026-11-19 02:48: `k3-control`, the 207th, a 30 s `waitFor`), each passing alone 3/3 and, k1 and k25, 8/8 under a
+    20-client rehearsal's load: not load, a full run's order. Likely this same defect: the step above finds it for both.
     *2026-11-15 (review H1):* the harness's sandbox failures depend on the case of the drive letter the harness was
     started with (`c:\` refused the runner), now fixed; measure 45 again with it before looking for another cause.
 

@@ -9,6 +9,20 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-19 (03:28) — Qwen3.6 through a farm, with and without drafting; a bench trap ruled out; the harness's full run (night n° 10)
+
+**The owner's Qwen3.6 question, measured through a farm** (scratch, vLLM 0.33.0 started by the farm, 64k, 32 seats by
+hand, drafting through `vllm.extraArgs`): 30 people from 30 addresses 103.8 → **163.7 tok/s** each; 30 people ~40k deep
+(`--append`) first token p95 3.4 → 2.2 s, p10 38.1 → 74.6 tok/s; vLLM's room at 64k 64 → 47 (RESULTS). **A trap ruled
+out:** the first farm run failed 30 deep (p95 40 s) with 0 prefix-cache hits; tested in turn and cleared: the presence
+penalty (`runs/prefix_penalty.mjs`: hits with and without, direct and through the farm), the farm's `--max-num-seqs`
+64 and pool, the gate and LiteLLM, a cold start (reproduced twice); the cause was `spike_bench`'s replace-the-question
+mode through a gate, which `docs/spike/README.md` already advises against for hybrid models: `--append` hit 46 % and
+passed. Its failing runs are deleted; the README now says what it costs. **The client harness, full run** (02:32–02:48):
+419/420, `k3-control` lost as the 207th and 3/3 alone: the third different scenario in three full runs (plans ▸ Next
+14). **M1 again, avoided:** a scratch farm in external mode stopped my own scratch vLLM as an orphan (its root was the
+scratch root): the scratch-farm skill's rule; nothing of the owner's involved.
+
 ## 2026-11-19 (02:33) — The class rehearsed at 10 and 20 clients, and under a farm that blips (CLASS_REHEARSAL_PLAN step 2, night n° 10)
 
 `run.js` gained memory sampling (each client's process tree every 30 s) and `--blip S` (farm A unhealthy for 15 s from S s

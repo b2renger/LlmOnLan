@@ -76,7 +76,9 @@ which isn't scored. All users then sync. Every later round sends a new question 
 
 - **Default:** the same document with the question *replaced*.
 - **`--append`:** the whole history plus one new exchange, as Open WebUI sends a chat. Prefer `--append` for hybrid
-  models (RESULTS.md, finding 10).
+  models (RESULTS.md, finding 10). Night n° 10 (2026-11-19) fell into it: through a farm's gate, Qwen3.6 at ~40k, the
+  default mode got **0 prefix-cache hits** of 2.46 M tokens and failed 30 people (first token p95 40 s); `--append`, the
+  same farm and model, hit 46 % and passed (p95 3.5 s).
 
 Every request sets `ignore_eos: true` and jitters `max_tokens` by ±20 %, so output lengths are comparable across
 models and users drift out of step. `--natural` lets the model stop by itself, with no jitter. Prompt sizes are

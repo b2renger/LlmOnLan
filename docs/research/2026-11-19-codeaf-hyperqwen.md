@@ -76,7 +76,9 @@ conversation, what a 64k setting allows):
 | **E-A** stock, the farm's flags | 254 tok/s | 262.9, exact | 81.5 | 2.3 s / 44.4: pass | 3.2 s / 35.7: pass | 27/28 | 3.97 M tokens |
 | **E-B** + MTP, 3 drafts, probabilistic | **512** | **627.1**, exact | **164.8** | 2.8 s / **95.9**: pass | 3.9 s / **51.1**: pass | 28/28 | 2.93 M |
 
-Twice the speed for everyone at the same quality, on the model the farm serves every day, accepted 3.55 tokens a
+Through a farm (2026-11-19 03:25, 64k, 32 seats set by hand, 30 people from 30 addresses): 103.8 → **163.7 tok/s** each,
+and 30 people ~40k deep first token p95 3.4 → 2.2 s, p10 38.1 → 74.6 tok/s (RESULTS ▸ *Qwen3.8 drafting ahead*, the
+last table). Twice the speed for everyone at the same quality, on the model the farm serves every day, accepted 3.55 tokens a
 step (per position 0.94, 0.85, 0.75); the pool falls by about a quarter. Not built tonight: the owner's question.
 
 **What drafting costs in people** (22:31–22:42). Stock vLLM's "Maximum concurrency" divides its pool by the context

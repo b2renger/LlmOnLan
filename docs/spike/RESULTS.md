@@ -1356,3 +1356,19 @@ buffers and graphs beside the weights on Qwen3.8 (2.5 on Qwen3.6). Not measured:
 2026-11-19 00:11; its LiteLLM is `farm/.venv`'s 1.90.0): **PASS** on every path, direct, through LiteLLM and through
 the seat gate, streaming and not, alone and beside another person: no request left running 2 s after the abort, no
 token generated after it when alone, no retry, the GPU at ≤10 % 0.55–0.69 s after.
+
+**Qwen3.6 through a farm, with and without drafting** (2026-11-19 03:15–03:25, the owner's question; a scratch farm
+from the checkout, vLLM 0.33.0 started by the farm, 64k, 32 seats set by hand, the Automatic pool; drafting through
+`vllm.extraArgs`, the library entry unchanged; `lol bench --people` 30 addresses, 3 rounds; `spike_bench` followup
+`--append`, 30 people ~40k deep):
+
+| Qwen3.6 35B-A3B through the farm | 30 people from 30 addresses, each | 30 people ~40k deep (first token p95 / decode p10) | Room vLLM reports at 64k |
+|---|---|---|---|
+| stock (the farm's flags today) | 103.8 tok/s | 3.4 s / 38.1 tok/s: pass | 64 |
+| + MTP, 3 drafts, probabilistic | **163.7 tok/s** | **2.2 s / 74.6 tok/s**: pass | 47 |
+
+**Checked on the way, not a farm problem:** the farm's `presence_penalty` 1.5 for Qwen3.6 does not stop vLLM reusing a
+cached prompt (`runs/prefix_penalty.mjs`: the second turn of a 40k prompt hit 40,128 tokens with and without it,
+directly and through the farm's gate and LiteLLM); `spike_bench`'s default followup mode (the question replaced, not
+appended) through a gate got 0 prefix-cache hits at ~40k and failed (p95 40 s) where `--append`, the shape of a real
+chat, hit 46 % and passed: the README's "prefer `--append` for hybrid models", now with its cost.

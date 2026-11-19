@@ -15,7 +15,9 @@ used here checked again in the code.
 
 **Suites (00:13–00:30):** shell `npm run test:chat` 1981 passed, 0 failed, 1 skipped, lint 0 violations in 296 files;
 farm `node test/run.js` 288 passed (22:55 and again in this run); farm-app `npm test` **hung** (L7, fixed: 12 + 3
-passed); `farm/vllm/test_scripts.sh` in WSL 129 passed; `shell/test/page-window-e2e.cjs` on the real app ok (after L5).
+passed); `farm/vllm/test_scripts.sh` in WSL 129 passed; `shell/test/page-window-e2e.cjs` on the real app ok (after L5); the client harness, full run (02:32–02:48, after the
+fixes) **419/420**: `k3-control` timed out as the 207th scenario and passed 3/3 alone, the third different scenario lost
+in three full runs (plans ▸ Next 14 says why that is one defect).
 
 ## Findings, by severity
 
