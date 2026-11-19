@@ -85,6 +85,17 @@ needs (a test, a decision, the farm at a quiet hour).
 
 ## 4. End
 
+0. **The class rehearsal** (CLASS_REHEARSAL_PLAN step 4, about 5 minutes, no GPU): from `shell/`, after
+   `npm run build`, with a scratch Ollama on 11500 (the skill `lol-scratch-farm`; the rehearsal starts one itself
+   otherwise, with the `ollama` on PATH and a models folder of its own):
+   `REH_SIDECAR=<the released Open WebUI sidecar> node test/rehearsal/run.js --clients 2 --minutes 3`.
+   The sidecar is the latest client release's asset, unpacked once into the session's scratch folder
+   (`gh release download <tag> -R b2renger/LlmOnLan -p owui-sidecar-win32-x64.tar.gz`, then `tar -xzf` it; the folder
+   holds `launcher.py`). Put in the summary, per client: the farm moves, *keeps exiting* or not, ready and first-chat
+   times, and `sealHeard`. Every farm move, a *keeps exiting*, or a `sealHeard` above 0 is a finding; so is a ready
+   time much slower than the last summary's. Night n° 10's run (`docs/spike/results/rehearsal-2026-11-190347-2c.json`):
+   4 minutes in all, 0 moves, no *keeps exiting*, ready at 22.8 and 39.4 s (that client started on no farm and moved
+   to its farm once its first start had ended, by design), first chats at 25.7 and 29.7 s, `sealHeard` 0.
 1. Stop every process you started (the scratch farm with `lol down` from its folder, a scratch Ollama, a test client)
    and check they are gone. Check the live farm still answers as it did at the start.
 2. Write `docs/sessions/<date>-n<number>.md` from the template in `docs/sessions/README.md`: done with evidence, not done and

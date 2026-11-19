@@ -140,5 +140,9 @@ Results (`docs/spike/results/rehearsal-2026-11-19031*-q36*.json`), per person, p
 - Typing, and the browser's own rendering.
 - A Wi-Fi.
 
-**Next (after step 3):** a first start slow enough that a switch interrupts its migrations every time, to rehearse
-*keeps exiting* itself; and step 4, the nightly run.
+**Step 4** (the same night, 04:48): the skill `lol-session` ▸ *End* step 0 runs `run.js --clients 2 --minutes 3`
+(4 minutes in all, no GPU) at every session's end and puts its numbers in the summary; a farm move, a *keeps exiting*,
+a `sealHeard` above 0 or a much slower ready is a finding. Baseline (`rehearsal-2026-11-190347-2c.json`): 0 moves, ready
+at 22.8 and 39.4 s, first chats at 25.7 and 29.7 s, `sealHeard` 0.
+
+**Next:** a first start slow enough that a switch interrupts its migrations, to rehearse *keeps exiting* itself.
