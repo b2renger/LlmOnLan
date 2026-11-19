@@ -1,0 +1,102 @@
+{
+  "base": "http://127.0.0.1:4290/v1",
+  "model": "assistant",
+  "at": "2026-11-19T03:28:34.147Z",
+  "summary": {
+    "episodes": 10,
+    "ok": 10,
+    "rate": 100
+  },
+  "episodes": [
+    {
+      "ok": true,
+      "calls": [
+        "read_file",
+        "write_file"
+      ],
+      "why": "",
+      "ms": 1879
+    },
+    {
+      "ok": true,
+      "calls": [
+        "read_file",
+        "write_file"
+      ],
+      "why": "",
+      "ms": 1943
+    },
+    {
+      "ok": true,
+      "calls": [
+        "read_file",
+        "write_file"
+      ],
+      "why": "",
+      "ms": 1481
+    },
+    {
+      "ok": true,
+      "calls": [
+        "read_file",
+        "write_file"
+      ],
+      "why": "",
+      "ms": 1669
+    },
+    {
+      "ok": true,
+      "calls": [
+        "read_file",
+        "write_file"
+      ],
+      "why": "",
+      "ms": 1475
+    },
+    {
+      "ok": true,
+      "calls": [
+        "read_file",
+        "write_file"
+      ],
+      "why": "",
+      "ms": 1849
+    },
+    {
+      "ok": true,
+      "calls": [
+        "read_file",
+        "write_file"
+      ],
+      "why": "",
+      "ms": 1461
+    },
+    {
+      "ok": true,
+      "calls": [
+        "read_file",
+        "write_file"
+      ],
+      "why": "",
+      "ms": 1459
+    },
+    {
+      "ok": true,
+      "calls": [
+        "read_file",
+        "write_file"
+      ],
+      "why": "",
+      "ms": 1659
+    },
+    {
+      "ok": true,
+      "calls": [
+        "read_file",
+        "write_file"
+      ],
+      "why": "",
+      "ms": 1818
+    }
+  ]
+}

@@ -9,6 +9,20 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-19 (04:32) — Tool calls in each model's own style: measured, nothing to win (plans ▸ Next 13, n° 11's item; night n° 10)
+
+The Agent box shows no tool-call examples: each step is one JSON object held to a schema (`agent.mjs` `stepSchema`).
+The item's real question is therefore the agent spike's: native `tools` (the model's own format, read by vLLM's
+parser) against JSON mode. It was run on the scratch farms already up (vLLM 0.33.0, LiteLLM 1.106.9, through the gate,
+nobody else on the GPU), with a new `--max-tokens` (8,192; default 2,048 as in September) because both models think
+first.
+- **Qwen3.6** (64k, 48 seats): native 40/40, JSON 40/40, episodes 10/10 (median 1.7 s).
+- **Qwen3.8 with drafting** (32k, 16 seats): native 40/40, JSON 37/40, episodes 10/10 (median 3.0 s). The three
+  misses are all *"Show me index.html."* answered with `preview`, the request September called ambiguous.
+
+Not adopted, item struck. It is also one more check of Qwen3.8's tool calls under drafting, for J19. Files in
+`docs/research/agent-spike/`.
+
 ## 2026-11-19 (04:25) — The slowness with ten and twenty is the thinking (CLASS_REHEARSAL_PLAN step 3, night n° 10)
 
 **Built, `shell/test/rehearsal/run.js`:**

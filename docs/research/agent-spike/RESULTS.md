@@ -86,3 +86,25 @@ box and fed to the agent; the answer tool must say plainly when the steps did no
 task's encoding example (`?Discipline%20dominante__exact=Musique`) and 8 steps: **6 steps, 69 s, correct** —
 Provence-Alpes-Côte d'Azur 416, Auvergne-Rhône-Alpes 408, Occitanie 386, Nouvelle-Aquitaine 345, Bretagne 315,
 matching an independent query of the tabular API.
+
+## Qwen3.6 and Qwen3.8 on the same tasks (2026-11-19, night n° 10; plans ▸ Next 13, "tool-call examples in each model's own style")
+
+The question: Qwen Code shows each model tool calls in the style it was trained on; would the Agent box gain from
+that on our models? The Agent box shows no tool-call examples in any style: it asks for one JSON object per step,
+held to a schema (`agent.mjs` `stepSchema`, JSON mode). So the measurement is this spike's two modes again, native
+`tools` (the model's own format, read back by vLLM's tool parser) against JSON mode, on a scratch farm from the
+checkout (vLLM 0.33.0, LiteLLM 1.106.9, through the seat gate, nobody else on the GPU), with `--max-tokens 8192`
+(new option: both models think first; September's 2,048 is the default still).
+
+| Model | native | JSON mode | episodes | median call |
+|---|---|---|---|---|
+| gemma4:12b, Ollama (2026-09-27) | 38/40 | 36/40 | 10/10 | 1.3 / 1.6 s |
+| **Qwen3.6 35B-A3B** NVFP4, 64k, 48 seats | **40/40** | **40/40** | 10/10 (1.7 s) | 0.69 / 0.69 s |
+| **Qwen3.8 27B** NVFP4 with MTP drafting, 32k, 16 seats | **40/40** | 37/40 | 10/10 (3.0 s, at most 10.4 s) | 0.61 / 0.64 s |
+
+Qwen3.8's three misses are all *"Show me index.html."*: `preview` where `read_file` was meant, the request
+September already called ambiguous between two tools (native read it as `read_file` 4/4). Outside it, both modes are
+100 % on both models. **Not adopted: nothing for a per-model style to win back.** Limits: these are this spike's
+eight tools, not the Agent box's own four (`run_code`, `fetch`, `laya`, `answer`, which do not overlap the way
+`preview` and `read_file` do); one request at a time. Files: `results-single-q36.json`, `results-episodes-q36.json`,
+`results-single-q38mtp.json`, `results-episodes-q38mtp.json`.

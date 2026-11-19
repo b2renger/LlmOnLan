@@ -152,9 +152,12 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
       call of a reply cut at max_tokens before running tools; the Agent box never repairs a cut object and writes no
       file. The item was: **never write from a cut tool call** (**S**): first check what dsh and the
       Agent box do with a tool call cut by `finish_reason: length`; the fix only where a file can be written from it.
-    - **n° 11: tool-call examples in each model's own style** (**S**, research then measure): the Agent box's prompt on
-      Qwen3.6 with JSON examples against the model's own format, the 28-item check or the Agent harness; adopted only if
-      it measures better.
+    - ~~**n° 11: tool-call examples in each model's own style**~~ *measured 2026-11-19 (night n° 10), not adopted: the
+      Agent box shows no tool-call examples (one JSON object a step, held to a schema), and the agent spike's two modes
+      on our models leave nothing to win: Qwen3.6 native 40/40, JSON 40/40; Qwen3.8 with drafting native 40/40, JSON
+      37/40, all three misses on the request September already called ambiguous; episodes 10/10 each
+      ([agent-spike RESULTS](../research/agent-spike/RESULTS.md), last section).* The item was: the Agent box's prompt
+      on Qwen3.6 with JSON examples against the model's own format; adopted only if it measures better.
     - **n° 11 or 12: a plan mode for students** (**M**): the agent proposes, the student approves, before anything
       changes (LOL Vibe's coding agent and the Agent box). A plan in `docs/plans/` first, for the owner.
 

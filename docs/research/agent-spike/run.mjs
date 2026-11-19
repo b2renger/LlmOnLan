@@ -19,6 +19,8 @@ const BASE = args.base || 'http://127.0.0.1:4000/v1';
 const KEY = args.key || '';
 const MODEL = args.model || 'assistant';
 const REPS = Math.max(1, Number(args.reps) || 4);
+// --max-tokens: room for a model that thinks first (Qwen3.6 spends 2,048 on thinking alone; night n° 10). Default as measured in September.
+const MAXT = Number(args['max-tokens']) || 0;
 const MODES = args.mode === 'native' ? ['native'] : args.mode === 'json' ? ['json'] : ['native', 'json'];
 
 // ---- the tools: an IDE's file tools and the Computer's graph tools (what P4/P5 would expose) ----------
@@ -70,9 +72,9 @@ const JSON_SCHEMA = {
 async function ask(task, mode) {
   const user = task.ask;
   const body = mode === 'native'
-    ? { model: MODEL, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: user }], tools: TOOLS, tool_choice: 'auto', temperature: 0.2, max_tokens: 2048 }
+    ? { model: MODEL, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: user }], tools: TOOLS, tool_choice: 'auto', temperature: 0.2, max_tokens: MAXT || 2048 }
     : {
-      model: MODEL, temperature: 0.2, max_tokens: 2048,
+      model: MODEL, temperature: 0.2, max_tokens: MAXT || 2048,
       response_format: { type: 'json_schema', json_schema: { name: 'call', schema: JSON_SCHEMA } },
       messages: [
         { role: 'system', content: `${SYSTEM}\nThe tools, as JSON: ${JSON.stringify(TOOLS.map((t) => t.function))}\nAnswer ONLY with {"tool": <a tool name>, "args": {…}}.` },
@@ -115,7 +117,7 @@ async function episode() {
   const messages = [{ role: 'system', content: SYSTEM }, { role: 'user', content: 'Change the title of the page in this project to "Night Garden". Keep everything else on the page as it is.' }];
   const calls = [];
   for (let turn = 0; turn < MAX_TURNS; turn++) {
-    const res = await fetch(`${BASE}/chat/completions`, { method: 'POST', headers, signal: AbortSignal.timeout(180000), body: JSON.stringify({ model: MODEL, messages, tools: TOOLS, tool_choice: 'auto', temperature: 0.2, max_tokens: 4096 }) });
+    const res = await fetch(`${BASE}/chat/completions`, { method: 'POST', headers, signal: AbortSignal.timeout(180000), body: JSON.stringify({ model: MODEL, messages, tools: TOOLS, tool_choice: 'auto', temperature: 0.2, max_tokens: MAXT || 4096 }) });
     if (res.status === 429) return { stop: '429 seats full' };
     if (!res.ok) return { ok: false, calls, why: `HTTP ${res.status}` };
     const msg = JSON.parse(await res.text()).choices[0].message;
