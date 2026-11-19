@@ -148,8 +148,9 @@ at 22.8 and 39.4 s, first chats at 25.7 and 29.7 s, `sealHeard` 0.
 ***Keeps exiting* itself, tried (the same night, 04:48–05:05, not reproduced):**
 - **`--slow-start K`:** each client's Open WebUI processes are held to CPU 0 beside K busy loops of the rehearsal's own.
   With K = 6 and 2 clients a first start took 94 s against about 20 (the class's slowest Mac: 137 s;
-  `rehearsal-2026-11-190355-2c-slow6.json`). But its own log shows the migrations unchanged: they start about 13 s
-  after the spawn and last 1.5 s. The minute added is the loading after them.
+  `rehearsal-2026-11-190355-2c-slow6.json`). Its log puts the migrations about 13 s after the spawn (2–4 s without
+  the busy loops, as the aimed runs below show), and they last 1.5 s. Most of the minute added is the loading after
+  them.
 - **v0.2.18 with a blip at 16 s (4 clients), then at 13 s (6 clients):** 10 first starts killed, at about 0.3, 10 or
   15 s after their spawn, or as they became ready. None of them showed *keeps exiting*. v0.2.18 writes no Open WebUI
   log, so whether a kill fell inside those 1.5 s is not known. On 2026-11-17 a kill made by hand mid-migration did
