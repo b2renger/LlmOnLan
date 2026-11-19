@@ -1,0 +1,30 @@
+{
+ "label": "F-hq-batch-mtp3",
+ "model": "qwen3.8-27b",
+ "at": "2026-11-19T09:06:17.036Z",
+ "prompt_chars": 8202,
+ "runs": [
+  {
+   "ttft": 0.43074559999999995,
+   "tokens": 2545,
+   "tps": 241.8991617290728,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.07556209999999919,
+   "tokens": 2545,
+   "tps": 242.091400199752,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.0740617999999995,
+   "tokens": 2545,
+   "tps": 242.14228764345046,
+   "right": true,
+   "close": true
+  }
+ ],
+ "median_tps": 242.091400199752
+}

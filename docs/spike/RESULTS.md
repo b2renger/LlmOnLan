@@ -1329,6 +1329,19 @@ a code edit, `spike_bench` followup 30 deep, the quality gate); results `results
 | **+ MTP, 3 drafts, probabilistic** (VLLM_DRAFT_PLAN) | **155** | **192.7** | **94.4** | 2.4 s / **52.8** | 28/28 | 22 |
 | + HyperQwen's DFlash2 drafter, 7 drafts, stock vLLM | 234 | 243.4 | 69.0 | 38.7 s / 6.6: **fail** | 28/28 | (pool 23) |
 | HyperQwen as published (patched vLLM, W4A16, DFlash2) | 351 | 509 | 75.7 | 132.6 s / 8.8: **fail** | **23/28** | 15 |
+| HyperQwen's **batch** mode as published (2026-11-19) | 82.7 | 83.6 | 65.7 | 2.8 s / 27.4 | 27, 26, 27 | 37 |
+| HyperQwen's batch mode + MTP 3 drafts by hand (2026-11-19) | 208.3 | 242.1 | 73.9 | 3.1 s / 39.4 | 27, 27 | 30 |
+| **+ MTP + `--mamba-ssm-cache-dtype float16`**, stock vLLM (2026-11-19) | 157.9 | 191.0 | **123.8** | 2.4 s / **60.2** | 28/28 | **30** |
+
+**HyperQwen's batch mode and the fp16 recurrent state** (2026-11-19 09:05–10:09, the whole GPU, the same suite; every
+row and the method in [the research file](../research/2026-11-19-codeaf-hyperqwen.md) ▸ *HyperQwen's batch mode*,
+`runs/hq_batch.sh`). The drafting row measured again the same morning as a control: 153.5 / 189.1 / 93.2 / 2.5 s / 49.4 /
+28/28 / 22 seats. Batch mode loses to the farm's drafting entry for a class and misses `code_eval_expr` in every run
+(8 of 8, int8 activations on or off). Its fp16 recurrent state, a stock vLLM flag, gives the drafting entry 30 people
+at 124 tok/s each and back the seats drafting cost (22 → 30 at 32k, 15 → 18 at 64k), 28/28, and the same answers (175/210
+against 166 and 171, p = 0.32 and 0.70). **On Qwen3.6 at 64k the same flag fails 30 people ~50k deep twice** (p95 19.7 s /
+p10 13.2, then 7.8 s / 24.5; 3.9 s / 51.1 without it): the block halves (2,176 → 1,152 tokens) and the follow-up turns
+stopped reusing their cached prefix. Not a farm change: a plan for the owner, Qwen3.8 only.
 
 | Qwen3.6 35B-A3B, 64k | One person | Code edit | 30 people, each | 30 deep at 23k | 30 deep at 50k | Quality | People at 64k (admission) |
 |---|---|---|---|---|---|---|---|

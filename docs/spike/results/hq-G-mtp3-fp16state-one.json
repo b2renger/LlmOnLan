@@ -1,0 +1,58 @@
+{
+  "at": "2026-11-19T08:10:58.633Z",
+  "url": "http://127.0.0.1:8190",
+  "model": "qwen38",
+  "users": 1,
+  "rounds": 3,
+  "maxTokens": 1000,
+  "cancel": 0,
+  "sources": "one",
+  "requests": [
+    {
+      "round": 1,
+      "user": 1,
+      "source": null,
+      "ok": true,
+      "status": 200,
+      "ttftMs": 6599,
+      "totalMs": 6599,
+      "tokens": 1000,
+      "tps": 151.53811183512653,
+      "cancelled": false
+    },
+    {
+      "round": 2,
+      "user": 1,
+      "source": null,
+      "ok": true,
+      "status": 200,
+      "ttftMs": 6145,
+      "totalMs": 6145,
+      "tokens": 1000,
+      "tps": 162.7339300244101,
+      "cancelled": false
+    },
+    {
+      "round": 3,
+      "user": 1,
+      "source": null,
+      "ok": true,
+      "status": 200,
+      "ttftMs": 6335,
+      "totalMs": 6335,
+      "tokens": 1000,
+      "tps": 157.85319652722967,
+      "cancelled": false
+    }
+  ],
+  "summary": {
+    "requests": 3,
+    "ok": 3,
+    "cancelled": 0,
+    "refused": 0,
+    "failed": 0,
+    "ttftP50Ms": 6335,
+    "ttftP95Ms": 6599,
+    "tpsMedian": 157.9
+  }
+}

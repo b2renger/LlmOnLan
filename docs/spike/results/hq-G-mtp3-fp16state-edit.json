@@ -1,0 +1,30 @@
+{
+ "label": "G-mtp3-fp16state",
+ "model": "qwen38",
+ "at": "2026-11-19T08:11:39.124Z",
+ "prompt_chars": 8202,
+ "runs": [
+  {
+   "ttft": 0.4115436,
+   "tokens": 2545,
+   "tps": 190.9509085029899,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.06551730000000135,
+   "tokens": 2545,
+   "tps": 190.97780893411905,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.050011200000000824,
+   "tokens": 2545,
+   "tps": 191.66088030113536,
+   "right": true,
+   "close": true
+  }
+ ],
+ "median_tps": 190.97780893411905
+}

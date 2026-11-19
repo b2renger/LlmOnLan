@@ -1,0 +1,30 @@
+{
+ "label": "B-mtp3-ctl1119",
+ "model": "qwen38",
+ "at": "2026-11-19T08:17:10.814Z",
+ "prompt_chars": 8202,
+ "runs": [
+  {
+   "ttft": 0.3734822,
+   "tokens": 2545,
+   "tps": 189.04742169858665,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.5425586999999996,
+   "tokens": 2545,
+   "tps": 189.053029954546,
+   "right": true,
+   "close": true
+  },
+  {
+   "ttft": 0.12734909999999947,
+   "tokens": 2545,
+   "tps": 189.06823517198922,
+   "right": true,
+   "close": true
+  }
+ ],
+ "median_tps": 189.053029954546
+}

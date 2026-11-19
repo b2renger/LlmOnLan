@@ -9,6 +9,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-19 (10:11) — HyperQwen's batch mode measured; its fp16 recurrent state is the lesson (the owner's ask, day)
+
+**Why:** the night evaluated only HyperQwen's single-user mode; the owner (09:03): a class wants its **batch mode**.
+**Done** (the whole PRO 6000, the live farm off, 09:05–10:09): HyperQwen rebuilt in `~/lol-hq` as on the night (65
+patches applied to the `vllm` package folder; FlashInfer's JIT needed three CUDA library links in the scratch venv on
+WSL) and run with `docs/spike/runs/hq_batch.sh` at the same 50 GiB pool, through `runs/hq_suite.sh`. **Batch mode as
+published:** 82.7 tok/s alone, 65.7 each for 30, the slowest of 30 deep 27.4, 37 seats at 32k, and `code_eval_expr`
+missed in all 8 batch runs (27, 26, 27; 26 ×3 without int8; 27 ×2 with MTP added). With MTP drafting added: 208 alone
+but 73.9 each for 30. The farm's drafting entry measured again as a control (93.2 each, 22 seats), and with
+`--mamba-ssm-cache-dtype float16` (a stock flag, batch mode's one idea we lack): **123.8 each for 30, 60.2 slowest
+deep, 30 seats at 32k, 28/28, same answers** (`hq_same.mjs` 175/210, p = 0.32). On Qwen3.6 the same flag fails 30
+people ~50k deep twice (the block halves; the prefix stopped being reused). **Verdict:** batch mode is not a backend
+either; the fp16 state for Qwen3.8 is plans ▸ Waiting on the owner 7. Nothing in the farm changed. `~/lol-hq` (37 GB)
+kept for the owner to rule. Research file, RESULTS (Qwen3.8 drafting ahead) updated.
+
 ## 2026-11-19 (05:57) — After the advisor's last check: three corrections (night n° 10)
 
 - **The nightly rehearsal survives a held port 8080.** It held 8080 with no error handler; with the owner's client open
