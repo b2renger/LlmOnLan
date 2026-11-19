@@ -277,7 +277,8 @@ async function main() {
     }
     // N clients on one machine race for Open WebUI's preferred port 8080 (findFreePort checks, Open WebUI binds ~10 s
     // later): held here, each gets its own from the system. A laptop runs one Open WebUI and has no such race.
-    const hold8080 = require('net').createServer().listen(8080, '127.0.0.1');
+    // Taken already (the owner's client's Open WebUI on this computer): then nobody here races for it either.
+    const hold8080 = net.createServer().on('error', (e) => log(`8080 not held (${e.code}): another program has it`)).listen(8080, '127.0.0.1');
     // 6. The clients: fresh userData (its sidecar/ a junction to the released one) and fresh data folders, started at once.
     const results = [];
     for (let i = 0; i < CLIENTS; i++) {
@@ -404,7 +405,7 @@ async function main() {
     // 9. Stop: the clients (each stops its Open WebUI), the relay, the farms (lol down), the scratch Ollama.
     for (const r of results) { try { r.proc.stdin.write('stop\n'); } catch { /* gone */ } }
     await sleep(15000);
-    clearInterval(relayTimer); relay.close(); hold8080.close(); office.close(); for (const s of servers) s.close();
+    clearInterval(relayTimer); relay.close(); hold8080.close(() => {}); office.close(); for (const s of servers) s.close();
     for (const f of FARMS.filter((x) => !x.external)) spawnSync(process.execPath, [path.join(f.code, 'bin', 'lol.js'), 'down'], { cwd: f.dir, stdio: 'ignore', env: { ...process.env, ELECTRON_RUN_AS_NODE: '' } });
     for (const c of children) { try { c.kill(); } catch { /* gone */ } }
 

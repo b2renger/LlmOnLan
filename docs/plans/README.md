@@ -257,11 +257,21 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
    step 3.) The slowness with ten is the thinking. Qwen3.6 thinks 1,000–2,000 words before an answer's first word.
    Half the people wait 11–18 s at 10 at once and 18–22 s at 20, against 0.2–0.3 s with thinking off; with thinking
    off each person also gets 101 words a second instead of 78 at 20. Ways it could go, each a plan first:
-   - off by default for chats, with Open WebUI's own per-chat setting to turn it on;
+   - **off by default for Open WebUI's chats, from env alone:** Open WebUI 0.13.3 reads `DEFAULT_MODEL_PARAMS`
+     (`config.py:1727`) as every chat's base parameters, and deep-merges its `custom_params` into the request
+     (`utils/payload.py:108-134`). So `{"custom_params":{"chat_template_kwargs":{"enable_thinking":false}}}` would
+     do it, with no REST call. A chat's own parameters still win (`main.py:1201-1216`), so a person can turn thinking
+     back on in Chat Controls, though only as a custom parameter. LOL Vibe and the Computer ask the farm directly and
+     are not touched. The contract table would list the new env. *Read in the code, not run:* the contract found
+     that `DEFAULT_MODEL_PARAMS.system` never reaches a farm model's messages, so the plan checks first that
+     `custom_params` does;
+   - a farm-side default on `assistant` (LiteLLM). This would also stop the thinking of the Computer's thinking
+     boxes and LOL Vibe's agent (`ask.mjs`: `think: true` sends nothing, the model's own default);
    - a second model name that thinks;
    - leave it, and say in the help what the *Thinking* fold is.
 
-   Not measured tonight: whether the answers to a class's questions are as good without thinking.
+   Quality: the spike's 28-item check on Qwen3.6 (PRO 6000) scored 27/28 with thinking (77k tokens) and 28/28 without
+   (12k; `build_catalog.py`, Qwen3.6's `spike_quality`). Not measured: a class's own kind of questions.
 
 **Choices to make, one line each:**
 - **The farm:**
