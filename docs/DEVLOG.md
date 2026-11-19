@@ -9,7 +9,19 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-11-19 (01:57) — The class rehearsed on this computer: v0.2.18 moves farm 10 times in 5 minutes, v0.2.19 never (CLASS_REHEARSAL_PLAN step 1, night n° 10)
+## 2026-11-19 (02:33) — The class rehearsed at 10 and 20 clients, and under a farm that blips (CLASS_REHEARSAL_PLAN step 2, night n° 10)
+
+`run.js` gained memory sampling (each client's process tree every 30 s) and `--blip S` (farm A unhealthy for 15 s from S s
+after the launch: a client leaves an unhealthy farm at once, so the switch lands inside a first start). **10 and 20
+clients on v0.2.19:** no farm move, no *keeps exiting*, all ready (20: median 17.2 s, at most 33.1 s), all first chats
+answered (20: median 33.6 s, at most 61.7 s, queued on 2-seat scratch farms), **~793 MiB a client** (15.9 GB for 20,
+92 GB free); the seal held for every client. **The blip, 4 clients:** v0.2.18 killed each first start three times in
+its first 20 s (blip at 6 s and at 10 s), v0.2.19 none (each repoint waited; ready on the final farm at 45 s against
+19.5 s for a client the blip missed). No *keeps exiting* on either: only some interrupted migrations break the database.
+The two harness flakes (`k1-runbar-escape-stops-from-the-bar`, `k25-graph-preview-live-a-drag…`): 8/8 passes run
+alone under the 20-client load: not load alone; they need a full run's order (as plans ▸ Next 14).
+
+## 2026-11-19 (01:56) — The class rehearsed on this computer: v0.2.18 moves farm 10 times in 5 minutes, v0.2.19 never (CLASS_REHEARSAL_PLAN step 1, night n° 10)
 
 `shell/test/rehearsal/run.js` + `client.cjs` (the plan ▸ Built says how it is sealed and what is mirrored): two scratch
 farms on a scratch Ollama (`qwen3:0.6b`), beacons off, a relay sending them by unicast to 127.0.0.1, a lossy `/lol/self`

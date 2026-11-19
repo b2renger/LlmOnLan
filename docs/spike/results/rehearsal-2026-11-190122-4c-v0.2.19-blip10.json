@@ -1,0 +1,245 @@
+{
+ "at": "2026-11-19T01:22:13.856Z",
+ "clients": 4,
+ "minutes": 4,
+ "outage": {
+  "silentS": 0,
+  "everyS": 600
+ },
+ "blipS": 10,
+ "owui": "0.13.3",
+ "build": "this checkout",
+ "sealHeard": [],
+ "connections": {
+  "client0": [
+   "127.0.0.1"
+  ],
+  "client1": [
+   "127.0.0.1"
+  ],
+  "client2": [
+   "127.0.0.1"
+  ],
+  "client3": [
+   "127.0.0.1"
+  ]
+ },
+ "memory": [
+  {
+   "atS": 83,
+   "perClientMiB": [
+    51,
+    51,
+    51,
+    51
+   ],
+   "totalMiB": 204,
+   "freeMiB": 102261
+  },
+  {
+   "atS": 113,
+   "perClientMiB": [
+    725,
+    700,
+    794,
+    701
+   ],
+   "totalMiB": 2920,
+   "freeMiB": 100162
+  },
+  {
+   "atS": 143,
+   "perClientMiB": [
+    794,
+    795,
+    793,
+    793
+   ],
+   "totalMiB": 3175,
+   "freeMiB": 100174
+  },
+  {
+   "atS": 173,
+   "perClientMiB": [
+    793,
+    794,
+    793,
+    792
+   ],
+   "totalMiB": 3172,
+   "freeMiB": 103292
+  },
+  {
+   "atS": 203,
+   "perClientMiB": [
+    793,
+    794,
+    793,
+    793
+   ],
+   "totalMiB": 3173,
+   "freeMiB": 103251
+  },
+  {
+   "atS": 233,
+   "perClientMiB": [
+    793,
+    794,
+    793,
+    793
+   ],
+   "totalMiB": 3173,
+   "freeMiB": 103265
+  },
+  {
+   "atS": 263,
+   "perClientMiB": [
+    793,
+    793,
+    793,
+    792
+   ],
+   "totalMiB": 3171,
+   "freeMiB": 103305
+  },
+  {
+   "atS": 293,
+   "perClientMiB": [
+    793,
+    794,
+    793,
+    793
+   ],
+   "totalMiB": 3173,
+   "freeMiB": 103310
+  },
+  {
+   "atS": 323,
+   "perClientMiB": [
+    793,
+    794,
+    793,
+    793
+   ],
+   "totalMiB": 3173,
+   "freeMiB": 103313
+  },
+  {
+   "atS": 324,
+   "perClientMiB": [
+    793,
+    794,
+    793,
+    793
+   ],
+   "totalMiB": 3173,
+   "freeMiB": 103310
+  }
+ ],
+ "perClient": [
+  {
+   "client": 0,
+   "farmMoves": 2,
+   "farms": [
+    "5.0s Rehearsal farm A (lossy)",
+    "10.0s Rehearsal farm B",
+    "25.0s Rehearsal farm A (lossy)"
+   ],
+   "states": [
+    "4.6s starting",
+    "19.7s ready",
+    "19.8s restarting",
+    "19.8s starting",
+    "32.3s ready",
+    "32.3s restarting",
+    "32.4s starting",
+    "45.0s ready",
+    "245.0s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 44.979,
+   "starts": 3,
+   "chatError": null,
+   "launchedS": 81.927,
+   "firstChatS": 20.52,
+   "chatFarm": "Rehearsal farm B"
+  },
+  {
+   "client": 1,
+   "farmMoves": 2,
+   "farms": [
+    "4.7s Rehearsal farm A (lossy)",
+    "9.7s Rehearsal farm B",
+    "24.7s Rehearsal farm A (lossy)"
+   ],
+   "states": [
+    "4.7s starting",
+    "19.8s ready",
+    "19.8s restarting",
+    "19.9s starting",
+    "32.3s ready",
+    "32.3s restarting",
+    "32.4s starting",
+    "45.0s ready",
+    "244.7s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 45.042,
+   "starts": 3,
+   "chatError": null,
+   "launchedS": 82.258,
+   "firstChatS": 20.964,
+   "chatFarm": "Rehearsal farm B"
+  },
+  {
+   "client": 2,
+   "farmMoves": 0,
+   "farms": [
+    "4.3s Rehearsal farm B"
+   ],
+   "states": [
+    "4.3s starting",
+    "19.5s ready",
+    "244.4s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 19.504,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 82.593,
+   "firstChatS": 20.574,
+   "chatFarm": "Rehearsal farm B"
+  },
+  {
+   "client": 3,
+   "farmMoves": 2,
+   "farms": [
+    "4.1s Rehearsal farm A (lossy)",
+    "9.0s Rehearsal farm B",
+    "24.0s Rehearsal farm A (lossy)"
+   ],
+   "states": [
+    "4.1s starting",
+    "19.2s ready",
+    "19.2s restarting",
+    "19.3s starting",
+    "31.7s ready",
+    "31.7s restarting",
+    "31.8s starting",
+    "44.3s ready",
+    "244.0s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 44.346,
+   "starts": 3,
+   "chatError": null,
+   "launchedS": 82.923,
+   "firstChatS": 20.272,
+   "chatFarm": "Rehearsal farm B"
+  }
+ ]
+}

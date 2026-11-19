@@ -1,0 +1,245 @@
+{
+ "at": "2026-11-19T01:16:15.334Z",
+ "clients": 4,
+ "minutes": 4,
+ "outage": {
+  "silentS": 0,
+  "everyS": 600
+ },
+ "blipS": 10,
+ "owui": "0.13.3",
+ "build": "C:\\Users\\ATELIE~1\\AppData\\Local\\Temp\\lolhq\\wt-0218\\shell\\build\\main",
+ "sealHeard": [],
+ "connections": {
+  "client0": [
+   "127.0.0.1"
+  ],
+  "client1": [
+   "127.0.0.1"
+  ],
+  "client2": [
+   "127.0.0.1"
+  ],
+  "client3": [
+   "127.0.0.1"
+  ]
+ },
+ "memory": [
+  {
+   "atS": 84,
+   "perClientMiB": [
+    51,
+    51,
+    51,
+    51
+   ],
+   "totalMiB": 204,
+   "freeMiB": 102526
+  },
+  {
+   "atS": 114,
+   "perClientMiB": [
+    279,
+    279,
+    793,
+    280
+   ],
+   "totalMiB": 1631,
+   "freeMiB": 101641
+  },
+  {
+   "atS": 144,
+   "perClientMiB": [
+    796,
+    795,
+    794,
+    797
+   ],
+   "totalMiB": 3182,
+   "freeMiB": 100434
+  },
+  {
+   "atS": 174,
+   "perClientMiB": [
+    799,
+    798,
+    795,
+    798
+   ],
+   "totalMiB": 3190,
+   "freeMiB": 103501
+  },
+  {
+   "atS": 204,
+   "perClientMiB": [
+    801,
+    800,
+    795,
+    800
+   ],
+   "totalMiB": 3196,
+   "freeMiB": 103493
+  },
+  {
+   "atS": 234,
+   "perClientMiB": [
+    801,
+    802,
+    796,
+    802
+   ],
+   "totalMiB": 3201,
+   "freeMiB": 103496
+  },
+  {
+   "atS": 264,
+   "perClientMiB": [
+    802,
+    800,
+    797,
+    802
+   ],
+   "totalMiB": 3201,
+   "freeMiB": 103524
+  },
+  {
+   "atS": 294,
+   "perClientMiB": [
+    801,
+    799,
+    797,
+    803
+   ],
+   "totalMiB": 3200,
+   "freeMiB": 103523
+  },
+  {
+   "atS": 324,
+   "perClientMiB": [
+    802,
+    800,
+    796,
+    802
+   ],
+   "totalMiB": 3200,
+   "freeMiB": 103518
+  },
+  {
+   "atS": 324,
+   "perClientMiB": [
+    802,
+    800,
+    796,
+    802
+   ],
+   "totalMiB": 3200,
+   "freeMiB": 103510
+  }
+ ],
+ "perClient": [
+  {
+   "client": 0,
+   "farmMoves": 2,
+   "farms": [
+    "5.0s Rehearsal farm A (lossy)",
+    "15.0s Rehearsal farm B",
+    "25.0s Rehearsal farm A (lossy)"
+   ],
+   "states": [
+    "4.6s starting",
+    "5.0s restarting",
+    "5.1s starting",
+    "15.0s restarting",
+    "15.1s starting",
+    "25.0s restarting",
+    "25.1s starting",
+    "37.9s ready",
+    "244.9s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 37.911,
+   "starts": 4,
+   "chatError": null,
+   "launchedS": 82.585,
+   "firstChatS": 38.541,
+   "chatFarm": "Rehearsal farm A (lossy)"
+  },
+  {
+   "client": 1,
+   "farmMoves": 2,
+   "farms": [
+    "4.7s Rehearsal farm A (lossy)",
+    "14.7s Rehearsal farm B",
+    "24.7s Rehearsal farm A (lossy)"
+   ],
+   "states": [
+    "4.6s starting",
+    "4.7s restarting",
+    "4.8s starting",
+    "14.7s restarting",
+    "14.8s starting",
+    "24.7s restarting",
+    "24.8s starting",
+    "37.6s ready",
+    "244.6s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 37.561,
+   "starts": 4,
+   "chatError": null,
+   "launchedS": 82.904,
+   "firstChatS": 38.247,
+   "chatFarm": "Rehearsal farm A (lossy)"
+  },
+  {
+   "client": 2,
+   "farmMoves": 0,
+   "farms": [
+    "5.0s Rehearsal farm B"
+   ],
+   "states": [
+    "4.6s starting",
+    "5.1s restarting",
+    "5.1s starting",
+    "19.9s ready",
+    "244.3s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 19.913,
+   "starts": 2,
+   "chatError": null,
+   "launchedS": 83.237,
+   "firstChatS": 20.88,
+   "chatFarm": "Rehearsal farm B"
+  },
+  {
+   "client": 3,
+   "farmMoves": 2,
+   "farms": [
+    "4.3s Rehearsal farm A (lossy)",
+    "14.0s Rehearsal farm B",
+    "24.1s Rehearsal farm A (lossy)"
+   ],
+   "states": [
+    "4.3s starting",
+    "14.1s restarting",
+    "14.2s starting",
+    "24.1s restarting",
+    "24.2s starting",
+    "36.9s ready",
+    "244.0s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 36.926,
+   "starts": 3,
+   "chatError": null,
+   "launchedS": 83.554,
+   "firstChatS": 37.627,
+   "chatFarm": "Rehearsal farm A (lossy)"
+  }
+ ]
+}

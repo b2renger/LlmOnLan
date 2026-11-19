@@ -47,6 +47,13 @@ const FARMS = [
 ];
 // The farms listen on 127.0.0.1 only: every address a snapshot advertises (its ips, endpoint, plugin urls) becomes it.
 const loopback = (s) => { let j = JSON.stringify(s); for (const ip of s.ips || []) j = j.split(ip).join('127.0.0.1'); return { ...JSON.parse(j), ips: ['127.0.0.1'] }; };
+// --blip S: farm A says it is unhealthy from S s after the clients launch, for 15 s (beacons and polls alike). A client
+// leaves an unhealthy farm at once, so a blip a few seconds in lands inside Open WebUI's first start: the class's
+// sequence (a farm switch killing a first start inside its migrations) without a slow computer.
+const BLIP = arg('--blip', null) == null ? null : Number(arg('--blip', '6'));
+let launchedAt = null;
+const blipping = () => BLIP != null && launchedAt != null && Date.now() - launchedAt >= BLIP * 1000 && Date.now() - launchedAt < (BLIP + 15) * 1000;
+const say = (f, s) => (f.key === 'A' && blipping() ? { ...s, healthy: false } : s);
 const outage = () => { const p = ((Date.now() - t0) / 1000) % (OUT_ON + OUT_OFF); return p >= OUT_OFF; };   // A is silent here
 
 async function main() {
@@ -99,7 +106,7 @@ async function main() {
             if (f.key === 'A' && outage()) { req.socket.destroy(); return; }   // a Wi-Fi that lost the farm: no answer
             const s = await getJson(`http://127.0.0.1:${f.http}${req.url}`, 3000);
             if (!s) { res.writeHead(502).end(); return; }
-            res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ...loopback(s), httpPort: f.lossy }));
+            res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ...say(f, loopback(s)), httpPort: f.lossy }));
         }).listen(f.lossy, '127.0.0.1');
     }
     const relay = dgram.createSocket('udp4');
@@ -109,7 +116,7 @@ async function main() {
             if (f.key === 'A' && outage()) continue;
             const s = await getJson(`http://127.0.0.1:${f.http}/lol/self`);
             if (!s) continue;
-            const buf = Buffer.from(JSON.stringify({ ...loopback(s), httpPort: f.lossy }));
+            const buf = Buffer.from(JSON.stringify({ ...say(f, loopback(s)), httpPort: f.lossy }));
             for (const p of ports) relay.send(buf, p, '127.0.0.1');
         }
     };
@@ -126,7 +133,8 @@ async function main() {
         execFileSync('cmd', ['/c', 'mklink', '/J', path.join(ud, 'sidecar'), SIDECAR], { stdio: 'ignore' });
         // Launched at their own moment within a beacon period, as students press Start: one may meet a beacon in its
         // first 4.5 s, another not.
-        if (i) await sleep(1000 + Math.round(Math.random() * 4000));
+        if (i) await sleep(BLIP != null ? 300 : 1000 + Math.round(Math.random() * 4000));
+        if (launchedAt == null) launchedAt = Date.now();
         const r = { client: i, events: [], launchAt: Date.now() };
         const c = own(spawn(process.execPath, [path.join(__dirname, 'client.cjs')], {
             env: { ...process.env, ELECTRON_RUN_AS_NODE: '', REH_BUILD: process.env.REH_BUILD || '', REH_USERDATA: ud, REH_DATADIR: dd, REH_NAME: `client${i}`, LOL_FED_GROUP: GROUP, LOL_FED_PORT: String(ports[i]) },
@@ -164,8 +172,26 @@ async function main() {
     };
     results.forEach((r) => void firstChat(r));
 
+    // Memory (step 2): every 30 s, the working set of each client's process tree (its Node and its Open WebUI), and the
+    // computer's free memory. One process list a sample, the trees worked out here.
+    const memory = [];
+    const sampleMemory = () => {
+        const out = spawnSync('powershell.exe', ['-NoProfile', '-Command', 'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.ParentProcessId) $($_.WorkingSetSize)" }; "free $((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory)"'], { encoding: 'utf8' }).stdout || '';
+        const kids = new Map(); const ws = new Map(); let freeKb = null;
+        for (const l of out.split(/\r?\n/)) {
+            const m = /^(\d+) (\d+) (\d+)$/.exec(l.trim());
+            if (m) { const [pid, ppid, w] = m.slice(1).map(Number); ws.set(pid, w); if (!kids.has(ppid)) kids.set(ppid, []); kids.get(ppid).push(pid); }
+            const f = /^free (\d+)$/.exec(l.trim()); if (f) freeKb = Number(f[1]);
+        }
+        const tree = (pid) => (ws.get(pid) || 0) + (kids.get(pid) || []).reduce((a, k) => a + tree(k), 0);
+        const per = results.map((r) => Math.round(tree(r.proc.pid) / 2 ** 20));
+        memory.push({ atS: Math.round((Date.now() - t0) / 1000), perClientMiB: per, totalMiB: per.reduce((a, b) => a + b, 0), freeMiB: freeKb == null ? null : Math.round(freeKb / 1024) });
+    };
+    const memTimer = setInterval(sampleMemory, 30_000); sampleMemory();
+
     await sleep(MINUTES * 60_000);
     done = true;
+    clearInterval(memTimer); sampleMemory();
 
     // 8. The connections each client and its Open WebUI hold now (the seal, from the other side).
     const conns = {};
@@ -184,8 +210,8 @@ async function main() {
 
     // 10. The report.
     const report = {
-        at: new Date().toISOString(), clients: CLIENTS, minutes: MINUTES, outage: { silentS: OUT_ON, everyS: OUT_ON + OUT_OFF },
-        owui: fs.readFileSync(path.join(SIDECAR, 'OPENWEBUI_VERSION'), 'utf8').trim(), sealHeard: heard, connections: conns,
+        at: new Date().toISOString(), clients: CLIENTS, minutes: MINUTES, outage: { silentS: OUT_ON, everyS: OUT_ON + OUT_OFF }, blipS: BLIP,
+        owui: fs.readFileSync(path.join(SIDECAR, 'OPENWEBUI_VERSION'), 'utf8').trim(), build: process.env.REH_BUILD || 'this checkout', sealHeard: heard, connections: conns, memory,
         perClient: results.map((r) => {
             const choices = r.events.filter((e) => e.kind === 'choice');
             const states = r.events.filter((e) => e.kind === 'owui');
@@ -203,7 +229,7 @@ async function main() {
     };
     const out = path.join(REPO, 'docs', 'spike', 'results', `rehearsal-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '')}-${CLIENTS}c.json`);
     fs.writeFileSync(out, JSON.stringify(report, null, 1));
-    console.log(JSON.stringify({ sealHeard: heard.length, connections: conns, perClient: report.perClient.map((p) => ({ client: p.client, farmMoves: p.farmMoves, keepsExiting: p.keepsExiting, readyS: p.readyS, firstChatS: p.firstChatS, chatError: p.chatError })) }, null, 1));
+    console.log(JSON.stringify({ sealHeard: heard.length, memoryPeakMiB: Math.max(...memory.map((m) => m.totalMiB)), memoryLast: memory[memory.length - 1], connections: conns, perClient: report.perClient.map((p) => ({ client: p.client, farmMoves: p.farmMoves, keepsExiting: p.keepsExiting, readyS: p.readyS, firstChatS: p.firstChatS, chatError: p.chatError })) }, null, 1));
     log('report:', out, '· scratch:', ROOT);
     process.exit(0);
 }

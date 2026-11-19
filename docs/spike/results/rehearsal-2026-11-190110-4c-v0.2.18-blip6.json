@@ -1,0 +1,233 @@
+{
+ "at": "2026-11-19T01:10:15.261Z",
+ "clients": 4,
+ "minutes": 3,
+ "outage": {
+  "silentS": 0,
+  "everyS": 600
+ },
+ "blipS": 6,
+ "owui": "0.13.3",
+ "build": "C:\\Users\\ATELIE~1\\AppData\\Local\\Temp\\lolhq\\wt-0218\\shell\\build\\main",
+ "sealHeard": [],
+ "connections": {
+  "client0": [
+   "127.0.0.1"
+  ],
+  "client1": [
+   "127.0.0.1"
+  ],
+  "client2": [
+   "127.0.0.1"
+  ],
+  "client3": [
+   "127.0.0.1"
+  ]
+ },
+ "memory": [
+  {
+   "atS": 83,
+   "perClientMiB": [
+    51,
+    51,
+    51,
+    51
+   ],
+   "totalMiB": 204,
+   "freeMiB": 102758
+  },
+  {
+   "atS": 113,
+   "perClientMiB": [
+    279,
+    280,
+    283,
+    280
+   ],
+   "totalMiB": 1122,
+   "freeMiB": 102358
+  },
+  {
+   "atS": 143,
+   "perClientMiB": [
+    794,
+    793,
+    795,
+    793
+   ],
+   "totalMiB": 3175,
+   "freeMiB": 100658
+  },
+  {
+   "atS": 173,
+   "perClientMiB": [
+    795,
+    794,
+    796,
+    794
+   ],
+   "totalMiB": 3179,
+   "freeMiB": 103744
+  },
+  {
+   "atS": 203,
+   "perClientMiB": [
+    798,
+    797,
+    799,
+    795
+   ],
+   "totalMiB": 3189,
+   "freeMiB": 103740
+  },
+  {
+   "atS": 233,
+   "perClientMiB": [
+    799,
+    798,
+    800,
+    796
+   ],
+   "totalMiB": 3193,
+   "freeMiB": 103747
+  },
+  {
+   "atS": 263,
+   "perClientMiB": [
+    800,
+    799,
+    801,
+    796
+   ],
+   "totalMiB": 3196,
+   "freeMiB": 103765
+  },
+  {
+   "atS": 264,
+   "perClientMiB": [
+    800,
+    799,
+    801,
+    796
+   ],
+   "totalMiB": 3196,
+   "freeMiB": 103769
+  }
+ ],
+ "perClient": [
+  {
+   "client": 0,
+   "farmMoves": 2,
+   "farms": [
+    "5.0s Rehearsal farm A (lossy)",
+    "10.0s Rehearsal farm B",
+    "25.0s Rehearsal farm A (lossy)"
+   ],
+   "states": [
+    "4.6s starting",
+    "5.0s restarting",
+    "5.1s starting",
+    "10.0s restarting",
+    "10.1s starting",
+    "23.4s ready",
+    "25.0s restarting",
+    "25.1s starting",
+    "38.2s ready",
+    "185.0s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 38.213,
+   "starts": 4,
+   "chatError": null,
+   "launchedS": 82.035,
+   "firstChatS": 24.433,
+   "chatFarm": "Rehearsal farm B"
+  },
+  {
+   "client": 1,
+   "farmMoves": 2,
+   "farms": [
+    "4.7s Rehearsal farm A (lossy)",
+    "9.7s Rehearsal farm B",
+    "24.7s Rehearsal farm A (lossy)"
+   ],
+   "states": [
+    "4.6s starting",
+    "4.7s restarting",
+    "4.8s starting",
+    "9.7s restarting",
+    "9.8s starting",
+    "23.1s ready",
+    "24.7s restarting",
+    "24.8s starting",
+    "37.8s ready",
+    "184.6s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 37.795,
+   "starts": 4,
+   "chatError": null,
+   "launchedS": 82.357,
+   "firstChatS": 24.192,
+   "chatFarm": "Rehearsal farm B"
+  },
+  {
+   "client": 2,
+   "farmMoves": 2,
+   "farms": [
+    "5.1s Rehearsal farm A (lossy)",
+    "9.4s Rehearsal farm B",
+    "24.4s Rehearsal farm A (lossy)"
+   ],
+   "states": [
+    "4.6s starting",
+    "5.1s restarting",
+    "5.1s starting",
+    "9.4s restarting",
+    "9.5s starting",
+    "22.8s ready",
+    "24.4s restarting",
+    "24.5s starting",
+    "37.5s ready",
+    "184.3s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 37.47,
+   "starts": 4,
+   "chatError": null,
+   "launchedS": 82.682,
+   "firstChatS": 23.81,
+   "chatFarm": "Rehearsal farm B"
+  },
+  {
+   "client": 3,
+   "farmMoves": 2,
+   "farms": [
+    "4.3s Rehearsal farm A (lossy)",
+    "9.0s Rehearsal farm B",
+    "24.1s Rehearsal farm A (lossy)"
+   ],
+   "states": [
+    "4.3s starting",
+    "9.0s restarting",
+    "9.2s starting",
+    "22.5s ready",
+    "24.1s restarting",
+    "24.2s starting",
+    "37.2s ready",
+    "184.0s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 37.243,
+   "starts": 3,
+   "chatError": null,
+   "launchedS": 83.005,
+   "firstChatS": 23.515,
+   "chatFarm": "Rehearsal farm B"
+  }
+ ]
+}

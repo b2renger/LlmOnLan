@@ -55,7 +55,7 @@ One command (`node test/rehearsal/run.js`, from `shell/`), one result file in `d
 
 ## Built
 
-**Step 1** (night n° 10, 2026-11-19, DEVLOG 01:57): `shell/test/rehearsal/run.js` and `client.cjs`.
+**Step 1** (night n° 10, 2026-11-19, DEVLOG 01:56): `shell/test/rehearsal/run.js` and `client.cjs`.
 - **The beacons stay on this computer**, decided as the plan asked: the farms' own beacons are **off**; a relay in
   `run.js` reads each farm's `/lol/self` every 5 s (a farm's default) and sends it by **UDP unicast to 127.0.0.1**, to
   each client on its own rehearsal port (42101+, group 239.255.43.99, never the office's 239.255.43.10:41998); every
@@ -77,5 +77,20 @@ One command (`node test/rehearsal/run.js`, from `shell/`), one result file in `d
   waited for the start to end (ready on its farm at 30.7 s), the other ready at 16.4 s; first chats at 26.1 and 23.9 s.
   No *keeps exiting* in either: on this desktop a first start's migrations end in ~14 s, before the first switch (the
   class's Mac took 137 s); a slow first start is not rehearsed yet.
-- **Next:** step 2 (10, then 20 clients, memory measured: each Open WebUI is a Python process of its own); a slower
-  first start (a throttled sidecar, or a kill timed inside the migrations) to rehearse *keeps exiting* itself.
+- **A farm that blips** (`--blip S`: farm A says it is unhealthy from S s after the clients launch, for 15 s; a client
+  leaves an unhealthy farm at once, so the switch lands inside Open WebUI's first start), 4 clients: **v0.2.18** killed
+  each first start **three times in its first 20 s** (at 0.3 s, at the blip, at the return to A), with the blip at 6 s
+  and again at 10 s; no *keeps exiting* (the night of 2026-11-17 found that only some interrupted migrations break the
+  database). **v0.2.19**: the choice still follows the blip, but **no start was cut**: each repoint waited for the
+  running start to end; the cost is time, ready on the final farm at 45 s against 19.5 s for a client the blip missed.
+
+**Step 2** (the same night, DEVLOG 02:33): `run.js` samples each client's process tree's memory every 30 s.
+- **10 clients** (v0.2.19, 6 min, farm A silent 20 s every 60 s): no move, no *keeps exiting*; ready in 14.5–32.1 s,
+  first chats 16.6–29.3 s; the room split itself 5 and 5; **794 MiB a client** (its Node and its Open WebUI), 7.9 GB.
+- **20 clients**: all ready (median 17.2 s, at most 33.1 s), all first chats answered (median 33.6 s, at most 61.7 s:
+  queued, as each scratch farm's Ollama answers 2 at a time and the gate gives the 20 clients, all on 127.0.0.1, one
+  seat), no move, no *keeps exiting*; **793 MiB a client**, 15.9 GB, 92 GB still free; split 7 on the lossy farm, 13 on
+  the steady one. Nothing broke first at 20 on this computer.
+- **Next (step 3 and after):** the slowness with ten and twenty against a real model and seats per address (the
+  clients could take 127.0.0.2… as `lol bench --people` does); a first start slow enough that a switch interrupts its
+  migrations every time, to rehearse *keeps exiting* itself; and step 4, the nightly run.
