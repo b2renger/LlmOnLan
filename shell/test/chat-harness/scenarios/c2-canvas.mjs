@@ -57,7 +57,7 @@ async function open(/** @type {any} */ h) {
     await h.mock.reset();                       // every count below is about the GRAPH
     const state = await h.graph.open();
     h.eq(state.computer, true, 'the rail opened the Computer');
-    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
+    await h.waitFor(() => (window.LolComputer.debug.computer.docId() ? true : null));
 }
 
 /** Note -> Split -> Ask -> Collect: the shape a reader actually builds. */

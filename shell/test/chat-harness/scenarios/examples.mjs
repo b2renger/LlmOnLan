@@ -73,7 +73,7 @@ async function open(/** @type {any} */ h) {
     await h.mock.reset();                       // every count below is about the GRAPH
     const state = await h.graph.open();
     h.eq(state.computer, true, 'the Computer panel is the one the rail opened');
-    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
+    await h.waitFor(() => (window.LolComputer.debug.computer.docId() ? true : null));
 }
 
 /**

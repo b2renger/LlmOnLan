@@ -104,7 +104,7 @@ export default [
                 return app.controller.selectThread(rows[0].id);
             });
             await h.graph.open();
-            await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
+            await h.waitFor(() => (window.LolComputer.debug.computer.docId() ? true : null));
 
             const ask = await h.graph.place('ask', 40, 40);
             h.assert(!!ask, 'an Ask part was placed');

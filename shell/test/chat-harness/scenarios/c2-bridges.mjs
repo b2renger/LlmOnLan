@@ -46,7 +46,7 @@ export default [
             await h.fresh();
             await h.waitFor(() => (window.LolComputer && window.LolComputer.ready ? true : null));
             await h.view('computer');
-            await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
+            await h.waitFor(() => (window.LolComputer.debug.computer.docId() ? true : null));
 
             // 1. A reader cannot place one. The ＋ menu is built from partSpecs(), and the two
             //    bridges are out of it — nothing offers a part that can only ever refuse.

@@ -37,7 +37,7 @@ async function open(/** @type {any} */ h) {
     await h.waitReply();
     const state = await h.graph.open();
     h.eq(state.computer, true, 'the rail opened the Computer');
-    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
+    await h.waitFor(() => (window.LolComputer.debug.computer.docId() ? true : null));
 }
 
 /** Note → Split → Ask → Collect, at deliberately scattered coordinates. */

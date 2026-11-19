@@ -37,7 +37,7 @@ async function buildScene(/** @type {any} */ h) {
     });
     const state = await h.graph.open();
     h.eq(state.computer, true, 'the rail opened the Computer panel');
-    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
+    await h.waitFor(() => (window.LolComputer.debug.computer.docId() ? true : null));
 
     // Laid out so the three frames do not overlap at their own default sizes (Note 220, Ask 300,
     // Collect 260 wide) — an overlap hides the very wires this picture exists to show.

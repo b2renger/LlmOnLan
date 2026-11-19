@@ -174,6 +174,14 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     20-client rehearsal's load: not load, a full run's order. Likely this same defect: the step above finds it for both.
     *2026-11-15 (review H1):* the harness's sandbox failures depend on the case of the drive letter the harness was
     started with (`c:\` refused the runner), now fixed; measure 45 again with it before looking for another cause.
+    *2026-11-19 (night n° 10, 05:10–05:32), measured again: Electron 45.3.2 in a worktree of `main` (its own
+    `node_modules`): `--phase c` **74/74** (57/73 twice on 2026-11-14), `--phase k` **221/222**. So 45's sandbox defect
+    was H1.* The one failure, `k2-shots-dark`, was a race in the test: 14 scenarios waited for the blank placeholder's id
+    (`debug.computer.doc().id`) instead of the document really open (`docId()`), so the canvas refused their boxes
+    (`unknown-part`; 3 failures in 9 alone on 45). It is fixed in all 14: 8/8 alone on 45; on 42 `--phase c` 74/74,
+    `--phase k` 221/222. That run's one failure, `k3-sched`, passed 4/4 alone: the fourth scenario of the
+    order-dependent kind, a different defect. **Next: the bump itself** (both apps; the sync `safeStorage` calls before
+    46), after v0.2.20 ships, with `--phase p` and a full run on 45.
 
 15. **A better LOL Vibe, able to build a proof-of-concept web application** (owner, 2026-11-14: "I am not convinced
     about what we have right now in lol vibe ... we need a better lol vibe experience for the users and we should be able

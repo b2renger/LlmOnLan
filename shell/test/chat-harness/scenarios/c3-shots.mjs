@@ -38,7 +38,7 @@ async function buildScene(/** @type {any} */ h) {
     await h.waitReply();
     const state = await h.graph.open();
     h.eq(state.computer, true, 'the rail did not open the Computer');
-    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
+    await h.waitFor(() => (window.LolComputer.debug.computer.docId() ? true : null));
 
     // Laid out so the four frames do not overlap at their own default widths — an overlap hides
     // the wires and the values this picture exists to show.

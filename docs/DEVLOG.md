@@ -9,6 +9,30 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-19 (05:34) — Electron 45 measured again: its sandbox defect was the drive letter; a race in 14 scenarios fixed (plans ▸ Next 14, night n° 10)
+
+**The measurement:**
+- A worktree of `main` (`b8f199b`) with its own `npm ci` and Electron 45.3.2 (`--no-save`), the version tried on
+  2026-11-14, so the drive-letter fix of 2026-11-15 (review H1) is the only difference.
+- `--phase c` 74/74, against 57/73 twice on 2026-11-14.
+- `--phase k` 221/222, against 174/217.
+
+So the "order-dependent" sandbox failure of 45 was H1.
+
+**The one failure:** `k2-shots-dark`, "the four arrows were drawn", 3 times in 9 alone on 45 and 0 in 2 on 42.
+Instrumented in the worktree only: every `wire` answered `unknown-part`, every `place` returned `null`, and the
+document had 0 parts. The cause: `canvas.place` refuses until `session.docId()` (the document really open) is set,
+while the scenario waited on `debug.computer.doc().id`, which the blank placeholder document carries from the start.
+14 scenarios had that wait. All now wait on `debug.computer.docId()`, as the k1 scenarios already did.
+
+**After the fix:**
+- On 45, `k2-shots-dark` 8/8 alone.
+- On 42 (this checkout), `--phase c` 74/74 and `--phase k` 221/222. The one failure, `k3-sched` ("the reload came
+  back with a row that says a run was live"), passed 4/4 alone: the fourth scenario of the order-dependent kind, which
+  stays filed with Next 14.
+
+The worktree and its 45 packages are scratch and are removed at the end.
+
 ## 2026-11-19 (05:06) — The rehearsal every night; *keeps exiting* aimed at and missed (CLASS_REHEARSAL_PLAN steps 4 and after, night n° 10)
 
 - **Step 4:** the skill `lol-session` ▸ *End* step 0 runs `run.js --clients 2 --minutes 3` (4 minutes, no GPU) and

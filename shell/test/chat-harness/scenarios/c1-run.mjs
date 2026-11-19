@@ -76,7 +76,7 @@ async function open(/** @type {any} */ h) {
     h.eq(state.computer, true, 'the Computer panel is the one the rail opened');
     // attach() is async: the panel has no graph — and refuses to place — until this thread's
     // document has been loaded or created.
-    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
+    await h.waitFor(() => (window.LolComputer.debug.computer.docId() ? true : null));
     return state;
 }
 

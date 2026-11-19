@@ -40,7 +40,7 @@ export default [
             await h.submit('a thread whose code keeps looping');
             await h.waitReply();
             await h.graph.open();
-            await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
+            await h.waitFor(() => (window.LolComputer.debug.computer.docId() ? true : null));
 
             const note = await h.graph.place('note', 40, 40);
             const code = await h.graph.place('code', 340, 40);
@@ -111,7 +111,7 @@ export default [
             await h.submit('a thread with something running in it');
             await h.waitReply();
             await h.graph.open();
-            await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
+            await h.waitFor(() => (window.LolComputer.debug.computer.docId() ? true : null));
 
             // A part that FINISHES and leaves work behind — the exact case runner.stop() cannot
             // touch, because there is no request in flight to abort.

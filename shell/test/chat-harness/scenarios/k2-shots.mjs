@@ -29,7 +29,7 @@ async function buildScene(/** @type {any} */ h) {
     await h.view('computer');
     await requireReal(h);
     await h.waitFor(() => (window.__lolFarm ? true : null));
-    await h.waitFor(() => ((window.LolComputer.debug.computer.doc() || {}).id ? true : null));
+    await h.waitFor(() => (window.LolComputer.debug.computer.docId() ? true : null));
 
     const topic = await h.computer.place('note', 20, 20);
     const societal = await h.computer.place('note', 20, 180);
