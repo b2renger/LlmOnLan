@@ -9,7 +9,7 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-11-19 (03:28) — Qwen3.6 through a farm, with and without drafting; a bench trap ruled out; the harness's full run (night n° 10)
+## 2026-11-19 (03:26) — Qwen3.6 through a farm, with and without drafting; a bench trap ruled out; the harness's full run (night n° 10)
 
 **The owner's Qwen3.6 question, measured through a farm** (scratch, vLLM 0.33.0 started by the farm, 64k, 32 seats by
 hand, drafting through `vllm.extraArgs`): 30 people from 30 addresses 103.8 → **163.7 tok/s** each; 30 people ~40k deep
