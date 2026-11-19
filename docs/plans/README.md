@@ -279,7 +279,8 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
    22 → 30, 28/28 and the same answers (210 samples). A plan first: the flag, the capacity formula
    (`farm/src/vllm.js:297-306` `facts()` charges the catalog's state bytes, measured at the default fp32, and does
    not read the flag), HUMAN_TESTS J19 again. **Not Qwen3.6:** there it
-   fails 30 people ~50k deep (twice), cause not found. Not measured: Qwen3.8 past 23k deep with the flag.
+   fails 30 people ~50k deep (twice), cause not found. Not measured: Qwen3.8 past 23k deep with the flag, so the plan's
+   first step is 30 people ~30k deep on Qwen3.8 with it (seats: `docs/spike/runs/hq_seatprobe.sh`).
 
 **Choices to make, one line each:**
 - **The farm:**

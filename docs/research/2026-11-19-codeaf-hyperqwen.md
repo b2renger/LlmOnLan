@@ -121,7 +121,10 @@ people are added.
 twice** (p95 19.7 s / p10 13.2, then 7.8 s / 24.5; without fp16: 3.9 s / 51.1, pass). Halving the state halves vLLM's
 block (Qwen3.6 2,176 → 1,152 tokens; Qwen3.8 ~1,600 → 832), and in that step vLLM ran 16 of 30 with 14 waiting and
 re-read prompts at ~25k tok/s while generating 4 tok/s: the follow-up turns did not reuse their cached prefix as they
-did with fp32 state. Why was not found. Qwen3.8 at 50k with fp16 state was not run (the farm serves it at 32k).
+did with fp32 state. Why was not found. The pass without fp16 (3.9 s / 51.1) is the night's single run, not measured
+again as a control on 2026-11-19. Qwen3.8 past 23k deep with fp16 state was not run (the farm serves it at 32k): where
+between 23k and 50k Qwen3.6 starts failing is unknown, so a plan for Qwen3.8 starts with a test ~30k deep. Seat counts:
+`runs/hq_seatprobe.sh`.
 
 **The farm's default, Qwen3.6 35B-A3B, carries an MTP layer too** (19 `mtp.*` tensors). The same A/B at its 64k
 setting, its farm flags (`QWEN36_ARGS`), plus a 50k-deep step (`long50`: 30 people each ~50k tokens into a
