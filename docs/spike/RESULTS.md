@@ -1357,6 +1357,11 @@ buffers and graphs beside the weights on Qwen3.8 (2.5 on Qwen3.6). Not measured:
 the seat gate, streaming and not, alone and beside another person: no request left running 2 s after the abort, no
 token generated after it when alone, no retry, the GPU at ≤10 % 0.55–0.69 s after.
 
+**Again on the release's LiteLLM, 1.106.9** (03:50–03:54, `farm/.venv` brought to the pin; a scratch farm starting the
+built config, vLLM 0.33.0, 16 seats, "room for 27 whole conversations"): the stream check (`runs/hq_stream.mjs`, 5
+rounds through the gate) all ok; LOL Vibe's agent (`ide/run.js`, the five tasks once) **5/5 in 163 s** (158 s on
+1.90.0); the cancel test **PASS** on all ten paths, the GPU at ≤10 % 0.28–0.77 s after an abort.
+
 **Qwen3.6 through a farm, with and without drafting** (2026-11-19 03:15–03:25, the owner's question; a scratch farm
 from the checkout, vLLM 0.33.0 started by the farm, 64k, 32 seats set by hand, the Automatic pool; drafting through
 `vllm.extraArgs`, the library entry unchanged; `lol bench --people` 30 addresses, 3 rounds; `spike_bench` followup

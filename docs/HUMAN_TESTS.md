@@ -1850,7 +1850,11 @@ Vibe (the coding agent too) on Qwen3.8 drafting with its MTP layer. Measured wit
 does not have it yet: a **test farm from this checkout** stands in for it, and the Farm app, its settings and
 production's vLLM stay untouched. Like every farm it starts an Ollama beside its engine: the `ollama` on PATH (the
 Ollama app's) on port 11500, with the Ollama app's models folder, where it needs `gemma4:12b`; night n° 10 pulled it
-there (8 GB): `ollama rm gemma4:12b` after the test if you do not want it. *Was:* new (2026-11-19).
+there (8 GB): `ollama rm gemma4:12b` after the test if you do not want it. Its LiteLLM is the checkout's
+(`farm\.venv`), which `lol up` never upgrades: night n° 10 brought it to the release's pin, 1.106.9
+(`farm\.venv\Scripts\python.exe -m pip show litellm` says so; if not, `farm\.venv\Scripts\python.exe -m pip install
+"litellm[proxy]==1.106.9" "fastapi>=0.136.3,<0.140.7"`, the pins of `farm/src/commands/install.js`). *Was:* new
+(2026-11-19).
 
 1. Quit the Farm app (its tray icon ▸ Quit). In a terminal at the checkout: `node docs/spike/runs/draft_test_farm.mjs start`.
    The first time, it writes `%USERPROFILE%\lol-test-farm\lol.config.json` (your farm's name with *(test: drafting)*,

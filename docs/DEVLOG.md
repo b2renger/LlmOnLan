@@ -9,6 +9,23 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-19 (03:55) — Qwen3.8's drafting checked again on the release's LiteLLM; J19's test farm on it (night n° 10)
+
+J19's test farm runs from the checkout, whose LiteLLM is `farm/.venv`'s. `lol up` never upgrades it (only
+`lol install`'s `ensureLitellm` does), and it was 1.90.0; the Farm app ships 1.106.9. The venv was brought to the pins
+(`pip install "litellm[proxy]==1.106.9" "fastapi>=0.136.3,<0.140.7"`, the command `ensureLitellm` runs; the old list
+is in the scratch folder), and the farm suite still passes (288). Then a scratch farm from the checkout (its own
+Ollama on 11500 with a scratch models folder, since deleted; vLLM 0.33.0 on `~/lol-vllm-033` started by the farm with
+the built Qwen3.8 config: "16 people at once, room for 27 whole conversations") ran three checks:
+- the stream check through the gate: 5 rounds ok;
+- LOL Vibe's agent: 5/5 in 163 s;
+- `LOL_CANCEL_ENGINE=vllm node test/litellm-cancel.js`: PASS on all ten paths, the GPU ≤10 % 0.28–0.77 s after an
+  abort.
+
+J19's *Needs* names the version and the pip line. Everything stopped at 03:54: `lol down`, the scratch Ollama
+(port 11500, started by this session), GPU back to 1.4 GB. The Farm app's farm and its venv
+(`%APPDATA%\LlmOnLan Farm\farm`) were not touched.
+
 ## 2026-11-19 (03:44) — The review's last two lows fixed, and a defect in tonight's L1 fix (night n° 10, after the advisor)
 
 The advisor's check before calling the night done found one defect in tonight's own work and showed that L2 could be
