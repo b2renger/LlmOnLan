@@ -80,7 +80,7 @@ const listen = (server, port) => new Promise((res, rej) => { server.once('error'
 const seatAddress = (i) => `127.0.0.${10 + i}`;
 // What client i is told about farm f: on 127.0.0.1, its polls through its lossy proxy, its chats through its own relay.
 const forClient = (f, s, i) => {
-    const o = { ...say(f, loopback(s)), httpPort: lossyPort(f, i) };
+    const o = { ...say(f, loopback(s), i), httpPort: lossyPort(f, i) };
     if (!SEATS) return o;
     const p = gatePort(f, i);
     return { ...o, proxyPort: p, endpoint: `http://127.0.0.1:${p}`, openaiBaseUrl: `http://127.0.0.1:${p}/v1` };
@@ -93,7 +93,16 @@ const loopback = (s) => { let j = JSON.stringify(s); for (const ip of s.ips || [
 const BLIP = arg('--blip', null) == null ? null : Number(arg('--blip', '6'));
 let launchedAt = null;
 const blipping = () => BLIP != null && launchedAt != null && Date.now() - launchedAt >= BLIP * 1000 && Date.now() - launchedAt < (BLIP + 15) * 1000;
-const say = (f, s) => (f.key === 'A' && blipping() ? { ...s, healthy: false } : s);
+// --blip-on-migration (needs --seats: each client its own snapshots): a switch aimed inside the migrations. When client i
+// prints its first `Running upgrade` (Open WebUI's first migration, `[owui] …` on its stdout, on every build since
+// v0.2.18), the farm it is on says unhealthy to client i alone for 15 s, and its beacon goes out at once: a client that
+// leaves an unhealthy farm at once leaves it mid-migration, as the class's Mac did.
+const AIM = process.argv.includes('--blip-on-migration');
+const aimed = new Map();   // client index → { key: farm key, until: ms }
+const say = (f, s, i) => {
+    const a = i != null ? aimed.get(i) : null;
+    return (a && a.key === f.key && Date.now() < a.until) || (f.key === 'A' && blipping()) ? { ...s, healthy: false } : s;
+};
 const outage = () => { const p = ((Date.now() - t0) / 1000) % (OUT_ON + OUT_OFF); return p >= OUT_OFF; };   // A is silent here
 
 // Step 3. Client r's Open WebUI, signed in: with WEBUI_AUTH false (the client's setting) Open WebUI signs everyone in
@@ -152,6 +161,7 @@ const summarize = (per) => ({
 
 async function main() {
     if (!SIDECAR || !fs.existsSync(path.join(SIDECAR, 'launcher.py'))) throw new Error('Set REH_SIDECAR to the released Open WebUI sidecar folder (python/, launcher.py).');
+    if (AIM && !SEATS) throw new Error('--blip-on-migration needs --seats (each client its own snapshots).');
     log(`rehearsal in ${ROOT}: ${CLIENTS} clients, ${MINUTES} min, farm A silent ${OUT_ON} s every ${OUT_ON + OUT_OFF} s; Open WebUI ${fs.readFileSync(path.join(SIDECAR, 'OPENWEBUI_VERSION'), 'utf8').trim()}`);
 
     if (EXTERNAL) {
@@ -242,6 +252,10 @@ async function main() {
         }
     };
     const relayTimer = setInterval(relayTick, 5000); void relayTick();
+    // One client's beacons now (--blip-on-migration: the change reaches it at once, not at the next tick).
+    const sendTo = async (i) => {
+        for (const f of FARMS) { const s = await getJson(`http://127.0.0.1:${f.http}/lol/self`); if (s) relay.send(Buffer.from(JSON.stringify(forClient(f, s, i))), ports[i], '127.0.0.1'); }
+    };
 
     // --slow-start: the busy loops on CPU 0, then every new Open WebUI process of a client held there (checked each second).
     const slowed = new Set();
@@ -285,6 +299,16 @@ async function main() {
             buf += d; let k;
             while ((k = buf.indexOf('\n')) >= 0) {
                 const line = buf.slice(0, k); buf = buf.slice(k + 1);
+                if (AIM && r.aimedAt == null && /\[owui\].*Running upgrade/.test(line)) {
+                    const choice = [...r.events].reverse().find((e) => e.kind === 'choice');
+                    const f = choice && FARMS.find((x) => x.snap && x.snap.id.startsWith(choice.id));
+                    if (f) {
+                        r.aimedAt = Date.now() - r.launchAt;
+                        aimed.set(i, { key: f.key, until: Date.now() + 15_000 });
+                        void sendTo(i);
+                        log(`client${i} migrating: farm ${f.key} unhealthy for it now`);
+                    }
+                }
                 try { const e = JSON.parse(line); e.at = Date.now() - r.launchAt; r.events.push(e); if (e.kind !== 'farms') log(`client${i}`, e.kind, e.status || e.farm || '', e.message ? `"${String(e.message).slice(0, 70)}"` : ''); } catch { /* not ours */ }
             }
         });
@@ -405,6 +429,7 @@ async function main() {
                 readyS: (() => { let k = -1; states.forEach((s, j) => { if (s.status === 'starting' || s.status === 'restarting') k = j; }); const ok = states.slice(k + 1).find((s) => s.status === 'ready'); return ok ? ok.at / 1000 : null; })(),
                 starts: states.filter((s) => s.status === 'starting').length,
                 chatError: r.chatAt ? null : (r.chatError || null), launchedS: (r.launchAt - t0) / 1000, firstChatS: r.chatAt ? r.chatAt / 1000 : null, chatFarm: r.chatFarm || null,
+                aimedAtS: r.aimedAt != null ? r.aimedAt / 1000 : null,
                 owuiSignIn: r.owui ? { url: r.owui.url, model: r.owui.model || null, models: r.owui.models || null, error: r.owui.error || null } : null,
             };
         }),

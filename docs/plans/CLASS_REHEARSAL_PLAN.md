@@ -155,6 +155,16 @@ at 22.8 and 39.4 s, first chats at 25.7 and 29.7 s, `sealHeard` 0.
   log, so whether a kill fell inside those 1.5 s is not known. On 2026-11-17 a kill made by hand mid-migration did
   break the database, and only some do.
 
-**Next:** aim the switch: start the blip on the first `Running upgrade` line a client prints (both builds print each
-Open WebUI line as `[owui] …` on the client's stdout, which `run.js` already reads), then expect the kill on v0.2.18
-and the set-aside on v0.2.19.
+***Keeps exiting* reproduced, aimed (05:35–05:42):** `run.js --clients 4 --seats --blip-on-migration --outage 0/60
+--minutes 3`. When a client prints its first `[owui] … Running upgrade`, its farm turns unhealthy for that client
+alone, for 15 s, and its beacon goes out at once.
+- **v0.2.18:** each of the 4 clients was restarted within 0.1 s of its first migration line. Client 1, cut 5.4 s in,
+  then restarted 1/5, 2/5… and ended on **"Open WebUI keeps exiting (code 1)"**, never ready: the class's failure,
+  through the client's own code (`rehearsal-2026-11-190437-4c-v0.2.18-aimed.json`). The other three survived the cut
+  (only some interrupted migrations break the database, 2026-11-17).
+- **v0.2.19:** the same switches. All 4 kept their start until it was ready (15.3–19.6 s), then moved; **no keeps
+  exiting**; every data folder has `lol-owui-ready` and no marker (`…190442-4c-v0.2.19-aimed.json`).
+
+So the rehearsal now fails the way the class did on v0.2.18 and passes on v0.2.19, which is what the plan set out
+to prove. The aimed run is the class's regression test; a session may add it to step 4's run when the client's start
+or farm choice changes.

@@ -9,7 +9,24 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-11-19 (05:34) — Electron 45 measured again: its sandbox defect was the drive letter; a race in 14 scenarios fixed (plans ▸ Next 14, night n° 10)
+## 2026-11-19 (05:43) — The class's *keeps exiting*, reproduced by the rehearsal on v0.2.18 and absent on v0.2.19 (CLASS_REHEARSAL_PLAN, night n° 10)
+
+**The tool:** `run.js --blip-on-migration` (with `--seats`). When a client prints its first `[owui] … Running upgrade`
+(both builds print Open WebUI's lines on the client's stdout), the farm it is on turns unhealthy for that client
+alone, for 15 s, and its beacon is sent at once.
+
+**The runs**, 4 clients each, the same switches, no lost beacons:
+- **v0.2.18** (its worktree rebuilt): every client was restarted within 0.1 s of its first migration line. Client 1,
+  cut 5.4 s in, restarted 1/5, 2/5 and so on, and ended on *"Open WebUI keeps exiting (code 1)"*, never ready. The
+  three others survived the cut.
+- **v0.2.19:** every start kept running until it was ready (15.3–19.6 s), and only then was it repointed. None kept
+  exiting; all four data folders have `lol-owui-ready` and no marker.
+
+The plan's goal is reached: a rehearsal that fails the way the class did on v0.2.18 and passes on v0.2.19. Files:
+`rehearsal-2026-11-190437-4c-v0.2.18-aimed.json`, `…190442-4c-v0.2.19-aimed.json`. The migrations start 2–4 s after
+the spawn here; the 13 s read from the slow-start log at 05:06 was that run's own, its lines flushed late.
+
+## 2026-11-19 (05:33) — Electron 45 measured again: its sandbox defect was the drive letter; a race in 14 scenarios fixed (plans ▸ Next 14, night n° 10)
 
 **The measurement:**
 - A worktree of `main` (`b8f199b`) with its own `npm ci` and Electron 45.3.2 (`--no-save`), the version tried on
