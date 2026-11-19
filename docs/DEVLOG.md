@@ -9,6 +9,25 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-19 (05:57) — After the advisor's last check: three corrections (night n° 10)
+
+- **The nightly rehearsal survives a held port 8080.** It held 8080 with no error handler; with the owner's client open
+  (its Open WebUI prefers 8080) it would have crashed past its clean-up, as the 45000 listen did at 04:01. Fixed: the
+  port is held if it is free, and the run logs and goes on if not. Proved with a stand-in on 8080: logged
+  `EADDRINUSE`, the 3-minute run finished, 0 moves, both chats answered.
+- **Question 1 names the route and the evidence.**
+  - The route: Open WebUI 0.13.3 reads `DEFAULT_MODEL_PARAMS` as every chat's base parameters (`config.py:1727`,
+    `main.py:1201-1216`) and deep-merges its `custom_params` into the request (`utils/payload.py:108-134`). So
+    thinking off by default for its chats is possible from env alone, with no REST call. This was read in the code,
+    not run; the contract notes that `DEFAULT_MODEL_PARAMS.system` never reached a farm model.
+  - The evidence: Qwen3.6's 28-item check was already measured both ways (27/28 thinking, 28/28 without).
+  - A farm-side default would also stop the Computer's and LOL Vibe's thinking (`ask.mjs`).
+- **The catalog's drafting note** names LlmOnLan's built-in Qwen3.8 entry: a farm whose list was saved before keeps its
+  old flags.
+- Also run: `examples-palette-check` and `examples-fanout-pitches`, the two edited scenarios outside phases c and k,
+  2/2 on 42. Then the harness's full run on 42 (05:57–06:12): **420/420**; the three full runs before it (nights n° 8,
+  n° 9 and earlier tonight) lost one scenario each.
+
 ## 2026-11-19 (05:43) — The class's *keeps exiting*, reproduced by the rehearsal on v0.2.18 and absent on v0.2.19 (CLASS_REHEARSAL_PLAN, night n° 10)
 
 **The tool:** `run.js --blip-on-migration` (with `--seats`). When a client prints its first `[owui] … Running upgrade`

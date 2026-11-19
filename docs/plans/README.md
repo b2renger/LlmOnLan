@@ -180,7 +180,8 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     (`debug.computer.doc().id`) instead of the document really open (`docId()`), so the canvas refused their boxes
     (`unknown-part`; 3 failures in 9 alone on 45). It is fixed in all 14: 8/8 alone on 45; on 42 `--phase c` 74/74,
     `--phase k` 221/222. That run's one failure, `k3-sched`, passed 4/4 alone: the fourth scenario of the
-    order-dependent kind, a different defect. **Next: the bump itself** (both apps; the sync `safeStorage` calls before
+    order-dependent kind, a different defect. The full run after the fix (42, 05:57–06:12): **420/420**, after three
+    full runs that lost one scenario each. **Next: the bump itself** (both apps; the sync `safeStorage` calls before
     46), after v0.2.20 ships, with `--phase p` and a full run on 45.
 
 15. **A better LOL Vibe, able to build a proof-of-concept web application** (owner, 2026-11-14: "I am not convinced
