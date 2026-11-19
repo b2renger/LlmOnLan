@@ -149,7 +149,11 @@
   (`test/rehearsal/client.cjs`: the compiled discovery, `farmSelect` and Open WebUI supervisor, Electron stubbed; the
   wiring of `index.ts` mirrored), with a relay that sends the beacons by unicast to 127.0.0.1 and a lossy `/lol/self`
   proxy that silences one farm; `REH_BUILD` drives another release's build (a worktree). Sealed on 127.0.0.1: the office
-  group is listened to and must hear nothing; each client's connections are listed.
+  group is listened to and must hear nothing; each client's connections are listed. Step 3 (the same night):
+  `--farm <its /lol/self port>` uses one farm already running (a scratch farm on a real model); `--seats` gives each
+  client a relay that reaches the gate from its own 127.0.0.(10+i), one seat each as laptops get; `--bursts R` times
+  one person alone, then R rounds of everyone asking at once, straight to the gate and through each client's own Open
+  WebUI (signed in as its one local user); `--no-think` asks with thinking off. Results in `docs/spike/results/rehearsal-*`.
 
 ## Client shell
 

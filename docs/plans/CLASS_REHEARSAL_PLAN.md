@@ -2,8 +2,8 @@
 
 **Status: approved by the owner, 2026-11-18** ("ok", in the chat, to: *a rehearsal of the class, run every night: about
 20 scripted clients, two farms sending beacons, a lossy network, and fresh first starts, measuring time to the first
-chat and the slowness seen with ten people*). Part of the work sessions may do without asking (CLAUDE.md). Nothing is
-built yet. Size **M**, in steps; each step is useful alone.
+chat and the slowness seen with ten people*). Part of the work sessions may do without asking (CLAUDE.md). Steps 1–3
+built (night n° 10, *Built* below). Size **M**, in steps; each step is useful alone.
 
 ## Why
 
@@ -91,6 +91,54 @@ One command (`node test/rehearsal/run.js`, from `shell/`), one result file in `d
   queued, as each scratch farm's Ollama answers 2 at a time and the gate gives the 20 clients, all on 127.0.0.1, one
   seat), no move, no *keeps exiting*; **793 MiB a client**, 15.9 GB, 92 GB still free; split 7 on the lossy farm, 13 on
   the steady one. Nothing broke first at 20 on this computer.
-- **Next (step 3 and after):** the slowness with ten and twenty against a real model and seats per address (the
-  clients could take 127.0.0.2… as `lol bench --people` does); a first start slow enough that a switch interrupts its
-  migrations every time, to rehearse *keeps exiting* itself; and step 4, the nightly run.
+**Step 3** (the same night, 04:08–04:23, DEVLOG 04:25): `run.js --farm <port> --seats --bursts R [--no-think]`.
+
+The setup:
+- One scratch farm, set up as people use it: vLLM 0.33.0, Qwen3.6 at 64k, Automatic seats ("48 people at once, room
+  for 72 whole conversations"), beacons off, nobody else on the GPU.
+- `--seats` gives each client a relay that reaches the gate from its own address, 127.0.0.(10+i), as laptops do. The
+  gate showed it after every round: 10 or 20 seats held, everyone generating at once, 0 waiting.
+- The rounds:
+  - Round 0 is one person alone, the reference.
+  - Then R rounds of everyone asking at once (*"Explain photosynthesis to a 12-year-old, in about 250 words"*,
+    8,000 tokens of room).
+  - Each round runs first straight to the gate through the client's relay (A), then through each client's own Open
+    WebUI (B: `/api/v1/auths/signin`, then `/api/chat/completions` streamed).
+
+Results (`docs/spike/results/rehearsal-2026-11-19031*-q36*.json`), per person, p50 (worst):
+
+| | first token | first word of the answer | words a second | thinking words |
+|---|---|---|---|---|
+| alone (4 samples, A and B) | 0.03–0.24 s | 8.6–15.7 s | 105–163 | 961–1,962 |
+| 10 at once (A and B, 2 rounds) | 0.09–0.15 s | 11.4–18.3 s (32.5) | 102–106 (63) | 1,071–1,717 |
+| 20 at once (A and B, 2 rounds) | 0.15–0.20 s | 17.6–22.3 s (37.5) | 76–80 (51) | 1,149–1,651 |
+| 20 at once, **thinking off** | 0.19–0.30 s | **0.19–0.30 s** | **101–103** (94) | 0 |
+
+**Where the time goes:**
+- **The thinking.** People's Open WebUI chats think: the client turns thinking off only for Open WebUI's own tasks,
+  such as titles (`configBridge.ts` `TASK_MODEL_PARAMS`). Qwen3.6 thinks about 1,000 to 2,000 words before the first
+  word of its answer: 9–16 s alone, half the people waiting 11–18 s at 10 and 18–22 s at 20, the slowest 38 s. With
+  thinking off, the first word comes in 0.2–0.3 s at 20, the whole answer (~300 words) in about 3 s, and each person
+  gets more words a second (101 against 78, shorter sequences). Whether chats should think by default is the owner's
+  call (plans ▸ Waiting on the owner).
+- **Sharing the GPU.** Each person's words a second fall from about 160 alone to about 104 at 10 and 78 at 20; no
+  one waits for a seat.
+- **Open WebUI and the gate cost nothing measurable:** B against A is within the noise of the rounds, for both the
+  first token and the words a second. One alone sample was slower through Open WebUI (129 against 163) and the next
+  was faster (161 against 105): noise.
+
+**Also checked:**
+- 10 and 20 clients ready (median 19 s, at most 38 s; a client that started on no farm restarts once, by design).
+- About 793 MiB a client again.
+- Every connection to 127.0.0.1, and nothing heard on the office group.
+- In every client's data folder, `lol-owui-ready` written and no `lol-owui-first-start` left: tonight's L2 path, live,
+  50 of 50.
+
+**Not counted:**
+- Open WebUI's title request after a first answer (the frontend sends it; one more short request a person, thinking
+  off).
+- Typing, and the browser's own rendering.
+- A Wi-Fi.
+
+**Next (after step 3):** a first start slow enough that a switch interrupts its migrations every time, to rehearse
+*keeps exiting* itself; and step 4, the nightly run.

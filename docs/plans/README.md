@@ -16,7 +16,7 @@ processed in a cloud; the code follows the ponytail ladder.
   2026-11-18): on *keeps exiting (code 1)* with Open WebUI's migration error, move the database aside and put back the
   copy taken before the update, if any. **Approved by the owner and built 2026-11-18** (day session); in v0.2.19.
 - [CLASS_REHEARSAL_PLAN.md](CLASS_REHEARSAL_PLAN.md) — **the class rehearsed every night** (scratch farms, scripted
-  clients, lost beacons, 10 and 20 chats at once). **Approved by the owner 2026-11-18**; Now, first item.
+  clients, lost beacons, 10 and 20 chats at once). **Approved by the owner 2026-11-18**; steps 1–3 built (night n° 10).
 - [VIBE_PAGE_PLAN.md](VIBE_PAGE_PLAN.md) — **LOL Vibe's page preview, its code beside it** (owner, in the chat,
   2026-11-18): errors that name their block and line, the code and the page side by side in the side column, edits
   run as one types and kept with the thread, and a pop-out window. **Approved by the owner 2026-11-18**; Now, built by day.
@@ -53,8 +53,10 @@ file stays the whole list.
   scripted clients with fresh first starts, lost beacons, 10 and 20 chats at once, every night. Step 1 first (the
   regression test of the class). **M**. **Steps 1 and 2 built 2026-11-19 (night n° 10):** `shell/test/rehearsal/run.js`,
   sealed on 127.0.0.1; v0.2.18 moves farm 10 times in 5 min where v0.2.19 never does, and kills first starts under a
-  blip where v0.2.19 waits; 20 clients ready and answered, ~793 MiB each. Next: step 3 (a real model, a seat per
-  client), *keeps exiting* itself, step 4.
+  blip where v0.2.19 waits; 20 clients ready and answered, ~793 MiB each. **Step 3 built the same night:** Qwen3.6 as
+  people use it, a seat per client. Open WebUI and the gate cost nothing measurable. The wait is the thinking: half
+  the answers' first word at 11–18 s with 10 people, 18–22 s with 20, against 0.2–0.3 s with thinking off (Waiting on
+  the owner, 6). Next: *keeps exiting* itself, step 4.
 0. **The class of Tuesday 17 November** ([its plan](CLASS_TEST_2026-11-17.md), owner 2026-11-13): until then, only what
    the 30 students touch and the farm that serves them; no new feature. After the class, the order below resumes.
    *Night n° 5's review* ([SESSION_REVIEW_2026-11-15](../reviews/SESSION_REVIEW_2026-11-15.md)) fixed the sandbox that
@@ -237,6 +239,15 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
      [../context/](../context/). Still to do: check each module against the code (the first reviews' job);
    - change it only when a rule, the contract, a port or the map changes;
    - reword invariant #4 to the calls the contract table lists (it says "admin REST API", which the app never uses).
+6. **Should Open WebUI chats think by default?** (night n° 10, [CLASS_REHEARSAL_PLAN](CLASS_REHEARSAL_PLAN.md) ▸
+   step 3.) The slowness with ten is the thinking. Qwen3.6 thinks 1,000–2,000 words before an answer's first word.
+   Half the people wait 11–18 s at 10 at once and 18–22 s at 20, against 0.2–0.3 s with thinking off; with thinking
+   off each person also gets 101 words a second instead of 78 at 20. Ways it could go, each a plan first:
+   - off by default for chats, with Open WebUI's own per-chat setting to turn it on;
+   - a second model name that thinks;
+   - leave it, and say in the help what the *Thinking* fold is.
+
+   Not measured tonight: whether the answers to a class's questions are as good without thinking.
 
 **Choices to make, one line each:**
 - **The farm:**

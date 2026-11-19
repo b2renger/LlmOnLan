@@ -9,6 +9,42 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-19 (04:25) — The slowness with ten and twenty is the thinking (CLASS_REHEARSAL_PLAN step 3, night n° 10)
+
+**Built, `shell/test/rehearsal/run.js`:**
+- `--farm <port>`: one farm already running.
+- `--seats`: one TCP relay per client, which connects to the gate with `localAddress` 127.0.0.(10+i), as
+  `bench.js` does. Each client's snapshots point it at its relay, both through the beacon relay and through its own
+  `/lol/self` proxy. The ports come from the system: a fixed 45000 was found taken once.
+- `--bursts R`: round 0 alone, then R rounds of everyone at once. Each round goes straight to the gate through the
+  relay, then through each client's own Open WebUI, signed in with `/api/v1/auths/signin` (with `WEBUI_AUTH` false,
+  Open WebUI signs every caller in as its one local user) and asked through `/api/chat/completions` streamed.
+- `--no-think`.
+- The gate's view, read during and after each round.
+- The L2 records of each data folder.
+- A failed listen now stops the rehearsal's farms (`lol down` in the catch).
+
+**How it got there:**
+- **The cheap path first.** 2 clients on the two Ollama scratch farms showed that an Open WebUI that restarts after
+  its first chat (a client that started on no farm) is not ready for round B; the rounds now wait for every client's
+  latest state to be *ready*.
+- **The first real run cut the answers.** With 1,500 tokens Qwen3.6's thinking (~1,000 words) ended most answers
+  before their first word; the run was discarded and the room raised to 8,000.
+
+**Results** (Qwen3.6 at 64k, 48 Automatic seats, the gate showing 10 or 20 seats held and 0 waiting):
+- **Alone:** 105–163 words a second, the first word of the answer at 8.6–15.7 s.
+- **10 at once:** 102–106 words a second each; first answer word p50 11.4–18.3 s, worst 32.5 s.
+- **20 at once:** 76–80 words a second each; first answer word p50 17.6–22.3 s, worst 37.5 s.
+- **20 with thinking off:** first word 0.19–0.30 s, 101–103 words a second each.
+- **Through Open WebUI against straight to the gate:** the same.
+
+So the slowness people feel with ten is the thinking, a choice for the owner (plans ▸ Waiting on the owner, 6).
+Also: all 50 clients ready (median 19 s); ~793 MiB a client; nothing heard on the office group; every connection on
+127.0.0.1; every data folder with `lol-owui-ready` and no first-start marker (tonight's L2, live). Files:
+`docs/spike/results/rehearsal-2026-11-1903{14-10c-q36,20-20c-q36,23-20c-q36-nothink}.json`; RESULTS ▸ *The slowness
+with ten and twenty*. The scratch farm (`lol up` from `%TEMP%\lolhq\farm-reh3`) and its Ollama stay up for the next
+measurement.
+
 ## 2026-11-19 (03:55) — Qwen3.8's drafting checked again on the release's LiteLLM; J19's test farm on it (night n° 10)
 
 J19's test farm runs from the checkout, whose LiteLLM is `farm/.venv`'s. `lol up` never upgrades it (only

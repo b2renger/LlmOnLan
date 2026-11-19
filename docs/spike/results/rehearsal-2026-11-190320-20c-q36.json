@@ -1,0 +1,2910 @@
+{
+ "at": "2026-11-19T03:20:22.575Z",
+ "clients": 20,
+ "minutes": 6,
+ "outage": {
+  "silentS": 0,
+  "everyS": 60
+ },
+ "blipS": null,
+ "farm": {
+  "name": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+  "backend": {
+   "engine": "vllm",
+   "alias": "assistant",
+   "model": "Qwen3.6 35B-A3B · NVFP4",
+   "contextLength": 65536,
+   "contextAuto": false,
+   "contextPerSlot": 65536,
+   "slots": 48,
+   "slotsVerified": true,
+   "mtp": false,
+   "kvCacheType": "fp8",
+   "audio": false,
+   "replyTokens": 32768
+  }
+ },
+ "seats": "one address a client",
+ "bursts": {
+  "prompt": "Explain photosynthesis to a 12-year-old, in about 250 words.",
+  "maxTokens": 8000,
+  "model": "assistant",
+  "rounds": [
+   {
+    "round": 0,
+    "mode": "straight to the gate",
+    "people": 1,
+    "gate": [
+     {
+      "atMs": 508,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1007,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 2008,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 3007,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 4009,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 5008,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 6012,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 7012,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 8013,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 9013,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 10012,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 11015,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 11582,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 1,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.239,
+      "max": 0.239
+     },
+     "firstAnswerS": {
+      "p50": 10.184,
+      "max": 10.184
+     },
+     "wordsPerS": {
+      "p50": 105.4,
+      "min": 105.4
+     },
+     "answerWords": {
+      "p50": 234
+     },
+     "thinkingWords": {
+      "p50": 961
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 239,
+      "firstAnswerMs": 10184,
+      "thinkingWords": 961,
+      "answerWords": 234,
+      "totalMs": 11576,
+      "error": null,
+      "wordsPerS": 105.4
+     }
+    ]
+   },
+   {
+    "round": 0,
+    "mode": "through each client's Open WebUI",
+    "people": 1,
+    "gate": [
+     {
+      "atMs": 508,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1008,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 2009,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 3010,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 4012,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 5012,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 6013,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 7013,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 8014,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 9017,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 9969,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 1,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.047,
+      "max": 0.047
+     },
+     "firstAnswerS": {
+      "p50": 8.605,
+      "max": 8.605
+     },
+     "wordsPerS": {
+      "p50": 160.9,
+      "min": 160.9
+     },
+     "answerWords": {
+      "p50": 236
+     },
+     "thinkingWords": {
+      "p50": 1359
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 47,
+      "firstAnswerMs": 8605,
+      "thinkingWords": 1359,
+      "answerWords": 236,
+      "totalMs": 9963,
+      "error": null,
+      "wordsPerS": 160.9
+     }
+    ]
+   },
+   {
+    "round": 1,
+    "mode": "straight to the gate",
+    "people": 20,
+    "gate": [
+     {
+      "atMs": 508,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 1005,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 2005,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 3144,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 4144,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 5143,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 6143,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 7143,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 8148,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 9147,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 10151,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 11155,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 12156,
+      "seatsUsed": 20,
+      "busy": 17,
+      "queued": 0
+     },
+     {
+      "atMs": 13159,
+      "seatsUsed": 20,
+      "busy": 17,
+      "queued": 0
+     },
+     {
+      "atMs": 14160,
+      "seatsUsed": 20,
+      "busy": 17,
+      "queued": 0
+     },
+     {
+      "atMs": 15159,
+      "seatsUsed": 20,
+      "busy": 17,
+      "queued": 0
+     },
+     {
+      "atMs": 16159,
+      "seatsUsed": 20,
+      "busy": 17,
+      "queued": 0
+     },
+     {
+      "atMs": 17171,
+      "seatsUsed": 20,
+      "busy": 17,
+      "queued": 0
+     },
+     {
+      "atMs": 18172,
+      "seatsUsed": 20,
+      "busy": 17,
+      "queued": 0
+     },
+     {
+      "atMs": 19175,
+      "seatsUsed": 20,
+      "busy": 17,
+      "queued": 0
+     },
+     {
+      "atMs": 20180,
+      "seatsUsed": 20,
+      "busy": 17,
+      "queued": 0
+     },
+     {
+      "atMs": 21182,
+      "seatsUsed": 20,
+      "busy": 17,
+      "queued": 0
+     },
+     {
+      "atMs": 22183,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 23187,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 24189,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 25189,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 26192,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 27196,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 28194,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 29196,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 29675,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 20,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.2,
+      "max": 0.205
+     },
+     "firstAnswerS": {
+      "p50": 17.622,
+      "max": 28.386
+     },
+     "wordsPerS": {
+      "p50": 77.8,
+      "min": 60.2
+     },
+     "answerWords": {
+      "p50": 218
+     },
+     "thinkingWords": {
+      "p50": 1149
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 113,
+      "firstAnswerMs": 18894,
+      "thinkingWords": 1507,
+      "answerWords": 232,
+      "totalMs": 21131,
+      "error": null,
+      "wordsPerS": 82.7
+     },
+     {
+      "firstTokenMs": 191,
+      "firstAnswerMs": 8849,
+      "thinkingWords": 645,
+      "answerWords": 203,
+      "totalMs": 11228,
+      "error": null,
+      "wordsPerS": 76.8
+     },
+     {
+      "firstTokenMs": 191,
+      "firstAnswerMs": 24651,
+      "thinkingWords": 1486,
+      "answerWords": 235,
+      "totalMs": 26698,
+      "error": null,
+      "wordsPerS": 64.9
+     },
+     {
+      "firstTokenMs": 190,
+      "firstAnswerMs": 8981,
+      "thinkingWords": 647,
+      "answerWords": 219,
+      "totalMs": 11535,
+      "error": null,
+      "wordsPerS": 76.3
+     },
+     {
+      "firstTokenMs": 190,
+      "firstAnswerMs": 22565,
+      "thinkingWords": 1390,
+      "answerWords": 212,
+      "totalMs": 24508,
+      "error": null,
+      "wordsPerS": 65.9
+     },
+     {
+      "firstTokenMs": 199,
+      "firstAnswerMs": 17672,
+      "thinkingWords": 955,
+      "answerWords": 251,
+      "totalMs": 20221,
+      "error": null,
+      "wordsPerS": 60.2
+     },
+     {
+      "firstTokenMs": 200,
+      "firstAnswerMs": 5384,
+      "thinkingWords": 385,
+      "answerWords": 216,
+      "totalMs": 7890,
+      "error": null,
+      "wordsPerS": 78.2
+     },
+     {
+      "firstTokenMs": 200,
+      "firstAnswerMs": 25633,
+      "thinkingWords": 1681,
+      "answerWords": 218,
+      "totalMs": 27299,
+      "error": null,
+      "wordsPerS": 70.1
+     },
+     {
+      "firstTokenMs": 200,
+      "firstAnswerMs": 19226,
+      "thinkingWords": 1149,
+      "answerWords": 221,
+      "totalMs": 21299,
+      "error": null,
+      "wordsPerS": 64.9
+     },
+     {
+      "firstTokenMs": 200,
+      "firstAnswerMs": 23670,
+      "thinkingWords": 1864,
+      "answerWords": 204,
+      "totalMs": 25544,
+      "error": null,
+      "wordsPerS": 81.6
+     },
+     {
+      "firstTokenMs": 200,
+      "firstAnswerMs": 15039,
+      "thinkingWords": 1133,
+      "answerWords": 195,
+      "totalMs": 17266,
+      "error": null,
+      "wordsPerS": 77.8
+     },
+     {
+      "firstTokenMs": 200,
+      "firstAnswerMs": 24795,
+      "thinkingWords": 2173,
+      "answerWords": 223,
+      "totalMs": 26759,
+      "error": null,
+      "wordsPerS": 90.2
+     },
+     {
+      "firstTokenMs": 199,
+      "firstAnswerMs": 11157,
+      "thinkingWords": 865,
+      "answerWords": 223,
+      "totalMs": 13730,
+      "error": null,
+      "wordsPerS": 80.4
+     },
+     {
+      "firstTokenMs": 199,
+      "firstAnswerMs": 11492,
+      "thinkingWords": 867,
+      "answerWords": 216,
+      "totalMs": 13940,
+      "error": null,
+      "wordsPerS": 78.8
+     },
+     {
+      "firstTokenMs": 199,
+      "firstAnswerMs": 16419,
+      "thinkingWords": 1301,
+      "answerWords": 217,
+      "totalMs": 18598,
+      "error": null,
+      "wordsPerS": 82.5
+     },
+     {
+      "firstTokenMs": 199,
+      "firstAnswerMs": 12436,
+      "thinkingWords": 884,
+      "answerWords": 187,
+      "totalMs": 14382,
+      "error": null,
+      "wordsPerS": 75.5
+     },
+     {
+      "firstTokenMs": 200,
+      "firstAnswerMs": 13196,
+      "thinkingWords": 979,
+      "answerWords": 215,
+      "totalMs": 15630,
+      "error": null,
+      "wordsPerS": 77.4
+     },
+     {
+      "firstTokenMs": 200,
+      "firstAnswerMs": 28386,
+      "thinkingWords": 2270,
+      "answerWords": 210,
+      "totalMs": 29667,
+      "error": null,
+      "wordsPerS": 84.2
+     },
+     {
+      "firstTokenMs": 200,
+      "firstAnswerMs": 17622,
+      "thinkingWords": 1365,
+      "answerWords": 228,
+      "totalMs": 20077,
+      "error": null,
+      "wordsPerS": 80.1
+     },
+     {
+      "firstTokenMs": 205,
+      "firstAnswerMs": 10625,
+      "thinkingWords": 781,
+      "answerWords": 238,
+      "totalMs": 13460,
+      "error": null,
+      "wordsPerS": 76.9
+     }
+    ]
+   },
+   {
+    "round": 1,
+    "mode": "through each client's Open WebUI",
+    "people": 20,
+    "gate": [
+     {
+      "atMs": 506,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1007,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 2007,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 3007,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 4007,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 5011,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 6010,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 7013,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 8015,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 9016,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 10016,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 11018,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 12020,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 13019,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 14020,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 15019,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 16020,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 17019,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 18019,
+      "seatsUsed": 20,
+      "busy": 16,
+      "queued": 0
+     },
+     {
+      "atMs": 19019,
+      "seatsUsed": 20,
+      "busy": 16,
+      "queued": 0
+     },
+     {
+      "atMs": 20031,
+      "seatsUsed": 20,
+      "busy": 16,
+      "queued": 0
+     },
+     {
+      "atMs": 21032,
+      "seatsUsed": 20,
+      "busy": 16,
+      "queued": 0
+     },
+     {
+      "atMs": 22031,
+      "seatsUsed": 20,
+      "busy": 16,
+      "queued": 0
+     },
+     {
+      "atMs": 23032,
+      "seatsUsed": 20,
+      "busy": 16,
+      "queued": 0
+     },
+     {
+      "atMs": 24031,
+      "seatsUsed": 20,
+      "busy": 16,
+      "queued": 0
+     },
+     {
+      "atMs": 25035,
+      "seatsUsed": 20,
+      "busy": 16,
+      "queued": 0
+     },
+     {
+      "atMs": 26038,
+      "seatsUsed": 20,
+      "busy": 16,
+      "queued": 0
+     },
+     {
+      "atMs": 27037,
+      "seatsUsed": 20,
+      "busy": 16,
+      "queued": 0
+     },
+     {
+      "atMs": 28037,
+      "seatsUsed": 20,
+      "busy": 7,
+      "queued": 0
+     },
+     {
+      "atMs": 29037,
+      "seatsUsed": 20,
+      "busy": 7,
+      "queued": 0
+     },
+     {
+      "atMs": 30040,
+      "seatsUsed": 20,
+      "busy": 7,
+      "queued": 0
+     },
+     {
+      "atMs": 31048,
+      "seatsUsed": 20,
+      "busy": 7,
+      "queued": 0
+     },
+     {
+      "atMs": 32048,
+      "seatsUsed": 20,
+      "busy": 7,
+      "queued": 0
+     },
+     {
+      "atMs": 33051,
+      "seatsUsed": 20,
+      "busy": 7,
+      "queued": 0
+     },
+     {
+      "atMs": 34034,
+      "seatsUsed": 20,
+      "busy": 7,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 20,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.163,
+      "max": 0.175
+     },
+     "firstAnswerS": {
+      "p50": 22.343,
+      "max": 32.662
+     },
+     "wordsPerS": {
+      "p50": 78.9,
+      "min": 66.4
+     },
+     "answerWords": {
+      "p50": 227
+     },
+     "thinkingWords": {
+      "p50": 1651
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 87,
+      "firstAnswerMs": 30161,
+      "thinkingWords": 2241,
+      "answerWords": 226,
+      "totalMs": 31872,
+      "error": null,
+      "wordsPerS": 77.6
+     },
+     {
+      "firstTokenMs": 130,
+      "firstAnswerMs": 15386,
+      "thinkingWords": 1157,
+      "answerWords": 239,
+      "totalMs": 18274,
+      "error": null,
+      "wordsPerS": 76.9
+     },
+     {
+      "firstTokenMs": 144,
+      "firstAnswerMs": 11368,
+      "thinkingWords": 860,
+      "answerWords": 218,
+      "totalMs": 14034,
+      "error": null,
+      "wordsPerS": 77.6
+     },
+     {
+      "firstTokenMs": 175,
+      "firstAnswerMs": 23146,
+      "thinkingWords": 1740,
+      "answerWords": 227,
+      "totalMs": 25581,
+      "error": null,
+      "wordsPerS": 77.4
+     },
+     {
+      "firstTokenMs": 124,
+      "firstAnswerMs": 12326,
+      "thinkingWords": 926,
+      "answerWords": 219,
+      "totalMs": 14783,
+      "error": null,
+      "wordsPerS": 78.1
+     },
+     {
+      "firstTokenMs": 173,
+      "firstAnswerMs": 21450,
+      "thinkingWords": 1651,
+      "answerWords": 228,
+      "totalMs": 23844,
+      "error": null,
+      "wordsPerS": 79.4
+     },
+     {
+      "firstTokenMs": 128,
+      "firstAnswerMs": 20191,
+      "thinkingWords": 1435,
+      "answerWords": 223,
+      "totalMs": 22584,
+      "error": null,
+      "wordsPerS": 73.8
+     },
+     {
+      "firstTokenMs": 144,
+      "firstAnswerMs": 16503,
+      "thinkingWords": 1313,
+      "answerWords": 227,
+      "totalMs": 19040,
+      "error": null,
+      "wordsPerS": 81.5
+     },
+     {
+      "firstTokenMs": 175,
+      "firstAnswerMs": 8021,
+      "thinkingWords": 601,
+      "answerWords": 201,
+      "totalMs": 10490,
+      "error": null,
+      "wordsPerS": 77.8
+     },
+     {
+      "firstTokenMs": 129,
+      "firstAnswerMs": 20279,
+      "thinkingWords": 1541,
+      "answerWords": 250,
+      "totalMs": 23154,
+      "error": null,
+      "wordsPerS": 77.8
+     },
+     {
+      "firstTokenMs": 163,
+      "firstAnswerMs": 23032,
+      "thinkingWords": 1779,
+      "answerWords": 226,
+      "totalMs": 25456,
+      "error": null,
+      "wordsPerS": 79.3
+     },
+     {
+      "firstTokenMs": 173,
+      "firstAnswerMs": 22343,
+      "thinkingWords": 1777,
+      "answerWords": 237,
+      "totalMs": 24749,
+      "error": null,
+      "wordsPerS": 81.9
+     },
+     {
+      "firstTokenMs": 143,
+      "firstAnswerMs": 25512,
+      "thinkingWords": 1982,
+      "answerWords": 236,
+      "totalMs": 27929,
+      "error": null,
+      "wordsPerS": 79.8
+     },
+     {
+      "firstTokenMs": 171,
+      "firstAnswerMs": 17004,
+      "thinkingWords": 1398,
+      "answerWords": 212,
+      "totalMs": 19461,
+      "error": null,
+      "wordsPerS": 83.5
+     },
+     {
+      "firstTokenMs": 173,
+      "firstAnswerMs": 32662,
+      "thinkingWords": 2448,
+      "answerWords": 224,
+      "totalMs": 34027,
+      "error": null,
+      "wordsPerS": 78.9
+     },
+     {
+      "firstTokenMs": 165,
+      "firstAnswerMs": 8899,
+      "thinkingWords": 656,
+      "answerWords": 230,
+      "totalMs": 11280,
+      "error": null,
+      "wordsPerS": 79.7
+     },
+     {
+      "firstTokenMs": 163,
+      "firstAnswerMs": 29371,
+      "thinkingWords": 2488,
+      "answerWords": 213,
+      "totalMs": 31122,
+      "error": null,
+      "wordsPerS": 87.2
+     },
+     {
+      "firstTokenMs": 129,
+      "firstAnswerMs": 29554,
+      "thinkingWords": 2055,
+      "answerWords": 244,
+      "totalMs": 31458,
+      "error": null,
+      "wordsPerS": 73.4
+     },
+     {
+      "firstTokenMs": 163,
+      "firstAnswerMs": 26099,
+      "thinkingWords": 2095,
+      "answerWords": 227,
+      "totalMs": 28453,
+      "error": null,
+      "wordsPerS": 82.1
+     },
+     {
+      "firstTokenMs": 164,
+      "firstAnswerMs": 25809,
+      "thinkingWords": 1648,
+      "answerWords": 200,
+      "totalMs": 28010,
+      "error": null,
+      "wordsPerS": 66.4
+     }
+    ]
+   },
+   {
+    "round": 2,
+    "mode": "straight to the gate",
+    "people": 20,
+    "gate": [
+     {
+      "atMs": 507,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1006,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 2006,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 3008,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 4010,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 5009,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 6011,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 7010,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 8010,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 9010,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 10014,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 11014,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 12017,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 13016,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 14017,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 15021,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 16021,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 17021,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 18027,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 19026,
+      "seatsUsed": 20,
+      "busy": 12,
+      "queued": 0
+     },
+     {
+      "atMs": 20027,
+      "seatsUsed": 20,
+      "busy": 12,
+      "queued": 0
+     },
+     {
+      "atMs": 21029,
+      "seatsUsed": 20,
+      "busy": 12,
+      "queued": 0
+     },
+     {
+      "atMs": 22040,
+      "seatsUsed": 20,
+      "busy": 12,
+      "queued": 0
+     },
+     {
+      "atMs": 23039,
+      "seatsUsed": 20,
+      "busy": 12,
+      "queued": 0
+     },
+     {
+      "atMs": 24040,
+      "seatsUsed": 20,
+      "busy": 12,
+      "queued": 0
+     },
+     {
+      "atMs": 25041,
+      "seatsUsed": 20,
+      "busy": 12,
+      "queued": 0
+     },
+     {
+      "atMs": 26041,
+      "seatsUsed": 20,
+      "busy": 12,
+      "queued": 0
+     },
+     {
+      "atMs": 27043,
+      "seatsUsed": 20,
+      "busy": 12,
+      "queued": 0
+     },
+     {
+      "atMs": 28045,
+      "seatsUsed": 20,
+      "busy": 12,
+      "queued": 0
+     },
+     {
+      "atMs": 29044,
+      "seatsUsed": 20,
+      "busy": 3,
+      "queued": 0
+     },
+     {
+      "atMs": 30046,
+      "seatsUsed": 20,
+      "busy": 3,
+      "queued": 0
+     },
+     {
+      "atMs": 31049,
+      "seatsUsed": 20,
+      "busy": 3,
+      "queued": 0
+     },
+     {
+      "atMs": 32049,
+      "seatsUsed": 20,
+      "busy": 3,
+      "queued": 0
+     },
+     {
+      "atMs": 33049,
+      "seatsUsed": 20,
+      "busy": 3,
+      "queued": 0
+     },
+     {
+      "atMs": 34049,
+      "seatsUsed": 20,
+      "busy": 3,
+      "queued": 0
+     },
+     {
+      "atMs": 35049,
+      "seatsUsed": 20,
+      "busy": 3,
+      "queued": 0
+     },
+     {
+      "atMs": 36049,
+      "seatsUsed": 20,
+      "busy": 3,
+      "queued": 0
+     },
+     {
+      "atMs": 37061,
+      "seatsUsed": 20,
+      "busy": 3,
+      "queued": 0
+     },
+     {
+      "atMs": 38063,
+      "seatsUsed": 20,
+      "busy": 3,
+      "queued": 0
+     },
+     {
+      "atMs": 38695,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 20,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.188,
+      "max": 0.196
+     },
+     "firstAnswerS": {
+      "p50": 19.412,
+      "max": 37.526
+     },
+     "wordsPerS": {
+      "p50": 79.7,
+      "min": 57.3
+     },
+     "answerWords": {
+      "p50": 238
+     },
+     "thinkingWords": {
+      "p50": 1470
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 107,
+      "firstAnswerMs": 15015,
+      "thinkingWords": 1153,
+      "answerWords": 226,
+      "totalMs": 17418,
+      "error": null,
+      "wordsPerS": 79.7
+     },
+     {
+      "firstTokenMs": 179,
+      "firstAnswerMs": 18341,
+      "thinkingWords": 1471,
+      "answerWords": 213,
+      "totalMs": 20653,
+      "error": null,
+      "wordsPerS": 82.3
+     },
+     {
+      "firstTokenMs": 173,
+      "firstAnswerMs": 8985,
+      "thinkingWords": 676,
+      "answerWords": 238,
+      "totalMs": 11730,
+      "error": null,
+      "wordsPerS": 79.1
+     },
+     {
+      "firstTokenMs": 183,
+      "firstAnswerMs": 10307,
+      "thinkingWords": 738,
+      "answerWords": 235,
+      "totalMs": 13309,
+      "error": null,
+      "wordsPerS": 74.1
+     },
+     {
+      "firstTokenMs": 183,
+      "firstAnswerMs": 19732,
+      "thinkingWords": 1603,
+      "answerWords": 242,
+      "totalMs": 22177,
+      "error": null,
+      "wordsPerS": 83.9
+     },
+     {
+      "firstTokenMs": 183,
+      "firstAnswerMs": 9818,
+      "thinkingWords": 731,
+      "answerWords": 198,
+      "totalMs": 12057,
+      "error": null,
+      "wordsPerS": 78.2
+     },
+     {
+      "firstTokenMs": 183,
+      "firstAnswerMs": 20796,
+      "thinkingWords": 1583,
+      "answerWords": 216,
+      "totalMs": 22886,
+      "error": null,
+      "wordsPerS": 79.2
+     },
+     {
+      "firstTokenMs": 185,
+      "firstAnswerMs": 21956,
+      "thinkingWords": 1713,
+      "answerWords": 245,
+      "totalMs": 24259,
+      "error": null,
+      "wordsPerS": 81.3
+     },
+     {
+      "firstTokenMs": 185,
+      "firstAnswerMs": 37526,
+      "thinkingWords": 3227,
+      "answerWords": 249,
+      "totalMs": 38688,
+      "error": null,
+      "wordsPerS": 90.3
+     },
+     {
+      "firstTokenMs": 185,
+      "firstAnswerMs": 25808,
+      "thinkingWords": 2239,
+      "answerWords": 256,
+      "totalMs": 27887,
+      "error": null,
+      "wordsPerS": 90.1
+     },
+     {
+      "firstTokenMs": 188,
+      "firstAnswerMs": 17724,
+      "thinkingWords": 1353,
+      "answerWords": 261,
+      "totalMs": 20430,
+      "error": null,
+      "wordsPerS": 79.7
+     },
+     {
+      "firstTokenMs": 189,
+      "firstAnswerMs": 26912,
+      "thinkingWords": 2362,
+      "answerWords": 228,
+      "totalMs": 28672,
+      "error": null,
+      "wordsPerS": 90.9
+     },
+     {
+      "firstTokenMs": 189,
+      "firstAnswerMs": 19412,
+      "thinkingWords": 1470,
+      "answerWords": 238,
+      "totalMs": 21642,
+      "error": null,
+      "wordsPerS": 79.6
+     },
+     {
+      "firstTokenMs": 189,
+      "firstAnswerMs": 9595,
+      "thinkingWords": 689,
+      "answerWords": 216,
+      "totalMs": 12430,
+      "error": null,
+      "wordsPerS": 73.9
+     },
+     {
+      "firstTokenMs": 189,
+      "firstAnswerMs": 28247,
+      "thinkingWords": 1973,
+      "answerWords": 228,
+      "totalMs": 29979,
+      "error": null,
+      "wordsPerS": 73.9
+     },
+     {
+      "firstTokenMs": 189,
+      "firstAnswerMs": 23922,
+      "thinkingWords": 2027,
+      "answerWords": 238,
+      "totalMs": 25728,
+      "error": null,
+      "wordsPerS": 88.7
+     },
+     {
+      "firstTokenMs": 196,
+      "firstAnswerMs": 5713,
+      "thinkingWords": 421,
+      "answerWords": 241,
+      "totalMs": 8616,
+      "error": null,
+      "wordsPerS": 78.6
+     },
+     {
+      "firstTokenMs": 196,
+      "firstAnswerMs": 15935,
+      "thinkingWords": 1259,
+      "answerWords": 213,
+      "totalMs": 18234,
+      "error": null,
+      "wordsPerS": 81.6
+     },
+     {
+      "firstTokenMs": 196,
+      "firstAnswerMs": 21809,
+      "thinkingWords": 1114,
+      "answerWords": 258,
+      "totalMs": 24145,
+      "error": null,
+      "wordsPerS": 57.3
+     },
+     {
+      "firstTokenMs": 196,
+      "firstAnswerMs": 11823,
+      "thinkingWords": 885,
+      "answerWords": 234,
+      "totalMs": 14657,
+      "error": null,
+      "wordsPerS": 77.4
+     }
+    ]
+   },
+   {
+    "round": 2,
+    "mode": "through each client's Open WebUI",
+    "people": 20,
+    "gate": [
+     {
+      "atMs": 506,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 1007,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 2006,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 3007,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 4006,
+      "seatsUsed": 20,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 5006,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 6007,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 7009,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 8009,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 9009,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 10009,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 11009,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 12009,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 13009,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 14009,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 15009,
+      "seatsUsed": 20,
+      "busy": 19,
+      "queued": 0
+     },
+     {
+      "atMs": 16009,
+      "seatsUsed": 20,
+      "busy": 19,
+      "queued": 0
+     },
+     {
+      "atMs": 17009,
+      "seatsUsed": 20,
+      "busy": 19,
+      "queued": 0
+     },
+     {
+      "atMs": 18014,
+      "seatsUsed": 20,
+      "busy": 19,
+      "queued": 0
+     },
+     {
+      "atMs": 19012,
+      "seatsUsed": 20,
+      "busy": 19,
+      "queued": 0
+     },
+     {
+      "atMs": 20013,
+      "seatsUsed": 20,
+      "busy": 19,
+      "queued": 0
+     },
+     {
+      "atMs": 21012,
+      "seatsUsed": 20,
+      "busy": 19,
+      "queued": 0
+     },
+     {
+      "atMs": 22012,
+      "seatsUsed": 20,
+      "busy": 19,
+      "queued": 0
+     },
+     {
+      "atMs": 23012,
+      "seatsUsed": 20,
+      "busy": 19,
+      "queued": 0
+     },
+     {
+      "atMs": 24014,
+      "seatsUsed": 20,
+      "busy": 19,
+      "queued": 0
+     },
+     {
+      "atMs": 25017,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 26017,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 27020,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 28019,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 29019,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 30019,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 31025,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 32025,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 33025,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 33948,
+      "seatsUsed": 20,
+      "busy": 6,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 20,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.149,
+      "max": 0.159
+     },
+     "firstAnswerS": {
+      "p50": 20.63,
+      "max": 32.419
+     },
+     "wordsPerS": {
+      "p50": 75.9,
+      "min": 50.7
+     },
+     "answerWords": {
+      "p50": 225
+     },
+     "thinkingWords": {
+      "p50": 1389
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 118,
+      "firstAnswerMs": 22818,
+      "thinkingWords": 1863,
+      "answerWords": 236,
+      "totalMs": 24848,
+      "error": null,
+      "wordsPerS": 84.9
+     },
+     {
+      "firstTokenMs": 117,
+      "firstAnswerMs": 20686,
+      "thinkingWords": 952,
+      "answerWords": 219,
+      "totalMs": 22928,
+      "error": null,
+      "wordsPerS": 51.3
+     },
+     {
+      "firstTokenMs": 112,
+      "firstAnswerMs": 23131,
+      "thinkingWords": 1906,
+      "answerWords": 228,
+      "totalMs": 25128,
+      "error": null,
+      "wordsPerS": 85.3
+     },
+     {
+      "firstTokenMs": 117,
+      "firstAnswerMs": 17716,
+      "thinkingWords": 1289,
+      "answerWords": 221,
+      "totalMs": 20022,
+      "error": null,
+      "wordsPerS": 75.9
+     },
+     {
+      "firstTokenMs": 149,
+      "firstAnswerMs": 19300,
+      "thinkingWords": 1483,
+      "answerWords": 210,
+      "totalMs": 21602,
+      "error": null,
+      "wordsPerS": 78.9
+     },
+     {
+      "firstTokenMs": 128,
+      "firstAnswerMs": 23869,
+      "thinkingWords": 1254,
+      "answerWords": 225,
+      "totalMs": 25765,
+      "error": null,
+      "wordsPerS": 57.7
+     },
+     {
+      "firstTokenMs": 157,
+      "firstAnswerMs": 23780,
+      "thinkingWords": 1709,
+      "answerWords": 240,
+      "totalMs": 25839,
+      "error": null,
+      "wordsPerS": 75.9
+     },
+     {
+      "firstTokenMs": 127,
+      "firstAnswerMs": 16994,
+      "thinkingWords": 1288,
+      "answerWords": 192,
+      "totalMs": 19517,
+      "error": null,
+      "wordsPerS": 76.3
+     },
+     {
+      "firstTokenMs": 127,
+      "firstAnswerMs": 19781,
+      "thinkingWords": 1418,
+      "answerWords": 219,
+      "totalMs": 22196,
+      "error": null,
+      "wordsPerS": 74.2
+     },
+     {
+      "firstTokenMs": 127,
+      "firstAnswerMs": 15603,
+      "thinkingWords": 1175,
+      "answerWords": 221,
+      "totalMs": 18382,
+      "error": null,
+      "wordsPerS": 76.5
+     },
+     {
+      "firstTokenMs": 159,
+      "firstAnswerMs": 8519,
+      "thinkingWords": 635,
+      "answerWords": 208,
+      "totalMs": 11014,
+      "error": null,
+      "wordsPerS": 77.7
+     },
+     {
+      "firstTokenMs": 156,
+      "firstAnswerMs": 29106,
+      "thinkingWords": 2008,
+      "answerWords": 265,
+      "totalMs": 31113,
+      "error": null,
+      "wordsPerS": 73.4
+     },
+     {
+      "firstTokenMs": 147,
+      "firstAnswerMs": 20877,
+      "thinkingWords": 1626,
+      "answerWords": 262,
+      "totalMs": 23585,
+      "error": null,
+      "wordsPerS": 80.6
+     },
+     {
+      "firstTokenMs": 148,
+      "firstAnswerMs": 32419,
+      "thinkingWords": 1947,
+      "answerWords": 248,
+      "totalMs": 33940,
+      "error": null,
+      "wordsPerS": 65
+     },
+     {
+      "firstTokenMs": 149,
+      "firstAnswerMs": 16351,
+      "thinkingWords": 1200,
+      "answerWords": 188,
+      "totalMs": 18661,
+      "error": null,
+      "wordsPerS": 75
+     },
+     {
+      "firstTokenMs": 159,
+      "firstAnswerMs": 21490,
+      "thinkingWords": 962,
+      "answerWords": 237,
+      "totalMs": 23805,
+      "error": null,
+      "wordsPerS": 50.7
+     },
+     {
+      "firstTokenMs": 159,
+      "firstAnswerMs": 20630,
+      "thinkingWords": 1482,
+      "answerWords": 248,
+      "totalMs": 23519,
+      "error": null,
+      "wordsPerS": 74.1
+     },
+     {
+      "firstTokenMs": 159,
+      "firstAnswerMs": 20011,
+      "thinkingWords": 1365,
+      "answerWords": 220,
+      "totalMs": 22529,
+      "error": null,
+      "wordsPerS": 70.9
+     },
+     {
+      "firstTokenMs": 159,
+      "firstAnswerMs": 18279,
+      "thinkingWords": 1389,
+      "answerWords": 247,
+      "totalMs": 21111,
+      "error": null,
+      "wordsPerS": 78.1
+     },
+     {
+      "firstTokenMs": 156,
+      "firstAnswerMs": 15388,
+      "thinkingWords": 1166,
+      "answerWords": 211,
+      "totalMs": 18085,
+      "error": null,
+      "wordsPerS": 76.8
+     }
+    ]
+   }
+  ],
+  "thinking": "the model default (on)"
+ },
+ "firstStartRecords": [
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  }
+ ],
+ "owui": "0.13.3",
+ "build": "this checkout",
+ "sealHeard": [],
+ "connections": {
+  "client0": [
+   "127.0.0.1"
+  ],
+  "client1": [
+   "127.0.0.1"
+  ],
+  "client2": [
+   "127.0.0.1"
+  ],
+  "client3": [
+   "127.0.0.1"
+  ],
+  "client4": [
+   "127.0.0.1"
+  ],
+  "client5": [
+   "127.0.0.1"
+  ],
+  "client6": [
+   "127.0.0.1"
+  ],
+  "client7": [
+   "127.0.0.1"
+  ],
+  "client8": [
+   "127.0.0.1"
+  ],
+  "client9": [
+   "127.0.0.1"
+  ],
+  "client10": [
+   "127.0.0.1"
+  ],
+  "client11": [
+   "127.0.0.1"
+  ],
+  "client12": [
+   "127.0.0.1"
+  ],
+  "client13": [
+   "127.0.0.1"
+  ],
+  "client14": [
+   "127.0.0.1"
+  ],
+  "client15": [
+   "127.0.0.1"
+  ],
+  "client16": [
+   "127.0.0.1"
+  ],
+  "client17": [
+   "127.0.0.1"
+  ],
+  "client18": [
+   "127.0.0.1"
+  ],
+  "client19": [
+   "127.0.0.1"
+  ]
+ },
+ "memory": [
+  {
+   "atS": 58,
+   "perClientMiB": [
+    791,
+    793,
+    793,
+    791,
+    792,
+    792,
+    791,
+    791,
+    758,
+    792,
+    792,
+    794,
+    793,
+    792,
+    577,
+    584,
+    281,
+    280,
+    239,
+    51
+   ],
+   "totalMiB": 13067,
+   "freeMiB": 65656
+  },
+  {
+   "atS": 88,
+   "perClientMiB": [
+    792,
+    793,
+    793,
+    792,
+    792,
+    793,
+    792,
+    792,
+    792,
+    792,
+    792,
+    793,
+    792,
+    791,
+    792,
+    794,
+    792,
+    791,
+    792,
+    794
+   ],
+   "totalMiB": 15846,
+   "freeMiB": 63230
+  },
+  {
+   "atS": 118,
+   "perClientMiB": [
+    792,
+    793,
+    793,
+    792,
+    793,
+    793,
+    792,
+    792,
+    792,
+    793,
+    792,
+    793,
+    792,
+    791,
+    792,
+    793,
+    792,
+    791,
+    792,
+    793
+   ],
+   "totalMiB": 15846,
+   "freeMiB": 63224
+  },
+  {
+   "atS": 147,
+   "perClientMiB": [
+    791,
+    793,
+    794,
+    792,
+    793,
+    793,
+    792,
+    792,
+    792,
+    793,
+    792,
+    793,
+    792,
+    791,
+    792,
+    794,
+    793,
+    791,
+    792,
+    793
+   ],
+   "totalMiB": 15848,
+   "freeMiB": 63184
+  },
+  {
+   "atS": 178,
+   "perClientMiB": [
+    791,
+    794,
+    794,
+    792,
+    793,
+    793,
+    792,
+    792,
+    792,
+    793,
+    792,
+    794,
+    792,
+    791,
+    793,
+    794,
+    793,
+    792,
+    792,
+    793
+   ],
+   "totalMiB": 15852,
+   "freeMiB": 63176
+  },
+  {
+   "atS": 208,
+   "perClientMiB": [
+    791,
+    793,
+    793,
+    792,
+    792,
+    793,
+    791,
+    792,
+    792,
+    792,
+    793,
+    794,
+    792,
+    792,
+    793,
+    794,
+    793,
+    792,
+    792,
+    793
+   ],
+   "totalMiB": 15849,
+   "freeMiB": 63149
+  },
+  {
+   "atS": 238,
+   "perClientMiB": [
+    792,
+    793,
+    793,
+    792,
+    792,
+    793,
+    792,
+    792,
+    792,
+    792,
+    792,
+    793,
+    792,
+    791,
+    792,
+    793,
+    792,
+    791,
+    792,
+    793
+   ],
+   "totalMiB": 15844,
+   "freeMiB": 63149
+  },
+  {
+   "atS": 268,
+   "perClientMiB": [
+    792,
+    793,
+    793,
+    792,
+    793,
+    793,
+    792,
+    792,
+    792,
+    793,
+    792,
+    793,
+    792,
+    791,
+    792,
+    793,
+    792,
+    791,
+    792,
+    793
+   ],
+   "totalMiB": 15846,
+   "freeMiB": 63085
+  },
+  {
+   "atS": 271,
+   "perClientMiB": [
+    792,
+    793,
+    793,
+    792,
+    793,
+    793,
+    792,
+    792,
+    792,
+    793,
+    792,
+    793,
+    792,
+    791,
+    792,
+    793,
+    792,
+    792,
+    792,
+    793
+   ],
+   "totalMiB": 15847,
+   "freeMiB": 63081
+  }
+ ],
+ "perClient": [
+  {
+   "client": 0,
+   "farmMoves": 0,
+   "farms": [
+    "5.0s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "4.7s starting",
+    "21.8s ready",
+    "21.8s restarting",
+    "22.0s starting",
+    "37.6s ready",
+    "290.5s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 37.59,
+   "starts": 2,
+   "chatError": null,
+   "launchedS": 0.06,
+   "firstChatS": 58.508,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:58450",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 1,
+   "farmMoves": 0,
+   "farms": [
+    "3.5s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "3.5s starting",
+    "21.0s ready",
+    "288.8s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 20.96,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 1.785,
+   "firstChatS": 56.802,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:58103",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 2,
+   "farmMoves": 0,
+   "farms": [
+    "1.6s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "1.6s starting",
+    "19.4s ready",
+    "287.0s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 19.372,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 3.547,
+   "firstChatS": 55.043,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:58101",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 3,
+   "farmMoves": 0,
+   "farms": [
+    "3.5s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "3.5s starting",
+    "21.2s ready",
+    "283.8s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 21.204,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 6.751,
+   "firstChatS": 51.84,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:58172",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 4,
+   "farmMoves": 0,
+   "farms": [
+    "1.3s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "1.3s starting",
+    "18.7s ready",
+    "281.5s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 18.749,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 9.08,
+   "firstChatS": 49.519,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:58177",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 5,
+   "farmMoves": 0,
+   "farms": [
+    "1.9s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "1.9s starting",
+    "19.6s ready",
+    "277.3s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 19.601,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 13.367,
+   "firstChatS": 45.233,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:58272",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 6,
+   "farmMoves": 0,
+   "farms": [
+    "0.6s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "0.6s starting",
+    "18.4s ready",
+    "276.1s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 18.4,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 14.568,
+   "firstChatS": 44.032,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:58269",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 7,
+   "farmMoves": 0,
+   "farms": [
+    "3.8s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "3.8s starting",
+    "21.2s ready",
+    "274.2s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 21.22,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 16.446,
+   "firstChatS": 42.155,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:58398",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 8,
+   "farmMoves": 0,
+   "farms": [
+    "4.7s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "4.6s starting",
+    "22.3s ready",
+    "22.4s restarting",
+    "22.5s starting",
+    "37.7s ready",
+    "270.2s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 37.664,
+   "starts": 2,
+   "chatError": null,
+   "launchedS": 20.385,
+   "firstChatS": 38.216,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:58978",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 9,
+   "farmMoves": 0,
+   "farms": [
+    "1.9s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "1.9s starting",
+    "19.3s ready",
+    "267.2s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 19.291,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 23.388,
+   "firstChatS": 35.213,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:58538",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 10,
+   "farmMoves": 0,
+   "farms": [
+    "3.1s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "3.1s starting",
+    "20.2s ready",
+    "263.4s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 20.159,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 27.165,
+   "firstChatS": 31.437,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:58675",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 11,
+   "farmMoves": 0,
+   "farms": [
+    "0.7s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "0.7s starting",
+    "18.0s ready",
+    "261.1s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 18.017,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 29.545,
+   "firstChatS": 29.057,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:58673",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 12,
+   "farmMoves": 0,
+   "farms": [
+    "1.6s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "1.6s starting",
+    "18.6s ready",
+    "257.0s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 18.607,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 33.592,
+   "firstChatS": 25.01,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:58808",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 13,
+   "farmMoves": 0,
+   "farms": [
+    "1.9s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "1.9s starting",
+    "18.6s ready",
+    "252.2s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 18.643,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 38.447,
+   "firstChatS": 20.155,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:58923",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 14,
+   "farmMoves": 0,
+   "farms": [
+    "3.1s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "3.1s starting",
+    "20.3s ready",
+    "248.4s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 20.308,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 42.215,
+   "firstChatS": 21.098,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:59031",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 15,
+   "farmMoves": 0,
+   "farms": [
+    "0.3s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "0.4s starting",
+    "17.8s ready",
+    "245.7s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 17.759,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 44.937,
+   "firstChatS": 18.379,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:59027",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 16,
+   "farmMoves": 0,
+   "farms": [
+    "2.5s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "2.5s starting",
+    "19.6s ready",
+    "242.8s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 19.623,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 47.793,
+   "firstChatS": 20.535,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:59147",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 17,
+   "farmMoves": 0,
+   "farms": [
+    "1.3s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "1.3s starting",
+    "18.4s ready",
+    "241.6s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 18.437,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 49.042,
+   "firstChatS": 19.289,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:59148",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 18,
+   "farmMoves": 0,
+   "farms": [
+    "2.5s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "2.5s starting",
+    "18.4s ready",
+    "237.9s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 18.413,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 52.715,
+   "firstChatS": 18.577,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:59268",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 19,
+   "farmMoves": 0,
+   "farms": [
+    "3.1s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "3.2s starting",
+    "17.9s ready",
+    "233.5s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 17.856,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 57.116,
+   "firstChatS": 18.241,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:50162",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  }
+ ]
+}

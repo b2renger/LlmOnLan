@@ -1,0 +1,2006 @@
+{
+ "at": "2026-11-19T03:14:55.747Z",
+ "clients": 10,
+ "minutes": 6,
+ "outage": {
+  "silentS": 0,
+  "everyS": 60
+ },
+ "blipS": null,
+ "farm": {
+  "name": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+  "backend": {
+   "engine": "vllm",
+   "alias": "assistant",
+   "model": "Qwen3.6 35B-A3B · NVFP4",
+   "contextLength": 65536,
+   "contextAuto": false,
+   "contextPerSlot": 65536,
+   "slots": 48,
+   "slotsVerified": true,
+   "mtp": false,
+   "kvCacheType": "fp8",
+   "audio": false,
+   "replyTokens": 32768
+  }
+ },
+ "seats": "one address a client",
+ "bursts": {
+  "prompt": "Explain photosynthesis to a 12-year-old, in about 250 words.",
+  "maxTokens": 8000,
+  "model": "assistant",
+  "rounds": [
+   {
+    "round": 0,
+    "mode": "straight to the gate",
+    "people": 1,
+    "gate": [
+     {
+      "atMs": 507,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1008,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 2008,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 3008,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 4008,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 5010,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 6012,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 7011,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 8277,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 9279,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 10280,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 11282,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 11526,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 1,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.03,
+      "max": 0.03
+     },
+     "firstAnswerS": {
+      "p50": 9.838,
+      "max": 9.838
+     },
+     "wordsPerS": {
+      "p50": 162.8,
+      "min": 162.8
+     },
+     "answerWords": {
+      "p50": 279
+     },
+     "thinkingWords": {
+      "p50": 1591
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 30,
+      "firstAnswerMs": 9838,
+      "thinkingWords": 1591,
+      "answerWords": 279,
+      "totalMs": 11520,
+      "error": null,
+      "wordsPerS": 162.8
+     }
+    ]
+   },
+   {
+    "round": 0,
+    "mode": "through each client's Open WebUI",
+    "people": 1,
+    "gate": [
+     {
+      "atMs": 509,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1006,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 2008,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 3008,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 4009,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 5008,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 6012,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 7012,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 8013,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 9013,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 10015,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 11017,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 12017,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 13018,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 14021,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 15023,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 16024,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 17039,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 17102,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 1,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.048,
+      "max": 0.048
+     },
+     "firstAnswerS": {
+      "p50": 15.674,
+      "max": 15.674
+     },
+     "wordsPerS": {
+      "p50": 129.2,
+      "min": 129.2
+     },
+     "answerWords": {
+      "p50": 241
+     },
+     "thinkingWords": {
+      "p50": 1962
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 48,
+      "firstAnswerMs": 15674,
+      "thinkingWords": 1962,
+      "answerWords": 241,
+      "totalMs": 17097,
+      "error": null,
+      "wordsPerS": 129.2
+     }
+    ]
+   },
+   {
+    "round": 1,
+    "mode": "straight to the gate",
+    "people": 10,
+    "gate": [
+     {
+      "atMs": 506,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1008,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 2013,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 3013,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 4012,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 5013,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 6013,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 7018,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 8018,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 9019,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 10020,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 11020,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 12020,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 13024,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 14026,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 15026,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 16028,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     },
+     {
+      "atMs": 17028,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     },
+     {
+      "atMs": 18044,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     },
+     {
+      "atMs": 19060,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     },
+     {
+      "atMs": 20072,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     },
+     {
+      "atMs": 20953,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 10,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.134,
+      "max": 0.136
+     },
+     "firstAnswerS": {
+      "p50": 15.389,
+      "max": 19.623
+     },
+     "wordsPerS": {
+      "p50": 105.7,
+      "min": 83.6
+     },
+     "answerWords": {
+      "p50": 235
+     },
+     "thinkingWords": {
+      "p50": 1449
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 129,
+      "firstAnswerMs": 6183,
+      "thinkingWords": 626,
+      "answerWords": 225,
+      "totalMs": 8182,
+      "error": null,
+      "wordsPerS": 105.7
+     },
+     {
+      "firstTokenMs": 132,
+      "firstAnswerMs": 15389,
+      "thinkingWords": 1644,
+      "answerWords": 245,
+      "totalMs": 17363,
+      "error": null,
+      "wordsPerS": 109.6
+     },
+     {
+      "firstTokenMs": 132,
+      "firstAnswerMs": 4622,
+      "thinkingWords": 428,
+      "answerWords": 239,
+      "totalMs": 6743,
+      "error": null,
+      "wordsPerS": 100.9
+     },
+     {
+      "firstTokenMs": 134,
+      "firstAnswerMs": 17381,
+      "thinkingWords": 1346,
+      "answerWords": 238,
+      "totalMs": 19087,
+      "error": null,
+      "wordsPerS": 83.6
+     },
+     {
+      "firstTokenMs": 134,
+      "firstAnswerMs": 16478,
+      "thinkingWords": 1891,
+      "answerWords": 243,
+      "totalMs": 18363,
+      "error": null,
+      "wordsPerS": 117.1
+     },
+     {
+      "firstTokenMs": 134,
+      "firstAnswerMs": 19623,
+      "thinkingWords": 1587,
+      "answerWords": 220,
+      "totalMs": 20947,
+      "error": null,
+      "wordsPerS": 86.8
+     },
+     {
+      "firstTokenMs": 136,
+      "firstAnswerMs": 13470,
+      "thinkingWords": 1449,
+      "answerWords": 220,
+      "totalMs": 15307,
+      "error": null,
+      "wordsPerS": 110
+     },
+     {
+      "firstTokenMs": 136,
+      "firstAnswerMs": 18788,
+      "thinkingWords": 1497,
+      "answerWords": 197,
+      "totalMs": 20252,
+      "error": null,
+      "wordsPerS": 84.2
+     },
+     {
+      "firstTokenMs": 136,
+      "firstAnswerMs": 6218,
+      "thinkingWords": 640,
+      "answerWords": 235,
+      "totalMs": 8271,
+      "error": null,
+      "wordsPerS": 107.6
+     },
+     {
+      "firstTokenMs": 136,
+      "firstAnswerMs": 7253,
+      "thinkingWords": 682,
+      "answerWords": 222,
+      "totalMs": 9178,
+      "error": null,
+      "wordsPerS": 100
+     }
+    ]
+   },
+   {
+    "round": 1,
+    "mode": "through each client's Open WebUI",
+    "people": 10,
+    "gate": [
+     {
+      "atMs": 506,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1005,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 2005,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 3006,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 4009,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 5012,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 6015,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 7015,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 8017,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 9017,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 10019,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 11019,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 12022,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 13023,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 14023,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 15023,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 16023,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 17025,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 18027,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 19039,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 20038,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     },
+     {
+      "atMs": 21042,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     },
+     {
+      "atMs": 22043,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     },
+     {
+      "atMs": 23044,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     },
+     {
+      "atMs": 24047,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     },
+     {
+      "atMs": 25049,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     },
+     {
+      "atMs": 26050,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     },
+     {
+      "atMs": 27049,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     },
+     {
+      "atMs": 28050,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     },
+     {
+      "atMs": 29055,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     },
+     {
+      "atMs": 29120,
+      "seatsUsed": 10,
+      "busy": 5,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 10,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.098,
+      "max": 0.101
+     },
+     "firstAnswerS": {
+      "p50": 18.29,
+      "max": 27.358
+     },
+     "wordsPerS": {
+      "p50": 101.6,
+      "min": 63.2
+     },
+     "answerWords": {
+      "p50": 236
+     },
+     "thinkingWords": {
+      "p50": 1717
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 72,
+      "firstAnswerMs": 13379,
+      "thinkingWords": 858,
+      "answerWords": 224,
+      "totalMs": 14859,
+      "error": null,
+      "wordsPerS": 73.2
+     },
+     {
+      "firstTokenMs": 98,
+      "firstAnswerMs": 25259,
+      "thinkingWords": 1496,
+      "answerWords": 203,
+      "totalMs": 26982,
+      "error": null,
+      "wordsPerS": 63.2
+     },
+     {
+      "firstTokenMs": 90,
+      "firstAnswerMs": 18290,
+      "thinkingWords": 1831,
+      "answerWords": 242,
+      "totalMs": 20362,
+      "error": null,
+      "wordsPerS": 102.3
+     },
+     {
+      "firstTokenMs": 101,
+      "firstAnswerMs": 8710,
+      "thinkingWords": 836,
+      "answerWords": 224,
+      "totalMs": 10881,
+      "error": null,
+      "wordsPerS": 98.3
+     },
+     {
+      "firstTokenMs": 99,
+      "firstAnswerMs": 17044,
+      "thinkingWords": 1717,
+      "answerWords": 236,
+      "totalMs": 19249,
+      "error": null,
+      "wordsPerS": 102
+     },
+     {
+      "firstTokenMs": 100,
+      "firstAnswerMs": 17189,
+      "thinkingWords": 1389,
+      "answerWords": 199,
+      "totalMs": 18997,
+      "error": null,
+      "wordsPerS": 84
+     },
+     {
+      "firstTokenMs": 96,
+      "firstAnswerMs": 27358,
+      "thinkingWords": 2815,
+      "answerWords": 242,
+      "totalMs": 29113,
+      "error": null,
+      "wordsPerS": 105.4
+     },
+     {
+      "firstTokenMs": 96,
+      "firstAnswerMs": 26254,
+      "thinkingWords": 2606,
+      "answerWords": 270,
+      "totalMs": 28398,
+      "error": null,
+      "wordsPerS": 101.6
+     },
+     {
+      "firstTokenMs": 99,
+      "firstAnswerMs": 14447,
+      "thinkingWords": 1486,
+      "answerWords": 223,
+      "totalMs": 16558,
+      "error": null,
+      "wordsPerS": 103.8
+     },
+     {
+      "firstTokenMs": 88,
+      "firstAnswerMs": 22067,
+      "thinkingWords": 2090,
+      "answerWords": 239,
+      "totalMs": 23996,
+      "error": null,
+      "wordsPerS": 97.4
+     }
+    ]
+   },
+   {
+    "round": 2,
+    "mode": "straight to the gate",
+    "people": 10,
+    "gate": [
+     {
+      "atMs": 508,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1007,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 2007,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 3006,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 4007,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 5007,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 6021,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 7024,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 8024,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 9027,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 10029,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 11029,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 12032,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 13030,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 14030,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 15034,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 16035,
+      "seatsUsed": 10,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 17049,
+      "seatsUsed": 10,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 18048,
+      "seatsUsed": 10,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 19048,
+      "seatsUsed": 10,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 20051,
+      "seatsUsed": 10,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 21050,
+      "seatsUsed": 10,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 22052,
+      "seatsUsed": 10,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 23056,
+      "seatsUsed": 10,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 24055,
+      "seatsUsed": 10,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 25058,
+      "seatsUsed": 10,
+      "busy": 6,
+      "queued": 0
+     },
+     {
+      "atMs": 26057,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 27061,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 28064,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 29066,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 30069,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 31070,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 32073,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 33073,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 34038,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 10,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.094,
+      "max": 0.095
+     },
+     "firstAnswerS": {
+      "p50": 16.801,
+      "max": 32.532
+     },
+     "wordsPerS": {
+      "p50": 102.3,
+      "min": 97.8
+     },
+     "answerWords": {
+      "p50": 235
+     },
+     "thinkingWords": {
+      "p50": 1683
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 69,
+      "firstAnswerMs": 18266,
+      "thinkingWords": 1950,
+      "answerWords": 241,
+      "totalMs": 20143,
+      "error": null,
+      "wordsPerS": 109.1
+     },
+     {
+      "firstTokenMs": 87,
+      "firstAnswerMs": 6749,
+      "thinkingWords": 642,
+      "answerWords": 213,
+      "totalMs": 8706,
+      "error": null,
+      "wordsPerS": 99.2
+     },
+     {
+      "firstTokenMs": 87,
+      "firstAnswerMs": 15110,
+      "thinkingWords": 1536,
+      "answerWords": 234,
+      "totalMs": 17068,
+      "error": null,
+      "wordsPerS": 104.2
+     },
+     {
+      "firstTokenMs": 87,
+      "firstAnswerMs": 10070,
+      "thinkingWords": 989,
+      "answerWords": 250,
+      "totalMs": 12232,
+      "error": null,
+      "wordsPerS": 102
+     },
+     {
+      "firstTokenMs": 91,
+      "firstAnswerMs": 32532,
+      "thinkingWords": 3188,
+      "answerWords": 229,
+      "totalMs": 34031,
+      "error": null,
+      "wordsPerS": 100.7
+     },
+     {
+      "firstTokenMs": 94,
+      "firstAnswerMs": 19357,
+      "thinkingWords": 1865,
+      "answerWords": 267,
+      "totalMs": 21313,
+      "error": null,
+      "wordsPerS": 100.5
+     },
+     {
+      "firstTokenMs": 94,
+      "firstAnswerMs": 22204,
+      "thinkingWords": 2407,
+      "answerWords": 229,
+      "totalMs": 23885,
+      "error": null,
+      "wordsPerS": 110.8
+     },
+     {
+      "firstTokenMs": 95,
+      "firstAnswerMs": 16801,
+      "thinkingWords": 1683,
+      "answerWords": 205,
+      "totalMs": 18542,
+      "error": null,
+      "wordsPerS": 102.3
+     },
+     {
+      "firstTokenMs": 95,
+      "firstAnswerMs": 8234,
+      "thinkingWords": 762,
+      "answerWords": 235,
+      "totalMs": 10289,
+      "error": null,
+      "wordsPerS": 97.8
+     },
+     {
+      "firstTokenMs": 95,
+      "firstAnswerMs": 12294,
+      "thinkingWords": 1226,
+      "answerWords": 252,
+      "totalMs": 14547,
+      "error": null,
+      "wordsPerS": 102.3
+     }
+    ]
+   },
+   {
+    "round": 2,
+    "mode": "through each client's Open WebUI",
+    "people": 10,
+    "gate": [
+     {
+      "atMs": 508,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1007,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 2009,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 3008,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 4009,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 5009,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 6010,
+      "seatsUsed": 10,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 7013,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 8013,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 9014,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 10014,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 11022,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 12024,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 13025,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 14036,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 15037,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 16038,
+      "seatsUsed": 10,
+      "busy": 10,
+      "queued": 0
+     },
+     {
+      "atMs": 17043,
+      "seatsUsed": 10,
+      "busy": 4,
+      "queued": 0
+     },
+     {
+      "atMs": 18042,
+      "seatsUsed": 10,
+      "busy": 4,
+      "queued": 0
+     },
+     {
+      "atMs": 19046,
+      "seatsUsed": 10,
+      "busy": 4,
+      "queued": 0
+     },
+     {
+      "atMs": 20046,
+      "seatsUsed": 10,
+      "busy": 4,
+      "queued": 0
+     },
+     {
+      "atMs": 21046,
+      "seatsUsed": 10,
+      "busy": 4,
+      "queued": 0
+     },
+     {
+      "atMs": 22045,
+      "seatsUsed": 10,
+      "busy": 4,
+      "queued": 0
+     },
+     {
+      "atMs": 23047,
+      "seatsUsed": 10,
+      "busy": 4,
+      "queued": 0
+     },
+     {
+      "atMs": 24050,
+      "seatsUsed": 10,
+      "busy": 4,
+      "queued": 0
+     },
+     {
+      "atMs": 25050,
+      "seatsUsed": 10,
+      "busy": 4,
+      "queued": 0
+     },
+     {
+      "atMs": 26051,
+      "seatsUsed": 10,
+      "busy": 4,
+      "queued": 0
+     },
+     {
+      "atMs": 27054,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 28055,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 29055,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     },
+     {
+      "atMs": 29597,
+      "seatsUsed": 10,
+      "busy": 1,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 10,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.146,
+      "max": 0.146
+     },
+     "firstAnswerS": {
+      "p50": 11.435,
+      "max": 28.008
+     },
+     "wordsPerS": {
+      "p50": 104.7,
+      "min": 79.7
+     },
+     "answerWords": {
+      "p50": 240
+     },
+     "thinkingWords": {
+      "p50": 1071
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 143,
+      "firstAnswerMs": 28008,
+      "thinkingWords": 2105,
+      "answerWords": 242,
+      "totalMs": 29591,
+      "error": null,
+      "wordsPerS": 79.7
+     },
+     {
+      "firstTokenMs": 143,
+      "firstAnswerMs": 8992,
+      "thinkingWords": 914,
+      "answerWords": 243,
+      "totalMs": 11194,
+      "error": null,
+      "wordsPerS": 104.7
+     },
+     {
+      "firstTokenMs": 142,
+      "firstAnswerMs": 6231,
+      "thinkingWords": 632,
+      "answerWords": 221,
+      "totalMs": 8247,
+      "error": null,
+      "wordsPerS": 105.2
+     },
+     {
+      "firstTokenMs": 146,
+      "firstAnswerMs": 15146,
+      "thinkingWords": 1572,
+      "answerWords": 240,
+      "totalMs": 17044,
+      "error": null,
+      "wordsPerS": 107.2
+     },
+     {
+      "firstTokenMs": 137,
+      "firstAnswerMs": 18577,
+      "thinkingWords": 2098,
+      "answerWords": 259,
+      "totalMs": 20546,
+      "error": null,
+      "wordsPerS": 115.5
+     },
+     {
+      "firstTokenMs": 146,
+      "firstAnswerMs": 9434,
+      "thinkingWords": 901,
+      "answerWords": 186,
+      "totalMs": 11128,
+      "error": null,
+      "wordsPerS": 99
+     },
+     {
+      "firstTokenMs": 146,
+      "firstAnswerMs": 15093,
+      "thinkingWords": 1591,
+      "answerWords": 237,
+      "totalMs": 16867,
+      "error": null,
+      "wordsPerS": 109.3
+     },
+     {
+      "firstTokenMs": 146,
+      "firstAnswerMs": 7394,
+      "thinkingWords": 687,
+      "answerWords": 217,
+      "totalMs": 9428,
+      "error": null,
+      "wordsPerS": 97.4
+     },
+     {
+      "firstTokenMs": 146,
+      "firstAnswerMs": 9824,
+      "thinkingWords": 934,
+      "answerWords": 236,
+      "totalMs": 11901,
+      "error": null,
+      "wordsPerS": 99.5
+     },
+     {
+      "firstTokenMs": 146,
+      "firstAnswerMs": 11435,
+      "thinkingWords": 1071,
+      "answerWords": 269,
+      "totalMs": 13580,
+      "error": null,
+      "wordsPerS": 99.7
+     }
+    ]
+   }
+  ],
+  "thinking": "the model default (on)"
+ },
+ "firstStartRecords": [
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  }
+ ],
+ "owui": "0.13.3",
+ "build": "this checkout",
+ "sealHeard": [],
+ "connections": {
+  "client0": [
+   "127.0.0.1"
+  ],
+  "client1": [
+   "127.0.0.1"
+  ],
+  "client2": [
+   "127.0.0.1"
+  ],
+  "client3": [
+   "127.0.0.1"
+  ],
+  "client4": [
+   "127.0.0.1"
+  ],
+  "client5": [
+   "127.0.0.1"
+  ],
+  "client6": [
+   "127.0.0.1"
+  ],
+  "client7": [
+   "127.0.0.1"
+  ],
+  "client8": [
+   "127.0.0.1"
+  ],
+  "client9": [
+   "127.0.0.1"
+  ]
+ },
+ "memory": [
+  {
+   "atS": 28,
+   "perClientMiB": [
+    281,
+    791,
+    793,
+    793,
+    621,
+    622,
+    283,
+    243,
+    242,
+    51
+   ],
+   "totalMiB": 4720,
+   "freeMiB": 72735
+  },
+  {
+   "atS": 58,
+   "perClientMiB": [
+    791,
+    790,
+    791,
+    792,
+    791,
+    792,
+    792,
+    792,
+    793,
+    793
+   ],
+   "totalMiB": 7917,
+   "freeMiB": 69945
+  },
+  {
+   "atS": 88,
+   "perClientMiB": [
+    791,
+    791,
+    792,
+    792,
+    791,
+    792,
+    792,
+    792,
+    793,
+    792
+   ],
+   "totalMiB": 7918,
+   "freeMiB": 69933
+  },
+  {
+   "atS": 118,
+   "perClientMiB": [
+    791,
+    791,
+    792,
+    792,
+    791,
+    792,
+    792,
+    792,
+    793,
+    792
+   ],
+   "totalMiB": 7918,
+   "freeMiB": 69951
+  },
+  {
+   "atS": 148,
+   "perClientMiB": [
+    791,
+    791,
+    792,
+    792,
+    791,
+    792,
+    792,
+    792,
+    793,
+    792
+   ],
+   "totalMiB": 7918,
+   "freeMiB": 69930
+  },
+  {
+   "atS": 178,
+   "perClientMiB": [
+    791,
+    791,
+    792,
+    793,
+    791,
+    793,
+    793,
+    792,
+    794,
+    792
+   ],
+   "totalMiB": 7922,
+   "freeMiB": 69943
+  },
+  {
+   "atS": 208,
+   "perClientMiB": [
+    791,
+    790,
+    792,
+    792,
+    791,
+    792,
+    793,
+    793,
+    794,
+    792
+   ],
+   "totalMiB": 7920,
+   "freeMiB": 69930
+  },
+  {
+   "atS": 223,
+   "perClientMiB": [
+    791,
+    790,
+    792,
+    792,
+    791,
+    792,
+    792,
+    792,
+    793,
+    792
+   ],
+   "totalMiB": 7917,
+   "freeMiB": 69929
+  }
+ ],
+ "perClient": [
+  {
+   "client": 0,
+   "farmMoves": 0,
+   "farms": [
+    "5.0s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "4.7s starting",
+    "21.2s ready",
+    "21.2s restarting",
+    "21.3s starting",
+    "36.8s ready",
+    "231.6s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 36.814,
+   "starts": 2,
+   "chatError": null,
+   "launchedS": 0.046,
+   "firstChatS": 29.058,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:55184",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 1,
+   "farmMoves": 0,
+   "farms": [
+    "0.4s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "0.4s starting",
+    "16.5s ready",
+    "226.8s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 16.535,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 4.831,
+   "firstChatS": 24.276,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:54911",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 2,
+   "farmMoves": 0,
+   "farms": [
+    "4.0s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "4.0s starting",
+    "21.4s ready",
+    "225.4s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 21.432,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 6.252,
+   "firstChatS": 22.857,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:54959",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 3,
+   "farmMoves": 0,
+   "farms": [
+    "2.2s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "2.2s starting",
+    "19.6s ready",
+    "223.7s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 19.638,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 7.935,
+   "firstChatS": 21.176,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:54956",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 4,
+   "farmMoves": 0,
+   "farms": [
+    "2.8s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "2.8s starting",
+    "20.2s ready",
+    "219.3s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 20.235,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 12.29,
+   "firstChatS": 20.822,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:55040",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 5,
+   "farmMoves": 0,
+   "farms": [
+    "0.3s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "0.4s starting",
+    "17.8s ready",
+    "216.8s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 17.752,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 14.82,
+   "firstChatS": 18.296,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:55043",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 6,
+   "farmMoves": 0,
+   "farms": [
+    "0.6s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "0.7s starting",
+    "17.8s ready",
+    "211.9s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 17.764,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 19.709,
+   "firstChatS": 18.433,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:55157",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 7,
+   "farmMoves": 0,
+   "farms": [
+    "1.9s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "1.9s starting",
+    "19.0s ready",
+    "208.4s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 18.986,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 23.178,
+   "firstChatS": 20.11,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:61806",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 8,
+   "farmMoves": 0,
+   "farms": [
+    "0.9s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "1.0s starting",
+    "17.7s ready",
+    "207.3s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 17.718,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 24.32,
+   "firstChatS": 18.971,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:61811",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 9,
+   "farmMoves": 0,
+   "farms": [
+    "2.2s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "2.2s starting",
+    "17.2s ready",
+    "203.7s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 17.195,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 27.891,
+   "firstChatS": 18.282,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:61956",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  }
+ ]
+}

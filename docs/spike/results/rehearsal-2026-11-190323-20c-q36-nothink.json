@@ -1,0 +1,1938 @@
+{
+ "at": "2026-11-19T03:23:38.787Z",
+ "clients": 20,
+ "minutes": 6,
+ "outage": {
+  "silentS": 0,
+  "everyS": 60
+ },
+ "blipS": null,
+ "farm": {
+  "name": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+  "backend": {
+   "engine": "vllm",
+   "alias": "assistant",
+   "model": "Qwen3.6 35B-A3B · NVFP4",
+   "contextLength": 65536,
+   "contextAuto": false,
+   "contextPerSlot": 65536,
+   "slots": 48,
+   "slotsVerified": true,
+   "mtp": false,
+   "kvCacheType": "fp8",
+   "audio": false,
+   "replyTokens": 32768
+  }
+ },
+ "seats": "one address a client",
+ "bursts": {
+  "prompt": "Explain photosynthesis to a 12-year-old, in about 250 words.",
+  "maxTokens": 8000,
+  "model": "assistant",
+  "thinking": "off",
+  "rounds": [
+   {
+    "round": 0,
+    "mode": "straight to the gate",
+    "people": 1,
+    "gate": [
+     {
+      "atMs": 506,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1005,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1786,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 1,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.242,
+      "max": 0.242
+     },
+     "firstAnswerS": {
+      "p50": 0.242,
+      "max": 0.242
+     },
+     "wordsPerS": {
+      "p50": 192.6,
+      "min": 192.6
+     },
+     "answerWords": {
+      "p50": 296
+     },
+     "thinkingWords": {
+      "p50": 0
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 242,
+      "firstAnswerMs": 242,
+      "thinkingWords": 0,
+      "answerWords": 296,
+      "totalMs": 1779,
+      "error": null,
+      "wordsPerS": 192.6
+     }
+    ]
+   },
+   {
+    "round": 0,
+    "mode": "through each client's Open WebUI",
+    "people": 1,
+    "gate": [
+     {
+      "atMs": 508,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1007,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1670,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 1,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.047,
+      "max": 0.047
+     },
+     "firstAnswerS": {
+      "p50": 0.047,
+      "max": 0.047
+     },
+     "wordsPerS": {
+      "p50": 186.7,
+      "min": 186.7
+     },
+     "answerWords": {
+      "p50": 302
+     },
+     "thinkingWords": {
+      "p50": 0
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 47,
+      "firstAnswerMs": 47,
+      "thinkingWords": 0,
+      "answerWords": 302,
+      "totalMs": 1665,
+      "error": null,
+      "wordsPerS": 186.7
+     }
+    ]
+   },
+   {
+    "round": 1,
+    "mode": "straight to the gate",
+    "people": 20,
+    "gate": [
+     {
+      "atMs": 506,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1007,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 2007,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 3006,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 3331,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 20,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.194,
+      "max": 0.195
+     },
+     "firstAnswerS": {
+      "p50": 0.194,
+      "max": 0.195
+     },
+     "wordsPerS": {
+      "p50": 101,
+      "min": 96.2
+     },
+     "answerWords": {
+      "p50": 300
+     },
+     "thinkingWords": {
+      "p50": 0
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 172,
+      "firstAnswerMs": 172,
+      "thinkingWords": 0,
+      "answerWords": 301,
+      "totalMs": 3086,
+      "error": null,
+      "wordsPerS": 103.3
+     },
+     {
+      "firstTokenMs": 175,
+      "firstAnswerMs": 175,
+      "thinkingWords": 0,
+      "answerWords": 295,
+      "totalMs": 3112,
+      "error": null,
+      "wordsPerS": 100.4
+     },
+     {
+      "firstTokenMs": 176,
+      "firstAnswerMs": 176,
+      "thinkingWords": 0,
+      "answerWords": 322,
+      "totalMs": 3287,
+      "error": null,
+      "wordsPerS": 103.5
+     },
+     {
+      "firstTokenMs": 176,
+      "firstAnswerMs": 176,
+      "thinkingWords": 0,
+      "answerWords": 285,
+      "totalMs": 3074,
+      "error": null,
+      "wordsPerS": 98.3
+     },
+     {
+      "firstTokenMs": 176,
+      "firstAnswerMs": 176,
+      "thinkingWords": 0,
+      "answerWords": 293,
+      "totalMs": 3011,
+      "error": null,
+      "wordsPerS": 103.4
+     },
+     {
+      "firstTokenMs": 180,
+      "firstAnswerMs": 180,
+      "thinkingWords": 0,
+      "answerWords": 294,
+      "totalMs": 3192,
+      "error": null,
+      "wordsPerS": 97.6
+     },
+     {
+      "firstTokenMs": 180,
+      "firstAnswerMs": 180,
+      "thinkingWords": 0,
+      "answerWords": 288,
+      "totalMs": 2897,
+      "error": null,
+      "wordsPerS": 106
+     },
+     {
+      "firstTokenMs": 180,
+      "firstAnswerMs": 180,
+      "thinkingWords": 0,
+      "answerWords": 308,
+      "totalMs": 3314,
+      "error": null,
+      "wordsPerS": 98.3
+     },
+     {
+      "firstTokenMs": 180,
+      "firstAnswerMs": 180,
+      "thinkingWords": 0,
+      "answerWords": 284,
+      "totalMs": 3131,
+      "error": null,
+      "wordsPerS": 96.2
+     },
+     {
+      "firstTokenMs": 194,
+      "firstAnswerMs": 194,
+      "thinkingWords": 0,
+      "answerWords": 294,
+      "totalMs": 3141,
+      "error": null,
+      "wordsPerS": 99.8
+     },
+     {
+      "firstTokenMs": 194,
+      "firstAnswerMs": 194,
+      "thinkingWords": 0,
+      "answerWords": 280,
+      "totalMs": 2928,
+      "error": null,
+      "wordsPerS": 102.4
+     },
+     {
+      "firstTokenMs": 195,
+      "firstAnswerMs": 195,
+      "thinkingWords": 0,
+      "answerWords": 300,
+      "totalMs": 3286,
+      "error": null,
+      "wordsPerS": 97.1
+     },
+     {
+      "firstTokenMs": 194,
+      "firstAnswerMs": 194,
+      "thinkingWords": 0,
+      "answerWords": 283,
+      "totalMs": 2967,
+      "error": null,
+      "wordsPerS": 102.1
+     },
+     {
+      "firstTokenMs": 194,
+      "firstAnswerMs": 194,
+      "thinkingWords": 0,
+      "answerWords": 315,
+      "totalMs": 3322,
+      "error": null,
+      "wordsPerS": 100.7
+     },
+     {
+      "firstTokenMs": 195,
+      "firstAnswerMs": 195,
+      "thinkingWords": 0,
+      "answerWords": 285,
+      "totalMs": 3018,
+      "error": null,
+      "wordsPerS": 101
+     },
+     {
+      "firstTokenMs": 195,
+      "firstAnswerMs": 195,
+      "thinkingWords": 0,
+      "answerWords": 305,
+      "totalMs": 3240,
+      "error": null,
+      "wordsPerS": 100.2
+     },
+     {
+      "firstTokenMs": 195,
+      "firstAnswerMs": 195,
+      "thinkingWords": 0,
+      "answerWords": 320,
+      "totalMs": 3190,
+      "error": null,
+      "wordsPerS": 106.8
+     },
+     {
+      "firstTokenMs": 194,
+      "firstAnswerMs": 194,
+      "thinkingWords": 0,
+      "answerWords": 324,
+      "totalMs": 3238,
+      "error": null,
+      "wordsPerS": 106.4
+     },
+     {
+      "firstTokenMs": 194,
+      "firstAnswerMs": 194,
+      "thinkingWords": 0,
+      "answerWords": 315,
+      "totalMs": 3323,
+      "error": null,
+      "wordsPerS": 100.7
+     },
+     {
+      "firstTokenMs": 194,
+      "firstAnswerMs": 194,
+      "thinkingWords": 0,
+      "answerWords": 325,
+      "totalMs": 3262,
+      "error": null,
+      "wordsPerS": 105.9
+     }
+    ]
+   },
+   {
+    "round": 1,
+    "mode": "through each client's Open WebUI",
+    "people": 20,
+    "gate": [
+     {
+      "atMs": 507,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1021,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 2023,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 3022,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 3511,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 20,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.3,
+      "max": 0.312
+     },
+     "firstAnswerS": {
+      "p50": 0.3,
+      "max": 0.312
+     },
+     "wordsPerS": {
+      "p50": 100.8,
+      "min": 93.5
+     },
+     "answerWords": {
+      "p50": 307
+     },
+     "thinkingWords": {
+      "p50": 0
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 175,
+      "firstAnswerMs": 175,
+      "thinkingWords": 0,
+      "answerWords": 294,
+      "totalMs": 3160,
+      "error": null,
+      "wordsPerS": 98.5
+     },
+     {
+      "firstTokenMs": 288,
+      "firstAnswerMs": 288,
+      "thinkingWords": 0,
+      "answerWords": 302,
+      "totalMs": 3223,
+      "error": null,
+      "wordsPerS": 102.9
+     },
+     {
+      "firstTokenMs": 289,
+      "firstAnswerMs": 289,
+      "thinkingWords": 0,
+      "answerWords": 292,
+      "totalMs": 3106,
+      "error": null,
+      "wordsPerS": 103.7
+     },
+     {
+      "firstTokenMs": 293,
+      "firstAnswerMs": 293,
+      "thinkingWords": 0,
+      "answerWords": 310,
+      "totalMs": 3287,
+      "error": null,
+      "wordsPerS": 103.5
+     },
+     {
+      "firstTokenMs": 300,
+      "firstAnswerMs": 300,
+      "thinkingWords": 0,
+      "answerWords": 315,
+      "totalMs": 3463,
+      "error": null,
+      "wordsPerS": 99.6
+     },
+     {
+      "firstTokenMs": 299,
+      "firstAnswerMs": 299,
+      "thinkingWords": 0,
+      "answerWords": 300,
+      "totalMs": 3418,
+      "error": null,
+      "wordsPerS": 96.2
+     },
+     {
+      "firstTokenMs": 299,
+      "firstAnswerMs": 299,
+      "thinkingWords": 0,
+      "answerWords": 301,
+      "totalMs": 3284,
+      "error": null,
+      "wordsPerS": 100.8
+     },
+     {
+      "firstTokenMs": 299,
+      "firstAnswerMs": 299,
+      "thinkingWords": 0,
+      "answerWords": 324,
+      "totalMs": 3503,
+      "error": null,
+      "wordsPerS": 101.1
+     },
+     {
+      "firstTokenMs": 299,
+      "firstAnswerMs": 299,
+      "thinkingWords": 0,
+      "answerWords": 312,
+      "totalMs": 3501,
+      "error": null,
+      "wordsPerS": 97.4
+     },
+     {
+      "firstTokenMs": 303,
+      "firstAnswerMs": 303,
+      "thinkingWords": 0,
+      "answerWords": 295,
+      "totalMs": 3420,
+      "error": null,
+      "wordsPerS": 94.6
+     },
+     {
+      "firstTokenMs": 312,
+      "firstAnswerMs": 312,
+      "thinkingWords": 0,
+      "answerWords": 308,
+      "totalMs": 3419,
+      "error": null,
+      "wordsPerS": 99.1
+     },
+     {
+      "firstTokenMs": 303,
+      "firstAnswerMs": 303,
+      "thinkingWords": 0,
+      "answerWords": 285,
+      "totalMs": 3350,
+      "error": null,
+      "wordsPerS": 93.5
+     },
+     {
+      "firstTokenMs": 300,
+      "firstAnswerMs": 300,
+      "thinkingWords": 0,
+      "answerWords": 309,
+      "totalMs": 3473,
+      "error": null,
+      "wordsPerS": 97.4
+     },
+     {
+      "firstTokenMs": 300,
+      "firstAnswerMs": 300,
+      "thinkingWords": 0,
+      "answerWords": 307,
+      "totalMs": 3223,
+      "error": null,
+      "wordsPerS": 105
+     },
+     {
+      "firstTokenMs": 311,
+      "firstAnswerMs": 311,
+      "thinkingWords": 0,
+      "answerWords": 311,
+      "totalMs": 3503,
+      "error": null,
+      "wordsPerS": 97.4
+     },
+     {
+      "firstTokenMs": 312,
+      "firstAnswerMs": 312,
+      "thinkingWords": 0,
+      "answerWords": 278,
+      "totalMs": 3050,
+      "error": null,
+      "wordsPerS": 101.5
+     },
+     {
+      "firstTokenMs": 311,
+      "firstAnswerMs": 311,
+      "thinkingWords": 0,
+      "answerWords": 312,
+      "totalMs": 3491,
+      "error": null,
+      "wordsPerS": 98.1
+     },
+     {
+      "firstTokenMs": 312,
+      "firstAnswerMs": 312,
+      "thinkingWords": 0,
+      "answerWords": 326,
+      "totalMs": 3474,
+      "error": null,
+      "wordsPerS": 103.1
+     },
+     {
+      "firstTokenMs": 312,
+      "firstAnswerMs": 312,
+      "thinkingWords": 0,
+      "answerWords": 307,
+      "totalMs": 3351,
+      "error": null,
+      "wordsPerS": 101
+     },
+     {
+      "firstTokenMs": 312,
+      "firstAnswerMs": 312,
+      "thinkingWords": 0,
+      "answerWords": 305,
+      "totalMs": 3285,
+      "error": null,
+      "wordsPerS": 102.6
+     }
+    ]
+   },
+   {
+    "round": 2,
+    "mode": "straight to the gate",
+    "people": 20,
+    "gate": [
+     {
+      "atMs": 506,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1007,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 2010,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 3008,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 3343,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 20,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.193,
+      "max": 0.202
+     },
+     "firstAnswerS": {
+      "p50": 0.193,
+      "max": 0.202
+     },
+     "wordsPerS": {
+      "p50": 102.8,
+      "min": 96.6
+     },
+     "answerWords": {
+      "p50": 308
+     },
+     "thinkingWords": {
+      "p50": 0
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 119,
+      "firstAnswerMs": 119,
+      "thinkingWords": 0,
+      "answerWords": 315,
+      "totalMs": 3298,
+      "error": null,
+      "wordsPerS": 99.1
+     },
+     {
+      "firstTokenMs": 186,
+      "firstAnswerMs": 186,
+      "thinkingWords": 0,
+      "answerWords": 308,
+      "totalMs": 3271,
+      "error": null,
+      "wordsPerS": 99.8
+     },
+     {
+      "firstTokenMs": 188,
+      "firstAnswerMs": 188,
+      "thinkingWords": 0,
+      "answerWords": 294,
+      "totalMs": 2984,
+      "error": null,
+      "wordsPerS": 105.2
+     },
+     {
+      "firstTokenMs": 188,
+      "firstAnswerMs": 188,
+      "thinkingWords": 0,
+      "answerWords": 324,
+      "totalMs": 3337,
+      "error": null,
+      "wordsPerS": 102.9
+     },
+     {
+      "firstTokenMs": 188,
+      "firstAnswerMs": 188,
+      "thinkingWords": 0,
+      "answerWords": 313,
+      "totalMs": 3295,
+      "error": null,
+      "wordsPerS": 100.7
+     },
+     {
+      "firstTokenMs": 188,
+      "firstAnswerMs": 188,
+      "thinkingWords": 0,
+      "answerWords": 316,
+      "totalMs": 3284,
+      "error": null,
+      "wordsPerS": 102.1
+     },
+     {
+      "firstTokenMs": 189,
+      "firstAnswerMs": 189,
+      "thinkingWords": 0,
+      "answerWords": 295,
+      "totalMs": 3242,
+      "error": null,
+      "wordsPerS": 96.6
+     },
+     {
+      "firstTokenMs": 192,
+      "firstAnswerMs": 192,
+      "thinkingWords": 0,
+      "answerWords": 289,
+      "totalMs": 2923,
+      "error": null,
+      "wordsPerS": 105.8
+     },
+     {
+      "firstTokenMs": 192,
+      "firstAnswerMs": 192,
+      "thinkingWords": 0,
+      "answerWords": 292,
+      "totalMs": 3174,
+      "error": null,
+      "wordsPerS": 97.9
+     },
+     {
+      "firstTokenMs": 193,
+      "firstAnswerMs": 193,
+      "thinkingWords": 0,
+      "answerWords": 296,
+      "totalMs": 3156,
+      "error": null,
+      "wordsPerS": 99.9
+     },
+     {
+      "firstTokenMs": 193,
+      "firstAnswerMs": 193,
+      "thinkingWords": 0,
+      "answerWords": 308,
+      "totalMs": 3282,
+      "error": null,
+      "wordsPerS": 99.7
+     },
+     {
+      "firstTokenMs": 193,
+      "firstAnswerMs": 193,
+      "thinkingWords": 0,
+      "answerWords": 312,
+      "totalMs": 3112,
+      "error": null,
+      "wordsPerS": 106.9
+     },
+     {
+      "firstTokenMs": 193,
+      "firstAnswerMs": 193,
+      "thinkingWords": 0,
+      "answerWords": 286,
+      "totalMs": 2974,
+      "error": null,
+      "wordsPerS": 102.8
+     },
+     {
+      "firstTokenMs": 194,
+      "firstAnswerMs": 194,
+      "thinkingWords": 0,
+      "answerWords": 283,
+      "totalMs": 2866,
+      "error": null,
+      "wordsPerS": 105.9
+     },
+     {
+      "firstTokenMs": 202,
+      "firstAnswerMs": 202,
+      "thinkingWords": 0,
+      "answerWords": 287,
+      "totalMs": 3070,
+      "error": null,
+      "wordsPerS": 100.1
+     },
+     {
+      "firstTokenMs": 201,
+      "firstAnswerMs": 201,
+      "thinkingWords": 0,
+      "answerWords": 315,
+      "totalMs": 3173,
+      "error": null,
+      "wordsPerS": 106
+     },
+     {
+      "firstTokenMs": 202,
+      "firstAnswerMs": 202,
+      "thinkingWords": 0,
+      "answerWords": 312,
+      "totalMs": 3335,
+      "error": null,
+      "wordsPerS": 99.6
+     },
+     {
+      "firstTokenMs": 202,
+      "firstAnswerMs": 202,
+      "thinkingWords": 0,
+      "answerWords": 292,
+      "totalMs": 3019,
+      "error": null,
+      "wordsPerS": 103.7
+     },
+     {
+      "firstTokenMs": 201,
+      "firstAnswerMs": 201,
+      "thinkingWords": 0,
+      "answerWords": 314,
+      "totalMs": 3220,
+      "error": null,
+      "wordsPerS": 104
+     },
+     {
+      "firstTokenMs": 201,
+      "firstAnswerMs": 201,
+      "thinkingWords": 0,
+      "answerWords": 284,
+      "totalMs": 2832,
+      "error": null,
+      "wordsPerS": 107.9
+     }
+    ]
+   },
+   {
+    "round": 2,
+    "mode": "through each client's Open WebUI",
+    "people": 20,
+    "gate": [
+     {
+      "atMs": 507,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 1005,
+      "seatsUsed": 20,
+      "busy": 0,
+      "queued": 0
+     },
+     {
+      "atMs": 2007,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 3008,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     },
+     {
+      "atMs": 3406,
+      "seatsUsed": 20,
+      "busy": 20,
+      "queued": 0
+     }
+    ],
+    "summary": {
+     "ok": 20,
+     "failed": [],
+     "firstTokenS": {
+      "p50": 0.238,
+      "max": 0.242
+     },
+     "firstAnswerS": {
+      "p50": 0.238,
+      "max": 0.242
+     },
+     "wordsPerS": {
+      "p50": 100.8,
+      "min": 93.8
+     },
+     "answerWords": {
+      "p50": 299
+     },
+     "thinkingWords": {
+      "p50": 0
+     }
+    },
+    "per": [
+     {
+      "firstTokenMs": 223,
+      "firstAnswerMs": 223,
+      "thinkingWords": 0,
+      "answerWords": 288,
+      "totalMs": 3069,
+      "error": null,
+      "wordsPerS": 101.2
+     },
+     {
+      "firstTokenMs": 163,
+      "firstAnswerMs": 163,
+      "thinkingWords": 0,
+      "answerWords": 292,
+      "totalMs": 3276,
+      "error": null,
+      "wordsPerS": 93.8
+     },
+     {
+      "firstTokenMs": 223,
+      "firstAnswerMs": 223,
+      "thinkingWords": 0,
+      "answerWords": 288,
+      "totalMs": 2992,
+      "error": null,
+      "wordsPerS": 104
+     },
+     {
+      "firstTokenMs": 233,
+      "firstAnswerMs": 233,
+      "thinkingWords": 0,
+      "answerWords": 293,
+      "totalMs": 3068,
+      "error": null,
+      "wordsPerS": 103.4
+     },
+     {
+      "firstTokenMs": 239,
+      "firstAnswerMs": 239,
+      "thinkingWords": 0,
+      "answerWords": 288,
+      "totalMs": 3095,
+      "error": null,
+      "wordsPerS": 100.8
+     },
+     {
+      "firstTokenMs": 233,
+      "firstAnswerMs": 233,
+      "thinkingWords": 0,
+      "answerWords": 310,
+      "totalMs": 3194,
+      "error": null,
+      "wordsPerS": 104.7
+     },
+     {
+      "firstTokenMs": 233,
+      "firstAnswerMs": 233,
+      "thinkingWords": 0,
+      "answerWords": 306,
+      "totalMs": 3353,
+      "error": null,
+      "wordsPerS": 98.1
+     },
+     {
+      "firstTokenMs": 242,
+      "firstAnswerMs": 242,
+      "thinkingWords": 0,
+      "answerWords": 299,
+      "totalMs": 3398,
+      "error": null,
+      "wordsPerS": 94.7
+     },
+     {
+      "firstTokenMs": 223,
+      "firstAnswerMs": 223,
+      "thinkingWords": 0,
+      "answerWords": 318,
+      "totalMs": 3297,
+      "error": null,
+      "wordsPerS": 103.4
+     },
+     {
+      "firstTokenMs": 242,
+      "firstAnswerMs": 242,
+      "thinkingWords": 0,
+      "answerWords": 296,
+      "totalMs": 3350,
+      "error": null,
+      "wordsPerS": 95.2
+     },
+     {
+      "firstTokenMs": 239,
+      "firstAnswerMs": 239,
+      "thinkingWords": 0,
+      "answerWords": 312,
+      "totalMs": 3394,
+      "error": null,
+      "wordsPerS": 98.9
+     },
+     {
+      "firstTokenMs": 238,
+      "firstAnswerMs": 238,
+      "thinkingWords": 0,
+      "answerWords": 307,
+      "totalMs": 3395,
+      "error": null,
+      "wordsPerS": 97.2
+     },
+     {
+      "firstTokenMs": 239,
+      "firstAnswerMs": 239,
+      "thinkingWords": 0,
+      "answerWords": 295,
+      "totalMs": 3161,
+      "error": null,
+      "wordsPerS": 101
+     },
+     {
+      "firstTokenMs": 239,
+      "firstAnswerMs": 239,
+      "thinkingWords": 0,
+      "answerWords": 296,
+      "totalMs": 3341,
+      "error": null,
+      "wordsPerS": 95.4
+     },
+     {
+      "firstTokenMs": 242,
+      "firstAnswerMs": 242,
+      "thinkingWords": 0,
+      "answerWords": 280,
+      "totalMs": 2960,
+      "error": null,
+      "wordsPerS": 103
+     },
+     {
+      "firstTokenMs": 238,
+      "firstAnswerMs": 238,
+      "thinkingWords": 0,
+      "answerWords": 319,
+      "totalMs": 3395,
+      "error": null,
+      "wordsPerS": 101
+     },
+     {
+      "firstTokenMs": 238,
+      "firstAnswerMs": 238,
+      "thinkingWords": 0,
+      "answerWords": 299,
+      "totalMs": 3275,
+      "error": null,
+      "wordsPerS": 98.5
+     },
+     {
+      "firstTokenMs": 242,
+      "firstAnswerMs": 242,
+      "thinkingWords": 0,
+      "answerWords": 303,
+      "totalMs": 3399,
+      "error": null,
+      "wordsPerS": 96
+     },
+     {
+      "firstTokenMs": 242,
+      "firstAnswerMs": 242,
+      "thinkingWords": 0,
+      "answerWords": 262,
+      "totalMs": 2847,
+      "error": null,
+      "wordsPerS": 100.6
+     },
+     {
+      "firstTokenMs": 238,
+      "firstAnswerMs": 238,
+      "thinkingWords": 0,
+      "answerWords": 300,
+      "totalMs": 3211,
+      "error": null,
+      "wordsPerS": 100.9
+     }
+    ]
+   }
+  ]
+ },
+ "firstStartRecords": [
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  }
+ ],
+ "owui": "0.13.3",
+ "build": "this checkout",
+ "sealHeard": [],
+ "connections": {
+  "client0": [
+   "127.0.0.1"
+  ],
+  "client1": [
+   "127.0.0.1"
+  ],
+  "client2": [
+   "127.0.0.1"
+  ],
+  "client3": [
+   "127.0.0.1"
+  ],
+  "client4": [
+   "127.0.0.1"
+  ],
+  "client5": [
+   "127.0.0.1"
+  ],
+  "client6": [
+   "127.0.0.1"
+  ],
+  "client7": [
+   "127.0.0.1"
+  ],
+  "client8": [
+   "127.0.0.1"
+  ],
+  "client9": [
+   "127.0.0.1"
+  ],
+  "client10": [
+   "127.0.0.1"
+  ],
+  "client11": [
+   "127.0.0.1"
+  ],
+  "client12": [
+   "127.0.0.1"
+  ],
+  "client13": [
+   "127.0.0.1"
+  ],
+  "client14": [
+   "127.0.0.1"
+  ],
+  "client15": [
+   "127.0.0.1"
+  ],
+  "client16": [
+   "127.0.0.1"
+  ],
+  "client17": [
+   "127.0.0.1"
+  ],
+  "client18": [
+   "127.0.0.1"
+  ],
+  "client19": [
+   "127.0.0.1"
+  ]
+ },
+ "memory": [
+  {
+   "atS": 54,
+   "perClientMiB": [
+    792,
+    791,
+    792,
+    792,
+    794,
+    791,
+    790,
+    792,
+    792,
+    792,
+    793,
+    793,
+    793,
+    660,
+    645,
+    382,
+    247,
+    247,
+    51,
+    51
+   ],
+   "totalMiB": 12580,
+   "freeMiB": 65977
+  },
+  {
+   "atS": 84,
+   "perClientMiB": [
+    792,
+    791,
+    792,
+    793,
+    794,
+    792,
+    790,
+    792,
+    792,
+    792,
+    792,
+    792,
+    791,
+    791,
+    791,
+    792,
+    792,
+    792,
+    792,
+    793
+   ],
+   "totalMiB": 15838,
+   "freeMiB": 63108
+  },
+  {
+   "atS": 114,
+   "perClientMiB": [
+    792,
+    792,
+    792,
+    793,
+    794,
+    792,
+    791,
+    793,
+    793,
+    792,
+    792,
+    792,
+    791,
+    791,
+    791,
+    792,
+    792,
+    792,
+    792,
+    792
+   ],
+   "totalMiB": 15841,
+   "freeMiB": 63155
+  },
+  {
+   "atS": 127,
+   "perClientMiB": [
+    792,
+    792,
+    792,
+    793,
+    795,
+    792,
+    791,
+    793,
+    793,
+    792,
+    792,
+    792,
+    792,
+    792,
+    791,
+    792,
+    793,
+    793,
+    792,
+    792
+   ],
+   "totalMiB": 15846,
+   "freeMiB": 63170
+  }
+ ],
+ "perClient": [
+  {
+   "client": 0,
+   "farmMoves": 0,
+   "farms": [
+    "5.0s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "4.6s starting",
+    "21.2s ready",
+    "21.2s restarting",
+    "21.3s starting",
+    "37.4s ready",
+    "149.0s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 37.37,
+   "starts": 2,
+   "chatError": null,
+   "launchedS": 0.043,
+   "firstChatS": 55.041,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:56526",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 1,
+   "farmMoves": 0,
+   "farms": [
+    "1.9s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "1.9s starting",
+    "18.4s ready",
+    "145.9s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 18.387,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 3.244,
+   "firstChatS": 51.858,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:61517",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 2,
+   "farmMoves": 0,
+   "farms": [
+    "4.1s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "4.1s starting",
+    "21.7s ready",
+    "143.1s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 21.746,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 6.037,
+   "firstChatS": 49.072,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:61566",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 3,
+   "farmMoves": 0,
+   "farms": [
+    "1.0s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "1.0s starting",
+    "18.7s ready",
+    "140.0s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 18.663,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 9.15,
+   "firstChatS": 45.961,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:61568",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 4,
+   "farmMoves": 0,
+   "farms": [
+    "2.2s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "2.2s starting",
+    "20.2s ready",
+    "136.2s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 20.181,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 12.922,
+   "firstChatS": 42.189,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:61647",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 5,
+   "farmMoves": 0,
+   "farms": [
+    "0.7s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "0.7s starting",
+    "18.7s ready",
+    "134.4s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 18.669,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 14.701,
+   "firstChatS": 40.41,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:61650",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 6,
+   "farmMoves": 0,
+   "farms": [
+    "3.7s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "3.7s starting",
+    "22.0s ready",
+    "132.8s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 22.018,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 16.36,
+   "firstChatS": 38.752,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:56481",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 7,
+   "farmMoves": 0,
+   "farms": [
+    "2.5s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "2.5s starting",
+    "20.8s ready",
+    "131.6s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 20.762,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 17.553,
+   "firstChatS": 37.559,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:56477",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 8,
+   "farmMoves": 0,
+   "farms": [
+    "0.7s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "0.7s starting",
+    "19.0s ready",
+    "129.5s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 18.97,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 19.675,
+   "firstChatS": 35.437,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:56486",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 9,
+   "farmMoves": 0,
+   "farms": [
+    "3.7s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "3.7s starting",
+    "21.4s ready",
+    "127.6s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 21.388,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 21.517,
+   "firstChatS": 33.595,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:56641",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 10,
+   "farmMoves": 0,
+   "farms": [
+    "0.3s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "0.4s starting",
+    "18.0s ready",
+    "124.2s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 18.036,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 24.949,
+   "firstChatS": 30.164,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:56645",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 11,
+   "farmMoves": 0,
+   "farms": [
+    "1.9s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "1.9s starting",
+    "19.0s ready",
+    "120.6s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 18.961,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 28.489,
+   "firstChatS": 26.624,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:56821",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 12,
+   "farmMoves": 0,
+   "farms": [
+    "3.4s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "3.4s starting",
+    "20.2s ready",
+    "117.2s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 20.219,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 31.948,
+   "firstChatS": 23.165,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:56968",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 13,
+   "farmMoves": 0,
+   "farms": [
+    "4.1s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "4.1s starting",
+    "21.2s ready",
+    "112.9s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 21.16,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 36.193,
+   "firstChatS": 21.792,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:57090",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 14,
+   "farmMoves": 0,
+   "farms": [
+    "0.6s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "0.7s starting",
+    "17.7s ready",
+    "109.5s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 17.732,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 39.667,
+   "firstChatS": 18.321,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:57093",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 15,
+   "farmMoves": 0,
+   "farms": [
+    "2.2s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "2.2s starting",
+    "18.4s ready",
+    "105.9s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 18.421,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 43.182,
+   "firstChatS": 18.795,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:57193",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 16,
+   "farmMoves": 0,
+   "farms": [
+    "3.1s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "3.1s starting",
+    "19.9s ready",
+    "102.1s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 19.925,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 47.068,
+   "firstChatS": 21.178,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:57277",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 17,
+   "farmMoves": 0,
+   "farms": [
+    "0.3s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "0.3s starting",
+    "17.2s ready",
+    "99.3s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 17.16,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 49.866,
+   "firstChatS": 18.384,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:57279",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 18,
+   "farmMoves": 0,
+   "farms": [
+    "3.1s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "3.2s starting",
+    "19.3s ready",
+    "97.2s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 19.273,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 51.973,
+   "firstChatS": 20.134,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:57432",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  },
+  {
+   "client": 19,
+   "farmMoves": 0,
+   "farms": [
+    "1.6s LOL scratch (rehearsal step 3, Qwen3.6 as people use it)"
+   ],
+   "states": [
+    "1.6s starting",
+    "17.7s ready",
+    "95.4s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 17.682,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 53.769,
+   "firstChatS": 18.341,
+   "chatFarm": "LOL scratch (rehearsal step 3, Qwen3.6 as people use it)",
+   "owuiSignIn": {
+    "url": "http://127.0.0.1:57439",
+    "model": "assistant",
+    "models": [
+     "assistant"
+    ],
+    "error": null
+   }
+  }
+ ]
+}

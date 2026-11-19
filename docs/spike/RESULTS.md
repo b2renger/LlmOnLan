@@ -20,7 +20,9 @@ Two boxes, the same harness, the same flags:
 - 30 people for the class on the live farm, Qwen3.8 on llama.cpp and on vLLM against Qwen3.6 (2026-11-14):
   [30 people for the class](#30-people-for-the-class-rtx-pro-6000-the-live-farm-2026-11-14);
 - Qwen3.8 and Qwen3.6 drafting ahead with their MTP layer, and HyperQwen (2026-11-18/19):
-  [Qwen3.8 drafting ahead](#qwen38-drafting-ahead-rtx-pro-6000-2026-11-18), the last section.
+  [Qwen3.8 drafting ahead](#qwen38-drafting-ahead-rtx-pro-6000-2026-11-18);
+- the slowness with ten and twenty, Qwen3.6 through windowless clients (2026-11-19):
+  [The slowness with ten and twenty](#the-slowness-with-ten-and-twenty-rtx-pro-6000-2026-11-19), the last section.
 
 **Box:** `AN-A6000PRO`: one NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 96 GB (97,887 MiB), sm_120,
 ~1.8 TB/s, driver 596.36 (CUDA 13.2), Windows 11 + WSL2 Ubuntu 26.04 (16 vCPU and 94 GB RAM given to WSL).
@@ -1377,3 +1379,27 @@ cached prompt (`runs/prefix_penalty.mjs`: the second turn of a 40k prompt hit 40
 directly and through the farm's gate and LiteLLM); `spike_bench`'s default followup mode (the question replaced, not
 appended) through a gate got 0 prefix-cache hits at ~40k and failed (p95 40 s) where `--append`, the shape of a real
 chat, hit 46 % and passed: the README's "prefer `--append` for hybrid models", now with its cost.
+
+# The slowness with ten and twenty (RTX PRO 6000, 2026-11-19)
+
+CLASS_REHEARSAL_PLAN step 3, 04:08–04:23: 10 and 20 windowless clients (the client's compiled code, the released Open
+WebUI 0.13.3) on one scratch farm set up as people use it: vLLM 0.33.0, Qwen3.6 35B-A3B NVFP4 at 64k, Automatic seats
+(48), LiteLLM 1.106.9, nobody else on the GPU. Each client reached the gate from its own address (the gate held 10 or
+20 seats, all generating at once, none waiting). The same question for everyone, at once: *"Explain photosynthesis to
+a 12-year-old, in about 250 words"*, room for 8,000 tokens; straight to the gate, then through each client's Open
+WebUI. Per person, p50 (worst):
+
+| | first token | first word of the answer | words a second | thinking words |
+|---|---|---|---|---|
+| alone (4 samples) | 0.03–0.24 s | 8.6–15.7 s | 105–163 | 961–1,962 |
+| 10 at once | 0.09–0.15 s | 11.4–18.3 s (32.5) | 102–106 (63) | 1,071–1,717 |
+| 20 at once | 0.15–0.20 s | 17.6–22.3 s (37.5) | 76–80 (51) | 1,149–1,651 |
+| 20 at once, thinking off | 0.19–0.30 s | 0.19–0.30 s | 101–103 (94) | 0 |
+
+- **The wait is the thinking**: Open WebUI's chats think (only its titles are asked without), and Qwen3.6 thinks
+  1,000–2,000 words before an answer's first word. Thinking off: the first word in 0.3 s at 20, the whole answer in
+  about 3 s, and more words a second each (shorter sequences). The owner's call (plans ▸ Waiting on the owner, 6).
+- Open WebUI and the seat gate add nothing measurable (through Open WebUI against straight to the gate, within the
+  rounds' noise).
+- Files: `results/rehearsal-2026-11-190314-10c-q36.json`, `…190320-20c-q36.json`, `…190323-20c-q36-nothink.json`;
+  the plan's *Built* has the rest (ready times, memory, the L2 records).
