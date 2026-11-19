@@ -62,10 +62,24 @@ Each way of serving Qwen3.8-27B ran the same suite (`docs/spike/runs/hq_suite.sh
 | **D** HyperQwen as published: its patched vLLM 0.33.0 (65 patches, all applied), its prepared W4A16 checkpoint, its DFlash2 W4A16 drafter, `SPEC=dflash2` single-user mode (bf16 KV), `MAX_SEQS=32`, the same 50 GiB | **351 tok/s** | **509 tok/s**, exact | 75.7 tok/s | **132.6 s / 8.8: fail** | **23/28** | 15 (its own count) |
 
 D is the fastest for one person by far (it beats the 220 tok/s its issue #348 reports on this card), and its
-prompt-lookup drafting copies a file at 509 tok/s. It is not a farm: its own seat budget (below) holds 15 people at
+prompt-lookup drafting copies a file at 509 tok/s. Its single-user mode is not a farm: its own seat budget (below) holds 15 people at
 32k and 9 at 64k, 30 deep conversations collapse, and it **lost 5 of 28 quality items**: three code answers stopped
 (`finish: stop`) before closing their code block, one failed its tests, one sum was wrong (61 for 76). The same items
 pass under A, B and C; whether the W4A16 weights or its sampler patches cause it was not looked into.
+
+**Not tested: HyperQwen's batch mode** (found 2026-11-19 08:46, the owner asking why it does not fit). The repository
+has a second launcher, `batch/start_qwen.sh`, "for serving many concurrent requests … tuned for aggregate tokens per
+second": no drafting (its one-person row, 46 tok/s on a 3090, is the no-drafting bound), `MAX_SEQS` 64, fp8 KV, prefix
+caching, int8 activations on the MLP through two Marlin patches (+2.2 % perplexity, its README), and the recurrent
+state in fp16 (`--mamba-ssm-cache-dtype float16`: "~150 MB per resident request" halved, perplexity 8.045 against
+8.046). Its numbers are a 3090's (~1,094 tok/s decode at 64 at once); on our card it was not run, so the verdict below
+holds for the single-user mode measured, not for batch mode. Two facts bound what it could bring: its weights are the
+same W4A16 that lost to NVIDIA's NVFP4 under load on this card (#348, DFlash2 mode), and of its four settings the farm
+already has fp8 KV and prefix caching. **The fp16 state is a stock vLLM flag, no patch:** vLLM 0.33.0 (`~/lol-vllm` and
+`~/lol-vllm-033`, `vllm/config/cache.py:300`) takes `mamba_ssm_cache_dtype` `float16`, and both NVFP4 checkpoints the farm
+serves set `"mamba_ssm_dtype": "float32"` (`~/lol-vllm/hf/Qwen3.8-27B-NVFP4/config.json`, the same for Qwen3.6). The
+recurrent state is what drafting's lost room is made of (below), so it may win back seats; not measured, on our
+checkpoints, with drafting, or for quality.
 
 **The farm's default, Qwen3.6 35B-A3B, carries an MTP layer too** (19 `mtp.*` tensors). The same A/B at its 64k
 setting, its farm flags (`QWEN36_ARGS`), plus a 50k-deep step (`long50`: 30 people each ~50k tokens into a
@@ -147,7 +161,8 @@ with (Fisher p = 0.62), the same wrong answer either way.
 
 ## Verdicts
 
-- **HyperQwen: not as a backend; its idea, yes, and built.** On our card its own stack is the fastest for one person
+- **HyperQwen: not as a backend; its idea, yes, and built.** (Its single-user mode, measured; its batch mode was not
+  run, above.) On our card its own stack is the fastest for one person
   (351 tok/s), but it holds 15 people at 32k, 30 deep conversations collapse, and it lost 5 of 28 quality items; it
   needs 65 patches, its own W4A16 weights and a Docker-first install. Its speed comes from drafting, which stock vLLM
   0.33.0 (the farm's pin) already does with the MTP layer NVIDIA's checkpoint carries: **Qwen3.8 drafting with MTP is
