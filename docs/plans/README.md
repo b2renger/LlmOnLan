@@ -44,6 +44,13 @@ file stays the whole list.
 
 ## 1. Now
 
+- **128k of context per person by default** ([CONTEXT_128K_PLAN](CONTEXT_128K_PLAN.md), approved by the owner
+  2026-11-19 18:15, for a night session after the tests of 2026-11-20): the vLLM default and the Balanced preset at
+  128k, Qwen3.6's 128k label measured on 0.33.0, and Open WebUI's document text moved to the system message
+  (`RAG_SYSTEM_CONTEXT`), so the farm reads a document once per chat. **S**. Night n° 12.
+- **Qwen3.8's recurrent state in fp16** ([QWEN38_FP16_STATE_PLAN](QWEN38_FP16_STATE_PLAN.md)): step 1 measured
+  2026-11-20; steps 2–4 in the same night **if step 1 passed** (the session's reading of the owner's "the
+  implementation in tonight session", DECISIONS 2026-11-19). **S**.
 - **LOL Vibe's page preview, code beside it** ([VIBE_PAGE_PLAN](VIBE_PAGE_PLAN.md), the owner's request of 2026-11-18,
   approved with its three choices): step 1 the side column (errors with block and line, the shared editor, live
   reload, edits kept with the thread), step 2 the pop-out window. **M**. Built by day, 2026-11-18.
@@ -159,7 +166,10 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
       ([agent-spike RESULTS](../research/agent-spike/RESULTS.md), last section).* The item was: the Agent box's prompt
       on Qwen3.6 with JSON examples against the model's own format; adopted only if it measures better.
     - **n° 11 or 12: a plan mode for students** (**M**): the agent proposes, the student approves, before anything
-      changes (LOL Vibe's coding agent and the Agent box). A plan in `docs/plans/` first, for the owner.
+      changes (LOL Vibe's coding agent and the Agent box). A plan in `docs/plans/` first, for the owner. **Written
+      2026-11-20 (n° 11): [STUDENT_PLAN_MODE_PLAN](STUDENT_PLAN_MODE_PLAN.md)**, for the owner. It proposes a
+      *Plan first* switch, with LlmOnLan's own fence refusing writes while the agent plans; dsh's own plan mode is out of
+      reach (its runtime answers no review). It leaves the Agent box out, since that box changes nothing outside itself.
 
     (n° 10 is a review. The cron ends on 2026-11-19: n° 9 onwards needs it started again.)
 

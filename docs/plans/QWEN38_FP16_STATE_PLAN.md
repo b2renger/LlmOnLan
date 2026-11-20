@@ -1,8 +1,9 @@
 # QWEN38_FP16_STATE_PLAN: Qwen3.8 keeps its recurrent state in 16 bits
 
-**Status: written at the owner's ask, 2026-11-19** (the chat, 12:30: "1- Yes" to *should I write a plan for the fp16
-flag on Qwen3.8?*). **Step 1 is a measurement** and may run in any session. **Steps 2–4 change the farm** and wait for
-`Status: approved by the owner, <date>`. Size **S**.
+**Status: approved by the owner, 2026-11-19, steps 2–4 only if step 1 passes** (the chat, 12:30: "1- Yes" to
+*should I write a plan for the fp16 flag on Qwen3.8?*; 18:15, after step 1 at 32k and 64k was asked for: "Lets do the
+tests now and the implementation in tonight session", read by the session as covering this plan too and told to the
+owner to correct, DECISIONS). Step 1 ran on 2026-11-20. Size **S**.
 
 ## Why
 
