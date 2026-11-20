@@ -1416,3 +1416,40 @@ WebUI. Per person, p50 (worst):
   rounds' noise).
 - Files: `results/rehearsal-2026-11-190314-10c-q36.json`, `…190320-20c-q36.json`, `…190323-20c-q36-nothink.json`;
   the plan's *Built* has the rest (ready times, memory, the L2 records).
+
+# 128k for Qwen3.6, and Qwen3.8's recurrent state in fp16 (RTX PRO 6000, 2026-11-20)
+
+The whole card (the owner quit the Farm app at 08:42), vLLM 0.33.0 on the trial root, the farm's flags
+(`QWEN36_ARGS`; `QWEN38_ARGS` with MTP drafting), a 50 GiB pool (the live farm's), `--max-num-seqs 192`. Files:
+`results/lc1120-*`. Pass = first word p95 < 5 s and p10 ≥ 15 tok/s. Plans: CONTEXT_128K_PLAN, QWEN38_FP16_STATE_PLAN.
+
+**Qwen3.6 35B-A3B at `--max-model-len 131072`:** vLLM counts 34.47 conversations of 128k (4,518,343 tokens).
+
+| Test | Result |
+|---|---|
+| Long-text check (`runs/longtext_check.mjs`), ~60k / ~120k | 20/20 / 20/20; first read 4.0 s / 5.4 s, later questions 0.4 / 0.9 s (median) |
+| A text of ~140k | HTTP 400 from vLLM: "maximum context length is 131072 tokens" |
+| Everyone ~120k deep at once, appended turns (`-label120k`) | 16: 3.3 s / 29.2 · 24: 4.6 s / 21.6 · 32: 6.1 s / 17.0 (fails) · 40: 245 s (pool full). **24** (vLLM 0.30 on 2026-10-04: 32) |
+| The same 120k context, a new question each turn (`-replace120k`) | 2: 0.56 s · 4: 0.93 s · 8: 1.67 s / 57.8, all pass (vLLM 0.30 failed at 4: 13.5 s) |
+
+**Qwen3.8 27B with drafting, B (as the farm serves it) against G (+ `--mamba-ssm-cache-dtype float16`):**
+
+| | B | G |
+|---|---|---|
+| vLLM's count at 32k / 64k | 24.69 / 16.32 (809,117 / 1,069,680 tokens) | **31.95 / 19.10** (1,046,881 / 1,251,940) |
+| 30 people ~28k deep, 32k | 5.5 s / 22.4 tok/s, **fails** (811 tok/s together) | **2.5 s / 50.9, passes** (1,928 tok/s together) |
+| People at once, 30k appended (the 2026-10-04 label's profile) | 16 pass, 24 pass, 32 collapses (52 s): **24** | 16, 24, 32 all pass (32: 4.2 s / 29.9): **≥ 32** |
+| Long-text check, ~28k | 20/20 | 20/20 |
+| 30 people ~50k deep, 64k | 185 s / 2.6: fails (the pool holds ~21 of them) | 146 s / 3.0: fails (the pool holds ~25) |
+| Long-text check, ~55k | 18/20 | 18/20, **the same two wrong answers** |
+
+The two wrong long-text answers at 55k are the code of the line just before the one asked about (lines 685 and 1326
+for 686 and 1327), in B and in G alike: Qwen3.8's own slip at that length, not the fp16 state's. Qwen3.6 made none at
+120k. The check finds facts by looking them up, which the model's full-attention layers do; it found no drift from
+the fp16 state, which is not proof that there is none.
+
+**A document in a real Open WebUI 0.13.3** (Qwen3.6 at 128k as above, the client's settings plus
+`BYPASS_EMBEDDING_AND_RETRIEVAL`, a ~100k-token document, three questions in one chat; `results/lc1120-owui-*`): with
+the client's settings today, the first word of turns 1, 2 and 3 came at 5.42, 5.26 and 5.28 s: the document is put into
+the newest message each turn and read again. With `RAG_SYSTEM_CONTEXT=true`: 5.45, **0.13 and 0.15 s**, the document
+kept in the system message (the relay's log). All six answers right.

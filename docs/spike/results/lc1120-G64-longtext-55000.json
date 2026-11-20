@@ -1,0 +1,152 @@
+{
+ "label": "lc1120-G64",
+ "model": "qwen38",
+ "base": "http://127.0.0.1:8190/v1",
+ "target": 55000,
+ "promptTokens": 54905,
+ "records": 1829,
+ "samples": 20,
+ "ok": 18,
+ "results": [
+  {
+   "depth": 0.025,
+   "expected": "5050",
+   "got": "5050",
+   "ok": true,
+   "secs": 8.032
+  },
+  {
+   "depth": 0.075,
+   "expected": "5202",
+   "got": "5202",
+   "ok": true,
+   "secs": 13.816
+  },
+  {
+   "depth": 0.125,
+   "expected": "3688",
+   "got": "3688",
+   "ok": true,
+   "secs": 13.813
+  },
+  {
+   "depth": 0.175,
+   "expected": "7953",
+   "got": "7953",
+   "ok": true,
+   "secs": 13.814
+  },
+  {
+   "depth": 0.225,
+   "expected": "2356",
+   "got": "2356",
+   "ok": true,
+   "secs": 5.784
+  },
+  {
+   "depth": 0.274,
+   "expected": "5283",
+   "got": "5283",
+   "ok": true,
+   "secs": 1.398
+  },
+  {
+   "depth": 0.325,
+   "expected": "5676",
+   "got": "5676",
+   "ok": true,
+   "secs": 1.37
+  },
+  {
+   "depth": 0.375,
+   "expected": "7637",
+   "got": "9459",
+   "ok": false,
+   "secs": 1.398
+  },
+  {
+   "depth": 0.425,
+   "expected": "2622",
+   "got": "2622",
+   "ok": true,
+   "secs": 1.397
+  },
+  {
+   "depth": 0.475,
+   "expected": "1218",
+   "got": "1218",
+   "ok": true,
+   "secs": 0.66
+  },
+  {
+   "depth": 0.525,
+   "expected": "7419",
+   "got": "7419",
+   "ok": true,
+   "secs": 0.66
+  },
+  {
+   "depth": 0.575,
+   "expected": "5467",
+   "got": "5467",
+   "ok": true,
+   "secs": 0.659
+  },
+  {
+   "depth": 0.625,
+   "expected": "5983",
+   "got": "5983",
+   "ok": true,
+   "secs": 0.66
+  },
+  {
+   "depth": 0.675,
+   "expected": "4392",
+   "got": "4392",
+   "ok": true,
+   "secs": 0.66
+  },
+  {
+   "depth": 0.725,
+   "expected": "3086",
+   "got": "1291",
+   "ok": false,
+   "secs": 0.66
+  },
+  {
+   "depth": 0.775,
+   "expected": "5326",
+   "got": "5326",
+   "ok": true,
+   "secs": 0.66
+  },
+  {
+   "depth": 0.824,
+   "expected": "7518",
+   "got": "7518",
+   "ok": true,
+   "secs": 0.66
+  },
+  {
+   "depth": 0.875,
+   "expected": "3606",
+   "got": "3606",
+   "ok": true,
+   "secs": 0.657
+  },
+  {
+   "depth": 0.925,
+   "expected": "5239",
+   "got": "5239",
+   "ok": true,
+   "secs": 0.653
+  },
+  {
+   "depth": 0.975,
+   "expected": "7102",
+   "got": "7102",
+   "ok": true,
+   "secs": 0.652
+  }
+ ]
+}

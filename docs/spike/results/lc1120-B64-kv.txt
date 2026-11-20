@@ -1,0 +1,4 @@
+(EngineCore pid=4243) INFO 11-20 09:34:57 [kv_cache_utils.py:1147] GPU KV cache size: 1,046,881 tokens, Maximum concurrency for 32,768 tokens per request: 31.95x
+(APIServer pid=4834) INFO 11-20 09:41:48 [startup.py:96] non-default args: {'model_tag': '/home/ateliernum/lol-vllm/hf/Qwen3.8-27B-NVFP4', 'enable_auto_tool_choice': True, 'tool_call_parser': 'qwen3_coder', 'uds': '/home/ateliernum/lol-vllm-033/run/vllm.sock', 'model': '/home/ateliernum/lol-vllm/hf/Qwen3.8-27B-NVFP4', 'max_model_len': 65536, 'served_model_name': ['qwen38'], 'override_generation_co
+(EngineCore pid=4961) INFO 11-20 09:42:35 [kv_cache_utils.py:1147] GPU KV cache size: 1,069,680 tokens, Maximum concurrency for 65,536 tokens per request: 16.32x
+preempt lines: 0

@@ -47,6 +47,22 @@ client's system prompt changes once a day (`Today is {{CURRENT_WEEKDAY}} {{CURRE
 So the prompt is identical up to the end of the document from one turn to the next, and vLLM reads it once per
 conversation (0.4–0.9 s a question, measured above).
 
+**Measured through a real Open WebUI 0.13.3** (2026-11-20 10:00): the trial vLLM above, the client's settings (with
+`BYPASS_EMBEDDING_AND_RETRIEVAL` so no embedding model was needed), a ~100k-token document attached to the first
+question, three questions in one chat, a relay between Open WebUI and vLLM logging each request
+(`results/lc1120-owui-relay.txt`):
+
+| Turn | Default: the document in the newest message | `RAG_SYSTEM_CONTEXT=true`: in the system message |
+|---|---|---|
+| 1 | 5.42 s to the first word | 5.45 s |
+| 2 | 5.26 s | **0.13 s** |
+| 3 | 5.28 s | **0.15 s** |
+
+All six answers right. The relay showed the default moving the 166,652 characters to messages 1, 3 and 5 in turn, and
+the setting keeping them in message 0 at the same size each turn; no other context (knowledge or skill lists) was
+sent. For a class this is the difference between the farm reading every attached document again at every question
+and reading it once per chat.
+
 ## What changes
 
 1. **`farm/src/config.js`**: the vLLM schema's `contextLength` default 65536 → 131072. The Balanced preset follows
@@ -56,9 +72,9 @@ conversation (0.4–0.9 s a question, measured above).
 2. **`farm/src/capacity/measured.json`**: Qwen3.6's 128k label from today's run on 0.33.0, so Automatic seats at 128k
    follow it; the Qwen3.6 entry's note (`config.js:434`) gains the 128k number.
 3. **`shell/src/main/configBridge.ts`**: `RAG_SYSTEM_CONTEXT: 'true'` beside `RAG_FULL_CONTEXT`, with its comment and
-   `docs/context/owui-contract.md`'s env list. **Before it ships:** measure it through a real Open WebUI on a trial vLLM.
-   Attach a ~100k-token document, then ask 3 questions with it off and with it on. The time to the first word of
-   turns 2 and 3 must drop, and the answers must stay right.
+   `docs/context/owui-contract.md`'s env list. Measured above (turns 2 and 3: 5.3 s → 0.13–0.15 s, the answers right);
+   the client's own test of `buildSidecarEnv` checks the value; a person's check goes in HUMAN_TESTS (a document of
+   a few hundred pages, three questions, the second and third answering at once).
 4. **The Documents preset** (`presets.js:100`, 64k): 128k too, if its pick stays a model that sees images and serves
    the class (the farm test *presets* shows the pick). If it flips to another model, it stays at 64k and the summary
    asks the owner. LOL Vibe's preset stays at 64k (the coding agent's window; not the owner's aim).

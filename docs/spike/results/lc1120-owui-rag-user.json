@@ -1,0 +1,32 @@
+{
+ "label": "owui-rag-user",
+ "model": "qwen36",
+ "base": "http://127.0.0.1:8197",
+ "file": "29469b4f-854d-44d7-8bd4-85eba976b050",
+ "turns": [
+  {
+   "turn": 1,
+   "firstWordS": 5.425,
+   "totalS": 5.425,
+   "expected": "4734",
+   "got": "4734",
+   "ok": true
+  },
+  {
+   "turn": 2,
+   "firstWordS": 5.261,
+   "totalS": 5.266,
+   "expected": "9618",
+   "got": "9618",
+   "ok": true
+  },
+  {
+   "turn": 3,
+   "firstWordS": 5.281,
+   "totalS": 5.286,
+   "expected": "1107",
+   "got": "1107",
+   "ok": true
+  }
+ ]
+}
