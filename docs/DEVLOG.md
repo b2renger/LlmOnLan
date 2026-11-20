@@ -9,6 +9,26 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-20 (09:22) — 128k for Qwen3.6 measured on vLLM 0.33.0; Open WebUI re-sends a document at every turn (day n° 11)
+
+**Why:** the owner (2026-11-19 18:15): 128k by default, for long chats and documents in Open WebUI; the tests by day,
+the build in a night session. The Farm app quit by the owner, the whole PRO 6000 free from 08:42.
+**Measured** (Qwen3.6 35B-A3B NVFP4, `QWEN36_ARGS`, `--max-model-len 131072`, 50 GiB, the live farm's pool):
+- vLLM's count: 34 whole conversations of 128k (4,518,343 tokens). A text over the window: HTTP 400 from vLLM.
+- `runs/longtext_check.mjs` (new): 20/20 at ~60k and ~120k; the first read 4.0 s / 5.4 s, each later question about
+  the same list 0.4 s / 0.9 s.
+- Everyone ~120k deep at once, appended turns: pass at 16 (3.3 s / 29.2) and 24 (4.6 s / 21.6), fail at 32 (6.1 s p95)
+  and 40 (245 s). **24**, against the 32 vLLM 0.30 gave on 2026-10-04.
+- The same context with a new question: 8 people at 1.67 s p95 / 57.8 tok/s; 0.30 failed at 4.
+**Read in Open WebUI 0.13.3's code** (an explorer, then checked by hand): with the client's settings a document's
+whole text is put into the newest user message on every turn (`Chat.svelte` re-sends `chatFiles`;
+`middleware.py:634-645`), so the farm reads it again each turn; `RAG_SYSTEM_CONTEXT=true` puts it in the system
+message, the same from turn to turn (no `{{QUERY}}` in the default template; the client's date line changes daily).
+CONTEXT_128K_PLAN (approved, for the night) carries both; a test through a real Open WebUI comes next.
+**Also:** the night cron started again (job `4ef5e27b`, expires 2026-11-27; why the nights stopped: DECISIONS
+2026-11-20); STUDENT_PLAN_MODE_PLAN for the owner; plans Next 18 (LOL Vibe from a picture) and 19 (vLLM 0.34.0, Open
+WebUI 0.13.4: TOOL_UPDATES_2026-11-20); four harness flakes fixed in the scenarios, not yet run (below, when run).
+
 ## 2026-11-19 (10:11) — HyperQwen's batch mode measured; its fp16 recurrent state is the lesson (the owner's ask, day)
 
 **Why:** the night evaluated only HyperQwen's single-user mode; the owner (09:03): a class wants its **batch mode**.

@@ -1,0 +1,19 @@
+{
+ "label": "lc1120-q36-128k-over",
+ "model": "qwen36",
+ "base": "http://127.0.0.1:8190/v1",
+ "target": 140000,
+ "promptTokens": 139925,
+ "records": 4663,
+ "samples": 1,
+ "ok": 0,
+ "results": [
+  {
+   "depth": 0.49989277289298734,
+   "expected": "5182",
+   "status": 400,
+   "error": "{\"error\":{\"message\":\"This model's maximum context length is 131072 tokens. However, your prompt contains at least 131073 input tokens, which exceeds this limit even without any output tokens. Please reduce the length of the input prompt. (parameter=input_tokens, value=131073)\",\"type\":\"BadRequestError\",\"param\":\"input_tokens\",\"code\":400}}",
+   "secs": 0.096
+  }
+ ]
+}

@@ -15,9 +15,21 @@ Qwen3.6 35B-A3B NVFP4, the farm's own flags (`QWEN36_ARGS`), `--max-model-len 13
   asking at once; each later question about the same list took a median 0.4 s and 0.9 s.
 - **A text past the window** is refused by vLLM (HTTP 400, *maximum context length is 131072 tokens*). A person sees
   LiteLLM's version of it through Open WebUI.
-- *(filled in by the runs still going)* People at once, ~120k deep, each turn extending the last (the profile of the
-  2026-10-04 label, measured then on vLLM 0.30: 32); the same context with a new question each turn, at 2, 4 and 8
-  (vLLM 0.30 failed at 4).
+- **People at once, each ~120k deep, each turn extending the last** (the profile of the 2026-10-04 label, which said
+  32 on vLLM 0.30; `lc1120-q36-128k-label120k`; pass = first word p95 < 5 s and p10 ≥ 15 tok/s):
+
+  | People | First word p95 | p10 tok/s | |
+  |---|---|---|---|
+  | 16 | 3.3 s | 29.2 | pass |
+  | 24 | 4.6 s | 21.6 | pass |
+  | 32 | 6.1 s | 17.0 | fail (first word) |
+  | 40 | 245 s | 2.5 | the pool is full |
+
+  **The new label is 24**, below the old 32 and below a class of 30. That holds when everyone is 120k deep at
+  once, the worst case. 28 and 30 are measured next (2026-11-20, after the Qwen3.8 runs).
+- **The same 120k context with a new question each turn** (`lc1120-q36-128k-replace120k`): 2 people 0.56 s p95, 4 people
+  0.93 s, 8 people 1.67 s and 57.8 tok/s p10, all pass. vLLM 0.30 failed this at 4 (13.5 s); **0.33.0 reuses the
+  cached context**, which step 3 below relies on.
 
 ## Why documents need one more change (read in Open WebUI 0.13.3's code, not yet run)
 
