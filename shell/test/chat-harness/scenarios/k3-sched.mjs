@@ -23,6 +23,12 @@ async function open(/** @type {any} */ h) {
     return true;
 }
 
+/** Until the STORE holds a live row parked on the clock. The part says `waiting` in memory a moment before the
+ *  journal's write lands (runner.mjs `suspend()` does not await `J.wait()`), and a reload in between came back with no
+ *  live row (one failure in a full run, DEVLOG 2026-11-18). `journal()` reads the stored rows (host.mjs `readRuns`). */
+const storedPark = (/** @type {any} */ h) => h.waitFor(() => window.LolComputer.debug.computer.journal()
+    .then((rows) => (rows.some((r) => r.endedAt === null && r.status === 'waiting') ? true : null)), { timeout: 10000 });
+
 /** Every part's stored state and value, off the document. */
 const snap = (/** @type {any} */ h) => h.eval(() => {
     const doc = window.LolComputer.debug.computer.doc();
@@ -162,6 +168,7 @@ export default [
                 return p && p.state === 'waiting' ? true : null;
             }, { timeout: 20000, args: [timer] });
             h.eq((await h.computer.waits()).length, 1, 'the run really parked on the clock');
+            await storedPark(h);
             await h.reload();
             await open(h);
             const after = await h.computer.journal();
@@ -201,6 +208,7 @@ export default [
                 const p = window.LolComputer.debug.computer.doc().parts.find((x) => x.id === id);
                 return p && p.state === 'waiting' ? true : null;
             }, { timeout: 20000, args: [timer2] });
+            await storedPark(h);
             await h.reload();
             await open(h);
             await bannerText();

@@ -249,9 +249,13 @@ export default [
             h.assert(r && r.width > 100, `the live frame is on the box: ${JSON.stringify(r)}`);
             const at = { x: r.left + ((tx + cx * k) * r.width) / 400, y: r.top + ((ty + cy * k) * r.height) / 300 };
             await h.input.drag(at, { x: at.x + 80, y: at.y + 50 }, { steps: 12 });
-            await h.eval(() => new Promise((done) => setTimeout(done, 700)));
-            const after = await liveShot(h);
-            const moved = await differ(h, before, after);
+            // The drawing moves on the simulation's next frames: look until it has, up to 5 s, rather than once after a
+            // fixed 700 ms (one full run photographed it unmoved, 0 %: DEVLOG 2026-11-17).
+            let moved = 0;
+            for (let i = 0; i < 10 && moved <= 0.005; i += 1) {
+                await h.eval(() => new Promise((done) => setTimeout(done, 500)));
+                moved = await differ(h, before, await liveShot(h));
+            }
             h.assert(moved > 0.005, `a drag on a node moved the drawing: ${(moved * 100).toFixed(2)} % of the pixels changed`);
             h.eq(await h.eval(() => window.LolComputer.debug.computer.view()), v0, 'and the canvas did not pan or zoom');
             await h.screenshot('k25-graph-preview-live');

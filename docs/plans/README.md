@@ -195,6 +195,20 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     order-dependent kind, a different defect. The full run after the fix (42, 05:57–06:12): **420/420**, after three
     full runs that lost one scenario each. **Next: the bump itself** (both apps; the sync `safeStorage` calls before
     46), after v0.2.20 ships, with `--phase p` and a full run on 45.
+    *2026-11-20 (day n° 11), the four read and three fixed* (read each one's waits, n° 10's *Next*):
+    - **k1-escape** set `delayMs`, which the mock never reads (its knob is `askDelayMs`), so its "20 s reply" did not
+      exist and Escape raced a run that ended in a moment;
+    - **k3-sched** reloaded before the journal's write landed; it now waits for the stored row;
+    - **k25** looked once after a fixed 700 ms; it now looks again up to 5 s.
+
+    Each of the three passed alone and in all four `--phase k` runs on 42: 222/222, 221/222, 222/222, 220/222.
+    **Not fixed:**
+    - **k3-control** (run 4, after `k3-canvas-every-notice-has-its-button`): its run's promise **never settled**. The
+      `catch` added today would have reported a rejection; `__k3` stayed null for 30 s. So a run that hangs, in
+      `report()` at k3-control.mjs:138, 182 or 190 (the log does not say which).
+    - **k24-the-ide-binds-a-project…** (runs 2 and 4; 3/3 alone): a 20 s `waitFor` came back null.
+
+    Next: log which wait each one is in when it fails, then bisect the order before them.
 
 15. **A better LOL Vibe, able to build a proof-of-concept web application** (owner, 2026-11-14: "I am not convinced
     about what we have right now in lol vibe ... we need a better lol vibe experience for the users and we should be able

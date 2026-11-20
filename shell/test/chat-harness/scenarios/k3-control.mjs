@@ -67,7 +67,8 @@ const startRun = (h, opts, from) => h.eval((o, seed) => {
     const dbg = window.LolComputer.debug.computer;
     window.__k3 = null;
     const p = seed ? dbg.runFrom(seed, o || {}) : dbg.run(o || {});
-    Promise.resolve(p).then((r) => { window.__k3 = r; });
+    // A run that throws reports its error, not a 30 s silence (2026-11-20).
+    Promise.resolve(p).then((r) => { window.__k3 = r; }, (e) => { window.__k3 = { error: String((e && e.message) || e) }; });
     return true;
 }, opts || {}, from || null);
 

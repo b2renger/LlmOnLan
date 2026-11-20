@@ -156,8 +156,9 @@ export function createJournal(o) {
         events: [],
         report: null,
       };
-      // Pushed synchronously so a crash between here and the first flush still leaves a row that
-      // says a run was live; `load()` merges it with whatever was already stored.
+      // Pushed and written as soon as the stored rows are loaded (a microtask once they are, not in this
+      // call), so a crash after that write still leaves a row that says a run was live; `load()` merges
+      // it with whatever was already stored. A caller that must see the row stored reads it back.
       load().then(() => { rows.push(row); rows = prune(rows); persist(); });
 
       return {

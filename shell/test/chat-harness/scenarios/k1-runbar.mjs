@@ -150,9 +150,10 @@ export default [
         allowConsoleErrors: FARM_ERRORS,
         async run(h) {
             await open(h);
-            // Long enough that a run which ends on its own cannot be mistaken for one Escape
-            // stopped: the wait below is 4 s against a 20 s reply.
-            await h.mock.state({ delayMs: 20000 });
+            // The mock holds the reply's first word back 20 s (askDelayMs), long enough that a run which ends on
+            // its own cannot be mistaken for one Escape stopped: the wait below is 4 s against a 20 s reply. (Until
+            // 2026-11-20 this set `delayMs`, which the mock never read: the run ended in a moment, and Escape raced it.)
+            await h.mock.state({ askDelayMs: 20000 });
             const ids = await build(h);
             await h.click('#lolcomputer .comp-run-all');
             await h.waitFor(() => (window.LolComputer.debug.computer.running() ? true : null), { timeout: 10000 });
@@ -170,7 +171,7 @@ export default [
             await h.waitFor(() => (window.LolComputer.debug.computer.running() ? null : true), { timeout: 4000 });
             const live = await parts(h);
             h.eq(live[ids.ask].state, 'stale', 'Escape from the run bar stopped the run, exactly as the Stop button does');
-            await h.mock.state({ delayMs: 0 });
+            await h.mock.state({ askDelayMs: 0 });
         },
     },
     {
@@ -235,7 +236,7 @@ export default [
         // you already paid for.
         async run(h) {
             await open(h);
-            await h.mock.state({ delayMs: 4000 });      // the reply is still coming when Stop lands
+            await h.mock.state({ askDelayMs: 4000 });      // the reply is still coming when Stop lands
             const ids = await build(h);
 
             await h.click('#lolcomputer .comp-run-all');
