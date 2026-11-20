@@ -1,8 +1,9 @@
 # CONTEXT_128K_PLAN: 128k of context per person by default
 
 **Status: approved by the owner, 2026-11-19** (the chat, 18:15: "default at 128k", "Lets do the tests now and the
-implementation in tonight session"; the aim: long chats and documents in Open WebUI). Step 3 (Open WebUI's document
-placement) is the session's proposal inside that aim; the owner may say no to it alone. Size **S**.
+implementation in tonight session"; the aim: long chats and documents in Open WebUI) for steps 1, 2 and 4–6. **Step 3
+(`RAG_SYSTEM_CONTEXT`, Open WebUI's document placement) is the session's proposal and waits for the owner's yes**
+(n° 11's question 2): the owner approved 128k, not this setting. Size **S**.
 
 ## What was measured (2026-11-20, the RTX PRO 6000, vLLM 0.33.0, the live farm's 50 GiB pool)
 
@@ -36,7 +37,7 @@ Qwen3.6 35B-A3B NVFP4, the farm's own flags (`QWEN36_ARGS`), `--max-model-len 13
   0.93 s, 8 people 1.67 s and 57.8 tok/s p10, all pass. vLLM 0.30 failed this at 4 (13.5 s); **0.33.0 reuses the
   cached context**, which step 3 below relies on.
 
-## Why documents need one more change (read in Open WebUI 0.13.3's code, not yet run)
+## Why documents need one more change (read in Open WebUI 0.13.3's code, then measured)
 
 With the client's settings (`RAG_FULL_CONTEXT` on, the `file_context` capability on), Open WebUI **puts an attached
 document's whole text into the newest user message, on every turn**:
@@ -68,15 +69,31 @@ the setting keeping them in message 0 at the same size each turn; no other conte
 sent. For a class this is the difference between the farm reading every attached document again at every question
 and reading it once per chat.
 
+**The client's real path** (the same day, no GPU): that run bypassed the vector store, and a document over
+`RAG_FULL_TEXT_CHAR_THRESHOLD` (50,000 characters) is read back from its collection, whose chunk order was not known to
+be stable. Run again with retrieval on: embeddings through `RAG_EMBEDDING_ENGINE=openai` to a stub (fixed vectors; the
+full-context mode reads the whole collection, so similarity does not matter), the chat to the same stub, which logged a
+hash of each message. With `RAG_SYSTEM_CONTEXT=true` the system message carried the document with **the same hash on
+all three turns** (`1751c4f9b5e6`, 205,921 characters): the order is stable, so the gain holds on the client's path.
+With it off, the newest user message carried it, with a different hash each turn. **On that path the text is about a
+quarter longer than the file** (205,921 characters for a 165,000-character file: the chunks' overlap and their
+`<source>` tags), so a document of roughly 100k tokens, not 120k, is what fits a 128k window whole.
+**Two limits:** a turn with web search on puts its results in the same place, so that turn reads the document again;
+a document added later in the chat changes the system message from then on.
+
 ## What changes
 
 1. **`farm/src/config.js`**: the vLLM schema's `contextLength` default 65536 → 131072. The Balanced preset follows
    (`presets.js:189` takes `SHIPPED.vllm.contextLength`): a new farm starts at 128k, and an existing farm moves when its
    operator applies Balanced (the panel's review shows *Context per person: 64k → 128k*). A stored value is never
    changed behind the operator. ponytail: no migration; the preset is the way.
-2. **`farm/src/capacity/measured.json`**: Qwen3.6's 128k label from today's run on 0.33.0, so Automatic seats at 128k
-   follow it; the Qwen3.6 entry's note (`config.js:434`) gains the 128k number.
-3. **`shell/src/main/configBridge.ts`**: `RAG_SYSTEM_CONTEXT: 'true'` beside `RAG_FULL_CONTEXT`, with its comment and
+2. **`farm/src/capacity/measured.json`**: Qwen3.6's 128k label from today's run on 0.33.0 (24), so Automatic seats at
+   128k follow it; the Qwen3.6 entry's note (`config.js:434`) gains the 128k number. **First find how the 0.33.0
+   labels got there:** `docs/spike/explorer/build_measured.py` cannot take today's files as they are. It reads the box
+   from a `pro6000` prefix and the engine from `vllm030` in the label, and it leaves out every vLLM 0.33 run
+   (`NOT_HERE`). Yet the farm's copy holds Qwen3.6's 0.33.0 label (48 at 64k, J14). Follow the same way (a hand edit
+   with its schema checked, or copies under labels the script reads), and say which in the DEVLOG.
+3. **Only with the owner's yes: `shell/src/main/configBridge.ts`**: `RAG_SYSTEM_CONTEXT: 'true'` beside `RAG_FULL_CONTEXT`, with its comment and
    `docs/context/owui-contract.md`'s env list. Measured above (turns 2 and 3: 5.3 s → 0.13–0.15 s, the answers right);
    the client's own test of `buildSidecarEnv` checks the value; a person's check goes in HUMAN_TESTS (a document of
    a few hundred pages, three questions, the second and third answering at once).
@@ -91,6 +108,6 @@ and reading it once per chat.
 Not changed: Ollama and llama.cpp (their context stays Automatic). The client needs nothing else: 64k → 128k does not
 relaunch Open WebUI (`sidecar.ts:374`).
 
-**Done when:** the farm suite and the shell's tests pass; Balanced shows 128k with Automatic seats from the new
-label; step 3's measurement is in RESULTS; docs, DEVLOG, commit, `night` backup. Not released: the owner's tests
-(J16 at 128k) first.
+**Done when:** the farm suite passes; Balanced shows 128k with Automatic seats from the new label; step 3 built and its
+test passing only if the owner said yes; docs, DEVLOG, commit, `night` backup. Not released: the owner's tests (J16 at
+128k) first.

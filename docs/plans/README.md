@@ -46,8 +46,9 @@ file stays the whole list.
 
 - **128k of context per person by default** ([CONTEXT_128K_PLAN](CONTEXT_128K_PLAN.md), approved by the owner
   2026-11-19 18:15, for a night session after the tests of 2026-11-20): the vLLM default and the Balanced preset at
-  128k, Qwen3.6's 128k label measured on 0.33.0, and Open WebUI's document text moved to the system message
-  (`RAG_SYSTEM_CONTEXT`), so the farm reads a document once per chat. **S**. Night n° 12.
+  128k, Qwen3.6's 128k label measured on 0.33.0 (24). **Its step 3, Open WebUI's document text in the system message
+  (`RAG_SYSTEM_CONTEXT`, read once per chat: 5.3 s → 0.15 s from the second question), waits for the owner's yes.**
+  **S**. Night n° 12.
 - **Qwen3.8's recurrent state in fp16** ([QWEN38_FP16_STATE_PLAN](QWEN38_FP16_STATE_PLAN.md)): **step 1 passed
   2026-11-20 at 32k** (30 people 28k deep pass with the flag, fail without; people at once 24 → ≥ 32; the long-text
   check unchanged; at 64k both fail alike). Steps 2–4 in night n° 12, after CONTEXT_128K_PLAN (the session's reading
