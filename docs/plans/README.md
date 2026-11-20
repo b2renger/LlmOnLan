@@ -208,6 +208,32 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     database Open WebUI has opened since (a record written at ready). **L6** quitting from the main window loses the
     page window's last ~0.85 s of typing (its `pagehide` edits reach a main window already gone): flush the page window
     before the main one closes. **S** each.
+18. **LOL Vibe builds from a picture** (owner, 2026-11-20: "upload images of interfaces to be able to reproduce them
+    with html css js - and even figma files, or images of scenes to be able to reproduce them with threejs"). Three
+    asks: **a screenshot of an interface → a page in HTML, CSS and JS**; **a Figma design → the same**; **a picture of a
+    scene → a three.js scene**. A plan in `docs/plans/` first; its first step is a measurement. What exists
+    (checked 2026-11-20 in the code, not yet run end to end):
+    - the farm's default model sees pictures (Qwen3.6: `vision: true`, `farm/src/config.js`; Qwen3.8 and Gemma 4 26B too);
+    - LOL Vibe's chat already sends a picture with a message (`shell/renderer/chat/net/request.mjs:155`, `image_url`);
+    - the coding agent has a `read_image` tool (`shell/src/main/studio.ts:867`), so a picture saved in the project
+      could be read;
+    - three.js r160 ships in the client already, for the Computer's sandbox (`shell/renderer/chat/sandbox/libs.mjs`). A
+      project page could use a local copy of it, with no network and no new dependency.
+
+    **The plan must answer:**
+    - **How a person hands over the picture:** dropped in the chat, or saved in the project for the agent to read.
+    - **How well each farm model copies an interface or a scene.** Not measured: the first step is a few screenshots
+      and scene pictures through Qwen3.6, Qwen3.8 and Gemma 4 26B, with the pages compared by eye.
+    - **Figma:**
+      - The local way: the person exports a frame as PNG or SVG from Figma, and the SVG is text the model reads.
+      - Reading a `.fig` file directly was not checked: its format is Figma's own.
+      - **Figma's web API is a cloud service the privacy boundary does not name.** That is the owner's call, like
+        Microsoft 365 (DECISIONS, 2026-11-05).
+    - **Where three.js comes from in a project:** copying it from the client's own copy (r160) or a CDN, which needs
+      the internet.
+    - **What a picture costs the shared GPU:** the image tokens of each turn, for a class at once.
+
+    **M**.
 
 ## 3. Later
 

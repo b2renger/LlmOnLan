@@ -48,6 +48,19 @@ its date, before anything else, and commits it. An unanswered question's default
   ([QWEN38_FP16_STATE_PLAN](../plans/QWEN38_FP16_STATE_PLAN.md)). That is a plan, not approval to build: its step 1 is
   a measurement, and steps 2–4 wait for the plan's approval. "2- Yes delete": HyperQwen's install `~/lol-hq` (37 GB),
   deleted the same day; `docs/spike/runs/hq_batch.sh` holds the recipe.
+- **2026-11-19, the chat (18:15).** A longer context is wanted for **long chats and documents in Open WebUI**. **The
+  farm's default context per person becomes 128k** ("default at 128k"): "Lets do the tests now and the implementation
+  in tonight session", so it is approved to build in a night session, after the tests. QWEN38_FP16_STATE_PLAN's step 1
+  runs at 32k **and 64k**. One long conversation without fewer seats (a longer maximum than the seats are counted at):
+  no answer, so no plan. The owner quit the Farm app for the tests (the card free at 2026-11-20 08:42).
+  Read with the same message: "the implementation" covers QWEN38_FP16_STATE_PLAN's steps 2–4 too, **if its step 1
+  passes** (the session's reading, told to the owner on 2026-11-20 to correct).
+- **2026-11-20, the chat (08:44).** The night sessions are expected every night: "since we didn't run last two session
+  you will need to tell me why, and you'll need to work harder today". (n° 10's question 4 had *no cron* as its
+  default; the cron was started again at 08:46, job `4ef5e27b`, 01:30 each night, expires 2026-11-27.) A question
+  whose default stops the work is not a good default.
+- **2026-11-20, the chat (08:44).** LOL Vibe builds from a picture: an interface's screenshot or a Figma design → a page
+  in HTML, CSS and JS; a scene's picture → three.js (plans ▸ Next 18, a plan first).
 
 ## LOL Vibe and the Computer
 
