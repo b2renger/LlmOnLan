@@ -48,9 +48,10 @@ file stays the whole list.
   2026-11-19 18:15, for a night session after the tests of 2026-11-20): the vLLM default and the Balanced preset at
   128k, Qwen3.6's 128k label measured on 0.33.0, and Open WebUI's document text moved to the system message
   (`RAG_SYSTEM_CONTEXT`), so the farm reads a document once per chat. **S**. Night n° 12.
-- **Qwen3.8's recurrent state in fp16** ([QWEN38_FP16_STATE_PLAN](QWEN38_FP16_STATE_PLAN.md)): step 1 measured
-  2026-11-20; steps 2–4 in the same night **if step 1 passed** (the session's reading of the owner's "the
-  implementation in tonight session", DECISIONS 2026-11-19). **S**.
+- **Qwen3.8's recurrent state in fp16** ([QWEN38_FP16_STATE_PLAN](QWEN38_FP16_STATE_PLAN.md)): **step 1 passed
+  2026-11-20 at 32k** (30 people 28k deep pass with the flag, fail without; people at once 24 → ≥ 32; the long-text
+  check unchanged; at 64k both fail alike). Steps 2–4 in night n° 12, after CONTEXT_128K_PLAN (the session's reading
+  of the owner's "the implementation in tonight session", DECISIONS 2026-11-19). **S**.
 - **LOL Vibe's page preview, code beside it** ([VIBE_PAGE_PLAN](VIBE_PAGE_PLAN.md), the owner's request of 2026-11-18,
   approved with its three choices): step 1 the side column (errors with block and line, the shared editor, live
   reload, edits kept with the thread), step 2 the pop-out window. **M**. Built by day, 2026-11-18.

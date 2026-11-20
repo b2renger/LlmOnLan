@@ -1453,3 +1453,8 @@ the fp16 state, which is not proof that there is none.
 the client's settings today, the first word of turns 1, 2 and 3 came at 5.42, 5.26 and 5.28 s: the document is put into
 the newest message each turn and read again. With `RAG_SYSTEM_CONTEXT=true`: 5.45, **0.13 and 0.15 s**, the document
 kept in the system message (the relay's log). All six answers right.
+
+**Later the same morning** (`-label120k-b`, `-follow50k-20`): Qwen3.6 at 128k with 28 and 30 people each ~120k deep,
+appended turns: 5.35 s and 5.82 s first word p95 (p50 1.2 and 1.3 s), 17.5 and 17.3 tok/s p10: both miss the 5 s bar,
+so the label stays **24**. Qwen3.8 at 64k with 20 people each ~50k deep: B 54.5 s / 4.7, G 54.7 s / 4.8, both fail
+alike (the cached contexts evicted between turns: vLLM's prefix-cache hit rate down to 0 %).

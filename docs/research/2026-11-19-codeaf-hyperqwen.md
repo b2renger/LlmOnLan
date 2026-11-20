@@ -127,6 +127,11 @@ between 23k and 50k Qwen3.6 starts failing is unknown, so a plan for Qwen3.8 sta
 `runs/hq_seatprobe.sh` (its install, `~/lol-hq`, was deleted on the owner's yes, 2026-11-19: rebuild it first from
 `hq_batch.sh`'s header). The plan is [QWEN38_FP16_STATE_PLAN](../plans/QWEN38_FP16_STATE_PLAN.md) (written 2026-11-19).
 
+**Its step 1, measured 2026-11-20** (the plan ▸ *Step 1's result*): on Qwen3.8 at 32k the flag passes. 30 people ~28k
+deep fail without it (5.5 s / 22.4) and pass with it (2.5 s / 50.9); people at once go from 24 to ≥ 32; the long-text
+check is unchanged. At 64k Qwen3.8 fails 20 and 30 people ~50k deep with and without the flag alike (its pool with
+drafting), so the failure seen on Qwen3.6 at 50k was not reproduced as a flag effect on Qwen3.8.
+
 **The farm's default, Qwen3.6 35B-A3B, carries an MTP layer too** (19 `mtp.*` tensors). The same A/B at its 64k
 setting, its farm flags (`QWEN36_ARGS`), plus a 50k-deep step (`long50`: 30 people each ~50k tokens into a
 conversation, what a 64k setting allows):

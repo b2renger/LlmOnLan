@@ -57,6 +57,26 @@ A trial vLLM (`docs/spike/runs/trial_serve.sh`, `~/lol-vllm-033`, never producti
 Write the failure down; the plan ends there. **If the owner wants Qwen3.8 at 64k** (the context question of
 2026-11-19), add step 1 again at ~50k deep, where Qwen3.6 failed.
 
+### Step 1's result (2026-11-20, RESULTS ▸ *128k for Qwen3.6, and Qwen3.8's recurrent state in fp16*)
+
+**It passes at 32k, the farm's setting for Qwen3.8, and changes nothing at 64k.** B = `QWEN38_ARGS`, G = B + the flag,
+50 GiB, `results/lc1120-{B,G}{32,64}-*`:
+
+| | B | G |
+|---|---|---|
+| 1.1 30 people ~28k deep (32k) | 5.5 s / 22.4 tok/s: fails (its pool is smaller than 30 × 28k) | **2.5 s / 50.9: passes** |
+| 1.2 Long-text check, ~28k / ~55k | 20/20 / 18/20 | 20/20 / 18/20, **the same two wrong answers** |
+| 1.3 People at once, the label's profile (32k) | **24** | **≥ 32** (16, 24, 32 all pass) |
+| 1.4 vLLM's count at 32k / 64k | 24.69 / 16.32 | 31.95 / 19.10 |
+| 64k: 30 people ~50k deep | 185 s: fails | 146 s: fails |
+| 64k: 20 people ~50k deep | 54.5 s / 4.7: fails | 54.7 s / 4.8: fails |
+
+At 64k both fail alike: with drafting, Qwen3.8's pool on 50 GiB holds about 21 (B) or 25 (G) conversations of 50k,
+and with 20 the cached contexts still get evicted between turns (vLLM's prefix-cache hit rate falls to 0 %). That is
+Qwen3.8's limit at 64k with or without the flag. Qwen3.8 stays at 32k for a class. The long-text misses at 55k are
+the code of the line just before the one asked, in both: the model's slip, not the flag's. The flag passes the plan's
+bar (G no worse than B anywhere, better at 32k), so **steps 2–4 go ahead** under the status line's condition.
+
 ## Steps 2–4: the change (after approval, and only if step 1 passes)
 
 2. **`farm/src/config.js`**: `QWEN38_ARGS` gains `--mamba-ssm-cache-dtype float16`; the entry's note says what it does
