@@ -244,6 +244,13 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     - **What a picture costs the shared GPU:** the image tokens of each turn, for a class at once.
 
     **M**.
+19. **The tools' releases of 2026-11-20** ([the research](../research/TOOL_UPDATES_2026-11-20.md)):
+    - **vLLM 0.34.0:** a trial on a second root, a measurement. It fuses the GDN prefill for the Qwen3.5 line
+      (1.16–1.50×). It changes the default block size to 64. `--mamba-cache-mode` does nothing there. Then a plan for
+      the bump if it wins.
+    - **Open WebUI 0.13.4:** the pin bump and its smoke tests (invariant 5). Its "fewer repeated context lists" stops
+      a 128k chat from filling with repeated skill and knowledge lists.
+    - The owner says go for each bump. **S** each.
 
 ## 3. Later
 
