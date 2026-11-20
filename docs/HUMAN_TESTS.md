@@ -1438,6 +1438,26 @@ is open). *Was:* new (review 2026-11-05).
 min and one at about +180 min (*1 sent*, then *2 sent*), each with its reply; log.md has two lines; nothing after Stop.
 - [ ] Done · Found:
 
+### G14 Plan first: the agent proposes, the student approves (five minutes, a student's laptop)
+*Proves:* with **Plan first** on, the coding agent reads the project and answers with a plan, and changes nothing until
+**Go ahead** (STUDENT_PLAN_MODE_PLAN; the fence that refuses its writes is tested on the real agent runtime and in the
+harness, the plan's wording on a real model is not). *Needs:* a client build with Plan first (after v0.2.19); a farm
+with Qwen3.6 or qwen3.8; a project with an index.html (any page the agent made). *Was:* new (2026-11-20).
+1. In the project's chat, the Project panel's top bar ▸ **Plan first** (it turns to *Plan first: on*, and a line under
+   the bar says what it does). Note the History tab's newest entry.
+2. Ask: *"Add a footer with today's date to the page, in a separate footer.css."*
+3. Read the reply; under it, **Change the plan**, then ask: *"Make the footer text grey."*
+4. Under the new plan, **Go ahead**.
+5. **Plan first** again (it goes off), and ask for one more small change.
+
+*Expect:* after 2, a numbered plan naming index.html and footer.css and how to check it; the Changes tab and History
+unchanged (no new entry); if the agent tried to write, its step log says *planning: nothing is changed until the
+person approves the plan*. After 3, the cursor is in the message box and the next answer is a new plan with grey
+text. After 4, a message *Carry out the plan above.* and a reply that writes both files (History: one *Agent:* entry);
+the Preview shows the footer. After 5, the change is made at once, with no plan. Note whether the plans were clear
+enough for a student to follow.
+- [ ] Done · Found:
+
 ## H. Home Assistant on a real home
 
 **Machines:** one laptop, the office's Home Assistant Green with real devices (a light, a sensor, a window or blind

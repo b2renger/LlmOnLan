@@ -26,6 +26,14 @@ registerStrings('agent', {
   loopRoundLimit: 'The loop stopped after {max} rounds, its limit. What it did so far is kept; send a message to go on.',
   loopBlocked: 'The agent stopped because it is blocked: {why}. What it did so far is kept.',
 
+  // "Plan first" (STUDENT_PLAN_MODE_PLAN): the two buttons under a plan, and the message Go ahead sends (a message that
+  // says exactly this is carried out, never planned: projects/agent.mjs isGoAhead).
+  goAhead: 'Go ahead',
+  tipGoAhead: 'Carry out this plan: the agent may change the project now',
+  goAheadText: 'Carry out the plan above.',
+  changePlan: 'Change the plan',
+  tipChangePlan: 'Say what to change in the message box; the agent plans again',
+
   // When a turn does not end with an answer.
   noApp: 'The coding agent runs in the LlmOnLan app, not here.',
   outOfRoom: 'The model ran out of room before it finished. Ask for a smaller change, or pick a model that is good at editing code (the Project panel says which).',

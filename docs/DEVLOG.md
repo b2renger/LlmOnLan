@@ -9,6 +9,38 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-20 (13:18) — The owner's five answers; LOL Vibe's Plan first built; k24's flake found in the page (day n° 11, afternoon)
+
+**The answers (12:46, the chat; DECISIONS):** 128k by default with the Automatic seats (24 on the PRO 6000);
+`RAG_SYSTEM_CONTEXT` yes; Qwen3.8's fp16 state yes; STUDENT_PLAN_MODE_PLAN approved as written; Open WebUI 0.13.4 yes.
+And "You mentionned images, but not figma": plans ▸ Next 18 now gives Figma's five ways in, read on Figma's own pages
+(a `docs` explorer): export a frame as SVG or PNG (all plans, nothing new leaves the computer: the first to build);
+the desktop MCP server at 127.0.0.1:3845 (a Dev or Full seat, privacy.md first); the `.fig` file (no public spec);
+the cloud MCP server (closed to clients outside Figma's catalog); the REST API (a new cloud service).
+
+**CONTEXT_128K_PLAN step 3's proof in the repo** (the advisor: tonight's Open WebUI bump must not undo it silently):
+`docs/spike/runs/owui_doc_check.sh` and four scripts, PASS on 0.13.3 at 12:54 (40 s, no GPU); the bump's *Done when*
+requires it on 0.13.4.
+
+**Plan first (STUDENT_PLAN_MODE_PLAN), built.** Main: `plan: true` writes `lol-planning` beside the fence before the
+turn (cleared before every other turn and in `finish`), adds `PLAN_PROMPT`; `FENCE_JS` refuses `write`, `edit` and,
+through a second hook group (`^mcp__computer__`, which dsh reads as a regex: `dsh-hook-protocol` `matchesMatcher`,
+read in the installed runtime), the Computer's tools. The page: the switch in the Project panel's bar
+(`chat-proj-plan`), `planning: true` on the reply, **Go ahead** (sends *Carry out the plan above.*, which `isGoAhead`
+never plans) and **Change the plan** (focuses the box). The mock dsh now runs the real fence before each file tool,
+as dsh does, and acts out *Carry out the plan above.* from the session's last request.
+Tested: `test:chat` (the full run below), among it **the real dsh runtime** (`shell/dsh/build`): a fake farm
+whose model writes `plan.txt`; while planning the file never appears and the model reads *planning: nothing is
+changed…* as the tool's result, so the hook ran inside dsh's Windows sandbox and saw the marker; after, the same write
+lands. Harness `k24-plan-first-changes-nothing-until-go-ahead` 3/3 alone. Four choices made (the plan's *Built*): per
+project in the bar, the Computer's tools refused too, buttons under every plan, the go-ahead as a message.
+
+**k24's flake, found:** the first k24 scenario now failed alone too (1/3, 2/8, 1/10), always at a 20 s wait the
+message did not name. `h.waitFor` now adds the scenario's line (`helpers.js`): `k24-ide.mjs:204`, *Address saved*.
+After a refused `http://` address, the reload of the saved remote overwrote the field unless focused, so the https
+address typed right after could be replaced by the saved one (empty) before Save read it. Fixed in the page: the
+field follows the saved address only while it still shows the last one loaded, or is empty. 12/12 alone after.
+
 ## 2026-11-20 (09:22) — 128k for Qwen3.6 measured on vLLM 0.33.0; Open WebUI re-sends a document at every turn (day n° 11)
 
 **Why:** the owner (2026-11-19 18:15): 128k by default, for long chats and documents in Open WebUI; the tests by day,

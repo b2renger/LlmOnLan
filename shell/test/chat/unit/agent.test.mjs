@@ -3,7 +3,7 @@
 // answer, a step log and the edits; a turn ends as done, stopped, refused or "ran out of room" — never a silent
 // "done" with nothing in it; the recap keeps the newest turns; a model is trusted with edits only when measured.
 import assert from 'node:assert/strict';
-import { buildRecap, emptyTurn, applyRecord, resultOf, startAgentTurn, keepGoing, setKeepGoing, useComputer, setUseComputer } from '../../../renderer/chat/projects/agent.mjs';
+import { buildRecap, emptyTurn, applyRecord, resultOf, startAgentTurn, keepGoing, setKeepGoing, useComputer, setUseComputer, planFirst, setPlanFirst, isGoAhead } from '../../../renderer/chat/projects/agent.mjs';
 import { profileFor, pickEditor } from '../../../renderer/chat/projects/models.mjs';
 
 const REC = {
@@ -163,6 +163,24 @@ export default (test) => {
     turn2.abort();
     await turn2.done;
     setUseComputer('p-one', false);
+
+    // "Plan first" (STUDENT_PLAN_MODE_PLAN): the same kind of switch, carried the same way.
+    assert.equal(planFirst('p-one'), false, 'off by default');
+    setPlanFirst('p-one', true);
+    assert.equal(planFirst('p-two'), false, 'per project');
+    const door3 = fakeDoor();
+    const turn3 = startAgentTurn({ projectId: 'p-one', threadId: 't', model: 'm', text: 'x', plan: planFirst('p-one'), door: door3 });
+    await Promise.resolve();
+    assert.equal(door3.prompts[0].plan, true);
+    assert.equal(door3.prompts[0].goal, undefined, 'independent of the others');
+    turn3.abort();
+    await turn3.done;
+    setPlanFirst('p-one', false);
+    assert.equal(planFirst('p-one'), false);
+    // A plan's Go ahead sends this sentence, and a message saying exactly it is carried out, never planned again.
+    assert.equal(isGoAhead('Carry out the plan above.'), true);
+    assert.equal(isGoAhead('  Carry out the plan above.\n'), true, 'spaces around do not matter');
+    assert.equal(isGoAhead('Carry out the plan above, but in red.'), false, 'a changed message is planned again');
   });
 
   test('agent: outside the app (no door) the turn is refused in words', async () => {

@@ -532,6 +532,18 @@ export default (test) => {
     assert.equal(call('write', { file_path: 'src/../.git/hooks/x', content: 'y' }).code, 2, 'nor through a detour');
     assert.equal(call('read', { file_path: '.git/config' }).code, 0, 'reading them stays allowed');
     assert.equal(call('write', { file_path: '.gitignore', content: 'node_modules' }).code, 0, '.gitignore is the project\'s own');
+    // "Plan first" (2026-11-20): while the shell's marker sits beside the fence, nothing is changed; reading stays allowed.
+    fs.writeFileSync(path.join(dir, S.PLAN_MARKER), '');
+    const planned = call('write', { file_path: 'a.js', content: 'y' });
+    assert.equal(planned.code, 2, 'planning: no write');
+    assert.match(planned.why, /planning: nothing is changed until the person approves/);
+    assert.equal(call('edit', { file_path: 'index.html', old_string: 'x', new_string: 'y' }).code, 2, 'nor an edit');
+    assert.equal(call('read', { file_path: 'index.html' }).code, 0, 'reading the project stays allowed');
+    assert.equal(call('grep', { pattern: 'x' }).code, 0, 'and searching it');
+    assert.equal(call('mcp__computer__add_box', { type: 'code' }).code, 2, 'nor the Computer\'s tools');
+    fs.rmSync(path.join(dir, S.PLAN_MARKER));
+    assert.equal(call('mcp__computer__add_box', { type: 'code', path: dir }).code, 0, 'the Computer\'s tools pass otherwise, whatever their arguments (the path checks are for files)');
+    assert.equal(call('write', { file_path: 'a.js', content: 'y' }).code, 0, 'and writes pass again');
     if (process.platform === 'win32') {
       assert.equal(call('write', { file_path: '.GIT/config', content: 'y' }).code, 2, 'Windows paths ignore case');
     }
@@ -630,6 +642,91 @@ export default (test) => {
     assert.equal(both.PostToolUse[0].hooks[0].command, '& "C:\\n\\node.exe" --no-warnings --experimental-vm-modules "C:\\h\\check.mjs"; exit $LASTEXITCODE',
       'wrapped like the fence, with the flag vm modules need');
     assert.equal(JSON.parse(S.fenceHooks('n', 'f', 'linux')).hooks.PostToolUse, undefined);
+    // "Use the Computer": its MCP tools reach the fence too, so "Plan first" can refuse them — a regex matcher for dsh.
+    const pre = JSON.parse(S.fenceHooks('n', 'f', 'linux', undefined, true)).hooks.PreToolUse;
+    assert.equal(pre[1].matcher, '^mcp__computer__');
+    assert.equal(pre[1].hooks[0].command, '"n" "f"', 'the same fence');
+    assert.equal(JSON.parse(S.fenceHooks('n', 'f', 'linux')).hooks.PreToolUse.length, 1, 'without the Computer: file tools only');
+  });
+
+  test('studio: "Plan first" on the REAL dsh — its hook, in its sandbox, refuses the write while planning and not after (when the runtime is built)', async () => {
+    const rt = path.join(SHELL, 'dsh', 'build', 'dsh-runtime');
+    const node = path.join(rt, 'node', process.platform === 'win32' ? 'node.exe' : path.join('bin', 'node'));
+    const bin = path.join(rt, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
+    if (!fs.existsSync(node) || !fs.existsSync(bin)) { console.log('     (no dsh runtime in shell/dsh/build: skipped)'); return; }
+    // A farm whose model always writes plan.txt first, then says it is done once it has the tool's result.
+    /** @type {string[]} */ const toolResults = [];
+    const server = http.createServer((req, res) => {
+      let raw = '';
+      req.on('data', (d) => { raw += d; });
+      req.on('end', () => {
+        let body = /** @type {any} */ ({});
+        try { body = JSON.parse(raw || '{}'); } catch { /* not a completion */ }
+        const msgs = Array.isArray(body.messages) ? body.messages : [];
+        const last = msgs[msgs.length - 1] || {};
+        const delta = last.role === 'tool'
+          ? (toolResults.push(typeof last.content === 'string' ? last.content : JSON.stringify(last.content)), { role: 'assistant', content: 'Done.' })
+          : { role: 'assistant', tool_calls: [{ index: 0, id: `call_${toolResults.length}`, type: 'function', function: { name: 'write', arguments: JSON.stringify({ file_path: 'plan.txt', content: 'x' }) } }] };
+        const finish = delta.tool_calls ? 'tool_calls' : 'stop';
+        if (body.stream) {
+          res.writeHead(200, { 'content-type': 'text/event-stream' });
+          res.write(`data: ${JSON.stringify({ id: 'c', object: 'chat.completion.chunk', model: 'm', choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`);
+          res.write(`data: ${JSON.stringify({ id: 'c', object: 'chat.completion.chunk', model: 'm', choices: [{ index: 0, delta: {}, finish_reason: finish }], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } })}\n\n`);
+          res.end('data: [DONE]\n\n');
+        } else {
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ id: 'c', object: 'chat.completion', model: 'm', choices: [{ index: 0, message: delta, finish_reason: finish }], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } }));
+        }
+      });
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', () => r(null)));
+    const port = /** @type {any} */ (server.address()).port;
+    const r = rig({ runtime: { node, bin }, farm: { endpoint: `http://127.0.0.1:${port}/v1`, key: null, ctxPerSlot: 32768 } });
+    try {
+      const a = await r.studio.prompt({ projectId: PID, threadId: 'real-plan', model: 'm', text: 'make plan.txt', plan: true });
+      assert.equal(a.ok, true, JSON.stringify(a));
+      await r.done(a.turnId, 60000);
+      assert.ok(!fs.existsSync(path.join(r.dir, 'plan.txt')), 'the real runtime ran the fence, which saw the marker: no file');
+      assert.match(toolResults[0] || '', /planning: nothing is changed/, `the model was told why: ${toolResults[0]}`);
+      const b = await r.studio.prompt({ projectId: PID, threadId: 'real-plan', model: 'm', text: 'Carry out the plan above.' });
+      assert.equal(b.ok, true, JSON.stringify(b));
+      await r.done(b.turnId, 60000);
+      assert.equal(fs.readFileSync(path.join(r.dir, 'plan.txt'), 'utf8'), 'x', 'after the plan, the same write goes through');
+    } finally { await r.studio.dispose(); server.close(); }
+  }, { timeoutMs: 150000 });
+
+  test('studio: "Plan first" — the turn plans and changes nothing, its marker goes with the turn, and "Go ahead" carries it out', async () => {
+    const r = rig();
+    const marker = path.join(r.data, 'lol-studio', 'dsh', S.PLAN_MARKER);
+    try {
+      const a = await r.studio.prompt({ projectId: PID, threadId: 'p', model: 'm', text: 'write plan.txt: x', plan: true });
+      assert.equal(a.ok, true, JSON.stringify(a));
+      assert.deepEqual(await r.done(a.turnId), { reason: 'completed' });
+      assert.ok(!fs.existsSync(path.join(r.dir, 'plan.txt')), 'the fence refused the write');
+      const res = r.got.find((m) => m.turnId === a.turnId && m.rec && m.rec.kind === 'result').rec;
+      assert.equal(res.ok, false);
+      assert.match(res.error, /planning: nothing is changed/, 'the agent was told why');
+      assert.match(r.said(a.turnId), /Plan first: in this turn you cannot change any file/, 'the planning sentence reached the agent');
+      assert.ok(!fs.existsSync(marker), 'the marker went with the turn');
+      assert.deepEqual((await r.studio.history(PID)).commits, [], 'a plan is no commit');
+
+      const b = await r.studio.prompt({ projectId: PID, threadId: 'p', model: 'm', text: 'Carry out the plan above.' });
+      assert.equal(b.ok && b.fresh, false, 'the plan and its Go ahead share one session (no restart)');
+      await r.done(b.turnId);
+      assert.equal(fs.readFileSync(path.join(r.dir, 'plan.txt'), 'utf8'), 'x', 'carried out');
+      assert.doesNotMatch(r.said(b.turnId), /Plan first: in this turn/, 'not planned again');
+
+      fs.writeFileSync(marker, '');   // left behind by a crash in the middle of a plan
+      const c = await r.studio.prompt({ projectId: PID, threadId: 'p', model: 'm', text: 'write after.txt: y' });
+      await r.done(c.turnId);
+      assert.ok(fs.existsSync(path.join(r.dir, 'after.txt')), 'a leftover marker never blocks a normal turn');
+
+      const d = await r.studio.prompt({ projectId: PID, threadId: 'p', model: 'm', text: 'slow', plan: true });
+      assert.ok(fs.existsSync(marker), 'set while the plan runs');
+      await r.studio.stop();
+      assert.ok(!fs.existsSync(marker), 'and gone when Stop ends it');
+      void d;
+    } finally { await r.studio.dispose(); }
   });
 
   test('studio: the syntax check tells the agent at once when a page\'s JavaScript does not parse — with the file\'s line', () => {

@@ -62,3 +62,24 @@ change the project. The student learns to read a plan, and catches a wrong direc
 **Done when** (after approval): the switch, the planning turn, the two buttons and their strings exist; the unit test
 and the harness scenario pass; `docs/context/client.md`, the help and the tutorial say it; HUMAN_TESTS has a
 five-minute test for a student's laptop.
+
+## Built (2026-11-20, by day after the owner's yes; unreleased)
+
+As written, with four choices the session made, each for the owner to overturn:
+- **Where the switch is:** in the Project panel's top bar beside *Keep going until done* and *Use the Computer*, kept
+  **per project** like them, not beside the message box per thread. The same kind of switch sits with its siblings,
+  and a project usually has one chat. Moving it is small.
+- **The Computer's tools are refused too** while planning, when *Use the Computer* is on: the fence also runs before
+  `mcp__computer__*` calls (a second hook group; it skips the file checks there). Otherwise a plan could still build
+  or run a graph.
+- **The buttons stay under every plan of the chat** (a reply's buttons are built once and cannot tell the last one);
+  *Go ahead* carries out the newest plan. Marked `ponytail:` in `ui/project-panel.mjs`.
+- **The go-ahead is the message, not a state:** a message that says exactly *Carry out the plan above.* is never
+  planned, so Regenerate on it carries out too, and nothing is left armed by a click whose send failed.
+
+Checked: the studio unit tests (the fence with the marker: write, edit and the Computer's tools refused, reads
+allowed; the marker set, gone at the end, gone on Stop, and a leftover one cleared before a normal turn; the plan and
+its Go ahead in one session) and **the real dsh runtime** (`shell/dsh/build`) refusing the write in its Windows
+sandbox while planning and letting it through after; the harness scenario
+`k24-plan-first-changes-nothing-until-go-ahead` (3/3 alone); the chat suite. Not checked: a real model's plans on a
+farm (HUMAN_TESTS G14), macOS and Linux (where the fence's own coverage is HUMAN_TESTS E4).

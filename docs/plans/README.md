@@ -54,8 +54,9 @@ file stays the whole list.
   check unchanged; at 64k both fail alike). Steps 2–4 in night n° 12, after CONTEXT_128K_PLAN (confirmed by the owner
   2026-11-20 12:46). **S**.
 - **A plan mode for students in LOL Vibe** ([STUDENT_PLAN_MODE_PLAN](STUDENT_PLAN_MODE_PLAN.md), approved by the owner
-  2026-11-20 12:46, as written): a *Plan first* switch per thread, the fence refusing writes while the agent plans, *Go
-  ahead* and *Change the plan*. **M**.
+  2026-11-20 12:46, as written): a *Plan first* switch, the fence refusing writes while the agent plans, *Go ahead*
+  and *Change the plan*. **M**. **Built by day, 2026-11-20** (unreleased; the plan's *Built* says the four choices
+  made, for the owner to overturn); HUMAN_TESTS G14 for the owner.
 - **Open WebUI 0.13.4** (plans ▸ Next 19; approved 2026-11-20 12:46: "yes we can bump"): the pin bump and its smoke
   tests, after the 128k build. **Done when** the smoke tests pass and `docs/spike/runs/owui_doc_check.sh` gives PASS on
   0.13.4 (an attached document stays the same in the system message from turn to turn: CONTEXT_128K_PLAN step 3's
@@ -214,9 +215,16 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     - **k3-control** (run 4, after `k3-canvas-every-notice-has-its-button`): its run's promise **never settled**. The
       `catch` added today would have reported a rejection; `__k3` stayed null for 30 s. So a run that hangs, in
       `report()` at k3-control.mjs:138, 182 or 190 (the log does not say which).
-    - **k24-the-ide-binds-a-project…** (runs 2 and 4; 3/3 alone): a 20 s `waitFor` came back null.
+    - ~~**k24-the-ide-binds-a-project…** (runs 2 and 4; 3/3 alone): a 20 s `waitFor` came back null.~~ *Found and
+      fixed 2026-11-20 by day:* it failed alone too (1 in 3, 2 in 8, 1 in 10), at `k24-ide.mjs:204`, *Address saved*.
+      **A race in the page**, not the test: after a refused `http://` address, `gitAct` reloads the saved remote, which
+      overwrote the field unless it had focus. The test (or a quick person) typed the https address first, the reload
+      put back the saved one (empty), and Save sent nothing. Now the field follows the saved address only while it
+      still shows the last one loaded, or is empty (`project-panel.mjs` `shownRemote`). A refused address also stays
+      there to fix, where it used to vanish. 12/12 alone after.
 
-    Next: log which wait each one is in when it fails, then bisect the order before them.
+    **The harness now says which wait timed out:** `h.waitFor` adds the scenario's line to its message
+    (`helpers.js`, e.g. `(scenarios/k24-ide.mjs:204:21)`). Next for k3-control: its line, on the next failure.
 
 15. **A better LOL Vibe, able to build a proof-of-concept web application** (owner, 2026-11-14: "I am not convinced
     about what we have right now in lol vibe ... we need a better lol vibe experience for the users and we should be able

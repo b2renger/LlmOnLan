@@ -14,12 +14,19 @@
 //   "goal-maxtokens"                   → create_goal, then the turn ends on max-tokens (dsh disarms the goal)
 //   "goal-stall"                       → create_goal, a normal end, and no round ever comes (a disarmed goal)
 // Its final answer quotes the whole prompt it received, so a test can see a recap arrive.
+// Like dsh, it runs LlmOnLan's fence before each file tool (DSH_HOME/lol-fence.mjs, written by studio.ts at every start:
+// the call as JSON on stdin, exit 2 = refused, its stderr the tool's error), so "Plan first" and the project fence act
+// here as they do on the real runtime. "Carry out the plan above." (a plan's Go ahead) acts out the session's last
+// request, as a model would from the plan it wrote.
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 let seq = 0;
 let buf = '';
 const sessions = new Set();
+/** Each session's last request (what "Carry out the plan above." acts out). */
+const asked = new Map();
 const send = (m) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...m }) + '\n');
 const event = (sessionId, type, data) => send({ method: 'session.event', params: { sessionId, event: { type, seq: seq++, time: Date.now(), data } } });
 const status = (sessionId, s) => send({ method: 'session.status', params: { sessionId, status: s } });
@@ -34,12 +41,26 @@ async function tool(sessionId, step, name, args, run) {
   });
   event(sessionId, 'tool/call', { turn: 1, step, callId, name, arguments: JSON.stringify(args) });
   let out;
-  try { out = run(); } catch (e) { out = { isError: true, text: `Error: ${e.message}` }; }
+  const refused = fenced(name, args);
+  if (refused) out = { isError: true, text: refused };
+  else try { out = run(); } catch (e) { out = { isError: true, text: `Error: ${e.message}` }; }
   event(sessionId, 'tool/result', {
     turn: 1, step,
     message: { role: 'tool', source: { kind: 'tool', callId }, toolCallId: callId, content: [{ type: 'text', text: out.text }], isError: !!out.isError },
     ...(out.meta ? { meta: out.meta } : {}),
   });
+}
+
+/** LlmOnLan's fence on a file tool, as dsh runs a PreToolUse hook → its refusal, or null to go on. */
+function fenced(name, args) {
+  if (!['read', 'glob', 'grep', 'read_image', 'write', 'edit'].includes(name)) return null;
+  const fence = process.env.DSH_HOME ? path.join(process.env.DSH_HOME, 'lol-fence.mjs') : '';
+  if (!fence || !fs.existsSync(fence)) return null;
+  const r = spawnSync(process.execPath, [fence], {
+    input: JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: name, tool_input: args, cwd: process.cwd() }),
+    encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+  });
+  return r.status === 2 ? String(r.stderr || 'refused') : null;
 }
 
 /** dsh's goal loop, as the recorded sessions show it: the model creates the goal; after each idle dsh starts a round. */
@@ -146,7 +167,10 @@ process.stdin.on('data', (d) => {
       const p = m.params || {};
       sessions.add(p.sessionId);
       send({ id: m.id, result: { messageId: `msg-${seq}` } });
-      const text = (p.contentBlocks || []).map((b) => b.text || '').join('');
+      let text = (p.contentBlocks || []).map((b) => b.text || '').join('');
+      // A plan's Go ahead: the session's last request, without the planning sentence (it ends in a blank line).
+      if (/Carry out the plan above\./.test(text) && asked.has(p.sessionId)) text = `${text}\n${asked.get(p.sessionId).replace(/Plan first:[^\n]*\n\n/, '')}`;
+      else asked.set(p.sessionId, text);
       void turn(p.sessionId, text);
     } else if (m.id != null) send({ id: m.id, error: { code: -32601, message: 'method not found' } });
   }

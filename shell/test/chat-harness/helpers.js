@@ -87,6 +87,9 @@ function createHelpers(ctx) {
         const interval = opts.interval || 100;
         const args = opts.args || [];
         const deadline = Date.now() + timeout;
+        // Which wait it was: the scenario's line that called it, taken now (the stack is gone after the first await).
+        // A flake that only says "timed out" cannot be bisected (plans ▸ Next 14, 2026-11-20).
+        const where = (new Error().stack || '').split('\n').map((l) => l.trim()).find((l) => /scenarios[\\/]/.test(l)) || '';
         let last;
         for (;;) {
             try {
@@ -96,7 +99,8 @@ function createHelpers(ctx) {
                 last = '(threw) ' + e.message;
             }
             if (Date.now() >= deadline) {
-                throw new Error('waitFor timed out after ' + timeout + ' ms; last value: ' + JSON.stringify(last));
+                throw new Error('waitFor timed out after ' + timeout + ' ms; last value: ' + JSON.stringify(last)
+                    + (where ? ' (' + where.replace(/^at\s+/, '').replace(/^.*[\\/]scenarios[\\/]/, 'scenarios/').replace(/\)$/, '') + ')' : ''));
             }
             await sleep(interval);
         }

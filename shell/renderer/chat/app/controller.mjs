@@ -539,6 +539,8 @@ export function createController(app) {
         let decided = Promise.resolve();
         /** @type {any} */
         let generation = null;
+        /** "Plan first": this agent turn plans and changes nothing. */
+        let planned = false;
 
         const paint = () => {
           if (!stream || decision !== 'go') return;
@@ -589,9 +591,12 @@ export function createController(app) {
         };
         if (agentMod && modelsMod) {
           const asked = path.length ? path[path.length - 1] : null;
+          const askedText = String((asked && asked.role === 'user' && asked.content) || '');
+          // "Plan first": a person's switch in the Project panel; the plan's "Go ahead" message is carried out.
+          planned = agentMod.planFirst(projectId) && !agentMod.isGoAhead(askedText);
           generation = agentMod.startAgentTurn({
             projectId, threadId, model: model || '',
-            text: String((asked && asked.role === 'user' && asked.content) || ''),
+            text: askedText,
             recap: agentMod.buildRecap(path.slice(0, -1)),
             // The model behind a farm alias ("assistant" on llama.cpp) is what the profile knows; one it does not know
             // gets the farm's own reply limit.
@@ -600,6 +605,7 @@ export function createController(app) {
             goal: agentMod.keepGoing(projectId),
             // "Use the Computer": the same kind of switch, for the Computer's MCP tools.
             computer: agentMod.useComputer(projectId),
+            plan: planned,
             onTail, onCheckpoint,
           });
         } else {
@@ -642,6 +648,8 @@ export function createController(app) {
         if (agentMod && generation && generation.state) {
           target.changes = generation.state.changes.slice(0, 50);
           target.created = generation.state.created.slice(0, 50);
+          // "Plan first": a plan's reply carries Go ahead and Change the plan (ui/project-panel.mjs); a redo without it does not.
+          if (planned) target.planning = true; else delete target.planning;
         }
         target.updatedAt = app.now();
 

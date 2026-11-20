@@ -9,7 +9,7 @@
 import { SLOTS } from '../core/registry.mjs';
 import { EV } from '../core/events.mjs';
 import { t } from '../core/i18n.mjs';
-import { getDoor, onInstall, keepGoing, setKeepGoing, useComputer, setUseComputer, GOAL_ROUNDS } from '../projects/agent.mjs';
+import { getDoor, onInstall, keepGoing, setKeepGoing, useComputer, setUseComputer, planFirst, setPlanFirst, GOAL_ROUNDS } from '../projects/agent.mjs';
 import { setSchedule, clearSchedule, scheduleOf, onSchedules, MIN_EVERY_MIN } from '../projects/schedule.mjs';
 import { profileFor, pickEditor } from '../projects/models.mjs';
 import { tabEdit, newlineEdit, applyEdit } from '../computer/code-edit.mjs';
@@ -40,6 +40,30 @@ export function install(app) {
     defaultWidth: 'split',
     available: () => true,
     create: (/** @type {HTMLElement} */ host, /** @type {any} */ a) => createPanel(host, a || app),
+  });
+  // "Plan first" (STUDENT_PLAN_MODE_PLAN): a plan's reply (controller.mjs sets `planning`) carries two buttons. They show
+  // on every plan of the thread; Go ahead always carries out the latest one ("the plan above"). ponytail: a row's
+  // buttons are built once and cannot tell the last reply; hiding them on older plans needs that in thread-view.
+  const planReply = (/** @type {any} */ msg) => !!msg && msg.role === 'assistant' && msg.planning === true && msg.status === 'done';
+  app.registry.add(SLOTS.MESSAGE_ACTIONS, {
+    id: 'plan-go-ahead',
+    order: 5,
+    label: t('agent.goAhead'),
+    hint: t('agent.tipGoAhead'),
+    visible: planReply,
+    run: (/** @type {any} */ msg, /** @type {any} */ a) => {
+      const ctl = (a || app).controller;
+      if (!ctl || (typeof ctl.isStreaming === 'function' && ctl.isStreaming())) return;
+      void ctl.send({ threadId: msg.threadId, text: t('agent.goAheadText'), ...(msg.model ? { model: msg.model } : {}) });
+    },
+  });
+  app.registry.add(SLOTS.MESSAGE_ACTIONS, {
+    id: 'plan-change',
+    order: 6,
+    label: t('agent.changePlan'),
+    hint: t('agent.tipChangePlan'),
+    visible: planReply,
+    run: (/** @type {any} */ _msg, /** @type {any} */ a) => { const c = (a || app).composer; if (c && typeof c.focus === 'function') c.focus(); },
   });
 }
 
@@ -151,6 +175,12 @@ function createPanel(host, app) {
     setKeepGoing(projectId, !keepGoing(projectId));
     paintKeep();
   }, t('project.tipKeepGoing'));
+  // Plan first (owner, 2026-11-20, STUDENT_PLAN_MODE_PLAN): the same kind of switch — the agent plans, the person approves.
+  const planBtn = button(t('project.planFirst'), 'chat-proj-plan', () => {
+    if (!projectId) return;
+    setPlanFirst(projectId, !planFirst(projectId));
+    paintPlan();
+  }, t('project.tipPlanFirst'));
   // On a schedule (owner, 2026-09-29): a message this app sends by itself into this chat, set by a person, forgotten
   // at restart (projects/schedule.mjs). The button opens a small form under the bar.
   const schedBtn = button(t('project.schedule'), 'chat-proj-sched', () => { schedBox.hidden = !schedBox.hidden; paintSched(); }, t('project.tipSchedule'));
@@ -162,9 +192,11 @@ function createPanel(host, app) {
     setUseComputer(projectId, !useComputer(projectId));
     paintComputer();
   }, t('project.tipUseComputer'));
-  bar.append(nameEl, other, folder, browser, shareBtn, keepBtn, compBtn, schedBtn);
+  bar.append(nameEl, other, folder, browser, shareBtn, planBtn, keepBtn, compBtn, schedBtn);
   const shareNote = make('p', 'chat-proj-note chat-proj-share-note');
   shareNote.setAttribute('role', 'status');
+  const planNote = make('p', 'chat-proj-note chat-proj-plan-note');
+  planNote.setAttribute('role', 'status');
   const keepNote = make('p', 'chat-proj-note chat-proj-keep-note');
   keepNote.setAttribute('role', 'status');
   const compNote = make('p', 'chat-proj-note chat-proj-computer-note');
@@ -287,12 +319,17 @@ function createPanel(host, app) {
   );
   paneHistory.prepend(gitBox);
 
+  /** The address loadRemote last put in the field. Only a field still showing it (or empty) follows the saved address,
+   *  so what a person typed is never replaced: a refused http:// address stays there to fix, and an address typed while
+   *  a reload was on its way is the one Save sends (it was wiped: the k24 harness flake, found 2026-11-20). */
+  let shownRemote = '';
   /** The remote and the token's state (never the token) for this project. */
   async function loadRemote() {
     if (!door || !projectId) return;
     const r = await door.remote(projectId);
     if (!(r && r.ok)) return;
-    if (document.activeElement !== remoteIn) remoteIn.value = r.url || '';
+    if (document.activeElement !== remoteIn && (remoteIn.value === shownRemote || !remoteIn.value)) remoteIn.value = r.url || '';
+    shownRemote = r.url || '';
     const h = remoteHost();
     tokenNote.textContent = !r.token.safe ? t('project.tokenUnsafe')
       : !r.url ? '' : r.token.saved ? t('project.tokenSaved', { host: h }) : t('project.tokenNone', { host: h });
@@ -301,7 +338,7 @@ function createPanel(host, app) {
   let picked = '';
   view.append(tabs, panePreview, paneCode, paneChanges, paneHistory);
   cols.append(fileList, view);
-  main.append(bar, shareNote, keepNote, compNote, schedBox, model, cols);
+  main.append(bar, shareNote, planNote, keepNote, compNote, schedBox, model, cols);
   root.append(empty, main);
 
   // ---- behaviour -----------------------------------------------------------------------------------
@@ -378,6 +415,15 @@ function createPanel(host, app) {
     compBtn.title = !computerOk ? t('project.tipUseComputerOff') : on ? t('project.tipUseComputerOn') : t('project.tipUseComputer');
     compBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
     compNote.textContent = on ? t('project.useComputerNote') : '';
+  }
+
+  function paintPlan() {
+    const on = !!projectId && planFirst(projectId);
+    planBtn.hidden = !door;
+    planBtn.textContent = on ? t('project.planFirstOn') : t('project.planFirst');
+    planBtn.title = on ? t('project.tipPlanFirstOn') : t('project.tipPlanFirst');
+    planBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    planNote.textContent = on ? t('project.planFirstNote') : '';
   }
 
   function paintKeep() {
@@ -732,6 +778,7 @@ function createPanel(host, app) {
       computerOk = !!(st && st.computer);
     }
     paintShare();
+    paintPlan();
     paintKeep();
     paintComputer();
     paintSched();
@@ -778,7 +825,7 @@ function createPanel(host, app) {
       host.replaceChildren();
     },
     debug: {
-      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), keepGoing: !!projectId && keepGoing(projectId), useComputer: !!projectId && computerOk && useComputer(projectId), computerOk, schedule: projectId ? scheduleOf(projectId) : null, history: commits.map((c) => c.message), frame: frame ? frame.getAttribute('src') : null, graph: graphLive ? graphLive.state() : null }),
+      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), planFirst: !!projectId && planFirst(projectId), keepGoing: !!projectId && keepGoing(projectId), useComputer: !!projectId && computerOk && useComputer(projectId), computerOk, schedule: projectId ? scheduleOf(projectId) : null, history: commits.map((c) => c.message), frame: frame ? frame.getAttribute('src') : null, graph: graphLive ? graphLive.state() : null }),
     },
   };
 }

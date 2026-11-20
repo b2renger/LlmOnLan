@@ -47,6 +47,14 @@ export const GOAL_ROUNDS = 10;
 /** What a person's "keep going" switch adds to their message: only the model can start a dsh goal (create_goal). */
 export const GOAL_PROMPT = 'Take this on as a goal and keep working on it round after round until it is really finished; '
     + 'check your own work in the files before you mark the goal complete.\n\n';
+/** "Plan first" (STUDENT_PLAN_MODE_PLAN, a person's switch): what a planning turn adds to the person's message. While the
+ *  turn runs the fence refuses every write and edit (PLAN_MARKER), so a plan is all the turn can produce. */
+export const PLAN_PROMPT = 'Plan first: in this turn you cannot change any file (writing and editing stay off until the '
+    + 'person approves). Read what you need in the project, then answer with a numbered plan: the files you would create '
+    + 'or change, what each change does, and how to check it worked. Then stop: the person approves the plan or asks for '
+    + 'changes.\n\n';
+/** The file that tells the fence (FENCE_JS) a planning turn is running: beside the fence, in DATA_DIR/lol-studio/dsh. */
+export const PLAN_MARKER = 'lol-planning';
 
 /** `model`: the farm's default model id (an agent page's model when it names none) — never a credential. */
 export interface StudioFarm { endpoint: string; key: string | null; ctxPerSlot: number | null; model?: string | null }
@@ -377,6 +385,8 @@ export function createStudio(deps: StudioDeps) {
         const t = turn;
         turn = null;
         if (t.waiting) clearTimeout(t.waiting);
+        // "Plan first": the planning turn is over, so the fence lets writes through again (the next prompt clears it too).
+        try { fs.rmSync(path.join(homeOf(), PLAN_MARKER), { force: true }); } catch { /* the next prompt clears it */ }
         const how = reason === 'completed' ? '' : ` (${reason})`;
         const first = t.prompt.split('\n').map((l) => l.trim()).find(Boolean) || 'a reply';
         void commitAll(t.dir, `Agent${how}: ${first}`, AGENT)
@@ -495,7 +505,7 @@ export function createStudio(deps: StudioDeps) {
             const check = path.join(home, 'lol-check.mjs');
             fs.writeFileSync(fence, FENCE_JS);
             fs.writeFileSync(check, CHECK_JS);
-            fs.writeFileSync(hooks, fenceHooks(o.runtime.node, fence, process.platform, check));
+            fs.writeFileSync(hooks, fenceHooks(o.runtime.node, fence, process.platform, check, !!o.computer));
             const patch = buildPatch({ baseUrl: o.farm.endpoint, model: o.model, contextWindow: agentWindow(o.farm.ctxPerSlot), skillsDir: skillsOf(), hooksConfig: hooks, goals: o.goals, computer: o.computer ? { url: o.computer.url } : undefined });
             fs.writeFileSync(path.join(prof, 'cordis.patch.yml.tmp'), patch);
             fs.renameSync(path.join(prof, 'cordis.patch.yml.tmp'), path.join(prof, 'cordis.patch.yml'));
@@ -545,7 +555,7 @@ export function createStudio(deps: StudioDeps) {
 
     return {
         /** Send one prompt; the turn's records and its end arrive through deps.emit. */
-        async prompt(o: { projectId: string; threadId: string; model: string; text: string; recap?: string; maxTokens?: number; turnId?: string; goal?: boolean; computer?: boolean }):
+        async prompt(o: { projectId: string; threadId: string; model: string; text: string; recap?: string; maxTokens?: number; turnId?: string; goal?: boolean; computer?: boolean; plan?: boolean }):
             Promise<{ ok: true; turnId: string; fresh: boolean } | StudioErr> {
             const idv = validateId(o.projectId);
             if (!idv.ok || !o.threadId || !o.text) return err('E_ARGS', 'bad arguments');
@@ -580,7 +590,19 @@ export function createStudio(deps: StudioDeps) {
                 sessionId = `lol-${o.threadId.slice(0, 40)}-${Date.now().toString(36)}`;
                 r.sessions.set(o.threadId, sessionId);
             }
-            const text = (fresh && o.recap ? `${o.recap}\n\n` : '') + (goals ? GOAL_PROMPT : '') + o.text;
+            // "Plan first": the fence refuses every write and edit while the marker is there. Set or cleared before EVERY
+            // turn (a crash may have left one, which would refuse a normal turn's writes), removed when the turn ends
+            // (finish). A marker that cannot be set: no turn, rather than a plan that writes or a turn that cannot.
+            // Not part of the runtime's key: the plan and its "Go ahead" stay in one dsh session.
+            const plan = o.plan === true;
+            try {
+                const marker = path.join(homeOf(), PLAN_MARKER);
+                if (plan) fs.writeFileSync(marker, ''); else fs.rmSync(marker, { force: true });
+            } catch (e) {
+                return err('E_START', `Could not ${plan ? 'start' : 'end'} a planning turn: ${(e as Error).message}`);
+            }
+            // A planning turn is never a loop: no goal sentence, even with "Keep going until done" on.
+            const text = (fresh && o.recap ? `${o.recap}\n\n` : '') + (plan ? PLAN_PROMPT : goals ? GOAL_PROMPT : '') + o.text;
             // The page names the turn when it can, so it listens BEFORE the first record (they can beat this answer).
             const named = typeof o.turnId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(o.turnId) ? o.turnId : '';
             turn = { id: named || randomBytes(8).toString('hex'), sessionId, running: false, end: null, error: null, dir, prompt: o.text, goal: null, rounds: 0, waiting: null };
@@ -733,9 +755,12 @@ export type Studio = ReturnType<typeof createStudio>;
 export const FENCE_JS = `// LlmOnLan: the IDE's coding agent reads and changes files ONLY inside its project (a dsh PreToolUse hook).
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 const WIN = process.platform === 'win32';
 const fold = (p) => (WIN ? p.toLowerCase() : p);
 const deny = (why) => { process.stderr.write('LOL Vibe: ' + why); process.exit(2); };
+// "Plan first": the shell puts this file beside the fence while a planning turn runs (PLAN_MARKER in studio.ts).
+const PLANNING = path.join(path.dirname(fileURLToPath(import.meta.url)), 'lol-planning');
 /** The real path of p, or of its nearest existing parent joined with the rest (a file about to be made). */
 function real(p) {
   let cur = path.resolve(p);
@@ -755,6 +780,13 @@ process.stdin.on('end', () => {
   let input;
   try { input = JSON.parse(raw); } catch { deny('this tool call could not be checked, so it was refused.'); }
   const args = (input && input.tool_input) || {};
+  const name = String((input && input.tool_name) || '');
+  // "Plan first": nothing is changed until the person approves — no write or edit, none of the Computer's tools.
+  // Reading the project stays allowed, so the plan rests on what is there. The Computer's tools pass this fence only
+  // for that: the project's path checks below are about files.
+  const planning = fs.existsSync(PLANNING);
+  if (name.startsWith('mcp__')) { if (planning) deny('planning: nothing is changed until the person approves the plan.'); process.exit(0); }
+  if (planning && (name === 'write' || name === 'edit')) deny('planning: nothing is changed until the person approves the plan. Read what you need, then answer with the plan.');
   // The mode it already runs in is no request for more: dsh treats it as the standing policy (no approval), and Flint
   // names it on most writes (sandbox_permissions "workspace-write", 2026-10-23). Anything else is wider and refused.
   if (args.sandbox_permissions && args.sandbox_permissions !== 'workspace-write') deny('the agent works only inside this project; it gets no wider access.');
@@ -858,7 +890,7 @@ process.stdin.on('end', () => {
  * 2026-09-28). So on Windows the call operator `&` leads, and `exit $LASTEXITCODE` hands on the fence's own code:
  * PowerShell otherwise turns a program's exit 2 (block) into its own 1 (pass).
  */
-export function fenceHooks(node: string, fence: string, platform: string = process.platform, check?: string): string {
+export function fenceHooks(node: string, fence: string, platform: string = process.platform, check?: string, computer = false): string {
     const q = (s: string) => `"${s}"`;
     const run = (script: string, flags = '') => (platform === 'win32' ? `& ${q(node)} ${flags}${q(script)}; exit $LASTEXITCODE` : `${q(node)} ${flags}${q(script)}`);
     return JSON.stringify({
@@ -866,7 +898,10 @@ export function fenceHooks(node: string, fence: string, platform: string = proce
             PreToolUse: [{
                 matcher: 'read|glob|grep|read_image|write|edit',
                 hooks: [{ type: 'command', command: run(fence), timeout: 10 }],
-            }],
+            },
+            // "Use the Computer": its MCP tools (mcp__computer__<name>) through the fence too, which refuses them only
+            // during "Plan first". Not a word-only matcher, so dsh reads it as a regex (dsh-hook-protocol matchesMatcher).
+            ...(computer ? [{ matcher: '^mcp__computer__', hooks: [{ type: 'command', command: run(fence), timeout: 10 }] }] : [])],
             // The syntax check (CHECK_JS) after every write and edit.
             // (vm.SourceTextModule, to parse a module without running it, still sits behind this flag.)
             ...(check ? { PostToolUse: [{ matcher: 'write|edit', hooks: [{ type: 'command', command: run(check, '--no-warnings --experimental-vm-modules '), timeout: 20 }] }] } : {}),

@@ -22,8 +22,13 @@ const send = (/** @type {any} */ h, /** @type {string} */ text) => h.eval((v) =>
     return true;
 }, text);
 
+/** A wait that says what it waited for when it times out (the harness adds the line; this adds the row). */
+const named = async (/** @type {string} */ what, /** @type {Promise<any>} */ p) => {
+    try { return await p; } catch (e) { throw new Error(`${what}: ${/** @type {Error} */ (e).message}`); }
+};
+
 /** The n-th assistant row once it is no longer streaming. */
-const settled = (/** @type {any} */ h, /** @type {number} */ n) => h.waitFor((k) => {
+const settled = (/** @type {any} */ h, /** @type {number} */ n) => named(`assistant row ${n} settled`, h.waitFor((k) => {
     const rows = Array.from(document.querySelectorAll('#lolchat .chat-msg.assistant'));
     const r = rows[k - 1];
     const st = r && r.getAttribute('data-status');
@@ -32,7 +37,7 @@ const settled = (/** @type {any} */ h, /** @type {number} */ n) => h.waitFor((k)
     const reasoning = r.querySelector('.chat-reasoning');
     const stats = r.querySelector('.chat-stats');
     return { status: st, text: body ? body.textContent : '', reasoning: reasoning ? reasoning.textContent : '', stats: stats ? stats.textContent.trim() : '' };
-}, { timeout: 20000, args: [n] });
+}, { timeout: 20000, args: [n] }));
 
 const panel = (/** @type {any} */ h) => h.eval(() => (window.LolChat.debug.project ? window.LolChat.debug.project.state() : null));
 
@@ -349,6 +354,66 @@ export default [
             const after = await countIn(projectThread);
             await h.sleep(2500);
             h.eq(await countIn(projectThread), after, 'stopped means no more runs');
+        },
+    },
+    {
+        // Plan first (STUDENT_PLAN_MODE_PLAN, owner 2026-11-20): with the switch on, the agent answers with a plan and its
+        // write is refused (the mock dsh runs the REAL fence, which sees main's marker); the plan carries Go ahead and
+        // Change the plan; Go ahead sends one message that is carried out, and the file lands. Its own project and chat:
+        // a fresh agent session reads the thread's recap, and the mock would act on an older "slow" in it.
+        name: 'k24-plan-first-changes-nothing-until-go-ahead',
+        needsMock: true,
+        timeoutMs: 120000,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            await h.fresh();
+            await h.waitFor(() => (window.LolChat && window.LolChat.ready ? true : null));
+            await h.eval(() => { window.LolChat.app.work.open('project'); return true; });
+            await h.waitFor(() => (document.querySelector('#lolchat .chat-proj-empty:not([hidden]) .chat-proj-name-in') ? true : null));
+            await h.eval(() => {
+                /** @type {HTMLInputElement} */ (document.querySelector('#lolchat .chat-proj-name-in')).value = 'planned';
+                /** @type {HTMLFormElement} */ (document.querySelector('#lolchat .chat-proj-new')).requestSubmit();
+                return true;
+            });
+            await h.waitFor(() => { const s = window.LolChat.debug.project && window.LolChat.debug.project.state(); return s && s.projectId ? s : null; }, { timeout: 15000 });
+
+            const flip = () => h.eval(() => { /** @type {HTMLButtonElement} */ (document.querySelector('#lolchat .chat-proj-plan')).click(); return true; });
+            h.eq((await panel(h)).planFirst, false, 'off by default');
+            await flip();
+            h.eq((await panel(h)).planFirst, true, 'on for this project');
+            h.assert(/changes nothing/.test(await h.eval(() => (document.querySelector('#lolchat .chat-proj-plan-note') || {}).textContent || '')), 'the note says what it does');
+
+            // 1. The plan: the agent's write is refused, and the reply says why in its step log.
+            await send(h, 'write planned.txt: approved');
+            const plan = await settled(h, 1);
+            h.eq(plan.status, 'done', `the plan ends done: ${plan.text}`);
+            h.assert(/planning: nothing is changed/.test(plan.reasoning), `the step log shows the refused write: ${plan.reasoning.slice(0, 300)}`);
+            h.assert(/Plan first: in this turn you cannot change any file/.test(plan.text), 'the agent was asked for a plan (the mock quotes its prompt)');
+            h.assert(!(await panel(h)).files.includes('planned.txt'), 'no file while planning');
+            const actions = (/** @type {number} */ k) => h.eval((i) => Array.from(document.querySelectorAll('#lolchat .chat-msg.assistant')[i].querySelectorAll('.chat-action')).map((b) => b.getAttribute('data-action')), k);
+            const first = await actions(0);
+            h.assert(first.includes('plan-go-ahead') && first.includes('plan-change'), `the plan carries its two buttons: ${first}`);
+
+            // 2. Change the plan: the cursor goes to the message box.
+            await h.eval(() => { /** @type {HTMLButtonElement} */ (document.querySelectorAll('#lolchat .chat-msg.assistant')[0].querySelector('[data-action="plan-change"]')).click(); return true; });
+            h.eq(await h.eval(() => (document.activeElement ? document.activeElement.id : '')), 'chat-input', 'Change the plan puts the cursor in the message box');
+
+            // 3. Go ahead: one message, carried out in the same agent session; the file lands; that reply is no plan.
+            await h.eval(() => { /** @type {HTMLButtonElement} */ (document.querySelectorAll('#lolchat .chat-msg.assistant')[0].querySelector('[data-action="plan-go-ahead"]')).click(); return true; });
+            const done = await settled(h, 2);
+            h.eq(done.status, 'done', `carried out: ${done.text}`);
+            await h.waitFor(() => (window.LolChat.debug.project.state().files.includes('planned.txt') ? true : null), { timeout: 20000 });
+            const asked = await h.eval(async () => {
+                const app = window.LolChat.app;
+                const path = await app.repo.getPath(app.state.threadId, undefined);
+                return path.filter((/** @type {any} */ m) => m.role === 'user').map((/** @type {any} */ m) => String(m.content || ''));
+            });
+            h.eq(asked[asked.length - 1], 'Carry out the plan above.', 'Go ahead sent its one sentence');
+            const second = await actions(1);
+            h.assert(!second.includes('plan-go-ahead'), `the carried-out reply has no Go ahead: ${second}`);
+
+            await flip();
+            h.eq((await panel(h)).planFirst, false, 'and the switch goes off again');
         },
     },
 ];

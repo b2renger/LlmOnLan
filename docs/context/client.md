@@ -57,6 +57,15 @@
   adapted from Graphify-Labs/graphify v0.9.71, Apache-2.0 + NOTICE: the model writes `graphify-out/graph.json` with
   file tools only — no Python; the panel draws it with the Computer's graph viewer). History = git per project
   (`src/main/projectGit.ts`, isomorphic-git); **Share on the LAN** and **GitHub push/pull** are a person's clicks.
+  **Plan first** (2026-11-20, [STUDENT_PLAN_MODE_PLAN](../plans/STUDENT_PLAN_MODE_PLAN.md)): a person's per-project
+  switch (off by default, forgotten at restart; `projects/agent.mjs` `planFirst`) for a class. A planning turn sends
+  `plan: true`; main writes `DATA_DIR/lol-studio/dsh/lol-planning` before the turn (and clears it before every other
+  turn, and in `finish`), adds `PLAN_PROMPT` (never `GOAL_PROMPT`), and the fence (`FENCE_JS`, beside the marker)
+  refuses every `write` and `edit`, and, with *Use the Computer*, every `mcp__computer__*` tool (a second PreToolUse
+  group, `^mcp__computer__`). Not in the runtime's key, so the plan and its *Go ahead* share one dsh session. The reply
+  carries `planning: true` and two actions (`ui/project-panel.mjs`): **Go ahead** sends `agent.goAheadText`, which
+  `isGoAhead` never plans; **Change the plan** focuses the message box. Tests: studio unit (the fence, the marker's
+  life, the real dsh refusing in its sandbox), `k24-plan-first-changes-nothing-until-go-ahead`.
   **Keep going until done** (2026-09-29, [IDE_PLAN §6](../../docs/plans/IDE_PLAN.md)): a person's per-project switch (off by
   default, forgotten at restart) that turns on dsh's own goal loop — the model sets a goal, dsh starts round after round
   until the model marks it complete — as ONE reply (`◎ Round n of 10`), ≤ 10 rounds (`GOAL_ROUNDS`), maxTokens 16384,

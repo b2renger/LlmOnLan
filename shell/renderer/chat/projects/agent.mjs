@@ -111,6 +111,17 @@ export function setUseComputer(projectId, on) { if (on) computer.add(String(proj
 /** @param {string} projectId */
 export function useComputer(projectId) { return computer.has(String(projectId)); }
 
+/** "Plan first", per project (STUDENT_PLAN_MODE_PLAN; the same kind of switch): each message gets a plan and changes
+ *  nothing — main's fence refuses every write while the agent plans — until the person approves it. */
+const plans = new Set();
+/** @param {string} projectId @param {boolean} on */
+export function setPlanFirst(projectId, on) { if (on) plans.add(String(projectId)); else plans.delete(String(projectId)); }
+/** @param {string} projectId */
+export function planFirst(projectId) { return plans.has(String(projectId)); }
+/** The message "Go ahead" sends under a plan: a message that says exactly this is carried out, never planned again
+ *  (so Regenerate on it carries out too). No state between the click and the turn. @param {string} text */
+export function isGoAhead(text) { return String(text || '').trim() === t('agent.goAheadText'); }
+
 /** How a finished turn reads as a result, from its state and main's end. @param {ReturnType<typeof emptyTurn>} s @param {{reason: string, error?: string}} done */
 export function resultOf(s, done) {
   const local = (/** @type {string} */ message, kind = 'local') => ({ kind, status: null, code: null, message, farmMessage: message, retryAfter: null });
@@ -166,7 +177,7 @@ export function onInstall(fn) {
 
 /**
  * One agent turn, shaped like a generation.
- * @param {{projectId: string, threadId: string, model: string, text: string, recap?: string, maxTokens?: number, goal?: boolean, computer?: boolean,
+ * @param {{projectId: string, threadId: string, model: string, text: string, recap?: string, maxTokens?: number, goal?: boolean, computer?: boolean, plan?: boolean,
  *   onTail?: (state: any) => void, onCheckpoint?: (state: any) => void, now?: () => number, door?: any}} o
  * @returns {{done: Promise<any>, abort: (reason?: string) => void, state: ReturnType<typeof emptyTurn>}}
  */
@@ -206,7 +217,7 @@ export function startAgentTurn(o) {
     }
     if (m.done) finish(m.done);
   });
-  const ask = { turnId, projectId: o.projectId, threadId: o.threadId, model: o.model, text: o.text, ...(o.recap ? { recap: o.recap } : {}), ...(o.maxTokens ? { maxTokens: o.maxTokens } : {}), ...(o.goal ? { goal: true } : {}), ...(o.computer ? { computer: true } : {}) };
+  const ask = { turnId, projectId: o.projectId, threadId: o.threadId, model: o.model, text: o.text, ...(o.recap ? { recap: o.recap } : {}), ...(o.maxTokens ? { maxTokens: o.maxTokens } : {}), ...(o.goal ? { goal: true } : {}), ...(o.computer ? { computer: true } : {}), ...(o.plan ? { plan: true } : {}) };
   Promise.resolve(d.prompt(ask)).then((r) => { if (!r || r.ok !== true) finish({ reason: 'refused', error: (r && r.message) || t('agent.endedEarly', { reason: 'error' }) }); });
   return {
     done,
