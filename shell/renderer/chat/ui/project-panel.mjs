@@ -52,8 +52,11 @@ export function install(app) {
     hint: t('agent.tipGoAhead'),
     visible: planReply,
     run: (/** @type {any} */ msg, /** @type {any} */ a) => {
-      const ctl = (a || app).controller;
+      const ap = a || app;
+      const ctl = ap.controller;
       if (!ctl || (typeof ctl.isStreaming === 'function' && ctl.isStreaming())) return;
+      // A seat wait holds the slot without streaming: a send then would leave the message with no reply (continue.mjs).
+      if (ap.gov && !ap.gov.canStart('foreground')) return;
       void ctl.send({ threadId: msg.threadId, text: t('agent.goAheadText'), ...(msg.model ? { model: msg.model } : {}) });
     },
   });
@@ -757,7 +760,8 @@ function createPanel(host, app) {
     const mine = epoch;
     thread = ctx && ctx.thread ? ctx.thread : thread;
     const id = (ctx && ctx.studio && ctx.studio.projectId) || (thread && thread.studio && thread.studio.projectId) || '';
-    if (id !== projectId) { projectId = id; openFile = ''; files = []; serveUrl = ''; area.value = ''; openText = ''; codeName.textContent = ''; tab = 'preview'; }
+    // The git address too: one typed for the last project is not this one's (loadRemote fills an empty field).
+    if (id !== projectId) { projectId = id; openFile = ''; files = []; serveUrl = ''; area.value = ''; openText = ''; codeName.textContent = ''; tab = 'preview'; remoteIn.value = ''; shownRemote = ''; }
     empty.hidden = !!projectId;
     main.hidden = !projectId;
     paintModel();

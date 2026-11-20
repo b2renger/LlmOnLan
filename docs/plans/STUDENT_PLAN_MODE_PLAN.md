@@ -71,14 +71,14 @@ As written, with four choices the session made, each for the owner to overturn:
   and a project usually has one chat. Moving it is small.
 - **The Computer's tools are refused too** while planning, when *Use the Computer* is on: the fence also runs before
   `mcp__computer__*` calls (a second hook group; it skips the file checks there). Otherwise a plan could still build
-  or run a graph.
+  or run a graph. So is `create_goal`, so a plan with *Keep going until done* on never starts a loop.
 - **The buttons stay under every plan of the chat** (a reply's buttons are built once and cannot tell the last one);
   *Go ahead* carries out the newest plan. Marked `ponytail:` in `ui/project-panel.mjs`.
 - **The go-ahead is the message, not a state:** a message that says exactly *Carry out the plan above.* is never
   planned, so Regenerate on it carries out too, and nothing is left armed by a click whose send failed.
 
-Checked: the studio unit tests (the fence with the marker: write, edit and the Computer's tools refused, reads
-allowed; the marker set, gone at the end, gone on Stop, and a leftover one cleared before a normal turn; the plan and
+Checked: the studio unit tests (the tools the real dsh offers, asserted: `write` and `edit` are the only ones that
+change files; the fence with the marker: write, edit, `create_goal` and the Computer's tools refused, reads allowed; the marker set, gone at the end, gone on Stop, and a leftover one cleared before a normal turn; the plan and
 its Go ahead in one session) and **the real dsh runtime** (`shell/dsh/build`) refusing the write in its Windows
 sandbox while planning and letting it through after; the harness scenario
 `k24-plan-first-changes-nothing-until-go-ahead` (3/3 alone); the chat suite. Not checked: a real model's plans on a

@@ -375,7 +375,7 @@ export default [
                 /** @type {HTMLFormElement} */ (document.querySelector('#lolchat .chat-proj-new')).requestSubmit();
                 return true;
             });
-            await h.waitFor(() => { const s = window.LolChat.debug.project && window.LolChat.debug.project.state(); return s && s.projectId ? s : null; }, { timeout: 15000 });
+            const firstId = (await h.waitFor(() => { const s = window.LolChat.debug.project && window.LolChat.debug.project.state(); return s && s.projectId ? s : null; }, { timeout: 15000 })).projectId;
 
             const flip = () => h.eval(() => { /** @type {HTMLButtonElement} */ (document.querySelector('#lolchat .chat-proj-plan')).click(); return true; });
             h.eq((await panel(h)).planFirst, false, 'off by default');
@@ -414,6 +414,24 @@ export default [
 
             await flip();
             h.eq((await panel(h)).planFirst, false, 'and the switch goes off again');
+
+            // A git address typed for this project and not saved is not carried to the next one (the field keeps what a
+            // person typed since the k24 fix, so binding another project must clear it).
+            await h.eval(() => {
+                /** @type {any} */ (document.querySelector('#lolchat .chat-proj-git')).open = true;
+                /** @type {HTMLInputElement} */ (document.querySelector('#lolchat .chat-proj-remote-in')).value = 'https://example.org/typed-not-saved.git';
+                return true;
+            });
+            await h.click('#lolchat .chat-proj-other');
+            await h.waitFor(() => (document.querySelector('#lolchat .chat-proj-empty:not([hidden]) .chat-proj-name-in') ? true : null));
+            await h.eval(() => {
+                /** @type {HTMLInputElement} */ (document.querySelector('#lolchat .chat-proj-name-in')).value = 'second';
+                /** @type {HTMLFormElement} */ (document.querySelector('#lolchat .chat-proj-new')).requestSubmit();
+                return true;
+            });
+            await h.waitFor((was) => { const s = window.LolChat.debug.project.state(); return s.projectId && s.projectId !== was ? true : null; }, { timeout: 15000, args: [firstId] });
+            await h.sleep(500);   // loadRemote's answer for the new project, which fills only an empty field
+            h.eq(await h.eval(() => /** @type {HTMLInputElement} */ (document.querySelector('#lolchat .chat-proj-remote-in')).value), '', 'the other project\'s typed address is gone');
         },
     },
 ];

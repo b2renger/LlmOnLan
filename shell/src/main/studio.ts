@@ -787,6 +787,8 @@ process.stdin.on('end', () => {
   const planning = fs.existsSync(PLANNING);
   if (name.startsWith('mcp__')) { if (planning) deny('planning: nothing is changed until the person approves the plan.'); process.exit(0); }
   if (planning && (name === 'write' || name === 'edit')) deny('planning: nothing is changed until the person approves the plan. Read what you need, then answer with the plan.');
+  // With "Keep going until done" on, a plan never starts a loop (its rounds would all be refused).
+  if (planning && name === 'create_goal') deny('planning: no goal while a plan is asked for. Answer with the plan; the person approves it.');
   // The mode it already runs in is no request for more: dsh treats it as the standing policy (no approval), and Flint
   // names it on most writes (sandbox_permissions "workspace-write", 2026-10-23). Anything else is wider and refused.
   if (args.sandbox_permissions && args.sandbox_permissions !== 'workspace-write') deny('the agent works only inside this project; it gets no wider access.');
@@ -896,7 +898,8 @@ export function fenceHooks(node: string, fence: string, platform: string = proce
     return JSON.stringify({
         hooks: {
             PreToolUse: [{
-                matcher: 'read|glob|grep|read_image|write|edit',
+                // create_goal ("Keep going until done"): only so "Plan first" can refuse it; it has no path to check.
+                matcher: 'read|glob|grep|read_image|write|edit|create_goal',
                 hooks: [{ type: 'command', command: run(fence), timeout: 10 }],
             },
             // "Use the Computer": its MCP tools (mcp__computer__<name>) through the fence too, which refuses them only

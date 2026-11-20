@@ -541,7 +541,9 @@ export default (test) => {
     assert.equal(call('read', { file_path: 'index.html' }).code, 0, 'reading the project stays allowed');
     assert.equal(call('grep', { pattern: 'x' }).code, 0, 'and searching it');
     assert.equal(call('mcp__computer__add_box', { type: 'code' }).code, 2, 'nor the Computer\'s tools');
+    assert.equal(call('create_goal', { objective: 'build it' }).code, 2, 'nor a "Keep going" loop');
     fs.rmSync(path.join(dir, S.PLAN_MARKER));
+    assert.equal(call('create_goal', { objective: 'build it' }).code, 0, 'a loop starts again once the plan is over');
     assert.equal(call('mcp__computer__add_box', { type: 'code', path: dir }).code, 0, 'the Computer\'s tools pass otherwise, whatever their arguments (the path checks are for files)');
     assert.equal(call('write', { file_path: 'a.js', content: 'y' }).code, 0, 'and writes pass again');
     if (process.platform === 'win32') {
@@ -633,7 +635,7 @@ export default (test) => {
     assert.match(p, /- insert:\n\s+- id: hooks-claude-code\n\s+name: '@deepseek-ai\/dsh-hooks-claude-code'/);
     assert.ok(p.includes(`configPath: ${JSON.stringify('C:\\home\\lol-hooks.json')}`));
     const hooks = JSON.parse(S.fenceHooks('C:\\n o d e\\node.exe', 'C:\\h\\lol-fence.mjs', 'win32'));
-    assert.equal(hooks.hooks.PreToolUse[0].matcher, 'read|glob|grep|read_image|write|edit');
+    assert.equal(hooks.hooks.PreToolUse[0].matcher, 'read|glob|grep|read_image|write|edit|create_goal');
     assert.equal(hooks.hooks.PreToolUse[0].hooks[0].command, '& "C:\\n o d e\\node.exe" "C:\\h\\lol-fence.mjs"; exit $LASTEXITCODE',
       'PowerShell (dsh\'s Windows shell) needs the call operator and must hand on exit 2; paths with spaces stay quoted');
     assert.equal(JSON.parse(S.fenceHooks('/opt/n o/node', '/h/f.mjs', 'linux')).hooks.PreToolUse[0].hooks[0].command, '"/opt/n o/node" "/h/f.mjs"', 'bash -c elsewhere');
@@ -656,6 +658,7 @@ export default (test) => {
     if (!fs.existsSync(node) || !fs.existsSync(bin)) { console.log('     (no dsh runtime in shell/dsh/build: skipped)'); return; }
     // A farm whose model always writes plan.txt first, then says it is done once it has the tool's result.
     /** @type {string[]} */ const toolResults = [];
+    /** @type {Set<string>} */ const offered = new Set();
     const server = http.createServer((req, res) => {
       let raw = '';
       req.on('data', (d) => { raw += d; });
@@ -663,6 +666,7 @@ export default (test) => {
         let body = /** @type {any} */ ({});
         try { body = JSON.parse(raw || '{}'); } catch { /* not a completion */ }
         const msgs = Array.isArray(body.messages) ? body.messages : [];
+        for (const tl of Array.isArray(body.tools) ? body.tools : []) offered.add(String((tl.function && tl.function.name) || tl.name || ''));
         const last = msgs[msgs.length - 1] || {};
         const delta = last.role === 'tool'
           ? (toolResults.push(typeof last.content === 'string' ? last.content : JSON.stringify(last.content)), { role: 'assistant', content: 'Done.' })
@@ -688,6 +692,13 @@ export default (test) => {
       await r.done(a.turnId, 60000);
       assert.ok(!fs.existsSync(path.join(r.dir, 'plan.txt')), 'the real runtime ran the fence, which saw the marker: no file');
       assert.match(toolResults[0] || '', /planning: nothing is changed/, `the model was told why: ${toolResults[0]}`);
+      // Every tool the runtime offers is one we know: the file tools the fence covers, and tools that change no file
+      // (todo_write keeps its list in dsh's session log; skill reads a skill; exit_plan_mode is dsh's own plan mode, which
+      // fails closed without a review channel). A dsh pin that adds a tool fails here, so someone looks at it first.
+      const KNOWN = ['edit', 'exit_plan_mode', 'glob', 'grep', 'read', 'read_image', 'skill', 'todo_write', 'write'];
+      assert.deepEqual([...offered].filter((n) => !KNOWN.includes(n)), [], `a tool the fence was not checked against: ${[...offered].sort().join(' ')}`);
+      const fenced = JSON.parse(S.fenceHooks('n', 'f')).hooks.PreToolUse[0].matcher.split('|');
+      for (const n of ['write', 'edit']) assert.ok(fenced.includes(n), `${n} goes through the fence`);
       const b = await r.studio.prompt({ projectId: PID, threadId: 'real-plan', model: 'm', text: 'Carry out the plan above.' });
       assert.equal(b.ok, true, JSON.stringify(b));
       await r.done(b.turnId, 60000);

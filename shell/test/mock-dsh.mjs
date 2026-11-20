@@ -53,7 +53,7 @@ async function tool(sessionId, step, name, args, run) {
 
 /** LlmOnLan's fence on a file tool, as dsh runs a PreToolUse hook → its refusal, or null to go on. */
 function fenced(name, args) {
-  if (!['read', 'glob', 'grep', 'read_image', 'write', 'edit'].includes(name)) return null;
+  if (!['read', 'glob', 'grep', 'read_image', 'write', 'edit', 'create_goal'].includes(name)) return null;   // fenceHooks' matcher
   const fence = process.env.DSH_HOME ? path.join(process.env.DSH_HOME, 'lol-fence.mjs') : '';
   if (!fence || !fs.existsSync(fence)) return null;
   const r = spawnSync(process.execPath, [fence], {

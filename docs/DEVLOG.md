@@ -41,6 +41,17 @@ After a refused `http://` address, the reload of the saved remote overwrote the 
 address typed right after could be replaced by the saved one (empty) before Save read it. Fixed in the page: the
 field follows the saved address only while it still shows the last one loaded, or is empty. 12/12 alone after.
 
+**After the advisor's check (13:20), four more:**
+- **The real runtime's tools, asserted, not assumed:** the real-dsh test records what dsh offers the model (`edit
+  exit_plan_mode glob grep read read_image skill todo_write write`; `todo_write` keeps its list in dsh's session log,
+  its README) and fails on any tool not in that list, so a dsh pin that adds one (an `apply_patch`) is looked at first.
+- **Plan first with Keep going on could start a loop** (`create_goal` stays offered: `goals` is in the runtime's key):
+  the fence's matcher now takes `create_goal`, refused while planning (unit-tested both ways).
+- **Go ahead checks the governor**, as Continue does (a seat wait holds the slot without streaming).
+- **The address fix carried a typed address to another project:** binding another project clears the field. The
+  plan scenario now switches project with an unsaved address typed; without the clear it fails (checked by removing
+  it), with it 3/3.
+
 ## 2026-11-20 (09:22) — 128k for Qwen3.6 measured on vLLM 0.33.0; Open WebUI re-sends a document at every turn (day n° 11)
 
 **Why:** the owner (2026-11-19 18:15): 128k by default, for long chats and documents in Open WebUI; the tests by day,
