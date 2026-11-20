@@ -57,7 +57,9 @@ file stays the whole list.
   2026-11-20 12:46, as written): a *Plan first* switch per thread, the fence refusing writes while the agent plans, *Go
   ahead* and *Change the plan*. **M**.
 - **Open WebUI 0.13.4** (plans ▸ Next 19; approved 2026-11-20 12:46: "yes we can bump"): the pin bump and its smoke
-  tests, after the 128k build. **S**.
+  tests, after the 128k build. **Done when** the smoke tests pass and `docs/spike/runs/owui_doc_check.sh` gives PASS on
+  0.13.4 (an attached document stays the same in the system message from turn to turn: CONTEXT_128K_PLAN step 3's
+  gain). **S**.
 - **LOL Vibe's page preview, code beside it** ([VIBE_PAGE_PLAN](VIBE_PAGE_PLAN.md), the owner's request of 2026-11-18,
   approved with its three choices): step 1 the side column (errors with block and line, the shared editor, live
   reload, edits kept with the thread), step 2 the pop-out window. **M**. Built by day, 2026-11-18.

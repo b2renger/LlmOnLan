@@ -76,7 +76,10 @@ be stable. Run again with retrieval on: embeddings through `RAG_EMBEDDING_ENGINE
 full-context mode reads the whole collection, so similarity does not matter), the chat to the same stub, which logged a
 hash of each message. With `RAG_SYSTEM_CONTEXT=true` the system message carried the document with **the same hash on
 all three turns** (`1751c4f9b5e6`, 205,921 characters): the order is stable, so the gain holds on the client's path.
-With it off, the newest user message carried it, with a different hash each turn. **On that path the text is about a
+With it off, the newest user message carried it, with a different hash each turn. **The check is in the repo**
+(`docs/spike/runs/owui_doc_check.sh <open-webui executable> <empty folder>`, about 40 s, no GPU, its last line PASS or
+FAIL; it runs the stub, `owui_doc_gen.mjs` seed 7 with 3,300 records, and `owui_doc_turns.mjs`): PASS again on 0.13.3
+at 12:54. **Every Open WebUI pin bump re-runs it**, since a change in its middleware would undo the gain silently. **On that path the text is about a
 quarter longer than the file** (205,921 characters for a 165,000-character file: the chunks' overlap and their
 `<source>` tags), so a document of roughly 100k tokens, not 120k, is what fits a 128k window whole.
 **Two limits:** a turn with web search on puts its results in the same place, so that turn reads the document again;
@@ -95,7 +98,8 @@ a document added later in the chat changes the system message from then on.
    (`NOT_HERE`). Yet the farm's copy holds Qwen3.6's 0.33.0 label (48 at 64k, J14). Follow the same way (a hand edit
    with its schema checked, or copies under labels the script reads), and say which in the DEVLOG.
 3. **Approved 2026-11-20: `shell/src/main/configBridge.ts`**: `RAG_SYSTEM_CONTEXT: 'true'` beside `RAG_FULL_CONTEXT`, with its comment and
-   `docs/context/owui-contract.md`'s env list. Measured above (turns 2 and 3: 5.3 s → 0.13–0.15 s, the answers right);
+   `docs/context/owui-contract.md`'s env list, and its pin-bump checks gain `owui_doc_check.sh` (PASS). Measured above
+   (turns 2 and 3: 5.3 s → 0.13–0.15 s, the answers right);
    the client's own test of `buildSidecarEnv` checks the value; a person's check goes in HUMAN_TESTS (a document of
    a few hundred pages, three questions, the second and third answering at once).
 4. **The Documents preset** (`presets.js:100`, 64k): 128k too, if its pick stays a model that sees images and serves
