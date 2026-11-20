@@ -5459,7 +5459,7 @@ test('panel: vLLM\'s rows, its trade line and the Apply text; Apply asks the far
     assert.deepEqual([...slotsOpts.matchAll(/value="(\d+)"/g)].map((m) => Number(m[1])), [1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128]);
     assert.ok(render(vllmState({ seatsAuto: { seats: 10, source: 'memory' } })).includes('Automatic — 10, what the memory holds'));
     assert.ok(render(vllmState({ seatsAuto: { seats: 4, source: 'default' } })).includes('Automatic — 4 to start with'));
-    assert.ok(html.includes('people who can write to the model at the same time. They share the GPU, so each reply slows as more write at once; past this number a new message waits for a free seat.'));
+    assert.ok(html.includes('people who can write to the model at the same time. They share the GPU, so each reply slows as more write at once; past this number one more person is refused until a seat frees, when its holder has been idle for the time set under Access.'));
     const [ctxOrig, ctxOpts] = sel('ctx-sel');
     assert.equal(ctxOrig, '65536');
     assert.deepEqual([...ctxOpts.matchAll(/value="(\d+)"/g)].map((m) => Number(m[1])), [8192, 16384, 32768, 65536, 131072, 262144]);

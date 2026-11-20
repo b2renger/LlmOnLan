@@ -1197,7 +1197,7 @@ function vllmSlotsRow(v) {
     : a.source === 'memory' ? `Automatic — ${a.seats}, what the memory holds`
     : 'Automatic — 4 to start with';
   return `<div class="row"><span></span><span><div class="mname">People served at once</div>`
-    + `<div class="meta">people who can write to the model at the same time. They share the GPU, so each reply slows as more write at once; past this number a new message waits for a free seat.</div></span>`
+    + `<div class="meta">people who can write to the model at the same time. They share the GPU, so each reply slows as more write at once; past this number one more person is refused until a seat frees, when its holder has been idle for the time set under Access.</div></span>`
     + `<span class="badges"><select id="slots-sel" data-orig="${esc(String(cur))}">`
     + `<option value="auto"${cur === 'auto' ? ' selected' : ''}>${esc(auto)}</option>`
     + opts.map((n) => `<option value="${n}"${n === cur ? ' selected' : ''}>${n}</option>`).join('')

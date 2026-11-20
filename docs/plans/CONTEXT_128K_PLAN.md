@@ -22,11 +22,16 @@ Qwen3.6 35B-A3B NVFP4, the farm's own flags (`QWEN36_ARGS`), `--max-model-len 13
   |---|---|---|---|
   | 16 | 3.3 s | 29.2 | pass |
   | 24 | 4.6 s | 21.6 | pass |
+  | 28 | 5.35 s (p50 1.2 s) | 17.5 | fail (first word, by 0.35 s) |
+  | 30 | 5.82 s (p50 1.3 s) | 17.3 | fail (first word, by 0.8 s) |
   | 32 | 6.1 s | 17.0 | fail (first word) |
   | 40 | 245 s | 2.5 | the pool is full |
 
   **The new label is 24**, below the old 32 and below a class of 30. That holds when everyone is 120k deep at
-  once, the worst case. 28 and 30 are measured next (2026-11-20, after the Qwen3.8 runs).
+  once, the worst case, which still gives 30 people a median first word of 1.3 s and 17 tok/s for the slowest.
+  **The owner's choice** (the summary of 2026-11-20 asks): the farm's Automatic seats at 128k come from this label,
+  so **24 on the PRO 6000**; the 25th to 30th laptops active at once would be refused a seat. Built tonight as
+  approved (the label is the measurement); nothing ships before the owner's answer.
 - **The same 120k context with a new question each turn** (`lc1120-q36-128k-replace120k`): 2 people 0.56 s p95, 4 people
   0.93 s, 8 people 1.67 s and 57.8 tok/s p10, all pass. vLLM 0.30 failed this at 4 (13.5 s); **0.33.0 reuses the
   cached context**, which step 3 below relies on.

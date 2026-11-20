@@ -1,0 +1,10 @@
+Running: 2 reqs, Waiting: 9 reqs, GPU KV cache usage: 3.0%, Prefix cache hit rate: 51.2%
+Running: 2 reqs, Waiting: 5 reqs, GPU KV cache usage: 3.3%, Prefix cache hit rate: 49.5%
+Running: 2 reqs, Waiting: 1 reqs, GPU KV cache usage: 3.5%, Prefix cache hit rate: 47.8%
+Running: 27 reqs, Waiting: 0 reqs, GPU KV cache usage: 65.5%, Prefix cache hit rate: 60.4%
+Running: 1 reqs, Waiting: 17 reqs, GPU KV cache usage: 5.2%, Prefix cache hit rate: 0.0%
+Running: 2 reqs, Waiting: 11 reqs, GPU KV cache usage: 8.0%, Prefix cache hit rate: 0.0%
+Running: 2 reqs, Waiting: 6 reqs, GPU KV cache usage: 8.5%, Prefix cache hit rate: 0.0%
+Running: 1 reqs, Waiting: 1 reqs, GPU KV cache usage: 5.0%, Prefix cache hit rate: 0.0%
+Running: 8 reqs, Waiting: 12 reqs, GPU KV cache usage: 37.0%, Prefix cache hit rate: 13.6%
+Running: 19 reqs, Waiting: 1 reqs, GPU KV cache usage: 87.3%, Prefix cache hit rate: 24.7%
