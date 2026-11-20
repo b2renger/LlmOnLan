@@ -29,7 +29,7 @@ read in the installed runtime), the Computer's tools. The page: the switch in th
 (`chat-proj-plan`), `planning: true` on the reply, **Go ahead** (sends *Carry out the plan above.*, which `isGoAhead`
 never plans) and **Change the plan** (focuses the box). The mock dsh now runs the real fence before each file tool,
 as dsh does, and acts out *Carry out the plan above.* from the session's last request.
-Tested: `test:chat` (the full run below), among it **the real dsh runtime** (`shell/dsh/build`): a fake farm
+Tested: `test:chat` (the final run below), among it **the real dsh runtime** (`shell/dsh/build`): a fake farm
 whose model writes `plan.txt`; while planning the file never appears and the model reads *planning: nothing is
 changed…* as the tool's result, so the hook ran inside dsh's Windows sandbox and saw the marker; after, the same write
 lands. Harness `k24-plan-first-changes-nothing-until-go-ahead` 3/3 alone. Four choices made (the plan's *Built*): per
@@ -51,6 +51,10 @@ field follows the saved address only while it still shows the last one loaded, o
 - **The address fix carried a typed address to another project:** binding another project clears the field. The
   plan scenario now switches project with an unsaved address typed; without the clear it fails (checked by removing
   it), with it 3/3.
+
+**The final run on the committed code (13:24–13:33):** `test:chat` 1985 passed, 0 failed (1 skipped: the ComfyQ
+prompt file, as before), lint 0 violations; the harness `--phase k` **223/223** (this morning's 222 and the new plan
+scenario; k24 and k3-control passed). The farm is untouched (no farm code changed).
 
 ## 2026-11-20 (09:22) — 128k for Qwen3.6 measured on vLLM 0.33.0; Open WebUI re-sends a document at every turn (day n° 11)
 
