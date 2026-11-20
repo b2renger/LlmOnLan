@@ -28,6 +28,22 @@ CONTEXT_128K_PLAN (approved, for the night) carries both; a test through a real 
 **Also:** the night cron started again (job `4ef5e27b`, expires 2026-11-27; why the nights stopped: DECISIONS
 2026-11-20); STUDENT_PLAN_MODE_PLAN for the owner; plans Next 18 (LOL Vibe from a picture) and 19 (vLLM 0.34.0, Open
 WebUI 0.13.4: TOOL_UPDATES_2026-11-20); four harness flakes fixed in the scenarios, not yet run (below, when run).
+**Later (to 10:30):**
+- 28 and 30 people 120k deep miss the 5 s bar by 0.35 and 0.8 s: the label stays 24 (the owner's question 1).
+- Qwen3.8 B/G at 64k fail 30 and 20 people 50k deep alike. QWEN38_FP16_STATE_PLAN step 1 passes at 32k, and its
+  steps 2–4 go to the night.
+- **Through a real Open WebUI 0.13.3**, a ~100k-token document over three turns:
+  - today's settings: 5.42 / 5.26 / 5.28 s to the first word;
+  - `RAG_SYSTEM_CONTEXT=true`: 5.45 / **0.13 / 0.15 s**.
+  - The relay logged where the text went each turn.
+  - Checked again on the client's own path (the vector store, a stub for embeddings and chat, no GPU): the system
+    message has the same hash on all three turns, 205,921 characters for a 165,000-character file.
+  - Not built: waits for the owner's yes.
+- The panel's *People served at once* said a message past the seats waits. The gate refuses it with a 429
+  (`seats.js:307`). Corrected, with its test (farm 289/289).
+- vLLM 0.34.0 installed in `~/lol-vllm-034` for the night's trial.
+- `test:chat` (unit and lint) passes.
+- Leftover `tail -F` processes of expired watches stopped, one from night n° 10.
 
 ## 2026-11-19 (10:11) — HyperQwen's batch mode measured; its fp16 recurrent state is the lesson (the owner's ask, day)
 
