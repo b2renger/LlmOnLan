@@ -2,8 +2,9 @@
 
 **Status: approved by the owner, 2026-11-19** (the chat, 18:15: "default at 128k", "Lets do the tests now and the
 implementation in tonight session"; the aim: long chats and documents in Open WebUI) for steps 1, 2 and 4–6. **Step 3
-(`RAG_SYSTEM_CONTEXT`, Open WebUI's document placement) is the session's proposal and waits for the owner's yes**
-(n° 11's question 2): the owner approved 128k, not this setting. Size **S**.
+(`RAG_SYSTEM_CONTEXT`, Open WebUI's document placement) approved by the owner, 2026-11-20** (the chat, 12:46: "yes"
+to n° 11's question 2). The seats: Automatic, from the label ("24, 128k can be the default", same message). Size
+**S**.
 
 ## What was measured (2026-11-20, the RTX PRO 6000, vLLM 0.33.0, the live farm's 50 GiB pool)
 
@@ -30,9 +31,9 @@ Qwen3.6 35B-A3B NVFP4, the farm's own flags (`QWEN36_ARGS`), `--max-model-len 13
 
   **The new label is 24**, below the old 32 and below a class of 30. That holds when everyone is 120k deep at
   once, the worst case, which still gives 30 people a median first word of 1.3 s and 17 tok/s for the slowest.
-  **The owner's choice** (the summary of 2026-11-20 asks): the farm's Automatic seats at 128k come from this label,
-  so **24 on the PRO 6000**; the 25th to 30th laptops active at once would be refused a seat. Built tonight as
-  approved (the label is the measurement); nothing ships before the owner's answer.
+  **The owner's choice** (2026-11-20 12:46: "24, 128k can be the default"): the farm's Automatic seats at 128k come
+  from this label, so **24 on the PRO 6000**; the 25th to 30th laptops active at once are refused a seat until one
+  frees. An operator who wants 30 sets *People served at once* by hand.
 - **The same 120k context with a new question each turn** (`lc1120-q36-128k-replace120k`): 2 people 0.56 s p95, 4 people
   0.93 s, 8 people 1.67 s and 57.8 tok/s p10, all pass. vLLM 0.30 failed this at 4 (13.5 s); **0.33.0 reuses the
   cached context**, which step 3 below relies on.
@@ -93,7 +94,7 @@ a document added later in the chat changes the system message from then on.
    from a `pro6000` prefix and the engine from `vllm030` in the label, and it leaves out every vLLM 0.33 run
    (`NOT_HERE`). Yet the farm's copy holds Qwen3.6's 0.33.0 label (48 at 64k, J14). Follow the same way (a hand edit
    with its schema checked, or copies under labels the script reads), and say which in the DEVLOG.
-3. **Only with the owner's yes: `shell/src/main/configBridge.ts`**: `RAG_SYSTEM_CONTEXT: 'true'` beside `RAG_FULL_CONTEXT`, with its comment and
+3. **Approved 2026-11-20: `shell/src/main/configBridge.ts`**: `RAG_SYSTEM_CONTEXT: 'true'` beside `RAG_FULL_CONTEXT`, with its comment and
    `docs/context/owui-contract.md`'s env list. Measured above (turns 2 and 3: 5.3 s → 0.13–0.15 s, the answers right);
    the client's own test of `buildSidecarEnv` checks the value; a person's check goes in HUMAN_TESTS (a document of
    a few hundred pages, three questions, the second and third answering at once).
@@ -109,5 +110,5 @@ Not changed: Ollama and llama.cpp (their context stays Automatic). The client ne
 relaunch Open WebUI (`sidecar.ts:374`).
 
 **Done when:** the farm suite passes; Balanced shows 128k with Automatic seats from the new label; step 3 built and its
-test passing only if the owner said yes; docs, DEVLOG, commit, `night` backup. Not released: the owner's tests (J16 at
-128k) first.
+test passing; docs, DEVLOG, commit, `night` backup. Not released: the owner's tests (J16 at 128k, and the document
+test of step 3) first.

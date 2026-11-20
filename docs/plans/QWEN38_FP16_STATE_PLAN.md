@@ -3,7 +3,8 @@
 **Status: approved by the owner, 2026-11-19, steps 2–4 only if step 1 passes** (the chat, 12:30: "1- Yes" to
 *should I write a plan for the fp16 flag on Qwen3.8?*; 18:15, after step 1 at 32k and 64k was asked for: "Lets do the
 tests now and the implementation in tonight session", read by the session as covering this plan too and told to the
-owner to correct, DECISIONS). Step 1 ran on 2026-11-20. Size **S**.
+owner to correct, DECISIONS; **confirmed by the owner 2026-11-20 12:46: "yes"**). Step 1 ran on 2026-11-20 and
+passed. Size **S**.
 
 ## Why
 

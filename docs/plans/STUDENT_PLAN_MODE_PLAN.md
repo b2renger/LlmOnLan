@@ -1,8 +1,9 @@
 # STUDENT_PLAN_MODE_PLAN: the coding agent proposes, the student approves
 
-**Status: for the owner** (plans ▸ Next 13, from [the Qwen Code review](../research/QWEN_CODE_2026-11-14.md) item 5,
-owner 2026-11-14: "those are good, we need to include those in our plans"). Written 2026-11-20. Nothing is built until
-the owner approves it. Size **M**.
+**Status: approved by the owner, 2026-11-20** (the chat, 12:46: "yes, we can build", as written; its two questions
+take their recommendations: a switch per thread, off by default; the Agent box left out). From plans ▸ Next 13 and
+[the Qwen Code review](../research/QWEN_CODE_2026-11-14.md) item 5 (owner 2026-11-14: "those are good, we need to
+include those in our plans"). Written 2026-11-20. Size **M**.
 
 ## Why
 

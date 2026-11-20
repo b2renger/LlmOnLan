@@ -46,13 +46,18 @@ file stays the whole list.
 
 - **128k of context per person by default** ([CONTEXT_128K_PLAN](CONTEXT_128K_PLAN.md), approved by the owner
   2026-11-19 18:15, for a night session after the tests of 2026-11-20): the vLLM default and the Balanced preset at
-  128k, Qwen3.6's 128k label measured on 0.33.0 (24). **Its step 3, Open WebUI's document text in the system message
-  (`RAG_SYSTEM_CONTEXT`, read once per chat: 5.3 s → 0.15 s from the second question), waits for the owner's yes.**
-  **S**. Night n° 12.
+  128k, Qwen3.6's 128k label measured on 0.33.0 (24; the owner, 2026-11-20 12:46: "24, 128k can be the default").
+  **Its step 3, Open WebUI's document text in the system message** (`RAG_SYSTEM_CONTEXT`, read once per chat: 5.3 s →
+  0.15 s from the second question), **approved 2026-11-20 12:46**. **S**. Night n° 12.
 - **Qwen3.8's recurrent state in fp16** ([QWEN38_FP16_STATE_PLAN](QWEN38_FP16_STATE_PLAN.md)): **step 1 passed
   2026-11-20 at 32k** (30 people 28k deep pass with the flag, fail without; people at once 24 → ≥ 32; the long-text
-  check unchanged; at 64k both fail alike). Steps 2–4 in night n° 12, after CONTEXT_128K_PLAN (the session's reading
-  of the owner's "the implementation in tonight session", DECISIONS 2026-11-19). **S**.
+  check unchanged; at 64k both fail alike). Steps 2–4 in night n° 12, after CONTEXT_128K_PLAN (confirmed by the owner
+  2026-11-20 12:46). **S**.
+- **A plan mode for students in LOL Vibe** ([STUDENT_PLAN_MODE_PLAN](STUDENT_PLAN_MODE_PLAN.md), approved by the owner
+  2026-11-20 12:46, as written): a *Plan first* switch per thread, the fence refusing writes while the agent plans, *Go
+  ahead* and *Change the plan*. **M**.
+- **Open WebUI 0.13.4** (plans ▸ Next 19; approved 2026-11-20 12:46: "yes we can bump"): the pin bump and its smoke
+  tests, after the 128k build. **S**.
 - **LOL Vibe's page preview, code beside it** ([VIBE_PAGE_PLAN](VIBE_PAGE_PLAN.md), the owner's request of 2026-11-18,
   approved with its three choices): step 1 the side column (errors with block and line, the shared editor, live
   reload, edits kept with the thread), step 2 the pop-out window. **M**. Built by day, 2026-11-18.
@@ -169,7 +174,8 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
       on Qwen3.6 with JSON examples against the model's own format; adopted only if it measures better.
     - **n° 11 or 12: a plan mode for students** (**M**): the agent proposes, the student approves, before anything
       changes (LOL Vibe's coding agent and the Agent box). A plan in `docs/plans/` first, for the owner. **Written
-      2026-11-20 (n° 11): [STUDENT_PLAN_MODE_PLAN](STUDENT_PLAN_MODE_PLAN.md)**, for the owner. It proposes a
+      2026-11-20 (n° 11): [STUDENT_PLAN_MODE_PLAN](STUDENT_PLAN_MODE_PLAN.md)**, approved 2026-11-20 12:46 (now in
+      *1. Now*). It proposes a
       *Plan first* switch, with LlmOnLan's own fence refusing writes while the agent plans; dsh's own plan mode is out of
       reach (its runtime answers no review). It leaves the Agent box out, since that box changes nothing outside itself.
 
@@ -250,11 +256,31 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     - **How a person hands over the picture:** dropped in the chat, or saved in the project for the agent to read.
     - **How well each farm model copies an interface or a scene.** Not measured: the first step is a few screenshots
       and scene pictures through Qwen3.6, Qwen3.8 and Gemma 4 26B, with the pages compared by eye.
-    - **Figma:**
-      - The local way: the person exports a frame as PNG or SVG from Figma, and the SVG is text the model reads.
-      - Reading a `.fig` file directly was not checked: its format is Figma's own.
-      - **Figma's web API is a cloud service the privacy boundary does not name.** That is the owner's call, like
-        Microsoft 365 (DECISIONS, 2026-11-05).
+    - **Figma** (the owner, 2026-11-20 12:46: "You mentionned images, but not figma"). Five ways in, read on Figma's
+      own pages on 2026-11-20 (undated pages; [docs](https://developers.figma.com/docs/figma-mcp-server/),
+      [help](https://help.figma.com/hc/en-us/articles/360040028114-Export-from-Figma-Design)):
+      1. **Export a frame** (PNG, JPG, SVG or PDF; *all plans*, the free one too). A PNG is a picture like a
+         screenshot. An SVG is text: the boxes' positions and sizes, the colours, the text, which the model can read
+         exactly where a picture is guessed. Nothing new leaves the computer, and nothing to approve. **The first
+         way to build and to measure** (an SVG and a PNG of the same frame through each model). Not checked: whether
+         Figma's SVG export keeps text as text or turns it into outlines by default.
+      2. **Figma's desktop MCP server** (`http://127.0.0.1:3845/mcp`, in the Figma desktop app, Dev Mode ▸ *Enable
+         desktop MCP server*). It is local, and LOL Vibe's coding agent already speaks MCP (the Computer's server,
+         `studio.ts:107`). Its tools give the design's code (React and Tailwind by default, plain HTML and CSS when
+         asked), a screenshot, the variables (colours, spacing, type), the layers' outline, and the images. **But:** it
+         needs a *Dev or Full seat* on a Professional, Education, Organization or Enterprise plan; Figma calls it
+         "intended for specific organization and enterprise needs" and recommends its cloud server. High-school
+         students and teachers get Figma's Professional plan free (Figma for Education); which seat that gives is not
+         stated. The design comes from the person's own Figma account, so it is the case of DECISIONS 2026-11-05 (a
+         person's own cloud documents read on their computer): **privacy.md first, with the owner's yes**. Not checked:
+         whether the server's code generation calls Figma's cloud (Figma's AI is off for K-12 users).
+      3. **A local copy (`.fig`, File ▸ *Save local copy*, all plans)**: a ZIP holding Figma's own binary format with
+         no public spec. Open parsers exist, reverse-engineered (`fig-kiwi`, `openfig-core`); one would be a new
+         dependency that breaks when Figma changes its format. Not now.
+      4. **Figma's cloud MCP server** (`mcp.figma.com`): "Only clients listed in the Figma MCP catalog … can connect";
+         a new client joins a waitlist. LlmOnLan cannot use it.
+      5. **Figma's REST API** (`api.figma.com`, a personal token): a new cloud service from the client, and 20 calls a
+         month for a View seat. The owner's call, after the two local ways.
     - **Where three.js comes from in a project:** copying it from the client's own copy (r160) or a CDN, which needs
       the internet.
     - **What a picture costs the shared GPU:** the image tokens of each turn, for a class at once.
@@ -265,8 +291,8 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
       (1.16–1.50×). It changes the default block size to 64. `--mamba-cache-mode` does nothing there. Then a plan for
       the bump if it wins.
     - **Open WebUI 0.13.4:** the pin bump and its smoke tests (invariant 5). Its "fewer repeated context lists" stops
-      a 128k chat from filling with repeated skill and knowledge lists.
-    - The owner says go for each bump. **S** each.
+      a 128k chat from filling with repeated skill and knowledge lists. **Approved 2026-11-20 12:46** (now in *1. Now*).
+    - vLLM: the owner says go for the bump, after the trial. **S** each.
 
 ## 3. Later
 
@@ -332,7 +358,8 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
    Quality: the spike's 28-item check on Qwen3.6 (PRO 6000) scored 27/28 with thinking (77k tokens) and 28/28 without
    (12k; `build_catalog.py`, Qwen3.6's `spike_quality`). Not measured: a class's own kind of questions.
-7. **Qwen3.8's recurrent state in fp16?** (2026-11-19, learnt from HyperQwen's batch mode;
+7. ~~**Qwen3.8's recurrent state in fp16?**~~ *Answered: step 1 passed 2026-11-20 and the owner confirmed steps 2–4
+   the same day, 12:46 (now in *1. Now*).* (2026-11-19, learnt from HyperQwen's batch mode;
    [research](../research/2026-11-19-codeaf-hyperqwen.md) ▸ *HyperQwen's batch mode*.) One stock vLLM flag,
    `--mamba-ssm-cache-dtype float16`, on the built-in Qwen3.8 entry: 30 people 93 → 124 tok/s each, seats at 32k
    22 → 30, 28/28 and the same answers (210 samples). **The plan is written** (the owner's yes, 2026-11-19):

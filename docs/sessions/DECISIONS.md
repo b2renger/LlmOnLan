@@ -61,8 +61,19 @@ its date, before anything else, and commits it. An unanswered question's default
   whose default stops the work is not a good default.
 - **2026-11-20, the chat (08:44).** LOL Vibe builds from a picture: an interface's screenshot or a Figma design → a page
   in HTML, CSS and JS; a scene's picture → three.js (plans ▸ Next 18, a plan first).
+- **2026-11-20, the chat (12:46).** n° 11's question 1, seats at 128k: "24, 128k can be the default". **128k is the
+  farm's default context per person, and the Automatic seats follow the measured label** (24 people on the PRO 6000),
+  not 30 set by hand.
+- **2026-11-20, the chat (12:46).** n° 11's question 3: "yes", the night's build includes
+  [QWEN38_FP16_STATE_PLAN](../plans/QWEN38_FP16_STATE_PLAN.md) steps 2–4 (step 1 passed at 32k).
 
 ## LOL Vibe and the Computer
+
+- **2026-11-20, the chat (12:46).** [STUDENT_PLAN_MODE_PLAN](../plans/STUDENT_PLAN_MODE_PLAN.md): "yes, we can build",
+  as written. Its two questions take their recommendations: a *Plan first* switch per thread, off by default (a
+  teacher's default later, if classes ask); the Agent box left out.
+- **2026-11-20, the chat (12:46).** On LOL Vibe from a picture: "You mentionned images, but not figma". Figma is a
+  full part of the ask, not a footnote: the plan (plans ▸ Next 18) gives it its own options.
 
 - **2026-11-18, the chat.** LOL Vibe's page preview: errors shown better, the result and the code side by side, the code
   edited with live reload, detachable ([VIBE_PAGE_PLAN](../plans/VIBE_PAGE_PLAN.md)). Detachable means **the side column
@@ -71,6 +82,10 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## Open WebUI, privacy, cloud
 
+- **2026-11-20, the chat (12:46).** n° 11's question 2, `RAG_SYSTEM_CONTEXT=true`: "yes". An attached document goes
+  into the system message and is read once per chat ([CONTEXT_128K_PLAN](../plans/CONTEXT_128K_PLAN.md) step 3).
+- **2026-11-20, the chat (12:46).** n° 11's question 5, Open WebUI 0.13.4: "yes we can bump". The pin bump with its
+  smoke tests, after the 128k build (invariant 5: a version bump, no LOL code change).
 - **2026-11-18, the chat.** The repair button (OWUI_REPAIR_PLAN): yes. v0.2.19: go, after the repair button (released
   the same day).
 - **2026-11-06.** Microsoft 365 waits for the school's and IT's go; no Google Workspace; the focus is consolidation,
