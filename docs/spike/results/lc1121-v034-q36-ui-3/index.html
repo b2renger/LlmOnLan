@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Room Booking</title>
+    <style>
+        :root {
+            --primary-dark: #0f4c5c;
+            --primary-light: #1a6b80;
+            --accent-orange: #d96618;
+            --accent-orange-hover: #b85412;
+            --bg-color: #f5f2ed;
+            --card-bg: #ffffff;
+            --text-main: #2c3e50;
+            --text-light: #7f8c8d;
+            --border-color: #dce4e8;
+            --input-border: #b0c4de;
+            --input-focus: #0f4c5c;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        header {
+            background-color: var(--primary-dark);
+            color: white;
+            padding: 0 2rem;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        nav ul {
+            list-style: none;
+            display: flex;
+            gap: 2rem;
+        }
+
+        nav a {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 1rem;
+            padding-bottom: 4px;
+            transition: color 0.2s;
+        }
+
+        nav a:hover {
+            color: white;
+        }
+
+        nav a.active {
+            color: white;
+            border-bottom: 2px solid var(--accent-orange);
+        }
+
+        /* Main Content */
+        main {
+            flex: 1;
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            margin-bottom: 1rem;
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            color: var(--primary-dark);
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+
+        /* Form Styling */
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9rem;
+            color: var(--text-light);
+            margin-bottom: 0.4rem;
+        }
+
+        input[type="text"],
+        input[type="date"],
+        select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--input-border);
+            border-radius: 6px;
+            font-size: 1rem;
+            color: var(--text-main);
+            background-color: #fff;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            font-family: inherit;
+        }
+
+        input[type="text"]:focus,
+        input[type="date"]:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--input-focus);
+            box-shadow: 0 0 0 3px rgba(15, 76, 92, 0.1);
+        }
+
+        .btn-book {
+            background-color: var(--accent-orange);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            width: 100%;
+            max-width: 200px;
+        }
+
+        .btn-book:hover {
+            background-color: var(--accent-orange-hover);
+        }
+
+        /* Upcoming List */
+        .booking-list {
+            list-style: none;
+        }
+
+        .booking-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #eee;
+            font-size: 0.95rem;
+        }
+
+        .booking-item:last-child {
+            border-bottom: none;
+        }
+
+        .room-name {
+            color: var(--text-main);
+            font-weight: 500;
+        }
+
+        .booking-time {
+            color: var(--primary-light);
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-light);
+            font-size: 0.9rem;
+            margin-top: auto;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+            
+            nav ul {
+                gap: 1rem;
+            }
+            
+            header {
+                padding: 0 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">Room booking</div>
+        <nav>
+            <ul>
+                <li><a href="#" class="active">Book</a></li>
+                <li><a href="#">My bookings</a></li>
+                <li><a href="#">Help</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Booking Form Section -->
+        <section class="card">
+            <h2>Book a room</h2>
+            <form>
+                <div class="form-group">
+                    <label for="name">Your name</label>
+                    <input type="text" id="name" value="Alex Martin">
+                </div>
+
+                <div class="form-group">
+                    <label for="date">Date</label>
+                    <input type="date" id="date" value="2026-12-03">
+                </div>
+
+                <div class="form-group">
+                    <label for="room">Room</label>
+                    <select id="room">
+                        <option value="science">Science lab B12</option>
+                        <option value="library">Library room 2</option>
+                        <option value="art">Art studio</option>
+                    </select>
+                </div>
+
+                <button type="button" class="btn-book">Book</button>
+            </form>
+        </section>
+
+        <!-- Upcoming Section -->
+        <section class="card">
+            <h2>Upcoming</h2>
+            <ul class="booking-list">
+                <li class="booking-item">
+                    <span class="room-name">Art studio</span>
+                    <span class="booking-time">Mon 9:00</span>
+                </li>
+                <li class="booking-item">
+                    <span class="room-name">Library room 2</span>
+                    <span class="booking-time">Tue 14:00</span>
+                </li>
+                <li class="booking-item">
+                    <span class="room-name">Science lab B12</span>
+                    <span class="booking-time">Thu 10:30</span>
+                </li>
+            </ul>
+        </section>
+    </main>
+
+    <footer>
+        School rooms &middot; 3 bookings this week
+    </footer>
+
+</body>
+</html>

@@ -1463,3 +1463,61 @@ kept in the system message (the relay's log). All six answers right.
 appended turns: 5.35 s and 5.82 s first word p95 (p50 1.2 and 1.3 s), 17.5 and 17.3 tok/s p10: both miss the 5 s bar,
 so the label stays **24**. Qwen3.8 at 64k with 20 people each ~50k deep: B 54.5 s / 4.7, G 54.7 s / 4.8, both fail
 alike (the cached contexts evicted between turns: vLLM's prefix-cache hit rate down to 0 %).
+
+# vLLM 0.34.0 against 0.33.0, and pages from a picture (RTX PRO 6000, 2026-11-21)
+
+The whole card (the Farm app off since 2026-11-20), vLLM **0.34.0** in its own root (`~/lol-vllm-034`, production's
+model files read in place), the farm's flags, a 50 GiB pool, `--max-num-seqs 192`: the runs of 2026-11-20 again, same
+arguments, labels `lc1121-v034-*`. Pass = first word p95 < 5 s and p10 ≥ 15 tok/s; *every turn* = the first follow-up
+and the later one both pass (the generator's rule). Night n° 12; TOOL_UPDATES_2026-11-20.
+
+**Qwen3.6 35B-A3B at 128k** (`QWEN36_ARGS`; vLLM's count the same, 34.47 conversations of 128k; startup 292 s):
+
+| | 0.33.0 (2026-11-20) | 0.34.0 |
+|---|---|---|
+| 16 people ~120k deep, first follow-up | 3.42 s / 28.2 tok/s | 3.19 s / 29.0 |
+| 24 | 4.72 s / 20.6 | 4.81 s / 20.0 |
+| 28 | 5.39 s / 17.2 (fails) | 5.46 s / 17.9 (fails) |
+| 32 | 6.14 s / 16.2 (fails) | 6.10 s / 15.8 (fails) |
+| Label, every turn / steady | 24 / 32 | **24** / ≥ 32 |
+| The same 120k context, a new question: 2 / 4 / 8 people, p95 | 0.56 / 0.93 / 1.67 s | 0.53 / 0.90 / 1.61 s |
+| Long-text check at ~120k | 20/20 | 20/20 (later questions 0.80 s median, 0.95 before) |
+| Quality gate, thinking off | 28/28 (2026-11-02) | 28/28 |
+
+A `test:chat` run (about a minute of CPU) overlapped the 24-people level; it reads level with 0.33.0 all the same.
+
+**Qwen3.8 27B with the farm's new flags** (`QWEN38_ARGS`: MTP drafting + `--mamba-ssm-cache-dtype float16`), 32k:
+
+| | 0.33.0 (2026-11-20, G) | 0.34.0 |
+|---|---|---|
+| vLLM's count at 32k | 31.95 | 31.95 |
+| 16 / 24 / 32 people ~30k deep, first follow-up | 2.55 / 3.66 / 4.22 s | **2.05 / 3.08 / 4.12 s** |
+| Label, every turn | ≥ 32 | ≥ 32 |
+| 30 people ~28k deep (natural replies) | 2.5 s / 50.9 tok/s | 2.0 s / 48.4 |
+| Long-text check at ~28k | 20/20 | 20/20 |
+| Quality gate, thinking off | 28/28 (2026-11-19, drafting) | 28/28 |
+
+**Verdict:** 0.34.0 changes nothing for the farm's capacity: the same pools, the same labels; Qwen3.8's first word comes
+0.1–0.5 s sooner, Qwen3.6 is level; nothing broke (`--mamba-cache-mode align` still accepted as a no-op). **Not worth a
+bump on its own** (an Update vLLM of ~9 GB on every farm for that). Its KV offload to system memory
+(`--kv-offloading-size`, read in the source) is the reason to look again: a trial of its own.
+
+**LOL Vibe's coding agent on 0.34.0** (`ide/run.js`, one round of the five tasks): Qwen3.6 at 128k **5/5** (t2-p5 first
+scored a fail by a check whose stub had no `document`, fixed the same night; its sketch is right), Qwen3.8 at 32k 4/5
+(t2-p5: `createSlider("Speed", 0, 10, 3, 1)` and `.pressed()`, not p5's API). Both called dsh's `exit_plan_mode`
+outside plan mode and were refused (Qwen3.6 in 4 tasks of 7): a step lost each time.
+
+**Pages from a picture** (PICTURE_TO_PAGE_PLAN step 1, first pass; `runs/picture_page.mjs`: the picture with the
+prompt through the chat API, as LOL Vibe's plain chat sends it; thinking off, 3 samples; the inputs made here, so the
+truth is known: `ide/pictures/ui.html`, `scene.html`). The check is what a script sees (the interface: 10 texts, 3
+fields, a Book button, the header's teal and the button's orange; the scene: three.js from the folder, the four
+shapes, their four hues); the look by eye from the renders (`results/lc1121-v034-*-{ui,scene}-N/shot.png`):
+
+| | Interface (checks) | Scene (checks) | By eye |
+|---|---|---|---|
+| Qwen3.6 | 3/3, 5.6–7.5 s | 3/3, ~3 s | the page near identical (spacing a little larger; the date became a date field); the scene's shapes, colours and order right, the cone in line instead of behind, the camera higher |
+| Qwen3.8 | 2/3 (one orange off), 8.4–10.1 s | 3/3, ~5.5 s | the same, the scene smaller and darker |
+
+Through the coding agent the two picture tasks fail: dsh's `read_image` refuses, *model "qwen36" does not declare image
+input* (LOL Vibe declares no input for its model; PICTURE_TO_PAGE_PLAN step 2). Gemma 4 26B is not in this computer's
+vLLM folder (not run). Figma frames: none yet (the plan's question 2).

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Three.js Scene</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <script src="three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('#bce3f3'); // Light blue sky
+
+        // Camera setup
+        const camera = new THREE.PerspectiveCamera(45, 1024 / 640, 0.1, 1000);
+        camera.position.set(0, 12, 25); // Positioned high and back
+        camera.lookAt(0, 1, 0); // Look towards the objects
+
+        // Renderer setup
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(1024, 640);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(10, 20, 10); // Light from top right
+        directionalLight.castShadow = true;
+        
+        // Shadow camera settings
+        const d = 15;
+        directionalLight.shadow.camera.left = -d;
+        directionalLight.shadow.camera.right = d;
+        directionalLight.shadow.camera.top = d;
+        directionalLight.shadow.camera.bottom = -d;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        
+        scene.add(directionalLight);
+
+        // Ground
+        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const groundMaterial = new THREE.MeshStandardMaterial({ 
+            color: '#3c7a3c', // Green grass
+            roughness: 1.0
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = 0;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Objects
+        // 1. Red Cube
+        const cubeGeometry = new THREE.BoxGeometry(4, 4, 4);
+        const cubeMaterial = new THREE.MeshStandardMaterial({ 
+            color: '#b22222', // Firebrick / Dark red
+            roughness: 0.8
+        });
+        const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+        cube.position.set(-6, 2, 0); // Positioned on the left
+        cube.castShadow = true;
+        cube.receiveShadow = true;
+        scene.add(cube);
+
+        // 2. Yellow Cone
+        const coneGeometry = new THREE.ConeGeometry(2, 6, 32);
+        const coneMaterial = new THREE.MeshStandardMaterial({ 
+            color: '#daa520', // Goldenrod / Yellow
+            roughness: 0.8
+        });
+        const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+        cone.position.set(0, 3, -1); // Positioned in the middle, slightly back
+        cone.castShadow = true;
+        cone.receiveShadow = true;
+        scene.add(cone);
+
+        // 3. Blue Sphere
+        const sphereGeometry = new THREE.SphereGeometry(3.5, 32, 32);
+        const sphereMaterial = new THREE.MeshStandardMaterial({ 
+            color: '#1e3a8a', // Dark blue
+            roughness: 0.5
+        });
+        const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        sphere.position.set(7, 3.5, 2); // Positioned on the right, slightly forward
+        sphere.castShadow = true;
+        sphere.receiveShadow = true;
+        scene.add(sphere);
+
+        // Render
+        renderer.render(scene, camera);
+        window.__rendered = true;
+    </script>
+</body>
+</html>

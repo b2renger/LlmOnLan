@@ -1,0 +1,51 @@
+{
+ "label": "lc1121-v034-G32",
+ "model": "qwen38",
+ "kind": "ui",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "off",
+ "picture": "docs\\spike\\ide\\tasks\\t6-ui-shot\\seed\\ui.png",
+ "samples": [
+  {
+   "n": 1,
+   "status": 200,
+   "secs": 10.1,
+   "completionTokens": 1839,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "texts": "10/10"
+   },
+   "shot": true
+  },
+  {
+   "n": 2,
+   "status": 200,
+   "secs": 8.9,
+   "completionTokens": 1685,
+   "html": true,
+   "check": {
+    "pass": false,
+    "fails": [
+     "no colour near the button's #e36414"
+    ],
+    "texts": "10/10"
+   },
+   "shot": true
+  },
+  {
+   "n": 3,
+   "status": 200,
+   "secs": 8.4,
+   "completionTokens": 1584,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "texts": "10/10"
+   },
+   "shot": true
+  }
+ ]
+}

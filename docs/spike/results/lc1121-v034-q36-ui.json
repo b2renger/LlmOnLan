@@ -1,0 +1,49 @@
+{
+ "label": "lc1121-v034-q36",
+ "model": "qwen36",
+ "kind": "ui",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "off",
+ "picture": "docs\\spike\\ide\\tasks\\t6-ui-shot\\seed\\ui.png",
+ "samples": [
+  {
+   "n": 1,
+   "status": 200,
+   "secs": 5.6,
+   "completionTokens": 1508,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "texts": "10/10"
+   },
+   "shot": true
+  },
+  {
+   "n": 2,
+   "status": 200,
+   "secs": 6.6,
+   "completionTokens": 1837,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "texts": "10/10"
+   },
+   "shot": true
+  },
+  {
+   "n": 3,
+   "status": 200,
+   "secs": 7.5,
+   "completionTokens": 2110,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "texts": "10/10"
+   },
+   "shot": true
+  }
+ ]
+}

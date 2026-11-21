@@ -32,7 +32,9 @@ const dataUrl = `data:image/png;base64,${fs.readFileSync(picture).toString('base
 const out = { label, model, kind, base, thinking, picture: path.relative(ROOT, picture), samples: [] };
 for (let i = 1; i <= Number(samplesArg); i++) {
     const t0 = Date.now();
-    const r = await fetch(`${base}/chat/completions`, {
+    // One retry on a dropped connection (a reset once in six requests through serve.sh's relay, 2026-11-21).
+    const post = (body) => fetch(`${base}/chat/completions`, body).catch(() => fetch(`${base}/chat/completions`, body));
+    const r = await post({
         method: 'POST',
         headers: { 'content-type': 'application/json', ...(process.env.LOL_FARM_KEY ? { authorization: `Bearer ${process.env.LOL_FARM_KEY}` } : {}) },
         body: JSON.stringify({

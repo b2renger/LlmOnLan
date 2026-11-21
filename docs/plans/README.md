@@ -308,9 +308,13 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 19. **The tools' releases of 2026-11-20** ([the research](../research/TOOL_UPDATES_2026-11-20.md)):
     - **vLLM 0.34.0:** a trial on a second root, a measurement. It fuses the GDN prefill for the Qwen3.5 line
       (1.16–1.50×). It changes the default block size to 64. `--mamba-cache-mode` does nothing there. Then a plan for
-      the bump if it wins.
+      the bump if it wins. **Run in night n° 12 (RESULTS, 2026-11-21): it does not win.** The same pools and labels
+      (Qwen3.6 24 at 128k, Qwen3.8 ≥ 32 at 32k), Qwen3.8's first word 0.1–0.5 s sooner, Qwen3.6 level, quality 28/28
+      both, nothing broken. No bump on its own; its **KV offload to system memory** (`--kv-offloading-size`) is the
+      reason to look again, a trial of its own.
     - **Open WebUI 0.13.4:** the pin bump and its smoke tests (invariant 5). Its "fewer repeated context lists" stops
-      a 128k chat from filling with repeated skill and knowledge lists. **Approved 2026-11-20 12:46** (now in *1. Now*).
+      a 128k chat from filling with repeated skill and knowledge lists. **Approved 2026-11-20 12:46** (now in *1. Now*);
+      **blocked 2026-11-21** (the Blender tools; BLENDER_TOOLS_ENV_PLAN).
     - vLLM: the owner says go for the bump, after the trial. **S** each.
 
 ## 3. Later

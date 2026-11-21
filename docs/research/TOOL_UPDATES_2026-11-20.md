@@ -43,6 +43,9 @@ Verbatim from the release body:
 
 **Worth a trial** (a measurement, no farm change): a second trial root, Qwen3.6 and Qwen3.8 with the farm's flags, the
 same suite as 2026-11-19/20 (one person, 30 people, 30 deep, quality, seats). Then a plan for the bump if it wins.
+> **Run 2026-11-21 (night n° 12; RESULTS ▸ *vLLM 0.34.0 against 0.33.0*): it does not win.** The same pools and labels;
+> Qwen3.8's first word 0.1–0.5 s sooner, Qwen3.6 level; quality 28/28 both; the long-text checks 20/20; nothing broke.
+> The block size of 64 and the GDN fusion moved nothing measurable for these two. No bump on its own.
 
 ## Open WebUI 0.13.4 (published 2026-11-17 14:46 UTC)
 

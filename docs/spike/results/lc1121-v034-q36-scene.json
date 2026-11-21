@@ -1,0 +1,46 @@
+{
+ "label": "lc1121-v034-q36",
+ "model": "qwen36",
+ "kind": "scene",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "off",
+ "picture": "docs\\spike\\ide\\tasks\\t7-scene\\seed\\scene.png",
+ "samples": [
+  {
+   "n": 1,
+   "status": 200,
+   "secs": 3.5,
+   "completionTokens": 945,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": []
+   },
+   "shot": true
+  },
+  {
+   "n": 2,
+   "status": 200,
+   "secs": 2.9,
+   "completionTokens": 797,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": []
+   },
+   "shot": true
+  },
+  {
+   "n": 3,
+   "status": 200,
+   "secs": 3.1,
+   "completionTokens": 872,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": []
+   },
+   "shot": true
+  }
+ ]
+}

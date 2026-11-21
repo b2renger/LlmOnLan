@@ -9,6 +9,28 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-21 (03:33) — vLLM 0.34.0 measured against 0.33.0: no gain worth a bump; pages from a picture, first pass (night n° 12, queue 1)
+
+RESULTS ▸ *vLLM 0.34.0 against 0.33.0, and pages from a picture*. The whole card, `~/lol-vllm-034` (installed 2026-11-20),
+production's model files read in place, the farm's flags, 50 GiB, last night's arguments (read from the result files'
+`args`) under `lc1121-v034-*` labels.
+- **Qwen3.6 at 128k:** the same pool (34.47 conversations), label every turn **24** (28 misses the first follow-up's
+  5 s: 5.46 s), steady ≥ 32; the replace runs and the long-text check (20/20) level with 0.33.0; quality 28/28.
+- **Qwen3.8 G (the farm's new flags) at 32k:** the same pool (31.95), label ≥ 32; the first follow-up's first word
+  2.05 / 3.08 / 4.12 s at 16 / 24 / 32 (0.33.0: 2.55 / 3.66 / 4.22); 30 people ~28k deep 2.0 s / 48.4 tok/s; long text
+  20/20; quality 28/28. **Verdict: no bump on its own**; the KV offload is the lead.
+- **The agent** (`ide/run.js`, one round): Qwen3.6 at 128k 5/5 once t2-p5's check had a `document` (its stub failed a
+  right sketch; fixed and committed), Qwen3.8 at 32k 4/5 (a real p5 mistake). Both call dsh's `exit_plan_mode` outside
+  plan mode and get refused. The picture tasks: `read_image` refused, *model "qwen36" does not declare image input*.
+- **Pictures** (`runs/picture_page.mjs`, 3 samples): Qwen3.6 ui 3/3 and scene 3/3; Qwen3.8 2/3 and 3/3. By eye: the
+  page near identical, the scene's shapes, colours and order right, depth and camera off.
+- **How the night went wrong once, and was put right:** the first chain's stop step broke on a quoting error through
+  `wsl.exe` (nothing stopped; Qwen3.8's start refused, *already running*); I stopped that chain with TaskStop, but its
+  script lived on (Git Bash does not take the children down), waited, and ran Qwen3.8's long-text check and label run
+  **beside** the second chain for a few seconds. Both were killed, the shared long-text file deleted, and the runs made
+  again alone (the numbers above). The stop and grep steps are script files now; a memory says to check `ps` after a
+  TaskStop.
+
 ## 2026-11-21 (03:08) — Two plans for the owner, the picture plan's inputs and runner, vLLM 0.34's KV offload read (night n° 12)
 
 - **[BLENDER_TOOLS_ENV_PLAN](plans/BLENDER_TOOLS_ENV_PLAN.md)** (proposed): Blender's mcpo through

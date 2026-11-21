@@ -39,6 +39,10 @@ server).
      rebuilt can be compared with the scene that made the picture.
    Scored by eye on a fixed grid (layout, colours, text, objects), side by side, the pages and the scores in
    `docs/spike/results/` and RESULTS. *Done when* each model has a score per input kind.
+   **First pass, 2026-11-21 (RESULTS ▸ *Pages from a picture*):** one interface and one scene, 3 samples each, through
+   the chat API on vLLM 0.34.0: Qwen3.6 3/3 and 3/3 (the page near identical; the scene's shapes, colours and order
+   right, the depth and camera off), Qwen3.8 2/3 and 3/3, slower. Both are good enough to build on; the agent cannot
+   see the picture yet (step 2). Still to run: two more interfaces and scenes, Figma frames, Gemma 4 26B.
 2. **Step 2, the hand-over (after the owner's yes):** a picture or an SVG dropped in a project chat is saved into the
    project (`refs/<name>`, through main's projects API, inside the fence), and the message the agent gets names it
    ("The picture is refs/x.png; read it with read_image"). One code path for the three kinds.
