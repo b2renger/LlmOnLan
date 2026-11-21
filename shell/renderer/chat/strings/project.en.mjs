@@ -5,7 +5,7 @@ import { registerStrings } from '../core/i18n.mjs';
 registerStrings('project', {
   label: 'Project',
   emptyTitle: 'Build with the coding agent',
-  emptyBody: 'Make a new project, or pick one from the list. Then ask in the chat, for example: "make a three.js page with a rotating cube". The coding agent writes the files in a folder on this computer, thinking with the farm\'s model; nothing is kept on the farm.',
+  emptyBody: 'Make a new project, or pick one from the list. Then ask in the chat, for example: "make a three.js page with a rotating cube". The coding agent writes the files in a folder on this computer, thinking with the farm\'s model; nothing is kept on the farm. To read its plan before it changes anything, turn on Plan first beside the message box.',
   newPlaceholder: 'New project name',
   create: 'New project',
   other: 'Other project',
