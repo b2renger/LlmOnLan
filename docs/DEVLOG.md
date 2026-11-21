@@ -9,6 +9,20 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-21 (04:36) — A project's Preview keeps its port, so a page's data survives a restart (review 2026-11-15 M2); pictures, the second half; LOLVIBE_POC_PLAN (night n° 12)
+
+- **M2** (SESSION_REVIEW_2026-11-15, a finding: approved in advance). The Preview's server listened on port 0, so each
+  start served a project from a new origin and its page's `localStorage` was empty (the review's reading-list app
+  lost its books). `studio.ts` `serve()` now asks `fileServer` for the port this project had
+  (`DATA_DIR/lol-studio/preview-ports.json`); `fileServer` falls back to any free port when it is taken or refused,
+  and the new one is remembered (re-read before the write, so two projects starting together keep both). The LAN
+  share is not concerned. **Test first:** a second studio on the same data folder got another origin (failed), then
+  the same one; a port held by another server moves and is written. Studio 53/53, `test:chat` 1987 (1 skipped), lint 0.
+- **Pictures, the second half** (RESULTS): two more interfaces, two more scenes, `tasks/_checks/picture.js` from each
+  task's `truth.json`; over six inputs Qwen3.6 and Qwen3.8 each pass 14 of 18, every miss one text or colour.
+- **[LOLVIBE_POC_PLAN](plans/LOLVIBE_POC_PLAN.md)** (proposed; plans ▸ Next 15): night n° 5's stumbles, what is built
+  since, what is left (three example asks, the words), the audit again.
+
 ## 2026-11-21 (03:56) — k3-control fixed; dsh's own plan mode off; vLLM 0.34's KV offload never hits on Qwen3.6 (night n° 12)
 
 - **k3-control** (plans ▸ Next 14), found in the code, not in a failure: `graph/parts/dialog.mjs` draws the answer

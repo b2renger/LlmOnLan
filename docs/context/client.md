@@ -89,7 +89,8 @@
   pages whose own JavaScript runs a step loop with the farm's model and the page's tools. The patch also fits compaction to small windows (v0.2.5: with dsh's 65536-token
   default headroom a 32k window never compacted). dsh sessions die with the process (no resume): a new one gets a
   recap of the thread. Preview = a static server per project on 127.0.0.1 (main's frame veto lets exactly that
-  origin in). The agent is NOT in the installer: CI builds `dsh-runtime-<platform>-<arch>.tar.gz` (`shell/dsh/`:
+  origin in), on the same port as last time (`DATA_DIR/lol-studio/preview-ports.json`; a taken port moves and is
+  remembered), so what a page keeps in the browser survives a restart (review 2026-11-15 M2, fixed 2026-11-21). The agent is NOT in the installer: CI builds `dsh-runtime-<platform>-<arch>.tar.gz` (`shell/dsh/`:
   a pinned Node + `npm ci` of a committed lockfile, 110–133 MB, boot-tested; dry run: `build-dsh-runtime.yml`) and the panel's **Install the coding agent** fetches it
   into `<userData>/dsh-runtime`; in dev, `LOL_DSH_DIR` (+ `LOL_DSH_NODE` when that folder has no Node of its own)); and
   the **Computer** (next bullet). **LOL Vibe was named LOL Chat until 2026-09-27** (owner): only what a person

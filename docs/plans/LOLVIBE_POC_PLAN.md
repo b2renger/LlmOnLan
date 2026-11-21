@@ -27,11 +27,11 @@ built in 20.5 s and working, with four stumbles (M2, M3, L2, L3).
 
 ## What would change
 
-1. **The page keeps its data** (M2): the Preview server takes a port of its own per data folder, the first free one
-   remembered in the folder's settings and asked for again at the next start (`findFreePort(preferred)`), so a page's
-   origin, and what it kept in the browser, survives a restart. If the port is taken, a new one, and the panel says the
-   page starts empty this once. The LAN-share server is not concerned. One unit test (the same port twice in a row; a
-   taken one moves). **S**.
+1. **The page keeps its data** (M2). **Built the same night, as a review finding (approved in advance):** each
+   project's Preview asks for its last port again (`DATA_DIR/lol-studio/preview-ports.json`), so its origin, and what
+   its page kept in the browser, survives a restart; a taken port moves and is remembered. A studio test reproduced
+   it first (a second studio on the same data folder got another origin) and passes now. Left for the owner: the
+   panel saying "the page starts empty this once" when the port had to move (a new line of text).
 2. **A first look that shows what to do** (L3): a new project chat shows three example asks a student can click to put
    in the message box (a page with a form and a list kept in the browser; a three.js scene; a quiz with a score), and
    the empty chat says what LOL Vibe is in plain words. Strings and one harness scenario. **S**.

@@ -468,6 +468,36 @@ export default (test) => {
     assert.equal(r.studio.status().running, false);
   });
 
+  test('studio: a project\'s Preview keeps its port across a restart, so what its page kept in the browser stays; a taken port moves (review 2026-11-15 M2)', async () => {
+    const r = rig();
+    const again = () => S.createStudio({ dataDir: () => r.data, projectsRoot: () => r.root, farm: () => ({ endpoint: 'http://127.0.0.1:9/v1', key: null, ctxPerSlot: null }),
+      runtime: () => ({ node: process.execPath, bin: MOCK }), emit: () => {} });
+    /** @type {any} */ let s2 = null; /** @type {any} */ let s3 = null; /** @type {any} */ let holder = null;
+    try {
+      fs.writeFileSync(path.join(r.dir, 'index.html'), '<h1>page</h1>');
+      const a = await r.studio.serve(PID);
+      assert.equal(a.ok, true);
+      await r.studio.dispose();
+      s2 = again();   // LlmOnLan started again on the same data folder
+      const b = await s2.serve(PID);
+      assert.equal(b.url, a.url, 'the same origin, so the page\'s localStorage is the same');
+      await s2.dispose();
+      // Something else took the port meanwhile: a new one, remembered for next time.
+      const port = Number(new URL(a.url).port);
+      holder = http.createServer();
+      await new Promise((ok) => holder.listen(port, '127.0.0.1', ok));
+      s3 = again();
+      const c = await s3.serve(PID);
+      assert.equal(c.ok, true, JSON.stringify(c));
+      assert.notEqual(c.url, a.url);
+      const kept = JSON.parse(fs.readFileSync(path.join(r.data, 'lol-studio', 'preview-ports.json'), 'utf8'));
+      assert.equal(kept[PID], Number(new URL(c.url).port));
+    } finally {
+      for (const s of [s2, s3]) if (s) await s.dispose();
+      if (holder) holder.close();
+    }
+  });
+
   test('studio: the Preview serves the project folder to 127.0.0.1 only — no escape, no other Host, no writes', async () => {
     const r = rig();
     try {

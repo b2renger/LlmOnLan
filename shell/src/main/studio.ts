@@ -639,7 +639,18 @@ export function createStudio(deps: StudioDeps) {
             const lan = shared.has(idv.id) ? shared.get(idv.id)!.urls() : [];
             const had = servers.get(idv.id);
             if (had) return { ok: true, url: had.url, lan };
-            const { server, port } = await fileServer(root, idv.id, '127.0.0.1', () => [], agentPageExtras);
+            // The same port as last time (review 2026-11-15 M2): a page's localStorage is per origin, and a new port at
+            // each start lost what a student's page had kept. Remembered per project in DATA_DIR/lol-studio.
+            const portsFile = path.join(deps.dataDir(), 'lol-studio', 'preview-ports.json');
+            const readPorts = (): Record<string, number> => {
+                try { const o = JSON.parse(fs.readFileSync(portsFile, 'utf8')); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch { return {}; }
+            };
+            const want = readPorts()[idv.id];
+            const { server, port } = await fileServer(root, idv.id, '127.0.0.1', () => [], agentPageExtras, want);
+            if (want !== port) {
+                // Read again after the await: another project's Preview may have written its own port meanwhile.
+                try { fs.mkdirSync(path.dirname(portsFile), { recursive: true }); fs.writeFileSync(portsFile, JSON.stringify({ ...readPorts(), [idv.id]: port })); } catch { /* the next start picks a port again */ }
+            }
             const url = `http://127.0.0.1:${port}/`;
             servers.set(idv.id, { server, url });
             return { ok: true, url, lan };
@@ -1018,7 +1029,7 @@ export function lanAddresses(): string[] {
  * must name the server by 127.0.0.1/localhost or one of `addresses()` (a DNS-rebinding guard).
  */
 function fileServer(root: string, id: string, host: string, addresses: () => string[],
-    extras?: (rel: string) => { type: string; body: string } | null): Promise<{ server: http.Server; port: number }> {
+    extras?: (rel: string) => { type: string; body: string } | null, preferred?: number): Promise<{ server: http.Server; port: number }> {
     let port = 0;
     const server = http.createServer((req, res) => {
         const named = String(req.headers.host || '');
@@ -1056,10 +1067,20 @@ function fileServer(root: string, id: string, host: string, addresses: () => str
             fs.createReadStream(real).on('error', () => res.destroy()).pipe(res);
         });
     });
-    return new Promise((resolve) => server.listen(0, host, () => {
-        port = (server.address() as { port: number }).port;
-        resolve({ server, port });
-    }));
+    // `preferred`: the port this project had last time (its Preview keeps its origin); taken or refused → any free one.
+    const ask = Number.isInteger(preferred) && (preferred as number) >= 1024 && (preferred as number) <= 65535 ? (preferred as number) : 0;
+    return new Promise((resolve, reject) => {
+        const listen = (p: number) => {
+            const failed = (e: Error) => { if (p !== 0) listen(0); else reject(e); };
+            server.once('error', failed);
+            server.listen(p, host, () => {
+                server.removeListener('error', failed);
+                port = (server.address() as { port: number }).port;
+                resolve({ server, port });
+            });
+        };
+        listen(ask);
+    });
 }
 
 function lastLine(s: string): string {
