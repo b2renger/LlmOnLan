@@ -30,6 +30,16 @@ Verbatim from the release body:
 - "**KV offload**: SimpleCPUOffload with one host buffer per rank and opt-in HugeTLB pages (#60130)". A tier in system
   memory for cached context; the flag that turns it on was not found in the notes (the docs page returned 404). A lead
   for long chats a class comes back to, not checked.
+  > **Found 2026-11-21 (night n° 12), read in the installed 0.34.0 (`~/lol-vllm-034`):** `vllm serve
+  > --kv-offloading-size <GiB>` turns it on (`engine/arg_utils.py:1472`; off while unset, `config/vllm.py:1078`), with
+  > `--kv-offloading-backend native` (the default; `lmcache` the other) becoming the `OffloadingConnector` with
+  > `cpu_bytes_to_use` = the size in bytes (`config/vllm.py:1088-1095`). Recurrent (Mamba / linear-attention) groups are
+  > handled (`offloading/config.py:79`: "Mamba depends on a single state"), and hybrid models need
+  > `--enable-prefix-caching` (`:117`), which `QWEN36_ARGS` and `QWEN38_ARGS` carry. vLLM's docs (the 0.34.0 usage
+  > guide, read by an explorer, not checked here): hits in the CPU tier come back to the GPU on demand. **Not tried.**
+  > For a class it would keep conversations evicted from the GPU's pool in the PRO 6000's system memory (94 GB) instead
+  > of recomputing them: a trial (the replace and append runs at 128k past the pool, with and without it) before any
+  > plan.
 
 **Worth a trial** (a measurement, no farm change): a second trial root, Qwen3.6 and Qwen3.8 with the farm's flags, the
 same suite as 2026-11-19/20 (one person, 30 people, 30 deep, quality, seats). Then a plan for the bump if it wins.
