@@ -43,7 +43,7 @@ server).
    the chat API on vLLM 0.34.0: Qwen3.6 3/3 and 3/3 (the page near identical; the scene's shapes, colours and order
    right, the depth and camera off), Qwen3.8 2/3 and 3/3, slower. **The second half the same night** (two more
    interfaces, two more scenes): over the six inputs Qwen3.6 passes 16 of 18 samples and Qwen3.8 14 (with the check
-   blind to spaces in a text), every miss one text or one colour; by eye a simple page comes out near identical, a denser one with a looser layout, a scene with
+   blind to spaces in a text), every miss one text or one colour; by eye a simple page comes out near identical, a denser one sometimes with a looser layout, a scene with
    its objects and colours right and its light and depth off; Qwen3.6 is the faster. Both are good enough to build on;
    the agent cannot see the picture yet (step 2). **Gemma 4 26B, the same night** (downloaded into the trial root):
    16 of 18, level with Qwen3.6, slower on interfaces; by eye its dashboard's chart is empty in all three samples (bars

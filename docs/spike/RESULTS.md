@@ -1541,8 +1541,9 @@ tasks `t8-ui-dashboard`, `t9-ui-signin`, `t10-scene-desk`, `t11-scene-rings`, on
 | Qwen3.6 | 1/3 (8–9 s; the two others write "+12%" for "+12 %") | 2/3 (6.5–6.8 s; one pink off) | 3/3 (5.3–5.9 s) | 2/3 (3.2–4.1 s; one teal off) |
 | Qwen3.8 | 2/3 (11–12 s; one green off) | 2/3 (7.7–8.3 s; one pink off) | 2/3 (8–10.6 s; one without the lamp's light) | 3/3 (4.8–5.7 s) |
 
-By eye: the sign-in page near identical; the dashboard has every part and colour but a looser layout (the three cards
-wrap 2 + 1, the chart and the table no longer side by side); the rings right in order, heights and colours, darker; the
+By eye: the sign-in page near identical; the dashboard has every part and colour, Qwen3.8's three in the picture's
+layout, Qwen3.6's in it once and looser twice (the three cards wrap 2 + 1 or stack, the chart and the table no longer
+side by side; corrected at 06:09, this line first said looser for both); the rings right in order, heights and colours, darker; the
 desk has its table, mug and lamp, the lamp's shade oversized and the scene dark. **Over the six inputs, 18 samples a
 model:** Qwen3.6 14/18 pass the check, Qwen3.8 14/18; every miss is one text or one colour, never a missing part.
 Qwen3.6 answers in 60–75 % of Qwen3.8's time. *Re-scored at 05:12 with the check blind to spaces in a text ("+12%"
@@ -1561,7 +1562,7 @@ six inputs, 3 samples, thinking off, the check already blind to spaces):
 **16/18, level with Qwen3.6**; slower on interfaces (1,450–2,560 tokens an answer, where Qwen3.6 took 5.6–9 s), level on
 scenes. By eye: the booking page near identical (spacing larger, headings teal); the desk right in its objects (table,
 mug, lamp) and much darker than the picture, the floor barely visible; **the dashboard's chart is empty in all three
-samples**: the layout is right (the three cards in one row, the chart beside the table, which Qwen3.6 and Qwen3.8 did
-not keep), the bars are in the code, but at a percentage height inside a box with no height of its own, so none shows.
-The check passes two of them: it reads texts and colours, not what is drawn. A check that measures the rendered bars, or
-a look by eye, is what catches it.
+samples**: the layout is right (the three cards in one row, the chart beside the table), the bars are in the code, but
+at a percentage height inside a box with no height of its own, so none shows. Every Qwen3.6 and Qwen3.8 dashboard draws
+its bars (the six shots looked at again at 06:09). The check passes two of Gemma's: it reads texts and colours, not
+what is drawn. A check that measures the rendered bars, or a look by eye, is what catches it.

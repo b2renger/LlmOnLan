@@ -20,8 +20,8 @@ commit so the history records that a feature was tested + documented before it w
   GPU 920 MiB before, 941 after.
 - **Scores:** 16/18 (interface 3/3, scene 3/3, dashboard 2/3, sign-in 2/3, desk 3/3, rings 3/3); the misses are one
   colour each. Seconds: interfaces 8–15, scenes 5–7.
-- **By eye** (the shots against `ide/pictures/*.png`): the booking page near identical; the desk dark; the dashboard's
-  layout the closest of the three models, but its chart empty in all three samples (the cause read in sample 2: each bar `style="height: 60%"` inside a
+- **By eye** (the shots against `ide/pictures/*.png`): the booking page near identical; the desk dark; the dashboard in
+  the picture's layout (as Qwen3.8's three and one of Qwen3.6's), but its chart empty in all three samples (the cause read in sample 2: each bar `style="height: 60%"` inside a
   `.bar-wrapper` with no height, the chart's `align-items: flex-end` not stretching it). The check does not read what renders, so it passed two of them: a limit of step 1's check,
   written in RESULTS and the plan, not changed tonight.
 - RESULTS ▸ *Pages from a picture, the third model*; PICTURE_TO_PAGE_PLAN step 1 updated.
