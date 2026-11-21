@@ -13,7 +13,9 @@ module.exports = function check(dir, truth) {
     if (truth.kind === 'page') {
         const css = extra(/\.css$/i) + html;
         const text = html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').toLowerCase();
-        const missing = truth.texts.filter((w) => !text.includes(w.toLowerCase()));
+        // Spaces do not count ("+12%" for "+12 %", "1,240kWh"): typography, not a text copied wrong (2026-11-21).
+        const bare = text.replace(/\s+/g, '');
+        const missing = truth.texts.filter((w) => !text.includes(w.toLowerCase()) && !bare.includes(w.toLowerCase().replace(/\s+/g, '')));
         out.texts = `${truth.texts.length - missing.length}/${truth.texts.length}`;
         if (missing.length) fails.push('missing texts: ' + missing.join(', '));
         const fields = (html.match(/<input\b/gi) || []).length + (html.match(/<select\b/gi) || []).length;

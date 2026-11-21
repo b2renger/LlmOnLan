@@ -1545,4 +1545,6 @@ By eye: the sign-in page near identical; the dashboard has every part and colour
 wrap 2 + 1, the chart and the table no longer side by side); the rings right in order, heights and colours, darker; the
 desk has its table, mug and lamp, the lamp's shade oversized and the scene dark. **Over the six inputs, 18 samples a
 model:** Qwen3.6 14/18 pass the check, Qwen3.8 14/18; every miss is one text or one colour, never a missing part.
-Qwen3.6 answers in 60–75 % of Qwen3.8's time.
+Qwen3.6 answers in 60–75 % of Qwen3.8's time. *Re-scored at 05:12 with the check blind to spaces in a text ("+12%"
+for "+12 %" is typography, not a wrong copy; the saved pages, not new answers):* Qwen3.6's dashboard 3/3, so
+**Qwen3.6 16/18, Qwen3.8 14/18**; the JSON files keep the first scores.
