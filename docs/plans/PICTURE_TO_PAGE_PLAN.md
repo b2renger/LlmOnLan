@@ -16,16 +16,20 @@ server).
 - LOL Vibe's plain chat sends a picture with a message (`renderer/chat/net/request.mjs`, `image_url`).
 - **A chat bound to a project drops it.** Its turn goes to the coding agent with the message's text only
   (`app/controller.mjs:594-599`, `text: askedText`): an attached picture never reaches the agent.
-- The agent has a `read_image` tool, inside the fence like `read` (`shell/src/main/studio.ts`, the matcher), so a
-  picture saved **in the project** can be read by it.
+- The agent has a `read_image` tool, inside the fence like `read` (`shell/src/main/studio.ts`, the matcher), **but it
+  refuses today**: it asks dsh's model registry whether the model takes images (`dsh-tool-fs` `assertImageCapableRoute`),
+  and dsh takes a declared model as text-only (`dsh-llm-pi-ai` `DEFAULT_INPUT = ["text"]`) unless its `input` is
+  declared, which LOL Vibe's patch does not (`studio.ts` `buildPatch`: only `id` and `contextWindow`). Step 2 declares
+  `input: [text, image]` when the farm says its model sees pictures.
 - three.js r160 ships in the client for the Computer's sandbox (`renderer/chat/sandbox/libs.mjs`): a project page can
   use a local copy, with no network and no new dependency.
 
 ## What would change
 
 1. **Step 1, a measurement (no product change; a session may run it).** Three kinds of input, each through Qwen3.6,
-   Qwen3.8 and Gemma 4 26B, through the agent's five-task runner (`docs/spike/ide/run.js`) with a sixth task folder per
-   input (the picture saved in the project, the prompt naming it):
+   Qwen3.8 and Gemma 4 26B. The model's own skill through the chat API, as LOL Vibe's plain chat sends a picture
+   (`docs/spike/runs/picture_page.mjs`: the answer saved, checked and rendered); the agent's tasks
+   (`docs/spike/ide/tasks/t6-ui-shot`, `t7-scene`) once step 2 lets it see:
    - **Interfaces:** three screenshots made here (the farm's panel, the capacity page, a LOL Vibe page), so the true
      page is known.
    - **Figma:** the same frame exported as **PNG and as SVG** (an SVG is text: positions, sizes, colours and text the
