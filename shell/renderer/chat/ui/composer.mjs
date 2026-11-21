@@ -5,7 +5,7 @@
 //   createComposer(app, els) → {
 //     getDraft(), setText(s), insertText(s), clear(), focus(),
 //     addPart(part, {label, thumbDataUrl?, status?}) → key, updatePart(key, patch), removePart(key),
-//     setBusy(state), setSendState({label, disabled?, armed?}), isLocked(),
+//     setBusy(state), setSendState({label, disabled?, armed?}), isLocked(), refreshActions(),
 //     region('above'|'tray'|'tools'|'meter'), on('input'|'submit', fn) → off }
 //
 // Submit pipeline (§3.6.1, in this exact order):
@@ -451,6 +451,11 @@ export function createComposer(app, els) {
 
     isLocked() {
       return locked;
+    },
+
+    /** COMPOSER_ACTIONS again: one that shows for some chats only calls this when the open chat changes (Plan first). */
+    refreshActions() {
+      renderActions();
     },
 
     /** @param {'above'|'tray'|'tools'|'meter'} name */

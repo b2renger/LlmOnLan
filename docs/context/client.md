@@ -57,8 +57,12 @@
   adapted from Graphify-Labs/graphify v0.9.71, Apache-2.0 + NOTICE: the model writes `graphify-out/graph.json` with
   file tools only — no Python; the panel draws it with the Computer's graph viewer). History = git per project
   (`src/main/projectGit.ts`, isomorphic-git); **Share on the LAN** and **GitHub push/pull** are a person's clicks.
-  **Plan first** (2026-11-20, [STUDENT_PLAN_MODE_PLAN](../plans/STUDENT_PLAN_MODE_PLAN.md)): a person's per-project
-  switch (off by default, forgotten at restart; `projects/agent.mjs` `planFirst`) for a class. A planning turn sends
+  **Plan first** (2026-11-20, [STUDENT_PLAN_MODE_PLAN](../plans/STUDENT_PLAN_MODE_PLAN.md)): a person's switch per
+  chat, beside the message box (the composer's `COMPOSER_ACTIONS`, registered by `ui/project-panel.mjs` `install`, shown
+  in a chat bound to a project; since 2026-11-21, before that in the panel's bar per project), off by default,
+  forgotten at restart (`projects/agent.mjs` `planFirst(threadId)`), for a class; its note goes above the message box.
+  The panel's `load()` tells it of a binding at once (the workbench writes the studio silently); a chat opened is read
+  from the store (`THREAD_SELECTED`). A planning turn sends
   `plan: true`; main writes `DATA_DIR/lol-studio/dsh/lol-planning` before the turn (and clears it before every other
   turn, and in `finish`), adds `PLAN_PROMPT` (never `GOAL_PROMPT`), and the fence (`FENCE_JS`, beside the marker)
   refuses every `write`, `edit` and `create_goal` (so *Keep going* starts no loop while planning), and, with *Use the

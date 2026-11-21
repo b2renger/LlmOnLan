@@ -30,6 +30,9 @@ const MEDIA_RE = /\.(png|jpe?g|gif|webp|ico|wav|mp3|ogg)$/i;
 const TAB_LABEL = { preview: 'project.tabPreview', code: 'project.tabCode', changes: 'project.tabChanges', history: 'project.tabHistory' };
 const TAB_TIP = { preview: 'project.tipTabPreview', code: 'project.tipTabCode', changes: 'project.tipTabChanges', history: 'project.tipTabHistory' };
 
+/** The open chat, bound to a project or not, as the panel's load() sees it (install sets it). @type {(id: string, bound: boolean) => void} */
+let planSeen = () => { };
+
 /** @param {any} app */
 export function install(app) {
   app.registry.add(SLOTS.WORKBENCH_PANELS, {
@@ -68,6 +71,56 @@ export function install(app) {
     visible: planReply,
     run: (/** @type {any} */ _msg, /** @type {any} */ a) => { const c = (a || app).composer; if (c && typeof c.focus === 'function') c.focus(); },
   });
+  // The switch itself sits beside the message box, one per chat (the plan as approved; n° 11's question 7, default taken
+  // 2026-11-21), shown in a chat bound to a project, where the coding agent answers. `planThread` follows the open
+  // thread: its binding is read from the store, which answers asynchronously.
+  let planThread = '';
+  const refresh = () => {
+    const c = app.composer;
+    if (!c) return;
+    if (typeof c.refreshActions === 'function') c.refreshActions();
+    const above = typeof c.region === 'function' ? c.region('above') : null;
+    if (above) above.textContent = planThread && planFirst(planThread) ? t('project.planFirstNote') : '';
+  };
+  app.registry.add(SLOTS.COMPOSER_ACTIONS, {
+    id: 'plan-first',
+    order: 10,
+    visible: () => !!planThread && !!getDoor(),
+    render: () => {
+      const id = planThread;
+      const on = planFirst(id);
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chat-plan-first';
+      b.textContent = on ? t('project.planFirstOn') : t('project.planFirst');
+      b.title = on ? t('project.tipPlanFirstOn') : t('project.tipPlanFirst');
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.addEventListener('click', () => { setPlanFirst(id, !planFirst(id)); refresh(); });
+      return b;
+    },
+  });
+  // The panel binds a chat to a project without an event (the workbench writes its studio silently, BB-7): its load()
+  // says so here at once.
+  planSeen = (/** @type {string} */ id, /** @type {boolean} */ bound) => {
+    if (!id || id !== (app.state && app.state.threadId)) return;
+    planThread = bound ? String(id) : '';
+    refresh();
+  };
+  const follow = async () => {
+    const id = app.state && app.state.threadId;
+    let bound = false;
+    try {
+      const th = id && app.repo && typeof app.repo.getThread === 'function' ? await app.repo.getThread(id) : null;
+      bound = !!(th && th.studio && th.studio.projectId);
+    } catch { /* not bound */ }
+    if ((app.state && app.state.threadId) !== id) return;   // another chat opened meanwhile: its own follow paints it
+    planThread = bound ? String(id) : '';
+    refresh();
+  };
+  if (app.bus) {
+    app.bus.on(EV.THREAD_SELECTED, () => void follow());
+    app.bus.on(EV.THREADS_CHANGED, () => void follow());
+  }
 }
 
 /**
@@ -178,12 +231,6 @@ function createPanel(host, app) {
     setKeepGoing(projectId, !keepGoing(projectId));
     paintKeep();
   }, t('project.tipKeepGoing'));
-  // Plan first (owner, 2026-11-20, STUDENT_PLAN_MODE_PLAN): the same kind of switch — the agent plans, the person approves.
-  const planBtn = button(t('project.planFirst'), 'chat-proj-plan', () => {
-    if (!projectId) return;
-    setPlanFirst(projectId, !planFirst(projectId));
-    paintPlan();
-  }, t('project.tipPlanFirst'));
   // On a schedule (owner, 2026-09-29): a message this app sends by itself into this chat, set by a person, forgotten
   // at restart (projects/schedule.mjs). The button opens a small form under the bar.
   const schedBtn = button(t('project.schedule'), 'chat-proj-sched', () => { schedBox.hidden = !schedBox.hidden; paintSched(); }, t('project.tipSchedule'));
@@ -195,11 +242,9 @@ function createPanel(host, app) {
     setUseComputer(projectId, !useComputer(projectId));
     paintComputer();
   }, t('project.tipUseComputer'));
-  bar.append(nameEl, other, folder, browser, shareBtn, planBtn, keepBtn, compBtn, schedBtn);
+  bar.append(nameEl, other, folder, browser, shareBtn, keepBtn, compBtn, schedBtn);
   const shareNote = make('p', 'chat-proj-note chat-proj-share-note');
   shareNote.setAttribute('role', 'status');
-  const planNote = make('p', 'chat-proj-note chat-proj-plan-note');
-  planNote.setAttribute('role', 'status');
   const keepNote = make('p', 'chat-proj-note chat-proj-keep-note');
   keepNote.setAttribute('role', 'status');
   const compNote = make('p', 'chat-proj-note chat-proj-computer-note');
@@ -341,7 +386,7 @@ function createPanel(host, app) {
   let picked = '';
   view.append(tabs, panePreview, paneCode, paneChanges, paneHistory);
   cols.append(fileList, view);
-  main.append(bar, shareNote, planNote, keepNote, compNote, schedBox, model, cols);
+  main.append(bar, shareNote, keepNote, compNote, schedBox, model, cols);
   root.append(empty, main);
 
   // ---- behaviour -----------------------------------------------------------------------------------
@@ -418,15 +463,6 @@ function createPanel(host, app) {
     compBtn.title = !computerOk ? t('project.tipUseComputerOff') : on ? t('project.tipUseComputerOn') : t('project.tipUseComputer');
     compBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
     compNote.textContent = on ? t('project.useComputerNote') : '';
-  }
-
-  function paintPlan() {
-    const on = !!projectId && planFirst(projectId);
-    planBtn.hidden = !door;
-    planBtn.textContent = on ? t('project.planFirstOn') : t('project.planFirst');
-    planBtn.title = on ? t('project.tipPlanFirstOn') : t('project.tipPlanFirst');
-    planBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    planNote.textContent = on ? t('project.planFirstNote') : '';
   }
 
   function paintKeep() {
@@ -762,6 +798,7 @@ function createPanel(host, app) {
     const id = (ctx && ctx.studio && ctx.studio.projectId) || (thread && thread.studio && thread.studio.projectId) || '';
     // The git address too: one typed for the last project is not this one's (loadRemote fills an empty field).
     if (id !== projectId) { projectId = id; openFile = ''; files = []; serveUrl = ''; area.value = ''; openText = ''; codeName.textContent = ''; tab = 'preview'; remoteIn.value = ''; shownRemote = ''; }
+    planSeen(app.state && app.state.threadId, !!projectId);
     empty.hidden = !!projectId;
     main.hidden = !projectId;
     paintModel();
@@ -782,7 +819,6 @@ function createPanel(host, app) {
       computerOk = !!(st && st.computer);
     }
     paintShare();
-    paintPlan();
     paintKeep();
     paintComputer();
     paintSched();
@@ -829,7 +865,7 @@ function createPanel(host, app) {
       host.replaceChildren();
     },
     debug: {
-      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), planFirst: !!projectId && planFirst(projectId), keepGoing: !!projectId && keepGoing(projectId), useComputer: !!projectId && computerOk && useComputer(projectId), computerOk, schedule: projectId ? scheduleOf(projectId) : null, history: commits.map((c) => c.message), frame: frame ? frame.getAttribute('src') : null, graph: graphLive ? graphLive.state() : null }),
+      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), planFirst: !!projectId && !!thread && planFirst(thread.id), keepGoing: !!projectId && keepGoing(projectId), useComputer: !!projectId && computerOk && useComputer(projectId), computerOk, schedule: projectId ? scheduleOf(projectId) : null, history: commits.map((c) => c.message), frame: frame ? frame.getAttribute('src') : null, graph: graphLive ? graphLive.state() : null }),
     },
   };
 }

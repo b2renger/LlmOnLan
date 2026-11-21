@@ -45,7 +45,8 @@ a word); if not, the agent is told the line and the error at once, and fixes it 
 
 ### Plan first
 
-To see what the agent will do before it does it, press **Plan first** in the panel's top bar (it turns to *…: on*).
+To see what the agent will do before it does it, press **Plan first** beside the message box (it turns to *…: on*, and
+a line above the message box says what it does). It is there only in a chat bound to a project.
 For each message, the agent then reads the project and answers with a **plan**: the files it would make or change,
 what each change does, and how to check it worked. It changes **nothing** while it plans (LlmOnLan refuses its writes,
 and its steps say so: *planning: nothing is changed until the person approves the plan*). Under the plan:
@@ -54,7 +55,7 @@ and its steps say so: *planning: nothing is changed until the person approves th
 - **Change the plan** puts the cursor in the message box: say what to change, and the agent plans again.
 
 Good for a class: a student reads what will change before it changes, and catches a wrong direction early. The switch
-is per project, off by default, and **off again when LlmOnLan closes**. A message while it is on is always planned,
+is per chat (another chat of the same project has its own), off by default, and **off again when LlmOnLan closes**. A message while it is on is always planned,
 even with **Keep going until done** on; with both on, **Go ahead** carries the plan out as a loop. With **Use the Computer**
 on, the agent cannot build or run a graph while it plans either. The buttons stay under every plan of the chat; **Go
 ahead** always carries out the newest one.

@@ -111,13 +111,14 @@ export function setUseComputer(projectId, on) { if (on) computer.add(String(proj
 /** @param {string} projectId */
 export function useComputer(projectId) { return computer.has(String(projectId)); }
 
-/** "Plan first", per project (STUDENT_PLAN_MODE_PLAN; the same kind of switch): each message gets a plan and changes
- *  nothing — main's fence refuses every write while the agent plans — until the person approves it. */
+/** "Plan first", per thread (STUDENT_PLAN_MODE_PLAN as approved: beside the message box, one per chat; the default of
+ *  n° 11's question 7, taken 2026-11-21): each message gets a plan and changes nothing — main's fence refuses every
+ *  write while the agent plans — until the person approves it. Forgotten at restart. */
 const plans = new Set();
-/** @param {string} projectId @param {boolean} on */
-export function setPlanFirst(projectId, on) { if (on) plans.add(String(projectId)); else plans.delete(String(projectId)); }
-/** @param {string} projectId */
-export function planFirst(projectId) { return plans.has(String(projectId)); }
+/** @param {string} threadId @param {boolean} on */
+export function setPlanFirst(threadId, on) { if (on) plans.add(String(threadId)); else plans.delete(String(threadId)); }
+/** @param {string} threadId */
+export function planFirst(threadId) { return !!threadId && plans.has(String(threadId)); }
 /** The message "Go ahead" sends under a plan: a message that says exactly this is carried out, never planned again
  *  (so Regenerate on it carries out too). No state between the click and the turn. @param {string} text */
 export function isGoAhead(text) { return String(text || '').trim() === t('agent.goAheadText'); }

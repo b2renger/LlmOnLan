@@ -66,9 +66,11 @@ five-minute test for a student's laptop.
 ## Built (2026-11-20, by day after the owner's yes; unreleased)
 
 As written, with four choices the session made, each for the owner to overturn:
-- **Where the switch is:** in the Project panel's top bar beside *Keep going until done* and *Use the Computer*, kept
-  **per project** like them, not beside the message box per thread. The same kind of switch sits with its siblings,
-  and a project usually has one chat. Moving it is small.
+- ~~**Where the switch is:** in the Project panel's top bar beside *Keep going until done* and *Use the Computer*, kept
+  **per project** like them, not beside the message box per thread.~~ **Moved on 2026-11-21** (night n° 12; n° 11's
+  question 7 had no answer, its default taken): **beside the message box, one per chat**, as the plan was approved. The
+  composer's action slot (`COMPOSER_ACTIONS`, unused until then) holds it, in a chat bound to a project; its note sits
+  above the message box. The harness scenario checks it is absent from a plain chat, on for its own chat, and its note.
 - **The Computer's tools are refused too** while planning, when *Use the Computer* is on: the fence also runs before
   `mcp__computer__*` calls (a second hook group; it skips the file checks there). Otherwise a plan could still build
   or run a graph. So is `create_goal`, so a plan with *Keep going until done* on never starts a loop.

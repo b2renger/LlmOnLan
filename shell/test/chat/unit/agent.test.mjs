@@ -164,19 +164,20 @@ export default (test) => {
     await turn2.done;
     setUseComputer('p-one', false);
 
-    // "Plan first" (STUDENT_PLAN_MODE_PLAN): the same kind of switch, carried the same way.
-    assert.equal(planFirst('p-one'), false, 'off by default');
-    setPlanFirst('p-one', true);
-    assert.equal(planFirst('p-two'), false, 'per project');
+    // "Plan first" (STUDENT_PLAN_MODE_PLAN): a switch per chat, beside the message box (2026-11-21), carried the same way.
+    assert.equal(planFirst('t-one'), false, 'off by default');
+    setPlanFirst('t-one', true);
+    assert.equal(planFirst('t-two'), false, 'per chat: another chat of the same project plans only if its own is on');
+    assert.equal(planFirst(''), false, 'no chat: never');
     const door3 = fakeDoor();
-    const turn3 = startAgentTurn({ projectId: 'p-one', threadId: 't', model: 'm', text: 'x', plan: planFirst('p-one'), door: door3 });
+    const turn3 = startAgentTurn({ projectId: 'p-one', threadId: 't-one', model: 'm', text: 'x', plan: planFirst('t-one'), door: door3 });
     await Promise.resolve();
     assert.equal(door3.prompts[0].plan, true);
     assert.equal(door3.prompts[0].goal, undefined, 'independent of the others');
     turn3.abort();
     await turn3.done;
-    setPlanFirst('p-one', false);
-    assert.equal(planFirst('p-one'), false);
+    setPlanFirst('t-one', false);
+    assert.equal(planFirst('t-one'), false);
     // A plan's Go ahead sends this sentence, and a message saying exactly it is carried out, never planned again.
     assert.equal(isGoAhead('Carry out the plan above.'), true);
     assert.equal(isGoAhead('  Carry out the plan above.\n'), true, 'spaces around do not matter');

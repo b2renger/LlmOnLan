@@ -592,8 +592,8 @@ export function createController(app) {
         if (agentMod && modelsMod) {
           const asked = path.length ? path[path.length - 1] : null;
           const askedText = String((asked && asked.role === 'user' && asked.content) || '');
-          // "Plan first": a person's switch in the Project panel; the plan's "Go ahead" message is carried out.
-          planned = agentMod.planFirst(projectId) && !agentMod.isGoAhead(askedText);
+          // "Plan first": a person's switch beside the message box, for this chat; the plan's "Go ahead" is carried out.
+          planned = agentMod.planFirst(threadId) && !agentMod.isGoAhead(askedText);
           generation = agentMod.startAgentTurn({
             projectId, threadId, model: model || '',
             text: askedText,

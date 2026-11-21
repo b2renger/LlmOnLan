@@ -9,6 +9,22 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-21 (02:45) — Plan first beside the message box, one per chat (night n° 12, queue 4)
+
+n° 11's question 7 had no answer at 02:00: its default, the plan as approved (DECISIONS). The switch moved from the
+Project panel's bar (per project) to the composer's tools row (per chat):
+- `projects/agent.mjs`: `planFirst(threadId)` / `setPlanFirst(threadId, on)`; the controller asks it with the thread.
+- `ui/project-panel.mjs` `install`: a `COMPOSER_ACTIONS` item (the slot existed, nothing used it), shown when the open
+  chat is bound to a project and the IDE is there; its note goes in the composer's `above` region while it is on. It
+  follows `THREAD_SELECTED`/`THREADS_CHANGED` through the store, and **the panel's `load()`** for a binding: the
+  workbench writes a thread's studio silently (BB-7), so the first harness run timed out waiting for the switch after
+  *New project*; `load()` now says it at once. The composer gains `refreshActions()`.
+- The old button, its note and `paintPlan` are gone from the bar; `state().planFirst` reads the open chat's.
+- Tests: the unit test keys by chat (another chat of the project is off; no chat is never on); the harness scenario
+  checks no switch in a plain chat, the switch beside the message box, `aria-pressed`, the note above the box and its
+  clearing. `test:chat` 1986 (1 skipped), lint 0; the scenario alone passes.
+- Docs: HUMAN_TESTS G14, the IDE guide, client.md, the plan's *Built*.
+
 ## 2026-11-21 (02:36) — A saved vLLM list runs its built-ins with today's flags; what the panel says of drafting (night n° 12, after the advisor's check)
 
 The advisor's check of the two builds found one defect they made and two texts they left untrue.

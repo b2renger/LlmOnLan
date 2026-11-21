@@ -368,6 +368,8 @@ export default [
         async run(/** @type {any} */ h) {
             await h.fresh();
             await h.waitFor(() => (window.LolChat && window.LolChat.ready ? true : null));
+            // A chat bound to no project has no switch: the coding agent does not answer there.
+            h.eq(await h.eval(() => !!document.querySelector('#lolchat .chat-composer-tools .chat-plan-first')), false, 'no switch in a plain chat');
             await h.eval(() => { window.LolChat.app.work.open('project'); return true; });
             await h.waitFor(() => (document.querySelector('#lolchat .chat-proj-empty:not([hidden]) .chat-proj-name-in') ? true : null));
             await h.eval(() => {
@@ -377,11 +379,14 @@ export default [
             });
             const firstId = (await h.waitFor(() => { const s = window.LolChat.debug.project && window.LolChat.debug.project.state(); return s && s.projectId ? s : null; }, { timeout: 15000 })).projectId;
 
-            const flip = () => h.eval(() => { /** @type {HTMLButtonElement} */ (document.querySelector('#lolchat .chat-proj-plan')).click(); return true; });
+            // The switch sits beside the message box, for this chat (STUDENT_PLAN_MODE_PLAN as approved, 2026-11-21).
+            await h.waitFor(() => (document.querySelector('#lolchat .chat-composer-tools .chat-plan-first') ? true : null), { timeout: 10000 });
+            const flip = () => h.eval(() => { /** @type {HTMLButtonElement} */ (document.querySelector('#lolchat .chat-composer-tools .chat-plan-first')).click(); return true; });
             h.eq((await panel(h)).planFirst, false, 'off by default');
             await flip();
-            h.eq((await panel(h)).planFirst, true, 'on for this project');
-            h.assert(/changes nothing/.test(await h.eval(() => (document.querySelector('#lolchat .chat-proj-plan-note') || {}).textContent || '')), 'the note says what it does');
+            h.eq((await panel(h)).planFirst, true, 'on for this chat');
+            h.eq(await h.eval(() => (document.querySelector('#lolchat .chat-composer-tools .chat-plan-first') || {}).getAttribute('aria-pressed')), 'true', 'the switch shows it');
+            h.assert(/changes nothing/.test(await h.eval(() => (document.querySelector('#lolchat .chat-composer-above') || {}).textContent || '')), 'the note above the message box says what it does');
 
             // 1. The plan: the agent's write is refused, and the reply says why in its step log.
             await send(h, 'write planned.txt: approved');
@@ -414,6 +419,7 @@ export default [
 
             await flip();
             h.eq((await panel(h)).planFirst, false, 'and the switch goes off again');
+            h.eq(await h.eval(() => (document.querySelector('#lolchat .chat-composer-above') || {}).textContent || ''), '', 'and its note');
 
             // A git address typed for this project and not saved is not carried to the next one (the field keeps what a
             // person typed since the k24 fix, so binding another project must clear it).

@@ -1442,9 +1442,11 @@ min and one at about +180 min (*1 sent*, then *2 sent*), each with its reply; lo
 *Proves:* with **Plan first** on, the coding agent reads the project and answers with a plan, and changes nothing until
 **Go ahead** (STUDENT_PLAN_MODE_PLAN; the fence that refuses its writes is tested on the real agent runtime and in the
 harness, the plan's wording on a real model is not). *Needs:* a client build with Plan first (after v0.2.19); a farm
-with Qwen3.6 or qwen3.8; a project with an index.html (any page the agent made). *Was:* new (2026-11-20).
-1. In the project's chat, the Project panel's top bar ▸ **Plan first** (it turns to *Plan first: on*, and a line under
-   the bar says what it does). Note the History tab's newest entry.
+with Qwen3.6 or qwen3.8; a project with an index.html (any page the agent made). *Was:* new (2026-11-20); the switch
+moved from the Project panel's bar to beside the message box, one per chat, on 2026-11-21 (as the plan was approved).
+1. In the project's chat, **Plan first** beside the message box (it turns to *Plan first: on*, and a line above the
+   message box says what it does). Note the History tab's newest entry. A chat that is not bound to a project has no
+   such switch, and another chat of the same project has its own, off.
 2. Ask: *"Add a footer with today's date to the page, in a separate footer.css."*
 3. Read the reply; under it, **Change the plan**, then ask: *"Make the footer text grey."*
 4. Under the new plan, **Go ahead**.
