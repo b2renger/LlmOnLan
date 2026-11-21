@@ -17,9 +17,11 @@ body. The pins were checked in the repo the same minute.
 ## Ollama v0.40.17
 
 Quoted from the release body ("What's Changed"), the lines that touch a farm on Ollama:
-- "Disabling thinking now maps to the model's lowest supported reasoning level rather than being ignored." A client
-  that turns thinking off through the farm (LOL Vibe's thinking switch, Open WebUI's) may now get a short reasoning
-  pass on a model whose lowest level is not "none", where it got the model's default before. Not measured: a trial
+- "Disabling thinking now maps to the model's lowest supported reasoning level rather than being ignored." The client
+  turns thinking off with `think: false` on the Computer's structured, code and conversation calls
+  (`shell/renderer/chat/net/request.mjs:178-181`, from `app/ask.mjs`, `graph/runner.mjs`, `graph/parts/converse.mjs`);
+  on a model whose lowest reasoning level is not "none", such a call may now get a short reasoning pass, where it got
+  the model's default before. Not measured: a trial
   would ask the same questions with thinking off on 0.40.16 and 0.40.17 (`spike_bench.py quality --thinking off`) and
   compare the tokens and the first-word time.
 - "Tool definitions passed through the API keep JSON schema keywords Ollama doesn't model instead of dropping them."
