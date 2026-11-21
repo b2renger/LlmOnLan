@@ -17,9 +17,7 @@ built in 20.5 s and working, with four stumbles (M2, M3, L2, L3).
   ([STUDENT_PLAN_MODE_PLAN](STUDENT_PLAN_MODE_PLAN.md), unreleased); a model line that says Qwen3.6 was tried, not
   untried (M3, `projects/models.mjs` `tried`); the agent at 128k, 5/5 on its five tasks (RESULTS 2026-11-21).
 - **Still as found:**
-  - **M2, a project's data is lost at every restart.** The Preview server listens on port 0 (`src/main/studio.ts:1059`),
-    so each launch serves the project from a new origin, and the page's `localStorage` (where a student's list lives) is
-    per origin. A reload keeps it; a restart of LlmOnLan does not.
+  - ~~**M2, a project's data is lost at every restart**~~ (the Preview on port 0): fixed 2026-11-21, step 1 below.
   - **L3, words and the first look.** The empty chat says *Chat directly with the farm.* (`strings/core.en.mjs:16`) and
     offers no example; the context meter says *advertised* (`strings/context.en.mjs:12`); a *Thought for 0s* row shows on
     a reply that did not think; and the agent ends with "Open index.html in a browser" while the Preview shows it.
