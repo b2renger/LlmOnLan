@@ -394,8 +394,8 @@ another cause: send its `logs/owui.log`.
 
 ### A29 A page from an answer, its code beside it, edited live
 *Proves:* [VIBE_PAGE_PLAN](plans/VIBE_PAGE_PLAN.md) on a real model's page: an error says its block and line, the page
-and its code are side by side, a change runs as you type and stays with the chat, and the page pops out to a window. *Needs:* the next client release
-(v0.2.20) and any farm, 10 minutes (a Mac too if you can). *Was:* new (2026-11-18; the harness scenarios `k30-page-*`
+and its code are side by side, a change runs as you type and stays with the chat, and the page pops out to a window. **A build is ready:** `shell/dist/LlmOnLan-Setup-0.2.20-n12-windows-x64.exe` in the owner's checkout (built 2026-11-21 04:13 from `main` at `bdd91e7`, local and unsigned, version 0.2.20-n12): it installs over v0.2.19 and keeps its data, takes Open WebUI from v0.2.19's release, and the real v0.2.20 updates it later. *Needs:* the next client release
+(v0.2.20), or that build on Windows, and any farm, 10 minutes (a Mac too if you can, on the release). *Was:* new (2026-11-18; the harness scenarios `k30-page-*`
 and `shell/test/page-window-e2e.cjs` run it on a scripted answer, not on a model's, on Windows).
 
 1. In LOL Vibe, a new chat: *"Make a small web page with a button that counts clicks: give me index.html, style.css and
@@ -1441,7 +1441,7 @@ min and one at about +180 min (*1 sent*, then *2 sent*), each with its reply; lo
 ### G14 Plan first: the agent proposes, the student approves (five minutes, a student's laptop)
 *Proves:* with **Plan first** on, the coding agent reads the project and answers with a plan, and changes nothing until
 **Go ahead** (STUDENT_PLAN_MODE_PLAN; the fence that refuses its writes is tested on the real agent runtime and in the
-harness, the plan's wording on a real model is not). *Needs:* a client build with Plan first (after v0.2.19); a farm
+harness, the plan's wording on a real model is not). **A build is ready:** `shell/dist/LlmOnLan-Setup-0.2.20-n12-windows-x64.exe` in the owner's checkout (built 2026-11-21 04:13 from `main` at `bdd91e7`, local and unsigned, version 0.2.20-n12): it installs over v0.2.19 and keeps its data, takes Open WebUI from v0.2.19's release, and the real v0.2.20 updates it later. *Needs:* a client build with Plan first (after v0.2.19); a farm
 with Qwen3.6 or qwen3.8; a project with an index.html (any page the agent made). *Was:* new (2026-11-20); the switch
 moved from the Project panel's bar to beside the message box, one per chat, on 2026-11-21 (as the plan was approved).
 1. In the project's chat, **Plan first** beside the message box (it turns to *Plan first: on*, and a line above the
@@ -1808,7 +1808,8 @@ and 30 missed the 5 s by 0.4 and 0.9 s). 64k (48 people, Automatic) is step 5's.
 *Proves:* the multi-user plan's acceptance through the real seat gate (its §12, docs/archive/plans/multiuser_implementation_plan.md),
 at the new default; that Open WebUI reads an attached document once per chat (`RAG_SYSTEM_CONTEXT`, the plan's step 3);
 and its decision 4's class-size check, which must pass before web search can be on by default again (DEVLOG
-2026-10-06 10:51). *Needs:* the next Farm app (after farm-v0.0.54) and the next client (after v0.2.19); J14 done
+2026-10-06 10:51). *Needs:* the next Farm app (after farm-v0.0.54) and the next client (after v0.2.19; for step 6
+the local build named in G14 will do); J14 done
 (vLLM 0.33.0); a quiet hour with nobody on the farm, and no client open on the farm box itself (it would hold a seat
 from 127.0.0.1); `$PY` = `farm\.venv\Scripts\python.exe` and `docs\spike` from a checkout (as in J12, Part 3); for step 6
 a PDF of text of 150–250 pages (a manual, a report; not scanned); 10 laptops for step 7. *Was:* 48 people at 64k (review
