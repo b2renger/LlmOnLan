@@ -2,7 +2,7 @@
 
 > **Status (2026-11-05): built and released.** v1 (slices 1–6) in v0.2.3 (2026-09-29); Keep going until done, the
 > schedule, Use the Computer (§6) and agent pages (§5 A) in v0.2.6 (2026-09-30). Still open, and kept in this plan:
-> §3 item 7 (a project's own `.dsh/skills`, pruning old dsh session logs); §5 B's import button (Use the Computer, §6,
+> §3 item 7 (a project's own `.dsh/skills`; pruning old dsh session logs: built 2026-11-21, 30 days); §5 B's import button (Use the Computer, §6,
 > already lets the agent build graphs in the Computer: the owner says whether the button is still wanted); §5 C
 > (agents as programs: after a measured sandbox review and the owner's decision on a shell).
 

@@ -157,8 +157,10 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
    is good there since 2026-11-09). The owner: does Qwen3.6's 7–11/15 count as good at edits? **S**.
 9. **The client says when a farm is older than it expects.** Farm updates are manual, and older farms refuse newer
    settings. The owner: the minimum version. **S**.
-10. **Prune old coding-agent session logs** in `DATA_DIR/lol-studio/dsh` (IDE_PLAN slice 7): those **older than 30
-    days** (owner 2026-11-13). After the class of 17 November. **S**.
+10. ~~**Prune old coding-agent session logs**~~ *built 2026-11-21 (night n° 12, unreleased):* `studio.ts`
+    `pruneSessions`, once a start before the first runtime: `DATA_DIR/lol-studio/dsh/sessions/<project>/<session>/`
+    whose newest file is **older than 30 days** (owner 2026-11-13) goes, and a project folder left empty; a unit test.
+    The item was: those older than 30 days in `DATA_DIR/lol-studio/dsh` (IDE_PLAN slice 7), after the class. **S**.
 11. **The coding agent's fence check on macOS and Linux** (`sandboxBlocked` checks only on Windows). After HUMAN_TESTS
     E4. **M**.
 12. **Measure Ripple-65B Preview**, a dense model tuned for coding: about 4–13 people at 64k on the PRO 6000 by

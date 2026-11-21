@@ -56,6 +56,49 @@ export const PLAN_PROMPT = 'Plan first: in this turn you cannot change any file 
 /** The file that tells the fence (FENCE_JS) a planning turn is running: beside the fence, in DATA_DIR/lol-studio/dsh. */
 export const PLAN_MARKER = 'lol-planning';
 
+/** Days a coding-agent session log is kept (plans ▸ Next 10, owner 2026-11-13). */
+export const SESSION_KEEP_DAYS = 30;
+
+/**
+ * dsh's session logs older than `days` go: DSH_HOME/sessions/<project>/<session>/, each judged by its newest file (or
+ * the folder's own time when empty); a project folder left empty goes too. Real folders only (a link is skipped). The
+ * logs are history: a session lives as long as its process, so nothing reads one back (a thread starts fresh with its
+ * recap). Returns how many sessions went.
+ */
+export function pruneSessions(home: string, now = Date.now(), days = SESSION_KEEP_DAYS): number {
+    const root = path.join(home, 'sessions');
+    const cutoff = now - days * 86400000;
+    const newest = (dir: string): number => {
+        let m = 0;
+        try { m = fs.statSync(dir).mtimeMs; } catch { /* gone */ }
+        try {
+            for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+                const p = path.join(dir, e.name);
+                const t = e.isDirectory() ? newest(p) : e.isFile() ? fs.statSync(p).mtimeMs : 0;
+                if (t > m) m = t;
+            }
+        } catch { /* unreadable: judged by what was read */ }
+        return m;
+    };
+    let gone = 0;
+    let projects: fs.Dirent[] = [];
+    try { projects = fs.readdirSync(root, { withFileTypes: true }); } catch { return 0; }
+    for (const p of projects) {
+        if (!p.isDirectory()) continue;
+        const pdir = path.join(root, p.name);
+        let sessions: fs.Dirent[] = [];
+        try { sessions = fs.readdirSync(pdir, { withFileTypes: true }); } catch { continue; }
+        for (const s of sessions) {
+            if (!s.isDirectory()) continue;
+            const sdir = path.join(pdir, s.name);
+            if (newest(sdir) >= cutoff) continue;
+            try { fs.rmSync(sdir, { recursive: true, force: true }); gone++; } catch { /* in use: next start */ }
+        }
+        try { if (fs.readdirSync(pdir).length === 0) fs.rmdirSync(pdir); } catch { /* not empty, or in use */ }
+    }
+    return gone;
+}
+
 /** `model`: the farm's default model id (an agent page's model when it names none) — never a credential. */
 export interface StudioFarm { endpoint: string; key: string | null; ctxPerSlot: number | null; model?: string | null }
 
@@ -362,6 +405,7 @@ export function createStudio(deps: StudioDeps) {
     const shared = new Map<string, { server: http.Server; urls: () => string[] }>();
 
     const homeOf = () => path.join(deps.dataDir(), 'lol-studio', 'dsh');
+    let pruned = false;   // the old session logs, once per start (pruneSessions)
 
     /** Agent pages (IDE_PLAN §5 option A): what the Preview's server adds to a project — the loop library, and where
      *  the farm is and its default model. Never the farm's password (on a farm that has one the page asks the person):
@@ -500,6 +544,8 @@ export function createStudio(deps: StudioDeps) {
         const home = homeOf();
         try {
             seed();
+            // Old session logs, once a start, before dsh writes a new one (plans ▸ Next 10).
+            if (!pruned) { pruned = true; pruneSessions(home); }
             const prof = path.join(home, 'profiles', 'sdk');
             fs.mkdirSync(prof, { recursive: true });
             // The fence and its hooks config, rewritten every start (the runtime's own Node runs the fence).

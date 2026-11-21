@@ -468,6 +468,36 @@ export default (test) => {
     assert.equal(r.studio.status().running, false);
   });
 
+  test('studio: the coding agent\'s session logs older than 30 days go, judged by their newest file (plans Next 10, owner 2026-11-13)', () => {
+    const home = tmp('dshhome');
+    const now = Date.UTC(2026, 10, 21);
+    const day = 86400000;
+    const make = (/** @type {string} */ rel, /** @type {number} */ ageDays) => {
+      const f = path.join(home, 'sessions', rel, 'log.jsonl');
+      fs.mkdirSync(path.dirname(f), { recursive: true });
+      fs.writeFileSync(f, '{}');
+      const t = new Date(now - ageDays * day);
+      fs.utimesSync(f, t, t);
+      fs.utimesSync(path.dirname(f), t, t);
+    };
+    make('projA/lol-old', 40);
+    make('projA/lol-new', 2);
+    make('projA/lol-touched', 45);
+    fs.writeFileSync(path.join(home, 'sessions', 'projA', 'lol-touched', 'recent.jsonl'), '{}');   // written today
+    make('projB/lol-old', 31);
+    fs.writeFileSync(path.join(home, 'sessions', 'stray.txt'), 'not a session');
+    for (const p of ['projA', 'projB']) { const t = new Date(now - 40 * day); fs.utimesSync(path.join(home, 'sessions', p), t, t); }
+    const gone = S.pruneSessions(home, now);
+    assert.equal(gone, 2);
+    const left = (/** @type {string} */ rel) => fs.existsSync(path.join(home, 'sessions', rel));
+    assert.ok(!left('projA/lol-old') && !left('projB/lol-old'), 'older than 30 days: gone');
+    assert.ok(left('projA/lol-new'), 'two days: kept');
+    assert.ok(left('projA/lol-touched'), 'an old session with a file written today: kept');
+    assert.ok(!left('projB'), 'a project folder left empty goes too');
+    assert.ok(left('stray.txt'), 'only session folders are judged');
+    assert.equal(S.pruneSessions(path.join(home, 'nowhere'), now), 0, 'no sessions folder: nothing');
+  });
+
   test('studio: a project\'s Preview keeps its port across a restart, so what its page kept in the browser stays; a taken port moves (review 2026-11-15 M2)', async () => {
     const r = rig();
     const again = () => S.createStudio({ dataDir: () => r.data, projectsRoot: () => r.root, farm: () => ({ endpoint: 'http://127.0.0.1:9/v1', key: null, ctxPerSlot: null }),

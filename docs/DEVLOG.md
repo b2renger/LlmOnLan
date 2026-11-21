@@ -9,6 +9,17 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-21 (04:40) — The coding agent's session logs older than 30 days go (plans ▸ Next 10; night n° 12)
+
+Approved: plans ▸ Next 10 (owner 2026-11-13: 30 days; CLASS_TEST_2026-11-17: after the class). dsh keeps one folder
+per session, `DATA_DIR/lol-studio/dsh/sessions/<project>/<session>/` (read in tonight's agent runs); a session lives as
+long as its process (the SDK has no resume, `studio.ts:6`), so these are history nothing reads back. `pruneSessions`
+(exported): each session folder whose newest file is older than 30 days goes, then a project folder left empty; real
+folders only, a stray file left alone; once per start, in `startRuntime` before dsh writes. **Test first** (failed:
+not a function): a 40-day-old session goes, a 2-day one stays, an old one with a file written today stays, an emptied
+project folder goes, a file at the top stays, no `sessions` folder is nothing. Studio 54/54. privacy.md names these
+logs and their 30 days (less kept, nothing new).
+
 ## 2026-11-21 (04:36) — A project's Preview keeps its port, so a page's data survives a restart (review 2026-11-15 M2); pictures, the second half; LOLVIBE_POC_PLAN (night n° 12)
 
 - **M2** (SESSION_REVIEW_2026-11-15, a finding: approved in advance). The Preview's server listened on port 0, so each
