@@ -1833,7 +1833,8 @@ run them once the owner closes the farm (Part 3).
    idle seat after* back.
 
 *Expect:* step 1: the review lists *Context per person: 64k → 128k* and says Qwen3.6 serves 24 at 128k, not the
-card's 30; after Apply, the vLLM section shows *People at once: Automatic (24)* and *128k*. Step 3: no 429 at 24; at
+card's 30; after Apply, the vLLM section's *People at once* reads *Automatic — 24, measured on this card*, and its
+context 128k. Step 3: no 429 at 24; at
 26, 24 served and 2 lines `NO SEAT (429)`. Read the share of people at 15 tok/s or more from each request's `tps` in
 class24.json (the summary prints only the median). Step 4: TTFT p95 under 5 s and decode p10 at 15 tok/s or more at
 24. Step 5: the same at 48. Step 6: the first answer takes a few seconds (the farm reads the whole document); **the
