@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Scene Rebuild</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #141a45; }
+        canvas { width: 1024px; height: 640px; display: block; margin: 0 auto; }
+    </style>
+</head>
+<body>
+    <script src="three.min.js"></script>
+    <script>
+        // Scene setup
+        const width = 1024;
+        const height = 640;
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x141a45);
+
+        const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+        // Position camera to match the perspective in the image
+        camera.position.set(0, 1, 10);
+        camera.lookAt(0, 2, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(width, height);
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 10, 5);
+        scene.add(directionalLight);
+
+        // Materials
+        const matRed = new THREE.MeshStandardMaterial({ color: 0xbc2a2a });
+        const matOrange = new THREE.MeshStandardMaterial({ color: 0xe67e22 });
+        const matYellow = new THREE.MeshStandardMaterial({ color: 0xd4a017 });
+        const matGreen = new THREE.MeshStandardMaterial({ color: 0x1e7a5f });
+        const matBlue = new THREE.MeshStandardMaterial({ color: 0x3465a4 });
+        const matPurple = new THREE.MeshStandardMaterial({ color: 0-6b2d91 }); // Deep purple ring
+
+        // Bar Chart Objects (Cylinders)
+        const createBar = (x, y, z, radius, height, material) => {
+            const geometry = new THREE.CylinderGeometry(radius, radius, height, 32);
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(x, y, z);
+            scene.add(mesh);
+        };
+
+        // Positions and sizes estimated from visual proportions
+        // Bars: x, y, z, radius, height, material
+        createBar(-4, 1, 0, 0.6, 1.2, matRed);
+        createBar(-2, 1.5, 0, 0.6, 2.0, matOrange);
+        createBar(0, 2, 0, 0.6, 2.8, matYellow);
+        createBar(2, 2.5, 0, 0.6, 3.6, matGreen);
+        createBar(4, 3.5, 0, 0.7, 5.0, matBlue);
+
+        // Ring (Torus)
+        const ringGeom = new THREE.TorusGeometry(1.2, 0.4, 16, 100);
+        const ringMesh = new THREE.Mesh(ringGeom, new THREE.MeshStandardMaterial({ color: 0x6a3d9a }));
+        ringMesh.position.set(0, 6, 0);
+        scene.add(ringMesh);
+
+        // Render
+        renderer.render(scene, camera);
+
+        // Set global flag
+        window.__rendered = true;
+    </script>
+</body>
+</html>

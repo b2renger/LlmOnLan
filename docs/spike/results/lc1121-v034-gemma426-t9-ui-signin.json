@@ -1,0 +1,55 @@
+{
+ "label": "lc1121-v034-gemma426",
+ "model": "gemma426",
+ "kind": "ui",
+ "task": "t9-ui-signin",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "off",
+ "picture": "docs\\spike\\ide\\tasks\\t9-ui-signin\\seed\\signin.png",
+ "samples": [
+  {
+   "n": 1,
+   "status": 200,
+   "secs": 11.9,
+   "completionTokens": 2065,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "texts": "10/10",
+    "colours": "2/2"
+   },
+   "shot": true
+  },
+  {
+   "n": 2,
+   "status": 200,
+   "secs": 14.7,
+   "completionTokens": 2563,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "texts": "10/10",
+    "colours": "2/2"
+   },
+   "shot": true
+  },
+  {
+   "n": 3,
+   "status": 200,
+   "secs": 12.7,
+   "completionTokens": 2225,
+   "html": true,
+   "check": {
+    "pass": false,
+    "fails": [
+     "no colour near #db2777"
+    ],
+    "texts": "10/10",
+    "colours": "1/2"
+   },
+   "shot": true
+  }
+ ]
+}

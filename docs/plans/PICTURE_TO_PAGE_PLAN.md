@@ -45,8 +45,10 @@ server).
    interfaces, two more scenes): over the six inputs Qwen3.6 passes 16 of 18 samples and Qwen3.8 14 (with the check
    blind to spaces in a text), every miss one text or one colour; by eye a simple page comes out near identical, a denser one with a looser layout, a scene with
    its objects and colours right and its light and depth off; Qwen3.6 is the faster. Both are good enough to build on;
-   the agent cannot see the picture yet (step 2). Still to run: Figma frames (question 2), Gemma 4 26B (not on this
-   computer).
+   the agent cannot see the picture yet (step 2). **Gemma 4 26B, the same night** (downloaded into the trial root):
+   16 of 18, level with Qwen3.6, slower on interfaces; by eye its dashboard's chart is empty in all three samples (bars
+   in the code at a height that resolves to nothing), which the check, reading texts and colours, does not see. Still
+   to run: Figma frames (question 2).
 2. **Step 2, the hand-over (after the owner's yes):** a picture or an SVG dropped in a project chat is saved into the
    project (`refs/<name>`, through main's projects API, inside the fence), and the message the agent gets names it
    ("The picture is refs/x.png; read it with read_image"). One code path for the three kinds.

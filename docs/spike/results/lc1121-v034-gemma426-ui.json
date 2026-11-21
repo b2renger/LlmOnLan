@@ -1,0 +1,50 @@
+{
+ "label": "lc1121-v034-gemma426",
+ "model": "gemma426",
+ "kind": "ui",
+ "task": "t6-ui-shot",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "off",
+ "picture": "docs\\spike\\ide\\tasks\\t6-ui-shot\\seed\\ui.png",
+ "samples": [
+  {
+   "n": 1,
+   "status": 200,
+   "secs": 9.7,
+   "completionTokens": 1543,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "texts": "10/10"
+   },
+   "shot": true
+  },
+  {
+   "n": 2,
+   "status": 200,
+   "secs": 8.2,
+   "completionTokens": 1447,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "texts": "10/10"
+   },
+   "shot": true
+  },
+  {
+   "n": 3,
+   "status": 200,
+   "secs": 8.6,
+   "completionTokens": 1502,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "texts": "10/10"
+   },
+   "shot": true
+  }
+ ]
+}

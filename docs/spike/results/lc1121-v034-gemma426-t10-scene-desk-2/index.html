@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Scene Reconstruction</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #1a233a; }
+        canvas { display: block; width: 1024px; height: 640px; margin: auto; }
+    </style>
+</head>
+<body>
+    <script src="three.min.js"></script>
+    <script>
+        // Scene setup
+        const width = 1024;
+        const height = 640;
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x242b45);
+
+        const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(width, height);
+        document.body.appendChild(renderer.domElement);
+
+        // Floor/Environment
+        const floorGeo = new THREE.PlaneGeometry(100, 100);
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x3d4e63 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -0.5;
+        scene.add(floor);
+
+        // Table
+        const tableGroup = new THREE.Group();
+        
+        const topGeo = new THREE.BoxGeometry(3, 0.15, 1.5);
+        const woodMat = new THREE.MeshStandardMaterial({ color: 0x6d3d1e });
+        const tableTop = new THREE.Mesh(topGeo, woodMat);
+        tableGroup.add(tableTop);
+
+        const legGeo = new THREE.BoxGeometry(0.15, 1, 0.15);
+        const legPositions = [
+            [1.35, -0.5, 0.6], [-1.35, -0.5, 0.6],
+            [1.35, -0.5, -0.6], [-1.35, -0.5, -0.6]
+        ];
+
+        legPositions.forEach(pos => {
+            const leg = new THREE.Mesh(legGeo, woodMat);
+            leg.position.set(...pos);
+            tableGroup.add(leg);
+        });
+
+        tableGroup.position.y = 0.5;
+        scene.add(tableGroup);
+
+        // Cup
+        const cupGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.3, 32);
+        const cupMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee });
+        const cup = new THREE.Mesh(cupGeo, cupMat);
+        cup.position.set(-0.5, 0.5 + 0.15, 0);
+        scene.add(cup);
+
+        // Lamp
+        const lampGroup = new THREE.Group();
+        const standGeo = new THREE.CylinderGeometry(0.03, 0.03, 1, 16);
+        const standMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+        const stand = new THREE.Mesh(standGeo, standMat);
+        stand.position.y = -0.5;
+        lampGroup.add(stand);
+
+        const shadeGeo = new THREE.ConeGeometry(0.3, 0.4, 32);
+        const shadeMat = new THREE.MeshStandardMaterial({ color: 0x6d5a4a });
+        const shade = new THREE.Mesh(shadeGeo, shadeMat);
+        shade.position.y = 0.5;
+        lampGroup.add(shade);
+
+        lampGroup.position.set(0.6, 0.5 + 0.15, 0);
+        scene.add(lampGroup);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+        scene.add(ambientLight);
+
+        const pointLight = new THREE.PointLight(0xffffff, 1, 10);
+        pointLight.position.set(0.6, 1.5, 0); // Near the lamp shade
+        scene.add(pointLight);
+
+        // Camera Position
+        camera.position.set(3, 2.5, 4);
+        camera.lookAt(0, 0, 0);
+
+        // Render
+        renderer.render(scene, camera);
+        window.__rendered = true;
+    </script>
+</body>
+</html>

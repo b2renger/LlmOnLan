@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Scene Reconstruction</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #121a42; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="three.min.js"></script>
+    <script>
+        // Initialize scene
+        const width = 1024;
+        const height = 640;
+        
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x121a42);
+
+        const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+        // Position camera to match the slightly elevated, angled view
+        camera.position.set(0, 2, 10);
+        camera.lookAt(0, 2, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(width, height);
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        // Ambient light for soft shadows/base color
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+
+        // Directional light to simulate the soft top-down lighting
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 5);
+        scene.add(dirLight);
+
+        // Materials
+        const createMat = (color) => new THREE.MeshStandardMaterial({ color: color, roughness: 0.7 });
+
+        // Bar Chart Objects (Cylinders)
+        const barData = [
+            { color: 0xbc2a2a, h: 1.2, x: -4 }, // Red
+            { color: 0xe67e22, h: 1.8, x: -2.5 }, // Orange
+            { color: 0xd4a017, h: 2.4, x: -1 }, // Gold/Yellow
+            { color: 0x2d8661, h: 3.0, x: 1.5 }, // Green
+            { color: 0x3465a4, h: 4.0, x: 4 }   // Blue
+        ];
+
+        barData.forEach(data => {
+            const geometry = new THREE.CylinderGeometry(0.6, 0.6, data.h, 32);
+            const mesh = new THREE.Mesh(geometry, createMat(data.color));
+            mesh.position.set(data.x, data.h / 2 - 1, 0); // Offset Y so base is roughly aligned
+            scene.add(mesh);
+        });
+
+        // The Ring (Torus)
+        const ringGeom = new THREE.TorusGeometry(1, 0.3, 16, 100);
+        const ringMat = createMat(0x6a3d9a); // Purple
+        const ring = new THREE.Mesh(ringGeom, ringMat);
+        ring.position.set(0, 4, 0);
+        scene.add(ring);
+
+        // Render
+        renderer.render(scene, camera);
+
+        // Set global flag
+        window.__rendered = true;
+    </script>
+</body>
+</html>

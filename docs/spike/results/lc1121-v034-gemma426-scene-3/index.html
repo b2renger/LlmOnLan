@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Three.js Scene Reconstruction</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; }
+        canvas { display: block; width: 1024px; height: 640px; }
+    </style>
+</head>
+<body>
+    <script src="three.min.js"></script>
+    <script>
+        // Setup scene, camera, and renderer
+        const width = 1024;
+        const height = 640;
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xBCD9F0); // Light blue sky
+
+        const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+        // Position camera to match the perspective in the image
+        camera.position.set(0, 2.5, 7);
+        camera.lookAt(0, 0.5, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(width, height);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // Floor (Green plane)
+        const floorGeometry = new THREE.PlaneGeometry(20, 20);
+        const floorMaterial = new THREE.MeshPhongMaterial({ color: 0x388E3C });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // Red Cube
+        const cubeGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+        const cubeMat = new THREE.MeshPhongMaterial({ color: 0xBA2525 });
+        const cube = new THREE.Mesh(cubeGeo, cubeMat);
+        cube.position.set(-2.5, 0.75, 0);
+        cube.rotation.y = 0.2;
+        cube.rotation.x = 0.1;
+        cube.castShadow = true;
+        cube.receiveShadow = true;
+        scene.add(cube);
+
+        // Yellow Cone
+        const coneGeo = new THREE.ConeGeometry(0.7, 1.8, 32);
+        const coneMat = new THREE.MeshPhongMaterial({ color: 0xCC9933 });
+        const cone = new THREE.Mesh(coneGeo, coneMat);
+        cone.position.set(0, 0.9, 0);
+        cone.castShadow = true;
+        cone.receiveShadow = true;
+        scene.add(cone);
+
+        // Blue Sphere
+        const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
+        const sphereMat = new THREE.MeshPhongMaterial({ color: 0x1A33CC });
+        const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+        sphere.position.set(2.5, 1, 0);
+        sphere.castShadow = true;
+        sphere.receiveShadow = true;
+        scene.add(sphere);
+
+        // Lights
+        // Directional light to create the shadows seen in the image
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        dirLight.position.set(-5, 5, 5);
+        dirLight.castShadow = true;
+        // Adjust shadow properties for better look
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        dirLight.shadow.camera.left = -10;
+        dirLight.shadow.camera.right = 10;
+        dirLight.shadow.camera.top = 10;
+        dirLight.shadow.camera.bottom = -10;
+        scene.add(dirLight);
+
+        // Ambient light for general visibility
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+
+        // Render
+        renderer.render(scene, camera);
+
+        // Set flag
+        window.__rendered = true;
+    </script>
+</body>
+</html>

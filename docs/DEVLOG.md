@@ -9,6 +9,23 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-21 (06:06) — Pages from a picture: Gemma 4 26B, the third model (PICTURE_TO_PAGE_PLAN step 1; night n° 12)
+
+- **The download:** `nvidia/Gemma-4-26B-A4B-NVFP4` into vLLM 0.34.0's trial root (`~/lol-vllm-034/hf`, never
+  production's). A first try (05:22) stalled after a minute through Hugging Face's Xet transfer; with
+  `HF_HUB_DISABLE_XET=1` it came over plain HTTP at ~11 MB/s, 18.85 GB from 05:29 to 05:55 (the library's `sizeGb` 18.8).
+- **The run** (scratch `n12/pictures_gemma.sh`: `trial_serve.sh` with the farm's `GEMMA4_ARGS` + `MM_LIMIT`, 32k,
+  50 GiB, then `runs/picture_page.mjs` on the six inputs, 3 samples each, thinking off): ready at 06:02 (6.5 min, its
+  first start on 0.34 compiling), done 06:05, stopped by `farm/vllm/stop.sh` with the trial root; no process left; the
+  GPU 920 MiB before, 941 after.
+- **Scores:** 16/18 (interface 3/3, scene 3/3, dashboard 2/3, sign-in 2/3, desk 3/3, rings 3/3); the misses are one
+  colour each. Seconds: interfaces 8–15, scenes 5–7.
+- **By eye** (the shots against `ide/pictures/*.png`): the booking page near identical; the desk dark; the dashboard's
+  layout the closest of the three models, but its chart empty in all three samples (the cause read in sample 2: each bar `style="height: 60%"` inside a
+  `.bar-wrapper` with no height, the chart's `align-items: flex-end` not stretching it). The check does not read what renders, so it passed two of them: a limit of step 1's check,
+  written in RESULTS and the plan, not changed tonight.
+- RESULTS ▸ *Pages from a picture, the third model*; PICTURE_TO_PAGE_PLAN step 1 updated.
+
 ## 2026-11-21 (04:46) — The Computer's run went on up to a minute after a person answered: a lost wake-up in the run loop (night n° 12)
 
 - **How it showed:** the third full `--phase k` of the night (04:33–04:40, beside two `test:chat` runs and rebuilds)

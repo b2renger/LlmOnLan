@@ -1519,8 +1519,8 @@ shapes, their four hues); the look by eye from the renders (`results/lc1121-v034
 | Qwen3.8 | 2/3 (one orange off), 8.4–10.1 s | 3/3, ~5.5 s | the same, the scene smaller and darker |
 
 Through the coding agent the two picture tasks fail: dsh's `read_image` refuses, *model "qwen36" does not declare image
-input* (LOL Vibe declares no input for its model; PICTURE_TO_PAGE_PLAN step 2). Gemma 4 26B is not in this computer's
-vLLM folder (not run). Figma frames: none yet (the plan's question 2).
+input* (LOL Vibe declares no input for its model; PICTURE_TO_PAGE_PLAN step 2). Gemma 4 26B: run later the same night
+(below, *the third model*). Figma frames: none yet (the plan's question 2).
 
 **vLLM 0.34.0's KV offload to system memory, tried the same night** (`--kv-offloading-size 40`, the native
 `OffloadingConnector`, a 42.93 GB tier in `/dev/shm`; Qwen3.6 at 128k, the same flags and 50 GiB GPU pool; label
@@ -1548,3 +1548,20 @@ model:** Qwen3.6 14/18 pass the check, Qwen3.8 14/18; every miss is one text or 
 Qwen3.6 answers in 60–75 % of Qwen3.8's time. *Re-scored at 05:12 with the check blind to spaces in a text ("+12%"
 for "+12 %" is typography, not a wrong copy; the saved pages, not new answers):* Qwen3.6's dashboard 3/3, so
 **Qwen3.6 16/18, Qwen3.8 14/18**; the JSON files keep the first scores.
+
+**Pages from a picture, the third model: Gemma 4 26B-A4B** (the same night, 05:55–06:05; `nvidia/Gemma-4-26B-A4B-NVFP4`
+downloaded into vLLM 0.34.0's trial root, 18.85 GB in 27 min over plain HTTP after a first try through Xet stalled;
+the farm's flags, 32k, 50 GiB; ready in 6.5 min, its first start compiling; label `lc1121-v034-gemma426`; the same
+six inputs, 3 samples, thinking off, the check already blind to spaces):
+
+| | Interface | Scene | Dashboard | Sign-in | Desk | Rings |
+|---|---|---|---|---|---|---|
+| Gemma 4 26B | 3/3 (8.2–9.7 s) | 3/3 (5.6–6.0 s) | 2/3 (11.0–11.4 s; one green off) | 2/3 (11.9–14.7 s; one pink off) | 3/3 (6.7–7.4 s) | 3/3 (4.9–5.7 s) |
+
+**16/18, level with Qwen3.6**; slower on interfaces (1,450–2,560 tokens an answer, where Qwen3.6 took 5.6–9 s), level on
+scenes. By eye: the booking page near identical (spacing larger, headings teal); the desk right in its objects (table,
+mug, lamp) and much darker than the picture, the floor barely visible; **the dashboard's chart is empty in all three
+samples**: the layout is right (the three cards in one row, the chart beside the table, which Qwen3.6 and Qwen3.8 did
+not keep), the bars are in the code, but at a percentage height inside a box with no height of its own, so none shows.
+The check passes two of them: it reads texts and colours, not what is drawn. A check that measures the rendered bars, or
+a look by eye, is what catches it.

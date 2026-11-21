@@ -1,0 +1,47 @@
+{
+ "label": "lc1121-v034-gemma426",
+ "model": "gemma426",
+ "kind": "scene",
+ "task": "t7-scene",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "off",
+ "picture": "docs\\spike\\ide\\tasks\\t7-scene\\seed\\scene.png",
+ "samples": [
+  {
+   "n": 1,
+   "status": 200,
+   "secs": 5.6,
+   "completionTokens": 968,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": []
+   },
+   "shot": true
+  },
+  {
+   "n": 2,
+   "status": 200,
+   "secs": 5.9,
+   "completionTokens": 1032,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": []
+   },
+   "shot": true
+  },
+  {
+   "n": 3,
+   "status": 200,
+   "secs": 6,
+   "completionTokens": 1057,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": []
+   },
+   "shot": true
+  }
+ ]
+}

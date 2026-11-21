@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Scene Reconstruction</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; }
+        canvas { width: 1024px; height: 640px; display: block; margin: 0 auto; }
+    </style>
+</head>
+<body>
+    <script src="three.min.js"></script>
+    <script>
+        // Scene setup
+        const width = 1024;
+        const height = 640;
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xADD8E6); // Light blue sky
+
+        const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+        // Position camera to match the perspective in the image
+        camera.position.set(0, 2, 8);
+        camera.lookAt(0, 0.5, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(width, height);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        // Floor (Green plane)
+        const planeGeometry = new THREE.PlaneGeometry(20, 20);
+        const planeMaterial = new THREE.MeshPhongMaterial({ color: 0x2E7D32, side: THREE.DoubleSide });
+        const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+        plane.rotation.x = -Math.PI / 2;
+        plane.receiveShadow = true;
+        scene.add(plane);
+
+        // Red Cube
+        const cubeGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+        const cubeMat = new THREE.MeshPhongMaterial({ color: 0xB22222 });
+        const cube = new THREE.Mesh(cubeGeo, cubeMat);
+        cube.position.set(-2.5, 0.75, 0);
+        cube.rotation.y = 0.2;
+        cube.rotation.x = -0.1;
+        cube.castShadow = true;
+        cube.receiveShadow = true;
+        scene.add(cube);
+
+        // Yellow Cone
+        const coneGeo = new THREE.ConeGeometry(0.8, 2, 32);
+        const coneMat = new THREE.MeshPhongMaterial({ color: 0xDAA520 });
+        const cone = new THREE.Mesh(coneGeo, coneMat);
+        cone.position.set(0, 1, 0);
+        cone.castShadow = true;
+        scene.add(cone);
+
+        // Blue Sphere
+        const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
+        const sphereMat = new THREE.MeshPhongMaterial({ color: 0x0000CD });
+        const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+        sphere.position.set(2.5, 1, 0);
+        sphere.castShadow = true;
+        scene.add(sphere);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(-5, 5, 5);
+        directionalLight.castShadow = true;
+        // Adjust shadow properties for better quality
+        directionalLight.shadow.mapSize.width = 1024;
+        directionalLight.shadow.mapSize.height = 1024;
+        scene.add(directionalLight);
+
+        // Render
+        renderer.render(scene, camera);
+
+        // Flag for completion
+        window.__rendered = true;
+    </script>
+</body>
+</html>

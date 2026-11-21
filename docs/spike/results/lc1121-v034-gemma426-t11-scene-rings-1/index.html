@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Rebuild</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #131944;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            width: 1024px;
+            height: 640px;
+        }
+    </style>
+</head>
+<body>
+    <script src="three.min.js"></script>
+    <script>
+        // Initialize Scene
+        const width = 1024;
+        const height = 640;
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x131944);
+
+        const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+        // Position camera to match the slight downward angle and perspective
+        camera.position.set(0, 1, 8);
+        camera.lookAt(0, 1, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(1);
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 10, 5);
+        scene.add(directionalLight);
+
+        const pointLight = new THREE.PointLight(0xffffff, 0.5);
+        pointLight.position.set(-5, 2, 2);
+        scene.add(pointLight);
+
+        // Helper function for cylinders
+        function createCylinder(x, y, z, radius, height, color) {
+            const geometry = new THREE.CylinderGeometry(radius, radius, height, 32);
+            const material = new THREE.MeshStandardMaterial({ color: color, roughness: 0.7 });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(x, y, z);
+            scene.add(mesh);
+            return mesh;
+        }
+
+        // Bar Chart Objects
+        // Red
+        createCylinder(-3.5, 0.5, 0, 0.5, 1, 0xbc2e2e);
+        // Orange
+        createCylinder(-2, 0.8, 0, 0.5, 1.6, 0xd67313);
+        // Yellow/Gold
+        createCylinder(-0.5, 1.1, 0, 0.5, 2.2, 0xd6a53d);
+        // Green
+        createCylinder(1, 1.5, 0, 0.5, 3, 0x26735d);
+        // Blue
+        createCylinder(2.5, 2.0, 0, 0.6, 4, 0x3b6dbd);
+
+        // The Torus (Purple Ring)
+        const torusGeo = new THREE.TorusGeometry(0.8, 0.3, 16, 100);
+        const torusMat = new THREE.MeshStandardMaterial({ color: 0x6a3a9e, roughness: 0.5 });
+        const torus = new THREE.Mesh(torusGeo, torusMat);
+        torus.position.set(0, 3.5, 0);
+        scene.add(torus);
+
+        // Render
+        renderer.render(scene, camera);
+
+        // Set flag
+        window.__rendered = true;
+    </script>
+</body>
+</html>
