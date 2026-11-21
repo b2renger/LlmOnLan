@@ -1909,7 +1909,7 @@ there (8 GB): `ollama rm gemma4:12b` after the test if you do not want it. Its L
    thinking. In LOL Vibe, a project: *"Write a small web page with a button that counts clicks"*. If you can, two or
    three laptops at once.
 4. Read the panel (`http://<farm>:41997/lol/admin`, the Farm app's password): the model, *32 people at once*
-   (Automatic: *Measured on this card with this model: ≥ 32 at 32k*).
+   (Automatic: *Measured on this card with this model: ≥ 32 at 32k when everyone writes at once*).
 
 *Expect:* answers come about twice as fast as Qwen3.8 did on 14 November (alone it streams ~155 tokens a second,
 about 110 words; Qwen3.6 today ~250 tokens); with two or three laptops at once each still streams far faster than you
