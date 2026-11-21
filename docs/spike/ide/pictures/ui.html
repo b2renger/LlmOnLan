@@ -1,0 +1,50 @@
+<!doctype html>
+<!-- PICTURE_TO_PAGE_PLAN step 1: the interface whose screenshot (ui.png) the agent rebuilds. The truth to compare with. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Room booking</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; background: #f4f1ea; color: #22313f; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; background: #0f4c5c; color: #fff; }
+  header h1 { margin: 0; font-size: 22px; letter-spacing: .5px; }
+  nav a { color: #cde6ea; margin-left: 22px; text-decoration: none; font-size: 15px; }
+  nav a.on { color: #fff; border-bottom: 2px solid #e36414; padding-bottom: 3px; }
+  main { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; padding: 28px; max-width: 1000px; margin: 0 auto; }
+  .card { background: #fff; border-radius: 10px; padding: 22px 26px; box-shadow: 0 2px 6px rgba(0,0,0,.08); }
+  .card h2 { margin: 0 0 16px; font-size: 18px; }
+  label { display: block; font-size: 13px; color: #5a6b78; margin: 12px 0 4px; }
+  input, select { width: 100%; padding: 9px 10px; border: 1px solid #c9d3da; border-radius: 6px; font-size: 15px; }
+  button { margin-top: 20px; padding: 10px 26px; border: 0; border-radius: 6px; background: #e36414; color: #fff; font-size: 16px; font-weight: 600; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; font-size: 14px; }
+  li span { color: #5a6b78; }
+  footer { text-align: center; color: #8a97a1; font-size: 12px; padding: 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Room booking</h1>
+  <nav><a class="on" href="#">Book</a><a href="#">My bookings</a><a href="#">Help</a></nav>
+</header>
+<main>
+  <section class="card">
+    <h2>Book a room</h2>
+    <label for="name">Your name</label><input id="name" value="Alex Martin">
+    <label for="date">Date</label><input id="date" value="2026-12-03">
+    <label for="room">Room</label><select id="room"><option>Science lab B12</option></select>
+    <button>Book</button>
+  </section>
+  <aside class="card">
+    <h2>Upcoming</h2>
+    <ul>
+      <li>Art studio <span>Mon 9:00</span></li>
+      <li>Library room 2 <span>Tue 14:00</span></li>
+      <li>Science lab B12 <span>Thu 10:30</span></li>
+    </ul>
+  </aside>
+</main>
+<footer>School rooms · 3 bookings this week</footer>
+</body>
+</html>

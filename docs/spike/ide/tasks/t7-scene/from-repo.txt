@@ -1,0 +1,1 @@
+shell/renderer/chat/sandbox/lib/three.min.js

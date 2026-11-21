@@ -44,6 +44,13 @@ async function runTask(task) {
     const id = `${task}-${rand()}`;
     const dir = path.join(root, id);
     copyDir(path.join(TASKS, task, 'seed'), dir);
+    // Files the repo already holds (three.js for the scene task), one repo-relative path a line: copied, not duplicated.
+    const fromRepo = path.join(TASKS, task, 'from-repo.txt');
+    if (fs.existsSync(fromRepo)) {
+        for (const rel of fs.readFileSync(fromRepo, 'utf8').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)) {
+            fs.copyFileSync(path.join(ROOT, rel), path.join(dir, path.basename(rel)));
+        }
+    }
     const prompt = fs.readFileSync(path.join(TASKS, task, 'prompt.txt'), 'utf8').trim();
     const recs = [];
     const t0 = Date.now();

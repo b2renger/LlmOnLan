@@ -1,0 +1,45 @@
+<!doctype html>
+<!-- PICTURE_TO_PAGE_PLAN step 1: the three.js scene whose picture (scene.png) the agent rebuilds. The truth: a red cube
+     on the left, a blue sphere on the right, a yellow cone behind them, on a green ground, a light sky, one sun light. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Scene</title><style>html,body{margin:0;overflow:hidden;background:#000}</style></head>
+<body>
+<script src="../../../../shell/renderer/chat/sandbox/lib/three.min.js"></script>
+<script>
+  const W = 1024, H = 640;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.shadowMap.enabled = true;
+  document.body.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xbfe3f5);
+  const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 100);
+  camera.position.set(0, 3.2, 8);
+  camera.lookAt(0, 0.8, 0);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x447744, 0.6));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+  sun.position.set(4, 8, 5);
+  sun.castShadow = true;
+  scene.add(sun);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshStandardMaterial({ color: 0x4caf50 }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+  const cube = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.6, 1.6), new THREE.MeshStandardMaterial({ color: 0xd62828 }));
+  cube.position.set(-2.2, 0.8, 0.5);
+  cube.rotation.y = 0.5;
+  cube.castShadow = true;
+  scene.add(cube);
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), new THREE.MeshStandardMaterial({ color: 0x1d4ed8 }));
+  ball.position.set(2.2, 1, 0.5);
+  ball.castShadow = true;
+  scene.add(ball);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.9, 2.4, 40), new THREE.MeshStandardMaterial({ color: 0xf2c014 }));
+  cone.position.set(0, 1.2, -2.5);
+  cone.castShadow = true;
+  scene.add(cone);
+  renderer.render(scene, camera);
+  window.__rendered = true;
+</script>
+</body>
+</html>

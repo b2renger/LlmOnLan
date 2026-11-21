@@ -1,0 +1,1 @@
+ui.png in this project is a screenshot of a web page. Look at it with your image tool, then make index.html (and style.css if you want one) that reproduces it as closely as you can: the same layout, colours, texts and form fields. Plain HTML and CSS, no framework, nothing loaded from the internet.
