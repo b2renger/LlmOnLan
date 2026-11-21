@@ -1082,7 +1082,7 @@
   {
    "id": "qwen3.8-27b",
    "name": "Qwen3.8-27B (dense)",
-   "drafting": "LlmOnLan's built-in Qwen3.8 entry serves it drafting ahead with its MTP layer (3 tokens, since 2026-11-19; a farm whose model list was saved before keeps its old flags), which these numbers leave out: on an RTX PRO 6000 it measured about 2.3 times the words a second alone and 1.8 times for 30 people, and each conversation takes about a quarter more memory, so about a quarter fewer people fit where memory is the limit.",
+   "drafting": "LlmOnLan's built-in Qwen3.8 entry serves it drafting ahead with its MTP layer (3 tokens, since 2026-11-19) and keeps its recurrent state in 16 bits (since 2026-11-21). The RTX PRO 6000's measurement at 32k counts both (32 people passed, the most tested); the other numbers leave them out. On an RTX PRO 6000 drafting measured about 2.3 times the words a second alone and 1.8 times for 30 people; it takes about a quarter more memory a conversation, and the 16-bit state gives most of it back.",
    "vendor": "Alibaba Qwen",
    "released": "2026-08-05",
    "role": "measured (quality model; dense = slow on Spark)",

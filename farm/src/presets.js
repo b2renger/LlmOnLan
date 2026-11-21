@@ -199,8 +199,12 @@ function pickFor(id, box) {
         out.reasons.push(`${e.label} on vLLM, for ${sc.people} people at once (the capacity page's "${sc.title}"): ${v.pair.reason}`);
         out.reasons.push(...poolReasons(p, v.pair, sc));
         out.reasons.push(contextReason(p, v.context, 'vllm'));
-        const draft = draftOf(e.args || (VLLM_LIBRARY.find((b) => b.id === e.id) || {}).args);   // the flags the farm will start it with
-        if (draft && draft.method === 'mtp') out.reasons.push(`${e.label} drafts ahead with its MTP layer: on an RTX PRO 6000 about twice the words a second for each person, and about a quarter more memory for each conversation. The estimate above counts neither; the seats the farm sets when it starts count both.`);
+        const args = e.args || (VLLM_LIBRARY.find((b) => b.id === e.id) || {}).args || [];   // the flags the farm will start it with
+        const draft = draftOf(args);
+        // Its state in 16 bits (QWEN38_FP16_STATE_PLAN) gives most of drafting's memory back; the estimate counts both only
+        // where they were measured together (Qwen3.8 at 32k on the PRO 6000, measured-extra.json).
+        const state16 = args.includes('--mamba-ssm-cache-dtype');
+        if (draft && draft.method === 'mtp') out.reasons.push(`${e.label} drafts ahead with its MTP layer: on an RTX PRO 6000 about twice the words a second for each person, and about a quarter more memory for each conversation${state16 ? ', most of which its recurrent state kept in 16 bits gives back' : ''}. The estimate above counts ${state16 ? 'them' : 'it'} only where it was measured so (32k on an RTX PRO 6000); the seats the farm sets when it starts count ${state16 ? 'both' : 'it'}.`);
         out.reasons.push('People at once and GPU memory for conversations: Automatic (what was measured on this card, never more than its memory holds).');
         if (!e.downloaded) out.needs.push({ kind: 'vllm', id: e.id, label: e.label, gb: e.sizeGb ?? null, text: `Download ${e.label}${e.sizeGb ? ` (${Math.round(e.sizeGb)} GB)` : ''} in the vLLM list first.` });
     } else {

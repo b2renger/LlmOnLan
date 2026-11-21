@@ -84,7 +84,9 @@
     says `float16` or `bfloat16`, and Qwen3.8's 32k label is ≥ 32 (vLLM 0.33.0, `measured-extra.json`), so Automatic
     seats 32 at 32k. Qwen3.6 keeps 32 bits (it failed 30 people ~50k deep with the flag). Qwen3.8 belongs at 32k: at
     64k, 20 people 50k deep failed with and without the flag. A list saved before
-    a version added models gets them at the next start, except the ids in `vllm.removed` (a Remove of a built-in);
+    a version added models gets them at the next start, except the ids in `vllm.removed` (a Remove of a built-in), and
+    its built-ins run with this version's flags (`config.js`, 2026-11-21: their measured seats were measured with them);
+    a Qwen3.8 the operator adds gets neither drafting nor the 16-bit state (`familyArgs`);
     and sets people at once, context per person and GPU memory for conversations
     (Automatic: measured seats capped by what the pool holds; the pool from free memory less the model, ~4 GB,
     9 GB for OCR, document search's 1.5 GB while it is not running yet and an 8 % margin, never `--gpu-memory-utilization`) under the one Apply, which dry-runs and

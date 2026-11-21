@@ -61,8 +61,10 @@ holds 15 people at 32k, fails 30 deep conversations and lost 5 of 28 quality ite
 
 - **Untested on a DGX Spark** (GB10, arm64). Qwen3.8 is "too slow on a DGX Spark" today; drafting should help most
   there, but a vLLM there that refuses MTP would not start the model. Tested only on the RTX PRO 6000.
-- A farm whose list was saved by an Add, a Remove or a take-over keeps its Qwen3.8 entry's old flags (no drafting, no
-  harm). The farm people use has no saved list (read 2026-11-18 22:40: its `vllm` holds no `library`).
+- ~~A farm whose list was saved by an Add, a Remove or a take-over keeps its Qwen3.8 entry's old flags (no drafting, no
+  harm).~~ Since 2026-11-21 a built-in in a saved list takes this version's flags when the file is read: with Qwen3.8's
+  32k label measured with drafting and the 16-bit state, old flags would have seated 32 where 32 failed. The farm
+  people use has no saved list (read 2026-11-18 22:40: its `vllm` holds no `library`).
 - **At 64k the Automatic seats come from memory** (the measured label "≥ 24" is above the fit): 17 on a 50 GB pool, 19
   on 55 GB by `facts()`, where vLLM's admission count gives 15 on 50 GiB. The same gap stood before drafting (21 against
   19): it is the open question below. The entry's note gives speeds and "about a quarter more memory a person", no seat

@@ -278,7 +278,7 @@ M(id="nemotron-3.5-lightning-30b-a3b", name="NVIDIA Nemotron 3.5 Lightning 30B-A
 
 M(id="qwen3.8-27b", name="Qwen3.8-27B (dense)",
   # The farm's Qwen3.8 drafts ahead (VLLM_DRAFT_PLAN); the estimator shows this on the row (plans Next 16).
-  drafting="LlmOnLan's built-in Qwen3.8 entry serves it drafting ahead with its MTP layer (3 tokens, since 2026-11-19; a farm whose model list was saved before keeps its old flags), which these numbers leave out: on an RTX PRO 6000 it measured about 2.3 times the words a second alone and 1.8 times for 30 people, and each conversation takes about a quarter more memory, so about a quarter fewer people fit where memory is the limit.",
+  drafting="LlmOnLan's built-in Qwen3.8 entry serves it drafting ahead with its MTP layer (3 tokens, since 2026-11-19) and keeps its recurrent state in 16 bits (since 2026-11-21). The RTX PRO 6000's measurement at 32k counts both (32 people passed, the most tested); the other numbers leave them out. On an RTX PRO 6000 drafting measured about 2.3 times the words a second alone and 1.8 times for 30 people; it takes about a quarter more memory a conversation, and the 16-bit state gives most of it back.",
   vendor="Alibaba Qwen", released="2026-08-05", role="measured (quality model; dense = slow on Spark)",
   params_total_b=27.78, params_active_b=27.0, params_note="dense 27B; 27.78B in safetensors incl. vision + MTP",
   arch={"type": "dense", "layers": 64, "attention": "hybrid: 48 Gated DeltaNet + 16 full gated-attention layers", "full_attn_layers": 16, "kv_heads": 4, "head_dim": 256,

@@ -9,6 +9,31 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-21 (02:36) — A saved vLLM list runs its built-ins with today's flags; what the panel says of drafting (night n° 12, after the advisor's check)
+
+The advisor's check of the two builds found one defect they made and two texts they left untrue.
+- **A saved list kept a built-in's old flags** (`config.js` 512–517: a list saved by an Add, a Remove, a take-over or
+  the storage folder's sync keeps the built-ins it had then). VLLM_DRAFT_PLAN had accepted it ("no drafting, no
+  harm"); tonight's label made it harm: `seatsAuto` picks the label by `entry.measured`, not by the flags, so a farm
+  whose list was saved before night n° 10 would seat **32** at 32k on Qwen3.8 without drafting or the 16-bit state,
+  where 32 failed (vLLM 0.30: 16 passed, 32 failed; 0.33 B: 32 failed at 16.9 s). A farm test reproduced it (the entry
+  kept its old flags). Fix at the root: when the file is read, a built-in in the list (its id **and** repo the
+  built-in's) takes this version's flags. Nothing else sets a built-in's flags (`takeOverPlan` copies the list entry's,
+  `vllm.js:673`), so the stored ones are always an older copy. A model the operator added keeps its own; a folder that
+  took a removed built-in's id does not match its repo. The farm the people use has no saved list (its `vllm` block:
+  root, enabled, parallel, model, contextLength).
+- **`familyArgs`** gave an operator's own Qwen3.8 checkpoint the built-in's flags without drafting, so with the 16-bit
+  state too, measured on NVIDIA's NVFP4 only: now without it as well.
+- **The texts:** the preset's line for a model that drafts said "the estimate above counts neither", and the capacity
+  page's note (catalog `drafting`, and `build_catalog.py`, which cannot be re-run without its Hugging Face dumps) said
+  a saved list keeps its old flags. Both now say the 32k point on the PRO 6000 counts drafting and the 16-bit state,
+  and that the 16-bit state gives most of drafting's memory back.
+- Checked and left: a farm that never applied a preset and is pinned at 64k (the PRO 6000) reads *No preset applied
+  yet: the farm runs with settings of its own* (`admin/index.html:886`), true. LOL Vibe's agent window follows the
+  farm (`studio.ts` `agentWindow`): at 128k dsh compacts near 104k instead of 52k; its five tasks were measured at 64k.
+- Farm **291/291** (a new test: a list saved before night n° 10 runs Qwen3.8 with today's flags; an operator's model
+  keeps its own; the family's Qwen3.8 flags have neither drafting nor the 16-bit state).
+
 ## 2026-11-21 (02:28) — Qwen3.8 keeps its recurrent state in 16 bits (night n° 12, side task)
 
 QWEN38_FP16_STATE_PLAN steps 2–4 (step 1 passed 2026-11-20; confirmed by the owner 12:46).

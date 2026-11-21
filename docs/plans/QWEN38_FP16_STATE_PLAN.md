@@ -100,7 +100,11 @@ nothing was measured on them.
   count rose 1.29 and 1.17: a little under, never over (a farm test asserts it, with B and G side by side). Qwen3.8's
   32k label is G's **≥ 32** (16, 24, 32 all pass; B gave 24), in `measured-extra.json`; Automatic seats 32 at 32k.
 - **Step 4:** farm.md, farm/README, RESULTS, the entry's note; HUMAN_TESTS J19 expects 32 people at once.
-- Farm 290/290. Not run: a farm started from the panel with the flag (J19).
+- Farm 291/291. Not run: a farm started from the panel with the flag (J19).
+- **After the advisor's check:** a built-in in a saved list now takes this version's flags when the file is read
+  (otherwise a list saved before night n° 10 would seat 32 at 32k on flags measured to fail at 32); an operator's own
+  Qwen3.8 checkpoint gets neither drafting nor the 16-bit state (unmeasured); the preset's and the capacity page's
+  texts say the 32k point counts both.
 - **Left as it was, a finding:** Qwen3.8's 64k label (≥ 24, vLLM 0.30.0, no drafting) is stale: memory caps Automatic
   at about 18 on the farm's pool, and on 2026-11-20 20 people 50k deep failed at 64k with and without the flag. With
   vLLM's default now 128k, an operator who picks Qwen3.8 gets 128k and about 9 seats unless they set 32k: the context

@@ -514,7 +514,13 @@ const VllmSchema = z.object({
     removed: z.array(z.string()).default([]),
 }).strict().transform((v) => ({
     ...v,
-    library: [...v.library, ...VLLM_LIBRARY.filter((e) => !v.removed.includes(e.id) && !v.library.some((x) => x.id === e.id)).map((e) => VllmModelSchema.parse(e))],
+    // A built-in in a saved list runs with this version's flags (its id and repo are the built-in's: nothing else sets
+    // them, a take-over included): its measured seats were measured with them (2026-11-21: Qwen3.8's 32 at 32k need
+    // its drafting and 16-bit state; a list saved before night n° 10 had neither, and 32 failed there).
+    library: [...v.library.map((e) => {
+        const b = VLLM_LIBRARY.find((x) => x.id === e.id && x.repo === e.repo);
+        return b ? { ...e, args: [...b.args] } : e;
+    }), ...VLLM_LIBRARY.filter((e) => !v.removed.includes(e.id) && !v.library.some((x) => x.id === e.id)).map((e) => VllmModelSchema.parse(e))],
 }));
 
 const WebsearchSchema = z.object({

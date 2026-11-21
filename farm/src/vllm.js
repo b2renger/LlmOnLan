@@ -191,12 +191,14 @@ function resolveRoot(config, st) {
 // path is per-entry args.
 // A message limit (--limit-mm-per-prompt) for a sound the model cannot hear (a Gemma 4 31B) is ignored by vLLM.
 const argsOf = (id) => [...VLLM_LIBRARY.find((e) => e.id === id).args];
-const withoutDraft = (args) => { const i = args.indexOf('--speculative-config'); return i >= 0 ? [...args.slice(0, i), ...args.slice(i + 2)] : args; };
+const without = (args, flag) => { const i = args.indexOf(flag); return i >= 0 ? [...args.slice(0, i), ...args.slice(i + 2)] : args; };
+const withoutDraft = (args) => without(args, '--speculative-config');
 const FAMILY_ARGS = [
     [/qwen3-?omni/i, () => argsOf('qwen3-omni-30b-a3b')],
     [/qwen3\.[56]|qwen3-?next/i, () => argsOf('qwen3.6-35b-a3b')],
     // Without its drafting: another Qwen3.8 checkpoint may have no MTP layer, and vLLM would not start (VLLM_DRAFT_PLAN).
-    [/qwen3\.8/i, () => withoutDraft(argsOf('qwen3.8-27b-nvfp4'))],
+    // Without the 16-bit state either: measured on NVIDIA's NVFP4 only (QWEN38_FP16_STATE_PLAN).
+    [/qwen3\.8/i, () => without(withoutDraft(argsOf('qwen3.8-27b-nvfp4')), '--mamba-ssm-cache-dtype')],
     [/nemotron/i, () => argsOf('nemotron-3.5-lightning')],
     [/gemma-?4/i, () => argsOf('gemma-4-12b')],
     [/flint/i, () => argsOf('flint')],

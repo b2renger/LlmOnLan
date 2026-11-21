@@ -4931,10 +4931,11 @@ test('the vLLM list: a model added by name or link gets its family\'s flags, a f
     for (const bad of ['', 'qwen', 'https://example.com/a/b', 'a b/c', '../x/y']) assert.equal(V.repoOf(bad), null, bad);
     // Families: the measured models' own flags for theirs; a generic Qwen3 set; else prefix caching only.
     assert.deepEqual(V.familyArgs('nvidia/Qwen3.5-122B-A10B-NVFP4'), lib[0].args);
-    // The 27B's flags without its drafting: another Qwen3.8 checkpoint may have no MTP layer (VLLM_DRAFT_PLAN).
-    const i38 = lib[2].args.indexOf('--speculative-config');
-    assert.ok(i38 > 0);
-    assert.deepEqual(V.familyArgs('nvidia/Qwen3.8-14B-NVFP4'), [...lib[2].args.slice(0, i38), ...lib[2].args.slice(i38 + 2)]);
+    // The 27B's flags without its drafting: another Qwen3.8 checkpoint may have no MTP layer (VLLM_DRAFT_PLAN); and
+    // without its 16-bit state, measured on the 27B NVFP4 only (QWEN38_FP16_STATE_PLAN).
+    const drop = ['--speculative-config', '--mamba-ssm-cache-dtype'];
+    assert.ok(drop.every((f) => lib[2].args.includes(f)));
+    assert.deepEqual(V.familyArgs('nvidia/Qwen3.8-14B-NVFP4'), lib[2].args.filter((a, i, all) => !drop.includes(a) && !drop.includes(all[i - 1])));
     assert.deepEqual(V.familyArgs('nvidia/NVIDIA-Nemotron-Nano-9B'), lib[1].args);
     assert.deepEqual(V.familyArgs('Qwen/Qwen3-0.6B'), ['--enable-prefix-caching', '--reasoning-parser', 'qwen3', '--enable-auto-tool-choice', '--tool-call-parser', 'hermes']);
     assert.deepEqual(V.familyArgs('mistralai/Mistral-Small'), ['--enable-prefix-caching']);
@@ -5040,6 +5041,25 @@ test('vLLM list, Flint (2026-11-02): one GGUF file with another repo\'s config, 
     assert.deepEqual(V.familyArgs('RecursiveSI/flint'), e.args);
     const upSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
     assert.equal((upSrc.match(/configRepo: e(?: && e)?\.configRepo, openThink: (?:!!\(e && e\.openThink\)|e\.openThink)/g) || []).length, 2, 'Download and Install pass the config repo and the open-think copy');
+});
+
+test('vLLM list saved before a version changed a built-in\'s flags: the built-in runs with today\'s, the ones its seats were measured with (2026-11-21)', () => {
+    const cur = defaultConfig().vllm.library;
+    const q38 = cur.find((e) => e.id === 'qwen3.8-27b-nvfp4');
+    // A file whose list was saved before night n° 10: Qwen3.8 without drafting and with its state in 32 bits.
+    const before = q38.args.filter((a, i, all) => !['--speculative-config', '--mamba-ssm-cache-dtype'].includes(a) && !['--speculative-config', '--mamba-ssm-cache-dtype'].includes(all[i - 1]));
+    const mine = { id: 'my-qwen38', label: 'My Qwen3.8', folder: 'Qwen3.8-27B-AWQ', args: ['--enable-prefix-caching'] };
+    const saved = JSON.parse(JSON.stringify(cur.map((e) => (e.id === q38.id ? { ...e, args: before } : e)).concat([mine])));
+    const c = ConfigSchema.parse({ vllm: { enabled: true, model: q38.id, library: saved } });
+    assert.deepEqual(V.vllmEntry(c).args, q38.args, 'the farm\'s flags: drafting and the 16-bit state, which Automatic\'s 32 at 32k were measured with');
+    assert.deepEqual(c.vllm.library.find((e) => e.id === 'my-qwen38').args, ['--enable-prefix-caching'], 'a model the operator added keeps its own');
+    // A built-in's id on another checkpoint (the built-in removed, a folder of that name added) is not the built-in.
+    const other = ConfigSchema.parse({ vllm: { library: [{ ...JSON.parse(JSON.stringify(q38)), repo: null, folder: 'x', args: before }], removed: [q38.id] } });
+    assert.deepEqual(other.vllm.library[0].args, before);
+    // An operator's own Qwen3.8 checkpoint gets the family's flags without drafting (it may have no MTP layer) and
+    // without the 16-bit state (measured on NVIDIA's NVFP4 only).
+    const fam = V.familyArgs('Qwen3.8-27B-AWQ');
+    assert.ok(!fam.includes('--speculative-config') && !fam.includes('--mamba-ssm-cache-dtype') && fam.includes('--reasoning-parser'), fam.join(' '));
 });
 
 test('vLLM list, Flint\'s memory (2026-11-03): what vLLM 0.33.0 measured per token, in bf16 only; Automatic never seats more than the pool holds', () => {
@@ -7212,7 +7232,7 @@ test('presets and the capacity page: a model the farm serves drafting ahead says
     const box = PR_BOX.pro6000(); box.vllm.library = prLib(['qwen3.8-27b-nvfp4']).filter((e) => e.id === 'qwen3.8-27b-nvfp4'); box.vllm.current = 'qwen3.8-27b-nvfp4';
     const rag = PR.pickFor('rag', box);
     assert.equal(rag.model, 'qwen3.8-27b-nvfp4');
-    assert.ok(rag.reasons.some((r) => /^Qwen3\.8 27B · NVFP4 drafts ahead with its MTP layer: .*about a quarter more memory.* The estimate above counts neither; the seats the farm sets when it starts count both\.$/.test(r)), rag.reasons.join('\n'));
+    assert.ok(rag.reasons.some((r) => /^Qwen3\.8 27B · NVFP4 drafts ahead with its MTP layer: .*about a quarter more memory for each conversation, most of which its recurrent state kept in 16 bits gives back\. The estimate above counts them only where it was measured so \(32k on an RTX PRO 6000\); the seats the farm sets when it starts count both\.$/.test(r)), rag.reasons.join('\n'));
     // Qwen3.6 does not draft: no such line.
     assert.ok(!PR.pickFor('rag', PR_BOX.pro6000()).reasons.some((r) => /drafts ahead/.test(r)));
     // An operator's own Qwen3.8 folder runs without drafting (vllm.js FAMILY_ARGS): no line either.
