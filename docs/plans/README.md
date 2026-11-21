@@ -247,6 +247,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     kept in the browser, three files) built in 20.5 s and working; the stumbles: the page forgets its data at each restart
     (M2), the class model introduced as untried (M3), a cramped Preview in Split (L2), an empty chat with no example,
     jargon, and the agent sending the student to a browser the Preview already is (L3).
+    **The plan: [LOLVIBE_POC_PLAN](LOLVIBE_POC_PLAN.md)** (night n° 12, proposed): the page keeps its data across a
+    restart (M2, still as found: the Preview listens on port 0), a first look with three example asks, the words (L3),
+    and the audit again as the proof.
 16. ~~**The capacity page knows drafting**~~ *marked 2026-11-19 (night n° 10, 04:40): the capacity page's Qwen3.8 row
     and a preset that picks a drafting model say what drafting changes and that the estimate leaves it out (the
     catalog's `drafting`; `presets.js` reads the flags the farm starts the model with). The numbers stay the stock
