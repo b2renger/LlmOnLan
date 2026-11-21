@@ -290,8 +290,10 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
     **The plan must answer:**
     - **How a person hands over the picture:** dropped in the chat, or saved in the project for the agent to read.
-    - **How well each farm model copies an interface or a scene.** Not measured: the first step is a few screenshots
-      and scene pictures through Qwen3.6, Qwen3.8 and Gemma 4 26B, with the pages compared by eye.
+    - **How well each farm model copies an interface or a scene.** *Measured in night n° 12* (the plan's step 1 without
+      Figma; RESULTS ▸ *Pages from a picture*): six inputs made here, 3 samples each, through the chat API: Qwen3.6
+      16/18 by the check, Gemma 4 26B 16 (by eye its three dashboards draw no chart), Qwen3.8 14; a simple page near
+      identical, a scene right in objects and colours, off in light and depth. Figma: no frames yet.
     - **Figma** (the owner, 2026-11-20 12:46: "You mentionned images, but not figma"). Five ways in, read on Figma's
       own pages on 2026-11-20 (undated pages; [docs](https://developers.figma.com/docs/figma-mcp-server/),
       [help](https://help.figma.com/hc/en-us/articles/360040028114-Export-from-Figma-Design)):
