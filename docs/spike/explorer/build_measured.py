@@ -39,6 +39,10 @@ def parse_label(label):
 # Runs this table is not built from. vLLM 0.33.0's, the Farm app's and the A/B on the farm's settings are in RESULTS.md, and measured-extra.json carries
 # what the page needs of them. Flint on llama.cpp ran with a model at the side, on a shared GPU.
 NOT_HERE = re.compile(r"vllm033|-shared-llamacpp-|-farm-v0\.0\.|-nvfp4-ab")
+# And only the runs it was built from: the box, then vLLM 0.30.0 or llama.cpp's suite. Later trials (ollama033-*, lcpp-*,
+# hq-*, lc1120-*, rehearsal-*) stopped this script (2026-11-21); they are in RESULTS.md, and measured-extra.json
+# carries what the farm needs of them.
+BUILT_FROM = re.compile(r"^(pro6000|spark)-(vllm030|llamacpp)-")
 
 
 def ctx_bucket(tokens):
@@ -157,7 +161,7 @@ for f in files:
     d = json.load(open(f, encoding="utf-8"))
     base = os.path.basename(f)
     label = d.get("label") or base.split("__")[0]
-    if NOT_HERE.search(label):
+    if NOT_HERE.search(label) or not BUILT_FROM.match(label):
         continue
     if base.endswith("__kv.json"):
         kvs[parse_label(base.split("__")[0])[4]] = d

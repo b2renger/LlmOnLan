@@ -4040,7 +4040,7 @@ test('vLLM config: its defaults, the three measured models, and what it refuses 
     const v = defaultConfig().vllm;
     assert.deepEqual(
         { ...v, library: undefined },
-        { enabled: false, root: null, distro: null, port: 8100, alias: 'assistant', model: 'qwen3.6-35b-a3b', contextLength: 65536, parallel: 'auto', maxNumSeqs: 'auto', kvCacheGib: 'auto', ocrReserveGib: 9, marginPct: 8, minFreeGb: 'auto', version: '0.33.0', extraArgs: [], library: undefined, removed: [] },
+        { enabled: false, root: null, distro: null, port: 8100, alias: 'assistant', model: 'qwen3.6-35b-a3b', contextLength: 131072, parallel: 'auto', maxNumSeqs: 'auto', kvCacheGib: 'auto', ocrReserveGib: 9, marginPct: 8, minFreeGb: 'auto', version: '0.33.0', extraArgs: [], library: undefined, removed: [] },
     );
     assert.deepEqual(v.library.map((e) => [e.id, e.repo, e.vision, e.presencePenalty, e.measured]), [
         ['qwen3.6-35b-a3b', 'nvidia/Qwen3.6-35B-A3B-NVFP4', true, 1.5, 'qwen36'],
@@ -4064,6 +4064,9 @@ test('vLLM config: its defaults, the three measured models, and what it refuses 
     assert.ok(ok({ parallel: 1 }) && ok({ parallel: 512 }) && !ok({ parallel: 0 }) && !ok({ parallel: 513 }) && !ok({ parallel: 'many' }));
     assert.ok(ok({ kvCacheGib: 1 }) && ok({ kvCacheGib: 'auto' }) && !ok({ kvCacheGib: 0.5 }));
     assert.ok(ok({ contextLength: 4096 }) && !ok({ contextLength: 4095 }));
+    // 128k by default (CONTEXT_128K_PLAN): a file that does not name the context follows it, one that does keeps its own.
+    assert.equal(ConfigSchema.parse({ vllm: { enabled: true } }).vllm.contextLength, 131072);
+    assert.equal(ConfigSchema.parse({ vllm: { enabled: true, contextLength: 65536 } }).vllm.contextLength, 65536);
     assert.ok(ok({ minFreeGb: 0 }) && !ok({ minFreeGb: -1 }) && !ok({ distro: 'Ubuntu 24' }));
 });
 
@@ -4117,7 +4120,7 @@ test('vLLM in the snapshot: the engine, its seats and window, its one name; heal
     const c = defaultConfig();
     Object.assign(c.vllm, { enabled: true, alias: 'Qwen3.6', parallelResolved: 48 });
     const be = backendInfo(c, {});
-    assert.deepEqual(be, { engine: 'vllm', alias: 'Qwen3.6', model: 'Qwen3.6 35B-A3B · NVFP4', contextLength: 65536, contextAuto: false, contextPerSlot: 65536, slots: 48, slotsVerified: true, mtp: false, kvCacheType: 'fp8', audio: false, replyTokens: 32768 });
+    assert.deepEqual(be, { engine: 'vllm', alias: 'Qwen3.6', model: 'Qwen3.6 35B-A3B · NVFP4', contextLength: 131072, contextAuto: false, contextPerSlot: 131072, slots: 48, slotsVerified: true, mtp: false, kvCacheType: 'fp8', audio: false, replyTokens: 32768 });
     assert.equal(backendInfo({ ...c, vllm: { ...c.vllm, model: 'qwen3.8-27b-nvfp4' } }, {}).mtp, true, 'Qwen3.8 drafts with its MTP layer (VLLM_DRAFT_PLAN)');
     delete c.vllm.parallelResolved;
     assert.equal(backendInfo(c, {}).slots, 4, 'Automatic, before it is worked out');
@@ -4200,7 +4203,12 @@ test('vLLM launch: the farm\'s whole argv, its environment, and how a script run
     const c = defaultConfig();
     c.vllm.enabled = true;
     const mem = { unified: false, totalGib: 95.59, freeGib: 93.04 };
+    // The default, 128k (CONTEXT_128K_PLAN): vLLM 0.33.0's measured 24 people, 64 at once for vLLM, room for 37.
     let p = V.planFor(c, st, mem);
+    assert.deepEqual([p.seats, p.seatsSource, p.maxNumSeqs, p.kvGib, p.peopleFit, p.argv[3]], [24, 'measured', 64, 52, 37, '131072']);
+    // The rest at 64k, the live farm's setting.
+    c.vllm.contextLength = 65536;
+    p = V.planFor(c, st, mem);
     assert.ok(p.ok, p.reason);
     assert.equal(p.folderPath, '/home/me/lol-vllm/hf/Qwen3.6-35B-A3B-NVFP4');
     assert.deepEqual([p.seats, p.seatsSource, p.maxNumSeqs, p.kvGib, p.peopleFit], [48, 'measured', 128, 52, 69]);
@@ -4330,7 +4338,11 @@ test('vLLM sizing: the pool, people per pool, Automatic seats and vLLM\'s own ca
     assert.equal(V.peopleFit(50, 65536, V.facts({ id: 'x', catalog: null })), null, 'unknown model: unknown');
     assert.deepEqual([1, 8, 16, 17, 48, 64, 96, 200, 512].map(V.maxNumSeqsAuto), [32, 32, 32, 64, 128, 128, 256, 512, 512]);
     const seats = (e, gpu, ctx, fit = null) => V.seatsAuto(e, gpu, ctx, fit);
-    assert.deepEqual([32768, 65536, 131072].map((x) => seats(lib[0], PRO, x).seats), [96, 48, 32], 'PRO 6000 + Qwen3.6');
+    assert.deepEqual([32768, 65536, 131072].map((x) => seats(lib[0], PRO, x).seats), [96, 48, 24], 'PRO 6000 + Qwen3.6');
+    // 128k: vLLM 0.33.0's 24 of 2026-11-20 on a 50 GiB pool (docs/spike/explorer/measured-extra.json), in place of vLLM
+    // 0.30.0's 32 on 58 GiB; the pool's own count still lowers it.
+    assert.deepEqual(seats(lib[0], PRO, 131072, 37), { seats: 24, source: 'measured', label: '24' });
+    assert.deepEqual(seats(lib[0], PRO, 131072, 20), { seats: 20, source: 'memory', label: '24' });
     assert.deepEqual([32768, 65536, 131072].map((x) => seats(lib[0], 'NVIDIA GB10', x).seats), [8, 8, 4], 'DGX Spark + Qwen3.6');
     assert.deepEqual(seats(lib[1], PRO, 65536), { seats: 16, source: 'measured', label: '16' }, 'Nemotron at 64k');
     assert.deepEqual(seats(lib[1], 'NVIDIA GB10', 65536), { seats: 4, source: 'measured', label: '< 8' }, '"< 8": half of it');
@@ -4856,9 +4868,9 @@ const proStatus = () => V.parseStatus(['home=/home/me', 'arch=x86_64', 'curl=/us
 
 test('vLLM Apply: what restarts it is decided against what it runs with — 48 → 40 people no, 48 → 80 yes, a context yes, a name no, Automatic memory kept (§5.6, §11.1-17)', () => {
     const c = defaultConfig();
-    c.vllm.enabled = true; c.vllm.root = '/home/me/lol-vllm'; c.vllm.parallel = 48;
+    c.vllm.enabled = true; c.vllm.root = '/home/me/lol-vllm'; c.vllm.parallel = 48; c.vllm.contextLength = 65536;
     const st = proStatus();
-    // What production runs: 48 people, Automatic memory resolved to 50 GiB, vLLM's own cap 128.
+    // What production runs: 48 people at 64k, Automatic memory resolved to 50 GiB, vLLM's own cap 128.
     const launch = { ...V.settingsOf(c, '/home/me/lol-vllm'), kvGib: 50, maxNumSeqs: 128, seats: 48 };
     const ch = (body, l = launch) => V.applyChange(c, body, { st, launch: l, root: '/home/me/lol-vllm' });
     assert.equal(ch({ slots: 40 }).restart, false, '48 → 40: inside the cap of 128 requests, applied live');
@@ -4983,7 +4995,7 @@ test('vLLM list, Flint (2026-11-02): one GGUF file with another repo\'s config, 
     assert.equal(s.modelPath, '/h/lol-vllm/hf/flint-nvfp4-gguf/flint-nvfp4.gguf');
     const argv = V.argvFor(e, s, 40, 32);   // Automatic people at once: 4 to start with (no measurement), so 32
     assert.deepEqual(V.flagMap(argv), {
-        '--served-model-name': 'flint', '--max-model-len': '65536', '--max-num-seqs': '32', '--kv-cache-memory-bytes': String(40 * GIB),
+        '--served-model-name': 'flint', '--max-model-len': '131072', '--max-num-seqs': '32', '--kv-cache-memory-bytes': String(40 * GIB),
         '--enable-prefix-caching': true, '--reasoning-parser': 'glm47', '--enable-auto-tool-choice': true, '--tool-call-parser': 'glm47',
         '--exclude-tools-when-tool-choice-none': true, '--hf-config-path': '/h/lol-vllm/hf/flint-nvfp4-gguf/config',
         '--tokenizer': '/h/lol-vllm/hf/flint-nvfp4-gguf/config', '--override-generation-config': { max_new_tokens: 32768 },
@@ -5489,7 +5501,7 @@ test('panel: vLLM\'s rows, its trade line and the Apply text; Apply asks the far
     assert.ok(e80.includes('<div class="warnline">More people than measured on this card: when everyone writes at once, replies may slow below a comfortable reading speed.</div>'));
     assert.ok(e80.includes('<div class="warnline">The memory holds only 67 people at 64k: past that, vLLM makes people wait. Lower the people or the context, or give it more memory.</div>'));
     assert.ok(!edit('auto', 131072, 'auto').includes('warnline">More people'), 'Automatic never goes past what was measured');
-    assert.ok(edit('auto', 131072, 'auto').includes('Measured on this card with this model: 32 at 128k'), 'another context: its own measurement');
+    assert.ok(edit('auto', 131072, 'auto').includes('Measured on this card with this model: 24 at 128k when everyone writes at once, 32 in normal use.'), 'another context: its own measurement (vLLM 0.33.0, 2026-11-20)');
     const e16 = edit(4, 16384, 16);
     assert.ok(e16.includes('<b>16k</b>') && e16.includes('the 8 most relevant passages') && e16.includes('Every connected Open WebUI restarts once'), e16);
     // A card and model nobody measured: said, with the estimator (the owner's question (c)).
@@ -7142,8 +7154,8 @@ test('presets: the picks for an RTX PRO 6000 with vLLM — the capacity page\'s 
     const box = PR_BOX.pro6000();
     box.vllm.library = prLib(PR_LIB.map((e) => e.id));   // every model of the list on disk: the pick is the rule's, not a download's
     assert.deepEqual(prShort(box), {
-        balanced: 'vllm qwen3.6-35b-a3b 65536 auto',       // the shipped vLLM: Qwen3.6 at 64k
-        rag: 'vllm qwen3.6-35b-a3b 65536 auto',            // the most people at 64k among models at 25/28+ on every gate run: Nemotron's 64 against 63 is a tie, the better model wins
+        balanced: 'vllm qwen3.6-35b-a3b 131072 auto',      // the shipped vLLM: Qwen3.6 at 128k (CONTEXT_128K_PLAN)
+        rag: 'vllm qwen3.6-35b-a3b 65536 auto',            // the most people at 64k among models at 25/28+ on every gate run: Nemotron's 64 against 63 is a tie, the better model wins (at 128k Nemotron would win, and it sees no pictures: 64k stays)
         vibe: 'vllm qwen3.6-35b-a3b 65536 auto',           // the most people at 64k among models proven with the IDE's coding agent
         computer: 'vllm qwen3.6-35b-a3b 32768 auto',       // the most people at 32k among models that see pictures and do tools well
     });
@@ -7203,7 +7215,7 @@ test('presets and the capacity page: a model the farm serves drafting ahead says
 
 test('presets: the picks for a DGX Spark, a 24 GB and a 12 GB card, and a box without vLLM', () => {
     assert.deepEqual(prShort(PR_BOX.spark()), {
-        balanced: 'vllm qwen3.6-35b-a3b 65536 auto', rag: 'vllm qwen3.6-35b-a3b 65536 auto',   // Qwen3.8 serves < 8 at 64k on a Spark
+        balanced: 'vllm qwen3.6-35b-a3b 131072 auto', rag: 'vllm qwen3.6-35b-a3b 65536 auto',   // Qwen3.8 serves < 8 at 64k on a Spark; Balanced at 128k serves 4 (vLLM 0.30's label)
         vibe: 'vllm qwen3.6-35b-a3b 65536 auto', computer: 'vllm qwen3.6-35b-a3b 32768 auto',
     });
     const vibeSpark = PR.pickFor('vibe', PR_BOX.spark());
@@ -7340,7 +7352,25 @@ test('presets: a setting changed by hand after Apply marks the preset changed, a
     const c = defaultConfig();
     assert.deepEqual(PR.settingsOf(c), { engine: 'ollama', model: 'gemma4:26b', context: 'auto', people: 2, memory: null, plugins: { websearch: true, ocr: true, tts: false, classify: false, stt: false, bus: false } });
     c.vllm.enabled = true;
-    assert.deepEqual([PR.settingsOf(c).engine, PR.settingsOf(c).context, PR.settingsOf(c).people, PR.settingsOf(c).memory], ['vllm', 65536, 'auto', 'auto']);
+    assert.deepEqual([PR.settingsOf(c).engine, PR.settingsOf(c).context, PR.settingsOf(c).people, PR.settingsOf(c).memory], ['vllm', 131072, 'auto', 'auto']);
+});
+
+test('presets: Balanced brings a vLLM farm set to 64k to 128k, and says so; the file then holds 128k (CONTEXT_128K_PLAN)', async () => {
+    const pick = PR.pickFor('balanced', PR_BOX.pro6000());
+    assert.deepEqual([pick.engine, pick.model, pick.context, pick.estimate.mid], ['vllm', 'qwen3.6-35b-a3b', 131072, 24]);
+    assert.match(pick.reasons[0], /: Serves 24 \(24–27\) at 128k, measured: not your 30/, 'the class card\'s 30 is not hidden');
+    const cur = { engine: 'vllm', model: 'qwen3.6-35b-a3b', context: 65536, people: 'auto', memory: 'auto', plugins: { websearch: true, ocr: true, tts: false, classify: false, stt: false, bus: false } };
+    assert.deepEqual(PR.changesFor(cur, pick).map((x) => x.text), ['Context per person: 64k → 128k']);
+    const rig = presetRig({ engine: 'vllm', cur });
+    await rig.ops.apply('balanced');
+    assert.ok((await rig.done()).ok);
+    const sent = rig.calls.find((x) => x[0] === 'apply');
+    assert.equal(sent && sent[1].context, 131072, JSON.stringify(rig.calls));
+    // The farm's Apply with that body: a file that names 64k gets 128k written (vllm.js applyChange → persist).
+    const c = defaultConfig(); Object.assign(c.vllm, { enabled: true, contextLength: 65536 });
+    assert.deepEqual(V.applyChange(c, { context: 131072 }, { st: null }).patch, { contextLength: 131072 });
+    // A file that does not name it is already at 128k: nothing to write.
+    assert.deepEqual(V.applyChange(defaultConfig(), { context: 131072 }, { st: null }).patch, {});
 });
 
 // makePresets with the farm's controls as stubs: what Apply calls, in which order, inside one job.

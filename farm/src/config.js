@@ -431,7 +431,7 @@ const VLLM_LIBRARY = [
         id: 'qwen3.6-35b-a3b', label: 'Qwen3.6 35B-A3B · NVFP4', repo: 'nvidia/Qwen3.6-35B-A3B-NVFP4',
         sizeGb: 23.4, weightsGib: 20.37, vision: true, presencePenalty: 1.5, args: QWEN36_ARGS,
         catalog: 'qwen3.6-35b-a3b', measured: 'qwen36',
-        note: 'Default. Sees images. Measured: 48 people at 64k on an RTX PRO 6000, 8 on a DGX Spark.',
+        note: 'Default. Sees images. Measured: 24 people at 128k and 48 at 64k on an RTX PRO 6000, 8 at 64k on a DGX Spark.',
     },
     {
         id: 'nemotron-3.5-lightning', label: 'Nemotron 3.5 Lightning 30B-A3B · NVFP4', repo: 'nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4',
@@ -485,7 +485,10 @@ const VllmSchema = z.object({
     port: z.number().int().positive().max(65535).default(8100),       // serve.sh's relay on 127.0.0.1 (LOL_VLLM_PORT)
     alias: z.string().default('assistant'),           // the name people see
     model: z.string().default('qwen3.6-35b-a3b'),     // a library id
-    contextLength: z.number().int().min(4096).default(65536),   // per person: --max-model-len
+    // Per person: --max-model-len. 128k (owner 2026-11-19, long chats and documents in Open WebUI; CONTEXT_128K_PLAN): a
+    // farm whose file does not name it follows this default; a farm whose file does keeps its number until Balanced
+    // (presets.js, which takes this default) is applied.
+    contextLength: z.number().int().min(4096).default(131072),
     parallel: z.union([z.literal('auto'), z.number().int().min(1).max(512)]).default('auto'),     // people at once (seats)
     // vLLM's own cap on requests at once (--max-num-seqs); auto = min(512, max(32, the power of 2 at or above 2 x seats)).
     maxNumSeqs: z.union([z.literal('auto'), z.number().int().min(1).max(1024)]).default('auto'),

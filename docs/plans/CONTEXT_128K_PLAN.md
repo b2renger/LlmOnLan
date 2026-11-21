@@ -116,3 +116,28 @@ relaunch Open WebUI (`sidecar.ts:374`).
 **Done when:** the farm suite passes; Balanced shows 128k with Automatic seats from the new label; step 3 built and its
 test passing; docs, DEVLOG, commit, `night` backup. Not released: the owner's tests (J16 at 128k, and the document
 test of step 3) first.
+
+## Built (night n° 12, 2026-11-21; unreleased)
+
+Steps 1–6, with what the night found:
+- **The default:** `vllm.contextLength` 65536 → 131072 (`config.js`). **The plan's step 1 was half right:** a stored
+  value is never changed, but a farm's file does not always store one. The panel's engine switch writes only
+  `vllm.enabled` (`up.js` `setEngineFlags`), and `applyChange` writes the context only when it differs. So a farm that
+  went to vLLM by the switch and never changed its context follows the default **when it updates**; the PRO 6000's file
+  names 65536 and moves only when Balanced is applied (a farm test checks both, and that Balanced sends 131072 to a
+  farm at 64k). Not checked: what the two DGX Sparks' files hold (on a Spark, Balanced at 128k gives 4 seats, vLLM
+  0.30's label, against 8 at 64k).
+- **The label (step 2), and how the 0.33.0 labels reached the farm:** they did not. Qwen3.6's 96 / 48 / 32 in the
+  farm's copy are all vLLM 0.30.0's runs of 2026-10-04; only Flint and Gemma 4 26B came in by `measured-extra.json`.
+  `build_measured.py` stopped on the results of 2026-11-10 onward (`ollama033-*`, `lcpp-*`, `hq-*`, `lc1120-*`): it now
+  builds only from the runs it was built from (`<box>-vllm030-*`, `<box>-llamacpp-*`), and gives the same table. The
+  24 goes into `measured-extra.json` (both 2026-11-20 runs, the generator's own pass rule: every turn 24, steady 32), and
+  `build_page.js` merges an extra config into the table's config of the same id instead of adding a second one, which
+  nothing would read. The farm's copy changed in Qwen3.6's 128k only.
+- **`RAG_SYSTEM_CONTEXT` (step 3)** follows `RAG_FULL_CONTEXT` instead of being always on: in retrieval mode (farms
+  under 24k a person) the passages change with each question, and in the system message they would make the farm read
+  the whole conversation again. So it never restarts Open WebUI by itself either (`repoint` compares the env).
+- **Documents (step 4) stays at 64k:** at 128k its rule picks Nemotron 3.5 Lightning on the PRO 6000 (48 people
+  against Qwen3.6's 24), which sees no pictures. A question for the owner.
+- Checked: farm 290/290, `test:chat` 1986 (1 skipped, as before). Not checked: a farm started at 128k by the panel
+  (J16), a document in a real client at 128k (J16 step 6).

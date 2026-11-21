@@ -48,7 +48,10 @@ file stays the whole list.
   2026-11-19 18:15, for a night session after the tests of 2026-11-20): the vLLM default and the Balanced preset at
   128k, Qwen3.6's 128k label measured on 0.33.0 (24; the owner, 2026-11-20 12:46: "24, 128k can be the default").
   **Its step 3, Open WebUI's document text in the system message** (`RAG_SYSTEM_CONTEXT`, read once per chat: 5.3 s →
-  0.15 s from the second question), **approved 2026-11-20 12:46**. **S**. Night n° 12.
+  0.15 s from the second question), **approved 2026-11-20 12:46**. **S**. **Built in night n° 12** (unreleased; the
+  plan's *Built*: a farm whose file does not name its context moves on update; Documents stays at 64k, where 128k would
+  pick Nemotron; `RAG_SYSTEM_CONTEXT` only with whole documents). HUMAN_TESTS J16 (128k its main step, and a long
+  document's three questions) for the owner.
 - **Qwen3.8's recurrent state in fp16** ([QWEN38_FP16_STATE_PLAN](QWEN38_FP16_STATE_PLAN.md)): **step 1 passed
   2026-11-20 at 32k** (30 people 28k deep pass with the flag, fail without; people at once 24 → ≥ 32; the long-text
   check unchanged; at 64k both fail alike). Steps 2–4 in night n° 12, after CONTEXT_128K_PLAN (confirmed by the owner
@@ -114,7 +117,7 @@ and it serves more than we said. Gemma 4 26B is LOL Vibe's coding model since 20
 **Measured again 2026-11-13** ([the research](../research/MODELS_2026-11-13.md), [RESULTS](../spike/RESULTS.md#new-models-for-a-class-rtx-pro-6000-2026-11-1213)):
 Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 ▸ The farm).
 
-1. **The class-size test through the seat gate** (HUMAN_TESTS J16): 48–64 people at 64k, 30 at 128k. It is the only
+1. **The class-size test through the seat gate** (HUMAN_TESTS J16): 24 people at 128k (the default since night n° 12), 48–64 at 64k. It is the only
    proof of "a class of 50", and the purchase table rests on it. The harness measured Qwen3.6 at 64 people on Open WebUI's
    traffic shape (2026-11-06): if J16 agrees, the capacity page goes from 48 and 96 to 64 and 128. After Now 3. **S**.
 2. **One PDF must not hold the shared GPU:** a page cap and a stop between pages when the client leaves (OCR's

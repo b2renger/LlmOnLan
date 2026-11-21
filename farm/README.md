@@ -273,7 +273,7 @@ tools and see pictures where they can, with gate scores within a point or two of
 
 | Model | Sees images | Hears sound | Measured (every turn) |
 |---|---|---|---|
-| Qwen3.6 35B-A3B (the default) | yes | no | 48 people at 64k on an RTX PRO 6000, 8 on a DGX Spark |
+| Qwen3.6 35B-A3B (the default) | yes | no | 24 people at 128k (vLLM 0.33.0) and 48 at 64k on an RTX PRO 6000, 8 at 64k on a DGX Spark |
 | Nemotron 3.5 Lightning 30B-A3B | no | no | 160 at 32k on an RTX PRO 6000, 16 on a DGX Spark |
 | Qwen3.8 27B | yes | no | 16 at 32k on an RTX PRO 6000; too slow on a Spark. **Drafts ahead** with its own MTP layer (since 2026-11-19, below) |
 | Gemma 4 12B (`unsloth/gemma-4-12b-it-NVFP4`, 9.3 GB) | yes | yes | 16 at 32k, 8 at 64k on an RTX PRO 6000 (≥ 64 / ≥ 48 once the first follow-up is past) |
@@ -344,7 +344,9 @@ when vLLM would restart):
   with this model at this context (or the nearest measured context above), never more than the memory holds;
   else what the memory holds, at most 16; else 4. A card and model nobody measured says so, with the Plan
   capacity link (the owner's question (c)).
-- **Context per person** (`vllm.contextLength`, `--max-model-len`), at most what the model reads.
+- **Context per person** (`vllm.contextLength`, `--max-model-len`), at most what the model reads. **128k by default**
+  (since 2026-11-21, for long chats and documents in Open WebUI): a farm whose file does not name it follows the
+  default when it updates; one whose file names it keeps it until Balanced is applied.
 - **GPU memory for conversations** (`vllm.kvCacheGib`, `--kv-cache-memory-bytes`). Automatic, worked out at each
   start, once the free memory stops rising (a vLLM stopped a moment ago, by an Apply or a restart, gives its memory
   back over a few seconds): the GPU's free memory, less 8 % of the card, the model's weights, ~4 GB of vLLM's own and 9 GB kept for

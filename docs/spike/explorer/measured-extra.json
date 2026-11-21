@@ -564,5 +564,152 @@
    }
   },
   "cold_prefill_single_user": {}
+ },
+ {
+  "id": "pro6000/vllm/qwen36",
+  "box": "pro6000",
+  "engine": "vllm",
+  "model": "qwen36",
+  "people": {
+   "followup_128k": {
+    "every": {
+     "pass": 24,
+     "fail": 28,
+     "label": "24",
+     "tested": [
+      16,
+      24,
+      28,
+      30,
+      32,
+      40
+     ]
+    },
+    "steady": {
+     "pass": 32,
+     "fail": 40,
+     "label": "32",
+     "tested": [
+      16,
+      24,
+      28,
+      30,
+      32,
+      40
+     ]
+    },
+    "profile": "followup_128k_append"
+   }
+  },
+  "profiles": {
+   "followup_128k_append": {
+    "levels": [
+     {
+      "c": 16,
+      "ttft_p95": 3.347,
+      "dec_p10": 29.17,
+      "r1": {
+       "ttft_p95": 3.424,
+       "dec_p10": 28.24,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.881,
+       "dec_p10": 32.74,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 24,
+      "ttft_p95": 4.629,
+      "dec_p10": 21.6,
+      "r1": {
+       "ttft_p95": 4.719,
+       "dec_p10": 20.62,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 1.168,
+       "dec_p10": 21.84,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 28,
+      "ttft_p95": 5.35,
+      "dec_p10": 17.49,
+      "r1": {
+       "ttft_p95": 5.387,
+       "dec_p10": 17.16,
+       "pass": false
+      },
+      "r2": {
+       "ttft_p95": 1.14,
+       "dec_p10": 18.86,
+       "pass": true
+      },
+      "pass_every": false,
+      "pass_steady": true
+     },
+     {
+      "c": 30,
+      "ttft_p95": 5.822,
+      "dec_p10": 17.29,
+      "r1": {
+       "ttft_p95": 5.878,
+       "dec_p10": 16.81,
+       "pass": false
+      },
+      "r2": {
+       "ttft_p95": 1.218,
+       "dec_p10": 19.17,
+       "pass": true
+      },
+      "pass_every": false,
+      "pass_steady": true
+     },
+     {
+      "c": 32,
+      "ttft_p95": 6.108,
+      "dec_p10": 17.02,
+      "r1": {
+       "ttft_p95": 6.139,
+       "dec_p10": 16.24,
+       "pass": false
+      },
+      "r2": {
+       "ttft_p95": 1.364,
+       "dec_p10": 18.18,
+       "pass": true
+      },
+      "pass_every": false,
+      "pass_steady": true
+     },
+     {
+      "c": 40,
+      "ttft_p95": 245.593,
+      "dec_p10": 2.48,
+      "r1": {
+       "ttft_p95": 8.315,
+       "dec_p10": 5.73,
+       "pass": false
+      },
+      "r2": {
+       "ttft_p95": 260.322,
+       "dec_p10": 2.47,
+       "pass": false
+      },
+      "pass_every": false,
+      "pass_steady": false
+     }
+    ],
+    "source": "docs/spike/results/lc1120-q36-128k-label120k__bench__followup-append__think-default__20261120-085732.json + docs/spike/results/lc1120-q36-128k-label120k-b__bench__followup-append__think-default__20261120-100104.json"
+   }
+  },
+  "note": "vLLM 0.33.0 (2026-11-20, a trial root beside the farm's): nvidia/Qwen3.6-35B-A3B-NVFP4 with the farm's flags (QWEN36_ARGS), --max-model-len 131072, a 50 GiB pool (the live farm's; 4,518,343 tokens, vLLM's count 34.47 conversations of 128k), --append ~120k deep. Replaces vLLM 0.30.0's 32 of 2026-10-04, which ran on a 58 GiB pool. 28 and 30 at once missed the first follow-up's 5 s by 0.4 and 0.9 s (CONTEXT_128K_PLAN)."
  }
 ]

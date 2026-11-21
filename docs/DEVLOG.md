@@ -9,6 +9,48 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-21 (02:22) — 128k of context per person by default; Open WebUI reads a document once per chat (night n° 12)
+
+CONTEXT_128K_PLAN, approved 2026-11-19 (steps 1, 2, 4–6) and 2026-11-20 12:46 (step 3, "24, 128k can be the default").
+The live Farm app was off at 02:00 (the owner quit it for the 2026-11-20 tests; `/lol/self` gave no answer, the GPU
+held 1.7 GB, ComfyUI idle), and was left so.
+
+- **The default** (`farm/src/config.js`): `vllm.contextLength` 65536 → 131072. **Found on the way (the advisor's first
+  check):** the plan said an existing farm moves only when Balanced is applied. It is true of a farm whose file names
+  the context (the PRO 6000's: `"contextLength": 65536`, read read-only), not of one that went to vLLM by the panel's
+  engine switch: `up.js` `setEngineFlags` writes `{enabled}` only, and `vllm.js` `applyChange` writes the context only
+  when it differs (`:557`). Such a farm follows the default when it updates. Built anyway, as the owner's "default at
+  128k" says, and written down (plan, farm.md, README); the Sparks' files were not read (their addresses are not in
+  the docs I searched).
+- **The 128k label.** The plan asked how vLLM 0.33.0's labels had reached the farm's `measured.json`: they had not.
+  Qwen3.6's 96 / 48 / 32 are vLLM 0.30.0's runs of 2026-10-04 (the table's `runs`); only Flint and Gemma 4 26B came by
+  `measured-extra.json`. `build_measured.py` crashed on today's results folder (`A-stock`, then `('gemma4', None)` from
+  `pro6000-ollama033-*`; the `lcpp-*` and 2026-11-19/20 trials too): it now builds only from `^(pro6000|spark)-(vllm030|llamacpp)-`,
+  every one of the 17 labels of the committed table matches, and its output is the same data (only the stamp and four
+  source dates differ). The 2026-11-20 runs through the generator's own `level_followup` and `people`: Qwen3.6 128k
+  every turn **24** (28 fails the first follow-up: 5.39 s), steady 32; Qwen3.8 with the fp16 state at 32k ≥ 32,
+  without it 24 (for the side task). The 128k point went into `measured-extra.json` with its source files and pool
+  (50 GiB, where 0.30's 32 had 58). `build_page.js` appended extras, so a second `pro6000/vllm/qwen36` would never be
+  read (`measuredFor`, the estimator and the page all take the first of an id): it now merges an extra into the
+  config of its id, context by context. The farm's copy changed in Qwen3.6's 128k cells and nothing else (a
+  field-by-field diff). `seatsAuto` at 128k on the PRO 6000: 24, measured.
+- **The presets at 128k:** Balanced keeps Qwen3.6 at 131072 on the PRO 6000 and a Spark, and says it serves 24 (4 on a
+  Spark), not the class card's 30. **Documents at 128k picks Nemotron** (48 against 24; it sees no pictures), so it
+  stays at 64k, as the plan said for that case: a question for the owner.
+- **`RAG_SYSTEM_CONTEXT`** (`configBridge.ts`) = `RAG_FULL_CONTEXT`, not always `'true'`: in retrieval mode the passages
+  change with each question, and in the system message they would break the cache of the whole conversation. So it
+  flips only when the RAG mode does, and `repoint` restarts Open WebUI for it no more often than before. The contract
+  and INTEGRATION_BRIEF's pin-bump list gain `owui_doc_check.sh`.
+- **Tests:** farm 289 → **290/290**. Ten tests pinned 64k: the ones about the default now expect 128k (the defaults,
+  the snapshot, Flint's argv, the presets' picks, `settingsOf`); the ones that compute at 64k (launch argv, Apply's
+  restarts) set 65536 as production does, with one 128k line each (24 seats, `--max-num-seqs` 64, a 52 GiB pool, room
+  for 37). New: a file without the key parses to 128k and one with 65536 keeps it; Balanced on a farm at 64k says
+  *Context per person: 64k → 128k* and sends 131072, which `applyChange` writes. Client: a test of the two RAG
+  variables at 128k, 16k and an old farm, and the same env at 64k and 128k; `test:chat` **1986 passed**, 1 skipped.
+- **Docs:** farm.md, farm/README, owui-contract, INTEGRATION_BRIEF, the explorer README, HUMAN_TESTS J16 (128k its
+  main step through Balanced, a long document's three questions, 64k optional), the plan's *Built*.
+- Not run: a farm started at 128k by the panel; a document in a real client at 128k (both J16).
+
 ## 2026-11-20 (13:18) — The owner's five answers; LOL Vibe's Plan first built; k24's flake found in the page (day n° 11, afternoon)
 
 **The answers (12:46, the chat; DECISIONS):** 128k by default with the Automatic seats (24 on the PRO 6000);

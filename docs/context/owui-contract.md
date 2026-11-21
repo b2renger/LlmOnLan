@@ -26,6 +26,10 @@ Connection: `OPENAI_API_BASE_URL` + `OPENAI_API_KEY` (the farm is OpenAI‑compa
   `ENABLE_VERSION_UPDATE_CHECK=false` · `ENABLE_OLLAMA_API=false` · `RAG_FULL_CONTEXT` (**adaptive**:
   `'true'` — whole‑document answers — when the farm's `backend.contextPerSlot` ≥ 24576 or is not advertised,
   else `'false'`; full injection produced hard ContextWindowExceededErrors on small‑context farms) ·
+  `RAG_SYSTEM_CONTEXT` (the same as `RAG_FULL_CONTEXT`; owner 2026-11-20: a whole document goes at the end of the
+  system message, the same bytes every turn, so the farm reads it once per chat instead of at every question:
+  0.13–0.15 s instead of 5.3 s for the 2nd and 3rd questions about ~100k tokens on 0.13.3; passages in retrieval mode
+  stay by the question; `docs/spike/runs/owui_doc_check.sh` proves the placement, **re-run it on every pin bump**) ·
   `RAG_TOP_K=8` (always set; read only in retrieval mode) · `ENABLE_LOCAL_WEB_FETCH=true` (OWUI's SSRF guard
   otherwise refuses attaching any LAN/intranet page — matrix‑verified) · `ENABLE_RETRIEVAL_QUERY_GENERATION=false`
   (with files attached OWUI otherwise runs a hidden extra LLM call whose output full‑context mode never uses;

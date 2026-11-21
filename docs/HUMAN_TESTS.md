@@ -1798,31 +1798,45 @@ small task), writes and edits files; it sends many tool calls the agent refuses 
 recovers; note any loop past 75 steps and any reply that runs out of room. Write down how it compares with Qwen3.6.
 - [ ] Done · Found:
 
-### J16 A class at once: 48 people at 64k through the seat gate, then web search under a burst
-*Since 2026-11-06:* the harness measured Qwen3.6 at 64 people at 64k on Open WebUI's traffic shape (spike/RESULTS.md, *Model trials*). Go on to 56 and 64 here: if they hold through the seat gate, the capacity page moves from 48 to 64.
+### J16 A class at once: 24 people at 128k through the seat gate, a long document read once, then web search under a burst
+*Since 2026-11-21:* **128k is the farm's default context per person** (owner 2026-11-19 and 2026-11-20 12:46: "24, 128k
+can be the default"; [CONTEXT_128K_PLAN](plans/CONTEXT_128K_PLAN.md)). Automatic gives Qwen3.6 **24** people at 128k on
+this card (vLLM 0.33.0, everyone 120k deep at once: 4.6 s first word p95 and 21.6 tok/s p10 on 2026-11-20's trial; 28
+and 30 missed the 5 s by 0.4 and 0.9 s). 64k (48 people, Automatic) is step 5's.
 *Proves:* the multi-user plan's acceptance through the real seat gate (its §12, docs/archive/plans/multiuser_implementation_plan.md),
+at the new default; that Open WebUI reads an attached document once per chat (`RAG_SYSTEM_CONTEXT`, the plan's step 3);
 and its decision 4's class-size check, which must pass before web search can be on by default again (DEVLOG
-2026-10-06 10:51). *Needs:* J14 done (vLLM 0.33.0: Automatic gives Qwen3.6 48 people at 64k on this card); a quiet
-hour with nobody on the farm, and no client open on the farm box itself (it would hold a seat from 127.0.0.1); `$PY` = `farm\.venv\Scripts\python.exe` and `docs\spike` from a checkout (as in J12, Part
-3); 10 laptops for step 5. *Was:* new (review 2026-11-05; the plan's §12, never run). Steps 1–4 need no person: an agent
-can run them once the owner closes the farm (Part 3).
-1. Panel ▸ Access ▸ *Free an idle seat after* **1 min** ▸ Apply (the bench's seats stay held for that long after it
+2026-10-06 10:51). *Needs:* the next Farm app (after farm-v0.0.54) and the next client (after v0.2.19); J14 done
+(vLLM 0.33.0); a quiet hour with nobody on the farm, and no client open on the farm box itself (it would hold a seat
+from 127.0.0.1); `$PY` = `farm\.venv\Scripts\python.exe` and `docs\spike` from a checkout (as in J12, Part 3); for step 6
+a PDF of text of 150–250 pages (a manual, a report; not scanned); 10 laptops for step 7. *Was:* 48 people at 64k (review
+2026-11-05; the plan's §12, never run); 128k made the main step on 2026-11-21. Steps 2–5 need no person: an agent can
+run them once the owner closes the farm (Part 3).
+1. Panel ▸ Presets ▸ **Balanced** ▸ Review. Then Apply (vLLM restarts, about 2 minutes).
+2. Panel ▸ Access ▸ *Free an idle seat after* **1 min** ▸ Apply (the bench's seats stay held for that long after it
    ends). Between the steps below, wait a minute.
-2. On the farm box: `lol bench --people --users 48 --rounds 3 --max-tokens 1000 --out class48.json`; then once
-   `lol bench --people --users 50 --rounds 1 --max-tokens 1000`.
-3. The 64k load through the gate (from one address: one seat), from `docs\spike`:
-   `$PY spike_bench.py bench --base-url http://127.0.0.1:4000/v1 --api-key <the farm password> --label pro6000-gate-qwen36-64k --profile followup --prompt-tokens 62000 --rounds 3 --append --levels 16,32,48 --extend ""`,
-   then `$PY spike_bench.py summarize results/pro6000-gate-qwen36-64k*`.
-4. Optional, 128k: vLLM section ▸ *Context per person* 131072 ▸ Apply; `lol bench --people --users 30 --rounds 3
-   --max-tokens 1000`, and step 3's line with `--prompt-tokens 120000 --levels 16,30` (label `…-128k`). Put 65536 back.
-5. Ten laptops at once: a question about something from this week in Open WebUI, with the globe on. Then put *Free an
+3. On the farm box: `lol bench --people --users 24 --rounds 3 --max-tokens 1000 --out class24.json`; then once
+   `lol bench --people --users 26 --rounds 1 --max-tokens 1000`.
+4. The 128k load through the gate (from one address: one seat), from `docs\spike`:
+   `$PY spike_bench.py bench --base-url http://127.0.0.1:4000/v1 --api-key <the farm password> --label pro6000-gate-qwen36-128k --profile followup --prompt-tokens 120000 --rounds 3 --append --levels 16,24 --extend ""`,
+   then `$PY spike_bench.py summarize results/pro6000-gate-qwen36-128k*`.
+5. Optional, 64k: vLLM section ▸ *Context per person* 65536 ▸ Apply; `lol bench --people --users 48 --rounds 3
+   --max-tokens 1000`, and step 4's line with `--prompt-tokens 62000 --levels 16,32,48` (label `…-64k`). Apply
+   Balanced again after.
+6. A long document, on a laptop with the next client: a new chat in Open WebUI, attach the PDF, ask *What is this
+   document about?* When it has answered, ask two more questions about two different chapters, in the same chat.
+   Note each question's wait until the first word.
+7. Ten laptops at once: a question about something from this week in Open WebUI, with the globe on. Then put *Free an
    idle seat after* back.
 
-*Expect:* step 2: no 429 at 48; at 50, 48 served and 2 lines `NO SEAT (429)`. Read the share of people at 15 tok/s or
-more from each request's `tps` in class48.json (the summary prints only the median). Step 3: TTFT p95 under 5 s and
-decode p10 at 15 tok/s or more at 48. Step 4: the same at 30 (the margin is thin; Automatic gives 32 at 128k). Step 5:
-count the right answers and the errors, and note which search engines answered; the owner decides from them whether web
-search goes back on by default.
+*Expect:* step 1: the review lists *Context per person: 64k → 128k* and says Qwen3.6 serves 24 at 128k, not the
+card's 30; after Apply, the vLLM section shows *People at once: Automatic (24)* and *128k*. Step 3: no 429 at 24; at
+26, 24 served and 2 lines `NO SEAT (429)`. Read the share of people at 15 tok/s or more from each request's `tps` in
+class24.json (the summary prints only the median). Step 4: TTFT p95 under 5 s and decode p10 at 15 tok/s or more at
+24. Step 5: the same at 48. Step 6: the first answer takes a few seconds (the farm reads the whole document); **the
+second and third start in about a second** (with v0.2.19 each took as long as the first: Open WebUI moved the document
+to the newest question at each turn); the three answers are right. Step 7: count the right answers and the errors, and
+note which search engines answered; the owner decides from them whether web search goes back on by default.
 - [ ] Done · Found:
 
 ### J17 ★ Stop, Update and Use this from the panel, in any order
@@ -2480,7 +2494,7 @@ Benchmarks on the PRO 6000: no person's eyes are needed, only the farm closed to
 agent runs them from a checkout and writes the numbers in the DEVLOG and `docs/spike/RESULTS.md`; the owner reads
 them. They keep their test ids.
 
-- **J16 steps 1–4** (Part 2): the class through the gate, at 64k (and 128k). Step 5 needs ten laptops.
+- **J16 steps 1–5** (Part 2): Balanced, then the class through the gate, at 128k (and 64k). Steps 6–7 need a laptop and ten laptops.
 - **Q4**: Nemotron past 64 people at 64k — the one measurement that could change the Documents preset.
 - **Q5 step 3**: the five agent tasks through the LOL Vibe preset.
 - **J12 and J13 on llama.cpp**: only if Flint on llama.cpp is ever wanted. Both were done on vLLM 0.33.0 on 2026-11-02

@@ -553,6 +553,20 @@ export default (test) => {
     assert.equal(env.DEFAULT_MODEL_PARAMS, undefined, 'a chat keeps thinking');
   });
 
+  test('documents: a whole document goes at the end of the system message, the same each turn; retrieval mode keeps its passages by the question (CONTEXT_128K_PLAN step 3)', () => {
+    const rag = (/** @type {number|undefined} */ contextPerSlot) => {
+      const env = CB.buildSidecarEnv({ endpoint: 'http://10.0.0.5:4000/v1', dataDir: tempDir('ragmode'), contextPerSlot });
+      return [env.RAG_FULL_CONTEXT, env.RAG_SYSTEM_CONTEXT];
+    };
+    assert.deepEqual(rag(131072), ['true', 'true'], '128k: whole documents, read once per chat');
+    assert.deepEqual(rag(undefined), ['true', 'true'], 'a farm that does not say its context: whole documents, as before');
+    assert.deepEqual(rag(16384), ['false', 'false'], '16k: passages, which change with each question, stay out of the system message');
+    // 64k → 128k changes nothing Open WebUI is launched with: no restart (sidecar.ts repoint compares the env).
+    const same = tempDir('ragsame');
+    const env = (/** @type {number} */ c) => CB.buildSidecarEnv({ endpoint: 'http://10.0.0.5:4000/v1', dataDir: same, contextPerSlot: c });
+    assert.deepEqual(env(65536), env(131072));
+  });
+
   // ---------------------------------------------------------------- speech to text on the farm (2026-10-09)
   test('speech to text: a farm advertising stt → OWUI\'s microphone and Call mode transcribe there, with the server and model the farm names', () => {
     const sttEnv = (/** @type {Record<string,string>} */ env) => Object.fromEntries(Object.entries(env).filter(([k]) => /^AUDIO_STT_/.test(k)));

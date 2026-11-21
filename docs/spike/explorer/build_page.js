@@ -15,15 +15,21 @@ const keepLevel = (l) => {
   return o;
 };
 const followups = (o) => Object.entries(o || {}).filter(([k]) => k.startsWith('followup_'));
-const trimmed = {
-  generated: meas.generated, pass_rule: meas.pass_rule,
-  configs: meas.configs.filter((c) => /\/vllm\//.test(c.id)).map((c) => ({
-    id: c.id, box: c.box, engine: c.engine, model: c.model,
-    people: Object.fromEntries(followups(c.people)),
-    profiles: Object.fromEntries(followups(c.profiles).map(([k, p]) => [k, { levels: (p.levels || []).map(keepLevel) }])),
-    cold_prefill_single_user: c.cold_prefill_single_user,
-  })).concat(JSON.parse(fs.readFileSync(path.join(here, 'measured-extra.json'), 'utf8'))),
-};
+const configs = meas.configs.filter((c) => /\/vllm\//.test(c.id)).map((c) => ({
+  id: c.id, box: c.box, engine: c.engine, model: c.model,
+  people: Object.fromEntries(followups(c.people)),
+  profiles: Object.fromEntries(followups(c.profiles).map(([k, p]) => [k, { levels: (p.levels || []).map(keepLevel) }])),
+  cold_prefill_single_user: c.cold_prefill_single_user,
+}));
+// An extra config of a model already here replaces its contexts and profiles one by one (Qwen3.6 at 128k on vLLM
+// 0.33.0, 2026-11-21): the farm, the estimator and the page all read the first config of an id.
+for (const x of JSON.parse(fs.readFileSync(path.join(here, 'measured-extra.json'), 'utf8'))) {
+  const c = configs.find((y) => y.id === x.id);
+  if (!c) { configs.push(x); continue; }
+  Object.assign(c.people, x.people);
+  Object.assign(c.profiles, x.profiles);
+}
+const trimmed = { generated: meas.generated, pass_rule: meas.pass_rule, configs };
 const data = JSON.stringify(trimmed);
 fs.writeFileSync(path.join(farm, 'measured.json'), data + '\n');
 console.log('farm/src/capacity/measured.json', (data.length / 1024).toFixed(0), 'KB');

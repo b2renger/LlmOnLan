@@ -302,6 +302,13 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         // Needs a model context that fits a document — which is exactly what the
         // farm's advertised contextPerSlot tells us, hence the adaptive gate above.
         RAG_FULL_CONTEXT: fullContext ? 'true' : 'false',
+        // The whole document goes at the end of the SYSTEM message, the same bytes every turn, instead of before the
+        // newest question, where it moves each turn and the farm reads all of it again (CONTEXT_128K_PLAN step 3, owner
+        // 2026-11-20: a ~100k-token document's 2nd and 3rd questions answered in 0.13-0.15 s instead of 5.3 s on
+        // Open WebUI 0.13.3; docs/spike/runs/owui_doc_check.sh checks it at each pin bump). Whole documents only: in
+        // retrieval mode the passages change with each question, and in the system message they would make the farm
+        // read the whole conversation again instead.
+        RAG_SYSTEM_CONTEXT: fullContext ? 'true' : 'false',
         // Only read in retrieval mode (full-context ignores k). OWUI's default of 3
         // chunks was the original "listed 4 of 9 products" bug; 8 chunks ≈ 2-3k
         // tokens — comfortably inside even a 8k slot, and much better recall.

@@ -41,7 +41,12 @@
   - **vLLM — opt-in from the panel (`vllm.enabled`), run BY THE FARM** (owner 2026-10-07, replacing the 2026-09-07
     rule "the farm never installs/starts/restarts an external server" and the 2026-10-06 recipe-plus-autostart;
     [docs/archive/plans/VLLM_MANAGED_PLAN.md](../../docs/archive/plans/VLLM_MANAGED_PLAN.md)). For many people on a big NVIDIA GPU (48 at 64k on the
-    PRO 6000): Windows x64 inside WSL2, Linux x64/arm64. `src/vllm.js` (shaped like `llamacpp.js`; pure planning +
+    PRO 6000): Windows x64 inside WSL2, Linux x64/arm64. **Context per person: 128k by default** (owner 2026-11-19,
+    long chats and documents in Open WebUI; [CONTEXT_128K_PLAN](../plans/CONTEXT_128K_PLAN.md), 2026-11-21): a farm whose
+    file does not name `vllm.contextLength` (the panel's engine switch writes only `enabled`) follows it when it
+    updates; a farm whose file names it (the PRO 6000's 65536) keeps it until Balanced is applied. Automatic seats at
+    128k: **24** on the PRO 6000 (vLLM 0.33.0, everyone 120k deep at once, a 50 GiB pool; `docs/spike/explorer/measured-extra.json`,
+    which `build_page.js` merges into the generated table by id), 4 on a DGX Spark (vLLM 0.30.0's label, not measured again). `src/vllm.js` (shaped like `llamacpp.js`; pure planning +
     the process half) drives the scripts in `farm/vllm/` (`serve.sh` with the farm's whole argv in
     `LOL_VLLM_ARGS_B64`, `stop.sh`, `install.sh`, the read-only `status.sh`; on Windows through `wsl.exe` with a
     timeout on every call). The panel installs it (the **download slot**: outside the job slot and `serialize`,
@@ -181,8 +186,9 @@
     people at 32k among models that see pictures and do tools well, every plugin on). Picked for THIS box by `scenarios.js`
     `recommend()` (the capacity page's cards, the spike's measurements, the estimator; never copied), only among what it
     can run: vLLM's list where vLLM is set up on a GPU the capacity page knows for a group (people at once and memory
-    Automatic: on the PRO 6000 Qwen3.6 for all four — 64k / 64k / 64k / 32k: for Documents Nemotron's 64 against Qwen3.6's
-    63 at 64k is a tie, both at the spike's highest level, and 16 against 48 when everyone asks together; Q4 of HUMAN_TESTS
+    Automatic: on the PRO 6000 Qwen3.6 for all four — 128k / 64k / 64k / 32k (Balanced takes vLLM's default context and
+    says it serves 24 at 128k, not the class card's 30; Documents stays at 64k: at 128k its rule picks Nemotron, which
+    sees no pictures, 2026-11-21): for Documents Nemotron's 64 against Qwen3.6's 63 at 64k is a tie, both at the spike's highest level, and 16 against 48 when everyone asks together; Q4 of HUMAN_TESTS
     measures Nemotron past 64, a real lead flips it; on the Max-Q/5500/5000 the estimate gives Nemotron a real lead; on a
     Spark Qwen3.6 for all four), else
     Ollama's default (Automatic context, 2 at once) and, for LOL Vibe, a proven model if llama.cpp or Ollama has one, else
@@ -287,7 +293,7 @@ default, which froze them, an old `vllm.version` among them):
                 "kvCacheType": "q4_0", "mtp": false, "cacheRam": "auto" },   // mtp needs UD-Q2_K_XL+
   "vllm": { "enabled": false, "root": null,      // OPT-IN from the panel: vLLM run by the farm (in WSL2 on Windows)
             "port": 8100, "alias": "assistant", "model": "qwen3.6-35b-a3b",   // a list id (seven built in: farm/README.md)
-            "contextLength": 65536, "parallel": "auto", "kvCacheGib": "auto" },
+            "contextLength": 131072, "parallel": "auto", "kvCacheGib": "auto" },   // 128k each by default (2026-11-21)
   "external": { "enabled": false, "alias": "assistant", "baseUrl": "http://127.0.0.1:8000/v1",
                 "contextLength": 32768, "parallel": 4 },   // a server the farm does not run; DECLARED values
   "websearch": { "enabled": true }, "ocr": { "enabled": true }, "tts": { "enabled": false },

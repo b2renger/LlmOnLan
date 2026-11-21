@@ -37,7 +37,11 @@ new pin's source and on one box:
   loader reads;
 - the pinned dependencies the build substitutes (onnxruntime 1.23.2 for darwin-x64) still install;
 - a `DATA_DIR` of the old pin upgrades (its migrations run, a chat and a user setting survive);
-- whether `OPENAI_API_CONFIGS` / `OLLAMA_API_CONFIGS` are parsed from env (the shell sets neither; §2's note).
+- whether `OPENAI_API_CONFIGS` / `OLLAMA_API_CONFIGS` are parsed from env (the shell sets neither; §2's note);
+- `RAG_SYSTEM_CONTEXT` still keeps an attached document in the system message, the same each turn:
+  `bash docs/spike/runs/owui_doc_check.sh <the new pin's open-webui executable> <an empty folder>` prints `PASS` (about
+  40 s, no GPU; PASS on 0.13.3, 2026-11-20). A change in Open WebUI's middleware would otherwise undo it silently, and
+  the farm would read every document again at each question.
 
 ---
 
