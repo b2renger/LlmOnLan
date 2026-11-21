@@ -8,7 +8,9 @@
   URL typed**, full Preferences (data folder + move/fresh migration, connection, assistant tools, Home Assistant,
   startup/updates, about). **Adaptive RAG**: whole-document injection (`RAG_FULL_CONTEXT=true`) on farms
   advertising `backend.contextPerSlot ≥ 24576` (or not advertising it), classic top-k (`RAG_TOP_K=8`) below —
-  so a 16k farm can't context-overflow on an attachment; **document search on the farm** (2026-10-08,
+  so a 16k farm can't context-overflow on an attachment; with whole documents `RAG_SYSTEM_CONTEXT=true` too
+  (2026-11-21, CONTEXT_128K_PLAN step 3): the document goes into the system message, the same each turn, so the farm
+  reads it once per chat; **document search on the farm** (2026-10-08,
   `configBridge.ts` `EMBEDDING_CONTRACTS`): a data folder adopts the farm's contract the first time it meets a farm
   advertising one this client knows (`DATA_DIR/lol-embedding.json`), then Open WebUI's `openai` embedding engine points
   at the farm's service; never MiniLM again for that folder (on a farm without it the engine points at
