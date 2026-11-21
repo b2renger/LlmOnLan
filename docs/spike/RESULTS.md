@@ -1531,3 +1531,18 @@ counters say why: the tier **stored** (up to 36 GB in a 10 s interval, 6 % full 
 check after the churn: 20/20. So for Qwen3.6, a hybrid, the offload as shipped in 0.34.0 brings nothing; why the
 stored blocks never match (perhaps the recurrent state, which a hybrid's prefix needs, is not in the tier) was not
 looked into.
+
+**Pages from a picture, the second half** (the same night, 04:25–04:32; inputs `ide/pictures/{dashboard,signin,desk,rings}.html`,
+tasks `t8-ui-dashboard`, `t9-ui-signin`, `t10-scene-desk`, `t11-scene-rings`, one check from each task's `truth.json`;
+3 samples each, the seconds per answer in brackets):
+
+| | Dashboard (21 texts, 4 colours) | Sign-in (10 texts, 3 fields, 2 colours) | Desk (box, cylinder, cone, a lamp light, brown) | Rings (cylinder, torus, 6 hues) |
+|---|---|---|---|---|
+| Qwen3.6 | 1/3 (8–9 s; the two others write "+12%" for "+12 %") | 2/3 (6.5–6.8 s; one pink off) | 3/3 (5.3–5.9 s) | 2/3 (3.2–4.1 s; one teal off) |
+| Qwen3.8 | 2/3 (11–12 s; one green off) | 2/3 (7.7–8.3 s; one pink off) | 2/3 (8–10.6 s; one without the lamp's light) | 3/3 (4.8–5.7 s) |
+
+By eye: the sign-in page near identical; the dashboard has every part and colour but a looser layout (the three cards
+wrap 2 + 1, the chart and the table no longer side by side); the rings right in order, heights and colours, darker; the
+desk has its table, mug and lamp, the lamp's shade oversized and the scene dark. **Over the six inputs, 18 samples a
+model:** Qwen3.6 14/18 pass the check, Qwen3.8 14/18; every miss is one text or one colour, never a missing part.
+Qwen3.6 answers in 60–75 % of Qwen3.8's time.

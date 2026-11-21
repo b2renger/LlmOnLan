@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Scene Reconstruction</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #2a2a35;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <script src="three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x2a2a35);
+        scene.fog = new THREE.Fog(0x2a2a35, 10, 20);
+
+        // Camera setup
+        const camera = new THREE.PerspectiveCamera(45, 1024 / 640, 0.1, 100);
+        camera.position.set(4.5, 3.5, 4.5);
+        camera.lookAt(0, 0, 0);
+
+        // Renderer setup
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(1024, 640);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // Floor
+        const floorGeometry = new THREE.PlaneGeometry(20, 20);
+        const floorMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x333340,
+            roughness: 0.8,
+            metalness: 0.2
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // Table
+        const tableGroup = new THREE.Group();
+        
+        // Table top
+        const tableTopGeometry = new THREE.BoxGeometry(2.5, 0.1, 1.2);
+        const tableTopMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x663300,
+            roughness: 0.4,
+            metalness: 0.3
+        });
+        const tableTop = new THREE.Mesh(tableTopGeometry, tableTopMaterial);
+        tableTop.position.y = 0.6;
+        tableTop.castShadow = true;
+        tableTop.receiveShadow = true;
+        tableGroup.add(tableTop);
+
+        // Table legs
+        const legGeometry = new THREE.BoxGeometry(0.08, 0.6, 0.08);
+        const legMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x331500,
+            roughness: 0.7,
+            metalness: 0.2
+        });
+        
+        const legPositions = [
+            { x: -1.15, z: -0.5 },
+            { x: 1.15, z: -0.5 },
+            { x: -1.15, z: 0.5 },
+            { x: 1.15, z: 0.5 }
+        ];
+
+        legPositions.forEach(pos => {
+            const leg = new THREE.Mesh(legGeometry, legMaterial);
+            leg.position.set(pos.x, 0.3, pos.z);
+            leg.castShadow = true;
+            leg.receiveShadow = true;
+            tableGroup.add(leg);
+        });
+
+        tableGroup.position.y = 0.05;
+        scene.add(tableGroup);
+
+        // Cup
+        const cupGeometry = new THREE.CylinderGeometry(0.12, 0.12, 0.2, 32);
+        const cupMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x808080,
+            roughness: 0.5,
+            metalness: 0.3
+        });
+        const cup = new THREE.Mesh(cupGeometry, cupMaterial);
+        cup.position.set(-0.4, 0.75, 0.2);
+        cup.castShadow = true;
+        cup.receiveShadow = true;
+        scene.add(cup);
+
+        // Lamp
+        const lampGroup = new THREE.Group();
+        
+        // Lamp base
+        const baseGeometry = new THREE.CylinderGeometry(0.15, 0.15, 0.05, 32);
+        const baseMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x222222,
+            roughness: 0.3,
+            metalness: 0.7
+        });
+        const base = new THREE.Mesh(baseGeometry, baseMaterial);
+        base.position.y = 0.025;
+        base.castShadow = true;
+        lampGroup.add(base);
+
+        // Lamp pole
+        const poleGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.8, 8);
+        const poleMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x111111,
+            roughness: 0.2,
+            metalness: 0.8
+        });
+        const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+        pole.position.y = 0.45;
+        pole.castShadow = true;
+        lampGroup.add(pole);
+
+        // Lamp shade
+        const shadeGeometry = new THREE.ConeGeometry(0.3, 0.3, 32, 1, true);
+        const shadeMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x333333,
+            roughness: 0.6,
+            metalness: 0.4,
+            side: THREE.DoubleSide
+        });
+        const shade = new THREE.Mesh(shadeGeometry, shadeMaterial);
+        shade.position.y = 0.9;
+        shade.castShadow = true;
+        lampGroup.add(shade);
+
+        lampGroup.position.set(0.8, 0.65, -0.3);
+        scene.add(lampGroup);
+
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0x404050, 0.6);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 5, 5);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        scene.add(directionalLight);
+
+        const pointLight = new THREE.PointLight(0xffaa44, 1.5, 3);
+        pointLight.position.set(0.8, 1.2, -0.3);
+        pointLight.castShadow = true;
+        scene.add(pointLight);
+
+        // Render scene
+        renderer.render(scene, camera);
+        window.__rendered = true;
+    </script>
+</body>
+</html>

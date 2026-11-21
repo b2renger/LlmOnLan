@@ -1,0 +1,50 @@
+{
+ "label": "lc1121-v034-G32",
+ "model": "qwen38",
+ "kind": "scene",
+ "task": "t11-scene-rings",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "off",
+ "picture": "docs\\spike\\ide\\tasks\\t11-scene-rings\\seed\\rings.png",
+ "samples": [
+  {
+   "n": 1,
+   "status": 200,
+   "secs": 5.7,
+   "completionTokens": 1038,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "hues": "6/6"
+   },
+   "shot": true
+  },
+  {
+   "n": 2,
+   "status": 200,
+   "secs": 5.5,
+   "completionTokens": 1004,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "hues": "6/6"
+   },
+   "shot": true
+  },
+  {
+   "n": 3,
+   "status": 200,
+   "secs": 4.8,
+   "completionTokens": 854,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "hues": "6/6"
+   },
+   "shot": true
+  }
+ ]
+}

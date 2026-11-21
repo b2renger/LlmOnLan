@@ -1,0 +1,52 @@
+{
+ "label": "lc1121-v034-G32",
+ "model": "qwen38",
+ "kind": "scene",
+ "task": "t10-scene-desk",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "off",
+ "picture": "docs\\spike\\ide\\tasks\\t10-scene-desk\\seed\\desk.png",
+ "samples": [
+  {
+   "n": 1,
+   "status": 200,
+   "secs": 8,
+   "completionTokens": 1443,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "hues": "1/1"
+   },
+   "shot": true
+  },
+  {
+   "n": 2,
+   "status": 200,
+   "secs": 10.6,
+   "completionTokens": 1974,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "hues": "1/1"
+   },
+   "shot": true
+  },
+  {
+   "n": 3,
+   "status": 200,
+   "secs": 8.5,
+   "completionTokens": 1595,
+   "html": true,
+   "check": {
+    "pass": false,
+    "fails": [
+     "no point or spot light (the lamp)"
+    ],
+    "hues": "1/1"
+   },
+   "shot": true
+  }
+ ]
+}

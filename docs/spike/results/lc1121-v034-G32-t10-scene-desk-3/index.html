@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Three.js Scene</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x252538);
+
+        // Camera
+        const camera = new THREE.PerspectiveCamera(45, 1024 / 640, 0.1, 100);
+        camera.position.set(3.5, 2.5, 4.5);
+        camera.lookAt(0, 0.5, 0);
+
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(1024, 640);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        dirLight.position.set(5, 10, 5);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.set(2048, 2048);
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 50;
+        dirLight.shadow.camera.left = -10;
+        dirLight.shadow.camera.right = 10;
+        dirLight.shadow.camera.top = 10;
+        dirLight.shadow.camera.bottom = -10;
+        scene.add(dirLight);
+
+        // Floor
+        const floorGeo = new THREE.PlaneGeometry(20, 20);
+        const floorMat = new THREE.MeshLambertMaterial({ color: 0x404050 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // Table
+        const tableGroup = new THREE.Group();
+        const tableColor = 0x8B4513;
+        const tableMat = new THREE.MeshLambertMaterial({ color: tableColor });
+
+        // Table top
+        const topGeo = new THREE.BoxGeometry(2.5, 0.15, 1.5);
+        const top = new THREE.Mesh(topGeo, tableMat);
+        top.position.set(0, 0.75, 0);
+        top.castShadow = true;
+        top.receiveShadow = true;
+        tableGroup.add(top);
+
+        // Table legs
+        const legGeo = new THREE.BoxGeometry(0.12, 0.75, 0.12);
+        const legPositions = [
+            [-1.1, 0.375, -0.6],
+            [1.1, 0.375, -0.6],
+            [-1.1, 0.375, 0.6],
+            [1.1, 0.375, 0.6]
+        ];
+        legPositions.forEach(pos => {
+            const leg = new THREE.Mesh(legGeo, tableMat);
+            leg.position.set(pos[0], pos[1], pos[2]);
+            leg.castShadow = true;
+            leg.receiveShadow = true;
+            tableGroup.add(leg);
+        });
+
+        // Cross bars
+        const crossBarGeo = new THREE.BoxGeometry(2.2, 0.1, 0.1);
+        const crossBar1 = new THREE.Mesh(crossBarGeo, tableMat);
+        crossBar1.position.set(0, 0.4, -0.6);
+        crossBar1.castShadow = true;
+        tableGroup.add(crossBar1);
+
+        const crossBar2 = new THREE.Mesh(crossBarGeo, tableMat);
+        crossBar2.position.set(0, 0.4, 0.6);
+        crossBar2.castShadow = true;
+        tableGroup.add(crossBar2);
+
+        const crossBarGeo2 = new THREE.BoxGeometry(0.1, 0.1, 1.2);
+        const crossBar3 = new THREE.Mesh(crossBarGeo2, tableMat);
+        crossBar3.position.set(-1.1, 0.4, 0);
+        crossBar3.castShadow = true;
+        tableGroup.add(crossBar3);
+
+        const crossBar4 = new THREE.Mesh(crossBarGeo2, tableMat);
+        crossBar4.position.set(1.1, 0.4, 0);
+        crossBar4.castShadow = true;
+        tableGroup.add(crossBar4);
+
+        scene.add(tableGroup);
+
+        // Cup
+        const cupGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.3, 32);
+        const cupMat = new THREE.MeshLambertMaterial({ color: 0xE0E0E0 });
+        const cup = new THREE.Mesh(cupGeo, cupMat);
+        cup.position.set(-0.5, 1.05, 0);
+        cup.castShadow = true;
+        cup.receiveShadow = true;
+        scene.add(cup);
+
+        // Lamp
+        const lampGroup = new THREE.Group();
+
+        // Lamp base
+        const baseGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.6, 16);
+        const baseMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+        const base = new THREE.Mesh(baseGeo, baseMat);
+        base.position.set(0, 0.3, 0);
+        base.castShadow = true;
+        lampGroup.add(base);
+
+        // Lamp shade
+        const shadeGeo = new THREE.ConeGeometry(0.3, 0.3, 32, 1, true);
+        const shadeMat = new THREE.MeshLambertMaterial({ 
+            color: 0x8B7355, 
+            side: THREE.DoubleSide 
+        });
+        const shade = new THREE.Mesh(shadeGeo, shadeMat);
+        shade.position.set(0, 0.75, 0);
+        shade.castShadow = true;
+        lampGroup.add(shade);
+
+        // Position lamp on table
+        lampGroup.position.set(0.5, 0.825, 0);
+        scene.add(lampGroup);
+
+        // Render
+        renderer.render(scene, camera);
+        window.__rendered = true;
+    </script>
+</body>
+</html>

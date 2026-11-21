@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Bar Chart with Torus</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0f1540; /* Matching the background color */
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <script src="three.min.js"></script>
+    <script>
+        // Create a scene
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0f1540);
+
+        // Create a camera
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 2, 10);
+        camera.lookAt(0, 0, 0);
+
+        // Create a renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Create a torus (ring)
+        const torusGeometry = new THREE.TorusGeometry(2, 0.5, 16, 100);
+        const torusMaterial = new THREE.MeshStandardMaterial({ color: 0x6a0dad, metalness: 0.5, roughness: 0.5 });
+        const torus = new THREE.Mesh(torusGeometry, torusMaterial);
+        torus.position.set(0, 5, 0);
+        scene.add(torus);
+
+        // Function to create a cylinder with a given color and height
+        function createCylinder(color, height, radius) {
+            const geometry = new THREE.CylinderGeometry(radius, radius, height, 32);
+            const material = new THREE.MeshStandardMaterial({ color: color, metalness: 0.5, roughness: 0.5 });
+            return new THREE.Mesh(geometry, material);
+        }
+
+        // Create cylinders with different heights and colors
+        const cylinder1 = createCylinder(0x8b0000, 1, 0.5);
+        cylinder1.position.set(-4, 0.5, 0);
+        scene.add(cylinder1);
+
+        const cylinder2 = createCylinder(0xb86200, 2, 0.5);
+        cylinder2.position.set(-2, 1, 0);
+        scene.add(cylinder2);
+
+        const cylinder3 = createCylinder(0xb8860b, 3, 0.5);
+        cylinder3.position.set(0, 1.5, 0);
+        scene.add(cylinder3);
+
+        const cylinder4 = createCylinder(0x006b6b, 4, 0.5);
+        cylinder4.position.set(2, 2, 0);
+        scene.add(cylinder4);
+
+        const cylinder5 = createCylinder(0x004080, 5, 0.5);
+        cylinder5.position.set(4, 2.5, 0);
+        scene.add(cylinder5);
+
+        // Add lights
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 5, 5);
+        scene.add(directionalLight);
+
+        // Render the scene
+        renderer.render(scene, camera);
+
+        // Set the global variable to indicate the scene is rendered
+        window.__rendered = true;
+    </script>
+</body>
+</html>

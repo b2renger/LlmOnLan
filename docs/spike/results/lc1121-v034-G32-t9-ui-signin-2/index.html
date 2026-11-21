@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio Club - Login</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+            color: #333;
+        }
+
+        /* Left Panel */
+        .left-panel {
+            flex: 1;
+            background: linear-gradient(135deg, #8A2BE2 0%, #E0218A 100%);
+            padding: 80px 60px;
+            color: white;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .left-panel h1 {
+            font-size: 42px;
+            font-weight: 700;
+            margin-bottom: 24px;
+            letter-spacing: -0.5px;
+        }
+
+        .left-panel p {
+            font-size: 18px;
+            line-height: 1.5;
+            color: #F3E5F5;
+            max-width: 320px;
+        }
+
+        /* Right Panel */
+        .right-panel {
+            flex: 1;
+            background-color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 340px;
+        }
+
+        .login-container h2 {
+            font-size: 28px;
+            color: #212121;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        .login-container .subtitle {
+            color: #757575;
+            font-size: 14px;
+            margin-bottom: 32px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 8px;
+        }
+
+        .form-group input[type="email"],
+        .form-group input[type="password"] {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 15px;
+            color: #333;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            border-color: #8A2BE2;
+        }
+
+        .form-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            margin-top: 4px;
+        }
+
+        .remember-me {
+            display: flex;
+            align-items: center;
+            font-size: 13px;
+            color: #555;
+            cursor: pointer;
+        }
+
+        .remember-me input {
+            margin-right: 6px;
+            cursor: pointer;
+        }
+
+        .forgot-password {
+            font-size: 13px;
+            color: #8A2BE2;
+            text-decoration: none;
+        }
+
+        .forgot-password:hover {
+            text-decoration: underline;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background-color: #8A2BE2;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-login:hover {
+            background-color: #7B1FA2;
+        }
+
+        .signup-text {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 13px;
+            color: #757575;
+        }
+
+        .signup-text a {
+            color: #D32F2F;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .signup-text a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="left-panel">
+        <h1>Studio Club</h1>
+        <p>Share your projects with your class and see what everyone is making this term.</p>
+    </div>
+
+    <div class="right-panel">
+        <div class="login-container">
+            <h2>Welcome back</h2>
+            <p class="subtitle">Sign in to your account</p>
+
+            <form>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" value="sam@school.org">
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" value="password">
+                </div>
+
+                <div class="form-options">
+                    <label class="remember-me">
+                        <input type="checkbox" checked> Remember me
+                    </label>
+                    <a href="#" class="forgot-password">Forgot password?</a>
+                </div>
+
+                <button type="button" class="btn-login">Sign in</button>
+            </form>
+
+            <div class="signup-text">
+                New here? <a href="#">Create an account</a>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

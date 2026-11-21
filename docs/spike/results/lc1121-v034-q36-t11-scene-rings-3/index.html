@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Scene Reconstruction</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0f153b;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <script src="three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0f153b);
+
+        // Camera setup
+        const camera = new THREE.PerspectiveCamera(45, 1024 / 640, 0.1, 1000);
+        camera.position.set(0, 2, 10);
+        camera.lookAt(0, 1, 0);
+
+        // Renderer setup
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(1024, 640);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting setup
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 5, 5);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+
+        const pointLight1 = new THREE.PointLight(0xff4500, 0.5, 10);
+        pointLight1.position.set(-3, 3, 3);
+        scene.add(pointLight1);
+
+        const pointLight2 = new THREE.PointLight(0x4682b4, 0.5, 10);
+        pointLight2.position.set(3, 3, 3);
+        scene.add(pointLight2);
+
+        // Ground plane
+        const groundGeometry = new THREE.PlaneGeometry(20, 20);
+        const groundMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x0f153b,
+            roughness: 0.8,
+            metalness: 0.2
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.5;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Cylinders with increasing heights and different colors
+        const cylinderData = [
+            { color: 0xb22222, height: 1, radius: 0.3, position: [-2, 0, 0] },
+            { color: 0xd2691e, height: 2, radius: 0.3, position: [-1, 0, 0] },
+            { color: 0xdaa520, height: 3, radius: 0.3, position: [0, 0, 0] },
+            { color: 0x2f4f4f, height: 4, radius: 0.3, position: [1, 0, 0] },
+            { color: 0x4682b4, height: 5, radius: 0.3, position: [2, 0, 0] }
+        ];
+
+        cylinderData.forEach(data => {
+            const geometry = new THREE.CylinderGeometry(data.radius, data.radius, data.height, 32);
+            const material = new THREE.MeshStandardMaterial({ 
+                color: data.color,
+                roughness: 0.4,
+                metalness: 0.3
+            });
+            const cylinder = new THREE.Mesh(geometry, material);
+            cylinder.position.set(data.position[0], data.height / 2 - 0.5, data.position[2]);
+            cylinder.castShadow = true;
+            cylinder.receiveShadow = true;
+            scene.add(cylinder);
+        });
+
+        // Torus (ring)
+        const torusGeometry = new THREE.TorusGeometry(0.8, 0.3, 32, 100);
+        const torusMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x8a2be2,
+            roughness: 0.3,
+            metalness: 0.4
+        });
+        const torus = new THREE.Mesh(torusGeometry, torusMaterial);
+        torus.position.set(0, 4, 0);
+        torus.castShadow = true;
+        scene.add(torus);
+
+        // Render once
+        renderer.render(scene, camera);
+        window.__rendered = true;
+    </script>
+</body>
+</html>

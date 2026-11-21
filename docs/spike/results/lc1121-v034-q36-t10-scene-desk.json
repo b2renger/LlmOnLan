@@ -1,0 +1,50 @@
+{
+ "label": "lc1121-v034-q36",
+ "model": "qwen36",
+ "kind": "scene",
+ "task": "t10-scene-desk",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "off",
+ "picture": "docs\\spike\\ide\\tasks\\t10-scene-desk\\seed\\desk.png",
+ "samples": [
+  {
+   "n": 1,
+   "status": 200,
+   "secs": 5.3,
+   "completionTokens": 1482,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "hues": "1/1"
+   },
+   "shot": true
+  },
+  {
+   "n": 2,
+   "status": 200,
+   "secs": 5.9,
+   "completionTokens": 1656,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "hues": "1/1"
+   },
+   "shot": true
+  },
+  {
+   "n": 3,
+   "status": 200,
+   "secs": 5.6,
+   "completionTokens": 1580,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "hues": "1/1"
+   },
+   "shot": true
+  }
+ ]
+}

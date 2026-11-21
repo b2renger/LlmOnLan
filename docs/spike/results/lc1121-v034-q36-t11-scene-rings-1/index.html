@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Bar Chart with Torus</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0b133b;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <script src="three.min.js"></script>
+    <script>
+        (function() {
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0b133b);
+
+            const camera = new THREE.PerspectiveCamera(45, 1024 / 640, 0.1, 100);
+            camera.position.set(0, 2, 10);
+            camera.lookAt(0, 1.5, 0);
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(1024, 640);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 10, 7);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 1024;
+            directionalLight.shadow.mapSize.height = 1024;
+            scene.add(directionalLight);
+
+            // Materials
+            const materials = [
+                new THREE.MeshStandardMaterial({ color: 0x8b2e2e, roughness: 0.5, metalness: 0.1 }), // Reddish
+                new THREE.MeshStandardMaterial({ color: 0xb86200, roughness: 0.5, metalness: 0.1 }), // Orange
+                new THREE.MeshStandardMaterial({ color: 0xb8860b, roughness: 0.5, metalness: 0.1 }), // Gold
+                new THREE.MeshStandardMaterial({ color: 0x1b6b5a, roughness: 0.5, metalness: 0.1 }), // Teal
+                new THREE.MeshStandardMaterial({ color: 0x2a52be, roughness: 0.5, metalness: 0.1 }), // Blue
+                new THREE.MeshStandardMaterial({ color: 0x6a3d9d, roughness: 0.5, metalness: 0.1 })  // Purple
+            ];
+
+            // Create cylinders
+            const cylinders = [
+                { radius: 0.5, height: 1.0, position: [-2, 0.5, 0] },
+                { radius: 0.5, height: 1.5, position: [-1, 0.75, 0] },
+                { radius: 0.5, height: 2.0, position: [0, 1.0, 0] },
+                { radius: 0.5, height: 2.5, position: [1, 1.25, 0] },
+                { radius: 0.5, height: 3.0, position: [2, 1.5, 0] }
+            ];
+
+            const cylinderGeometries = [];
+            cylinders.forEach((cyl, index) => {
+                const geometry = new THREE.CylinderGeometry(cyl.radius, cyl.radius, cyl.height, 32);
+                const mesh = new THREE.Mesh(geometry, materials[index]);
+                mesh.position.set(...cyl.position);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                scene.add(mesh);
+                cylinderGeometries.push(mesh);
+            });
+
+            // Create torus
+            const torusGeometry = new THREE.TorusGeometry(1.0, 0.3, 16, 100);
+            const torus = new THREE.Mesh(torusGeometry, materials[5]);
+            torus.position.set(0, 3.5, 0);
+            torus.rotation.x = Math.PI / 2;
+            torus.castShadow = true;
+            scene.add(torus);
+
+            // Animation loop
+            function animate() {
+                requestAnimationFrame(animate);
+                renderer.render(scene, camera);
+            }
+
+            // Render once and set flag
+            renderer.render(scene, camera);
+            window.__rendered = true;
+            animate();
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EcoSchool - Energy Dashboard</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    display: flex;
+    min-height: 100vh;
+    background-color: #f5f5f5;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 190px;
+    background-color: #1a1a3e;
+    padding: 24px 0;
+    flex-shrink: 0;
+    min-height: 100vh;
+  }
+
+  .sidebar-brand {
+    color: #ffffff;
+    font-size: 20px;
+    font-weight: 700;
+    padding: 0 20px;
+    margin-bottom: 24px;
+  }
+
+  .nav {
+    list-style: none;
+  }
+
+  .nav-item {
+    margin-bottom: 4px;
+  }
+
+  .nav-link {
+    display: block;
+    padding: 10px 20px;
+    color: #a0a0c0;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 6px;
+    margin: 0 10px;
+    transition: background 0.2s;
+  }
+
+  .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+  }
+
+  .nav-link.active {
+    background-color: #4a3aad;
+    color: #ffffff;
+  }
+
+  /* Main content */
+  .main {
+    flex: 1;
+    padding: 28px 32px;
+    background-color: #f5f5f5;
+  }
+
+  .page-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 24px;
+  }
+
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  .stat-label {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+
+  .stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a1a2e;
+  }
+
+  .stat-value.green {
+    color: #00b894;
+  }
+
+  .stat-value.red {
+    color: #e74c3c;
+  }
+
+  /* Charts row */
+  .charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  .chart-card {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  .chart-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 20px;
+  }
+
+  /* Bar chart */
+  .bar-chart {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-around;
+    height: 200px;
+    padding-top: 10px;
+  }
+
+  .bar-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    max-width: 80px;
+  }
+
+  .bar {
+    width: 55px;
+    background-color: #5b5ce6;
+    border-radius: 4px 4px 0 0;
+    margin-bottom: 8px;
+  }
+
+  .bar-label {
+    font-size: 12px;
+    color: #888;
+    font-weight: 500;
+  }
+
+  /* Bar heights based on values */
+  .bar.mon { height: 130px; }
+  .bar.tue { height: 160px; }
+  .bar.wed { height: 140px; }
+  .bar.thu { height: 180px; }
+  .bar.fri { height: 120px; }
+
+  /* Buildings table */
+  .buildings-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .buildings-table th {
+    text-align: left;
+    font-size: 13px;
+    color: #888;
+    font-weight: 500;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+  }
+
+  .buildings-table th:last-child {
+    text-align: right;
+  }
+
+  .buildings-table td {
+    font-size: 14px;
+    color: #333;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .buildings-table td:last-child {
+    text-align: right;
+    font-weight: 500;
+    color: #444;
+  }
+
+  .buildings-table tr:last-child td {
+    border-bottom: none;
+  }
+</style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">EcoSchool</div>
+    <ul class="nav">
+      <li class="nav-item">
+        <a href="#" class="nav-link active">Overview</a>
+      </li>
+      <li class="nav-item">
+        <a href="#" class="nav-link">Buildings</a>
+      </li>
+      <li class="nav-item">
+        <a href="#" class="nav-link">Reports</a>
+      </li>
+      <li class="nav-item">
+        <a href="#" class="nav-link">Settings</a>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main">
+    <h1 class="page-title">Energy this week</h1>
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Electricity</div>
+        <div class="stat-value">1,240 kWh</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Solar produced</div>
+        <div class="stat-value green">386 kWh</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Heating</div>
+        <div class="stat-value red">+12 %</div>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="charts-row">
+      <!-- Daily Use Chart -->
+      <div class="chart-card">
+        <div class="chart-title">Daily use</div>
+        <div class="bar-chart">
+          <div class="bar-group">
+            <div class="bar mon"></div>
+            <div class="bar-label">Mon</div>
+          </div>
+          <div class="bar-group">
+            <div class="bar tue"></div>
+            <div class="bar-label">Tue</div>
+          </div>
+          <div class="bar-group">
+            <div class="bar wed"></div>
+            <div class="bar-label">Wed</div>
+          </div>
+          <div class="bar-group">
+            <div class="bar thu"></div>
+            <div class="bar-label">Thu</div>
+          </div>
+          <div class="bar-group">
+            <div class="bar fri"></div>
+            <div class="bar-label">Fri</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Buildings Table -->
+      <div class="chart-card">
+        <div class="chart-title">Buildings</div>
+        <table class="buildings-table">
+          <thead>
+            <tr>
+              <th>Building</th>
+              <th>kWh</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Main hall</td>
+              <td>520</td>
+            </tr>
+            <tr>
+              <td>Gym</td>
+              <td>310</td>
+            </tr>
+            <tr>
+              <td>Science wing</td>
+              <td>255</td>
+            </tr>
+            <tr>
+              <td>Library</td>
+              <td>155</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+</body>
+</html>

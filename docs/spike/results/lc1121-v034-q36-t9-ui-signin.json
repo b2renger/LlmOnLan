@@ -1,0 +1,55 @@
+{
+ "label": "lc1121-v034-q36",
+ "model": "qwen36",
+ "kind": "ui",
+ "task": "t9-ui-signin",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "off",
+ "picture": "docs\\spike\\ide\\tasks\\t9-ui-signin\\seed\\signin.png",
+ "samples": [
+  {
+   "n": 1,
+   "status": 200,
+   "secs": 6.7,
+   "completionTokens": 1848,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "texts": "10/10",
+    "colours": "2/2"
+   },
+   "shot": true
+  },
+  {
+   "n": 2,
+   "status": 200,
+   "secs": 6.5,
+   "completionTokens": 1839,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "texts": "10/10",
+    "colours": "2/2"
+   },
+   "shot": true
+  },
+  {
+   "n": 3,
+   "status": 200,
+   "secs": 6.8,
+   "completionTokens": 1922,
+   "html": true,
+   "check": {
+    "pass": false,
+    "fails": [
+     "no colour near #db2777"
+    ],
+    "texts": "10/10",
+    "colours": "1/2"
+   },
+   "shot": true
+  }
+ ]
+}

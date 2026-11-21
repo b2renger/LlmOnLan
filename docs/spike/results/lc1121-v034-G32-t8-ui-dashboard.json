@@ -1,0 +1,55 @@
+{
+ "label": "lc1121-v034-G32",
+ "model": "qwen38",
+ "kind": "ui",
+ "task": "t8-ui-dashboard",
+ "base": "http://127.0.0.1:8190/v1",
+ "thinking": "off",
+ "picture": "docs\\spike\\ide\\tasks\\t8-ui-dashboard\\seed\\dashboard.png",
+ "samples": [
+  {
+   "n": 1,
+   "status": 200,
+   "secs": 11.4,
+   "completionTokens": 2130,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "texts": "21/21",
+    "colours": "4/4"
+   },
+   "shot": true
+  },
+  {
+   "n": 2,
+   "status": 200,
+   "secs": 12.3,
+   "completionTokens": 2363,
+   "html": true,
+   "check": {
+    "pass": false,
+    "fails": [
+     "no colour near #059669"
+    ],
+    "texts": "21/21",
+    "colours": "3/4"
+   },
+   "shot": true
+  },
+  {
+   "n": 3,
+   "status": 200,
+   "secs": 11.7,
+   "completionTokens": 2216,
+   "html": true,
+   "check": {
+    "pass": true,
+    "fails": [],
+    "texts": "21/21",
+    "colours": "4/4"
+   },
+   "shot": true
+  }
+ ]
+}
