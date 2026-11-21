@@ -260,7 +260,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 18. **LOL Vibe builds from a picture** (owner, 2026-11-20: "upload images of interfaces to be able to reproduce them
     with html css js - and even figma files, or images of scenes to be able to reproduce them with threejs"). Three
     asks: **a screenshot of an interface → a page in HTML, CSS and JS**; **a Figma design → the same**; **a picture of a
-    scene → a three.js scene**. A plan in `docs/plans/` first; its first step is a measurement. What exists
+    scene → a three.js scene**. **The plan: [PICTURE_TO_PAGE_PLAN](PICTURE_TO_PAGE_PLAN.md)** (night n° 12, proposed:
+    step 1 measures three models on screenshots, Figma exports and rendered scenes; found: a picture dropped in a chat
+    bound to a project never reaches the agent today, `controller.mjs:594-599`). What exists
     (checked 2026-11-20 in the code, not yet run end to end):
     - the farm's default model sees pictures (Qwen3.6: `vision: true`, `farm/src/config.js`; Qwen3.8 and Gemma 4 26B too);
     - LOL Vibe's chat already sends a picture with a message (`shell/renderer/chat/net/request.mjs:155`, `image_url`);
