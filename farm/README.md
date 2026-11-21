@@ -1076,14 +1076,14 @@ can run:
 
 | Preset | Picked for (the capacity page's card) | Engine and model | Context each | Plugins on |
 |---|---|---|---|---|
-| **Balanced** (the default) | a class chatting, 30 | the farm as it ships: vLLM's shipped model (Qwen3.6 at 64k; the card's best vLLM model if the list lacks it) where vLLM is set up on a GPU the capacity page knows, else the model the farm ships for Ollama (`gemma4:26b`), made the default in place of the old one and downloaded first when missing; a farm serving llama.cpp switches to Ollama | 64k on vLLM, else Automatic | web search, document reading |
+| **Balanced** (the default) | a class chatting, 30 | the farm as it ships: vLLM's shipped model (Qwen3.6 at 128k since 2026-11-21; the card's best vLLM model if the list lacks it) where vLLM is set up on a GPU the capacity page knows, else the model the farm ships for Ollama (`gemma4:26b`), made the default in place of the old one and downloaded first when missing; a farm serving llama.cpp switches to Ollama | 128k on vLLM, else Automatic | web search, document reading |
 | **Documents** | documents (RAG), 5 | the most people, among models good enough for documents (25/28 or more on every run of the spike's quality check); a lead under 10 % is a tie the better model wins | 64k (Open WebUI reads whole documents from 24k) | web search, document reading |
 | **LOL Vibe** | vibe-coding, 10 | the most people, among models proven with the IDE's coding agent | 64k | web search (document reading off: its 9 GB go to vLLM) |
 | **Computer** | a Computer workshop, 20 | the most people, among models that see pictures and do tools well | 32k | all: web search, document reading, voice, Classify, speech to text, the message bus |
 
 - **vLLM** is picked where it is set up (installed, per the last check) on a GPU the capacity page knows for a group
   (an RTX PRO 6000 / 5500 / 5000, a DGX Spark): people at once and GPU memory **Automatic**. On the RTX PRO 6000:
-  Balanced = Qwen3.6 64k (~48), Documents = Qwen3.6 64k (~63 out of step, 48 when everyone asks at the same moment,
+  Balanced = Qwen3.6 128k (24, measured on vLLM 0.33.0), Documents = Qwen3.6 64k (~63 out of step, 48 when everyone asks at the same moment,
   measured), LOL Vibe = Qwen3.6 64k (~64), Computer = Qwen3.6 32k (~100). For Documents, Nemotron 3.5 Lightning's 64
   against Qwen3.6's 63 at 64k is a tie (both passed 64, the spike's highest level; when everyone asks together Nemotron
   passes 16 against 48), and a tie goes to the better model; HUMAN_TESTS Q4 measures Nemotron past 64 on the farm, and a
