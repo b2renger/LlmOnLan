@@ -9,6 +9,23 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-21 (02:48) — Open WebUI 0.13.4: the document check passes, the bump is blocked (the Blender tools); the vLLM lifecycle 174/174 (night n° 12)
+
+- **0.13.4 in a scratch venv** (`pip install open-webui==0.13.4`, Python 3.12): `owui_doc_check.sh` **PASS** (with
+  `RAG_SYSTEM_CONTEXT=true` the document is message 0 with one hash on all three turns, `44c787686428`, 205,921
+  characters; with it off it moves to messages 1, 3, 5).
+- **The surface, 0.13.3 (`scratchpad/owui013`) against 0.13.4:** each of the 61 env names `configBridge.ts` sets,
+  grepped in both packages' Python: 56 read the same, 4 read by libraries in neither (`ANONYMIZED_TELEMETRY`,
+  `DO_NOT_TRACK`, `SCARF_NO_ANALYTICS`, `HF_HUB_ETAG_TIMEOUT`), and **`ENABLE_DIRECT_INTEGRATIONS` read in 0.13.3 and
+  gone in 0.13.4**. 0.13.4's CHANGELOG: direct connections and a person's own tool servers move to its Tether app;
+  0.13.3's `utils/middleware.py` reads `metadata['tool_servers']`, 0.13.4's does not. The Blender tools are such a
+  server (`ui.toolServers` via the user-settings API), kept on 0.13.3 by that variable at the owner's request
+  (2026-11-14): on 0.13.4 they would vanish from chats. **Stopped:** the pin stays 0.13.3 (invariant 5: a forced code
+  change is a defect to plan, not absorb); a question for the owner. TOOL_UPDATES_2026-11-20's "the rest is terminals,
+  folders and coding-agent chats" corrected in place. Not run: the smoke test, the sidecar build.
+- **`farm/test/vllm-lifecycle.js`** (opt-in, a fake vLLM in WSL, the farm's real scripts, a real LiteLLM), run on
+  tonight's farm code: **174 passed, 0 failed**, every other vLLM on this computer as it was.
+
 ## 2026-11-21 (02:45) — Plan first beside the message box, one per chat (night n° 12, queue 4)
 
 n° 11's question 7 had no answer at 02:00: its default, the plan as approved (DECISIONS). The switch moved from the

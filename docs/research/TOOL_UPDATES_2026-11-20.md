@@ -50,6 +50,23 @@ CONTEXT_128K_PLAN's step 3. Whether our chats carry such lists on 0.13.3 is show
 **Worth the pin bump** (invariant 5: one pin, rebuild, smoke tests, no LOL code change) once the relay shows what our
 chats send; the rest of 0.13.4 is terminals, folders and coding-agent chats, which LlmOnLan does not use.
 
+> **Corrected 2026-11-21 (night n° 12): wrong, the bump is blocked.** 0.13.4's own CHANGELOG, *Changed*: "**Direct
+> connections move to Tether.** Settings > Connections and Settings > Tools are gone together with the Direct
+> Connections and Direct Integrations switches … and the 'ENABLE_DIRECT_CONNECTIONS', 'ENABLE_DIRECT_INTEGRATIONS' and
+> 'USER_PERMISSIONS_FEATURES_DIRECT_TOOL_SERVERS' settings, so models, tool servers and terminals that users added in
+> their own settings no longer appear. Users add them in the Tether app … instead". Checked in the code (0.13.3 and
+> 0.13.4 installed side by side): 0.13.3's `utils/middleware.py` reads `metadata['tool_servers']` (a person's own
+> servers, lines 2432–2723) and `config.py:225` reads `ENABLE_DIRECT_INTEGRATIONS`; 0.13.4 has neither. LlmOnLan's
+> opt-in **Blender tools** are such a server (the renderer writes `ui.toolServers` through the user-settings API), kept
+> working on 0.13.3 by `ENABLE_DIRECT_INTEGRATIONS=true` at the owner's request (2026-11-14). On 0.13.4 they would
+> vanish from chats without an error. The rest of the surface holds: of the 61 env names `configBridge.ts` sets, every
+> other one is read the same in both (four are read by libraries, not Open WebUI, in both); `TOOL_SERVER_CONNECTIONS`
+> (the Computer's) is read from env (`config.py:363`); `/user/settings/update` is there (`routers/users.py:502`);
+> `owui_doc_check.sh` gives **PASS** (the document in the system message, one hash on all three turns). The image
+> settings becoming connections does not touch us (the client sets no image env). **A question for the owner** (the
+> session summary): stay on 0.13.3, or a plan to give Blender's server through `TOOL_SERVER_CONNECTIONS` (env, as the
+> Computer's) before the bump.
+
 ## Not read
 
 vLLM 0.34.0's KV-offload flag; the Open WebUI 0.13.3 security advisory's text; llama.cpp b12378–b12557; Electron's

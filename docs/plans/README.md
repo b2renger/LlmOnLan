@@ -64,7 +64,10 @@ file stays the whole list.
 - **Open WebUI 0.13.4** (plans ▸ Next 19; approved 2026-11-20 12:46: "yes we can bump"): the pin bump and its smoke
   tests, after the 128k build. **Done when** the smoke tests pass and `docs/spike/runs/owui_doc_check.sh` gives PASS on
   0.13.4 (an attached document stays the same in the system message from turn to turn: CONTEXT_128K_PLAN step 3's
-  gain). **S**.
+  gain). **S**. **Blocked, night n° 12 (2026-11-21):** `owui_doc_check.sh` PASS on 0.13.4, but 0.13.4 removes a
+  person's own tool servers (moved to its Tether app; `ENABLE_DIRECT_INTEGRATIONS` gone), which is how the Blender
+  tools reach chats: they would vanish (TOOL_UPDATES_2026-11-20, corrected). The pin stays 0.13.3; the owner's
+  question in n° 12's summary.
 - **LOL Vibe's page preview, code beside it** ([VIBE_PAGE_PLAN](VIBE_PAGE_PLAN.md), the owner's request of 2026-11-18,
   approved with its three choices): step 1 the side column (errors with block and line, the shared editor, live
   reload, edits kept with the thread), step 2 the pop-out window. **M**. Built by day, 2026-11-18.
