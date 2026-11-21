@@ -69,6 +69,10 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## LOL Vibe and the Computer
 
+- **Default taken, 2026-11-21** (n° 11's question 7, no answer by 02:00): *Plan first* moves **beside the message box,
+  per thread**, as the approved plan says (it was built in the Project panel's bar, per project).
+- **Default taken, 2026-11-21** (n° 11's question 6, no answer by 02:00): Figma through **the export path only** (a
+  frame exported as SVG or PNG); no connection to Figma's desktop MCP server.
 - **2026-11-20, the chat (12:46).** [STUDENT_PLAN_MODE_PLAN](../plans/STUDENT_PLAN_MODE_PLAN.md): "yes, we can build",
   as written. Its two questions take their recommendations: a *Plan first* switch per thread, off by default (a
   teacher's default later, if classes ask); the Agent box left out.
