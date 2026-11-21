@@ -219,9 +219,13 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
     Each of the three passed alone and in all four `--phase k` runs on 42: 222/222, 221/222, 222/222, 220/222.
     **Not fixed:**
-    - **k3-control** (run 4, after `k3-canvas-every-notice-has-its-button`): its run's promise **never settled**. The
-      `catch` added today would have reported a rejection; `__k3` stayed null for 30 s. So a run that hangs, in
-      `report()` at k3-control.mjs:138, 182 or 190 (the log does not say which).
+    - ~~**k3-control** (run 4, after `k3-canvas-every-notice-has-its-button`): its run's promise **never settled**.~~
+      *Found and fixed 2026-11-21 (night n° 12), from the code:* the Dialog box draws its answer field from the start
+      and only hides its row while nobody is asked (`graph/parts/dialog.mjs`), so the scenario's wait for
+      `.graph-part-answer` was always already true. Step 5 answered before its second run had parked; that run then
+      parked with nobody to answer, and `report()` waited 30 s. The scenario waits for the park itself now
+      (`debug.computer.waits()`), and asserts the field is there with nothing parked. 3/3 alone, then `--phase k`
+      223/223 in the full order.
     - ~~**k24-the-ide-binds-a-project…** (runs 2 and 4; 3/3 alone): a 20 s `waitFor` came back null.~~ *Found and
       fixed 2026-11-20 by day:* it failed alone too (1 in 3, 2 in 8, 1 in 10), at `k24-ide.mjs:204`, *Address saved*.
       **A race in the page**, not the test: after a refused `http://` address, `gitAct` reloads the saved remote, which
@@ -231,7 +235,7 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
       there to fix, where it used to vanish. 12/12 alone after.
 
     **The harness now says which wait timed out:** `h.waitFor` adds the scenario's line to its message
-    (`helpers.js`, e.g. `(scenarios/k24-ide.mjs:204:21)`). Next for k3-control: its line, on the next failure.
+    (`helpers.js`, e.g. `(scenarios/k24-ide.mjs:204:21)`). k3-control: found in its code before the next failure.
 
 15. **A better LOL Vibe, able to build a proof-of-concept web application** (owner, 2026-11-14: "I am not convinced
     about what we have right now in lol vibe ... we need a better lol vibe experience for the users and we should be able
@@ -310,8 +314,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
       (1.16–1.50×). It changes the default block size to 64. `--mamba-cache-mode` does nothing there. Then a plan for
       the bump if it wins. **Run in night n° 12 (RESULTS, 2026-11-21): it does not win.** The same pools and labels
       (Qwen3.6 24 at 128k, Qwen3.8 ≥ 32 at 32k), Qwen3.8's first word 0.1–0.5 s sooner, Qwen3.6 level, quality 28/28
-      both, nothing broken. No bump on its own; its **KV offload to system memory** (`--kv-offloading-size`) is the
-      reason to look again, a trial of its own.
+      both, nothing broken. No bump on its own. Its **KV offload to system memory** (`--kv-offloading-size`), tried the
+      same night on Qwen3.6 at 128k, stored but was never read (0 % hits; 40 people collapsed as without it): no lead
+      either, for a hybrid model, as shipped.
     - **Open WebUI 0.13.4:** the pin bump and its smoke tests (invariant 5). Its "fewer repeated context lists" stops
       a 128k chat from filling with repeated skill and knowledge lists. **Approved 2026-11-20 12:46** (now in *1. Now*);
       **blocked 2026-11-21** (the Blender tools; BLENDER_TOOLS_ENV_PLAN).

@@ -1,0 +1,8 @@
+(APIServer pid=566) INFO 11-21 03:32:19 [startup.py:96] non-default args: {'model_tag': '/home/ateliernum/lol-vllm/hf/Qwen3.6-35B-A3B-NVFP4', 'enable_auto_tool_choice': True, 'tool_call_parser': 'qwen3_xml', 'uds': '/home/ateliernum/lol-vllm-034/run/vllm.sock', 'model': '/home/ateliernum/lol-vllm/hf/Qwen3.6-35B-A3B-NVFP4', 'max_model_len': 131072, 'served_model_name': ['qwen36'], 'override_generat
+(EngineCore pid=671) INFO 11-21 03:33:42 [kv_cache_utils.py:1168] GPU KV cache size: 4,518,343 tokens, Maximum concurrency for 131,072 tokens per request: 34.47x
+(EngineCore pid=671) INFO 11-21 03:33:42 [factory.py:62] Creating v1 connector with name: OffloadingConnector and engine_id: 559b9177-ee58-4662-a3a4-70a6330e65df
+(EngineCore pid=671) INFO 11-21 03:33:42 [factory.py:57] Creating offloading spec with name: CPUOffloadingSpec
+(EngineCore pid=671) INFO 11-21 03:33:43 [shared_offload_region.py:183] Created mmap file /dev/shm/vllm_offload_559b9177-ee58-4662-a3a4-70a6330e65df.mmap (42.93 GB)
+(EngineCore pid=671) INFO 11-21 03:33:43 [shared_offload_region.py:217] Unlinked mmap file /dev/shm/vllm_offload_559b9177-ee58-4662-a3a4-70a6330e65df.mmap
+(EngineCore pid=671) INFO 11-21 03:34:18 [factory.py:62] Creating v1 connector with name: OffloadingConnector and engine_id: 559b9177-ee58-4662-a3a4-70a6330e65df
+(EngineCore pid=671) INFO 11-21 03:34:18 [factory.py:57] Creating offloading spec with name: CPUOffloadingSpec

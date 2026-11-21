@@ -79,6 +79,10 @@ As written, with four choices the session made, each for the owner to overturn:
 - **The go-ahead is the message, not a state:** a message that says exactly *Carry out the plan above.* is never
   planned, so Regenerate on it carries out too, and nothing is left armed by a click whose send failed.
 
+**dsh's own plan mode is off** since 2026-11-21 (`studio.ts` `buildPatch`, plugin `plan-mode`): LOL Vibe never enters
+it, and models called its `exit_plan_mode` in vain (Qwen3.6 in 4 tasks of 7 on the agent's runner), a refused step each
+time. The real-dsh test asserts it is no longer offered.
+
 Checked: the studio unit tests (the tools the real dsh offers, asserted: `write` and `edit` are the only ones that
 change files; the fence with the marker: write, edit, `create_goal` and the Computer's tools refused, reads allowed; the marker set, gone at the end, gone on Stop, and a leftover one cleared before a normal turn; the plan and
 its Go ahead in one session) and **the real dsh runtime** (`shell/dsh/build`) refusing the write in its Windows

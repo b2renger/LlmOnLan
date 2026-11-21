@@ -40,6 +40,9 @@ Verbatim from the release body:
   > For a class it would keep conversations evicted from the GPU's pool in the PRO 6000's system memory (94 GB) instead
   > of recomputing them: a trial (the replace and append runs at 128k past the pool, with and without it) before any
   > plan.
+  > **Tried the same night** (RESULTS ▸ *vLLM 0.34.0 against 0.33.0*): with `--kv-offloading-size 40` on Qwen3.6 at
+  > 128k the tier stored up to 36 GB in 10 s and was never read (0.0 % external hits on every sample); 28, 32 and 40
+  > people ~120k deep came out as without it (40: 239 s p95, the pool's collapse). Nothing for a hybrid as shipped.
 
 **Worth a trial** (a measurement, no farm change): a second trial root, Qwen3.6 and Qwen3.8 with the farm's flags, the
 same suite as 2026-11-19/20 (one person, 30 people, 30 deep, quality, seats). Then a plan for the bump if it wins.

@@ -9,6 +9,22 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-21 (03:56) — k3-control fixed; dsh's own plan mode off; vLLM 0.34's KV offload never hits on Qwen3.6 (night n° 12)
+
+- **k3-control** (plans ▸ Next 14), found in the code, not in a failure: `graph/parts/dialog.mjs` draws the answer
+  field (`.graph-part-answer`) at once and only hides its row while nobody is asked, so the scenario's
+  `waitFor(.graph-part-answer)` was true before any park. Step 5 then clicked Send before its run had parked (Send
+  answered nothing), and that run parked with nobody left to answer: `report()` waited 30 s, `__k3` null, as logged on
+  2026-11-19/20. The scenario now waits for `debug.computer.waits()`, and a new wait asserts the field is there with
+  nothing parked (it passed: the old wait was empty). 3/3 alone; **`--phase k` 223/223** in the full order (03:30–03:36).
+- **dsh's plan mode off** (`studio.ts`, plugin `plan-mode` in the patch's off list): on the agent runner tonight both
+  models called `exit_plan_mode` and were refused (*only available in plan mode*), Qwen3.6 in 4 of 7 tasks. The
+  real-dsh test (*Plan first on the REAL dsh*) gains an assertion that it is not offered: it failed first (*exit_plan_mode
+  still offered*), passes with the plugin off (studio 52/52). `test:chat` 1986 (1 skipped), lint 0.
+- **vLLM 0.34's KV offload, tried** (`--kv-offloading-size 40`; RESULTS): the tier stored but was never read (0.0 %
+  external hits), and 28 / 32 / 40 people ~120k deep came out as without it (40: 239 s p95). Long text after the churn
+  20/20. Not a lead for Qwen3.6 as shipped.
+
 ## 2026-11-21 (03:33) — vLLM 0.34.0 measured against 0.33.0: no gain worth a bump; pages from a picture, first pass (night n° 12, queue 1)
 
 RESULTS ▸ *vLLM 0.34.0 against 0.33.0, and pages from a picture*. The whole card, `~/lol-vllm-034` (installed 2026-11-20),

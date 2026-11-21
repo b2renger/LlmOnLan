@@ -1521,3 +1521,13 @@ shapes, their four hues); the look by eye from the renders (`results/lc1121-v034
 Through the coding agent the two picture tasks fail: dsh's `read_image` refuses, *model "qwen36" does not declare image
 input* (LOL Vibe declares no input for its model; PICTURE_TO_PAGE_PLAN step 2). Gemma 4 26B is not in this computer's
 vLLM folder (not run). Figma frames: none yet (the plan's question 2).
+
+**vLLM 0.34.0's KV offload to system memory, tried the same night** (`--kv-offloading-size 40`, the native
+`OffloadingConnector`, a 42.93 GB tier in `/dev/shm`; Qwen3.6 at 128k, the same flags and 50 GiB GPU pool; label
+`lc1121-v034off-*`): the levels that overflow the pool, 28 / 32 / 40 people ~120k deep, gave 5.32 / 6.03 / **239 s**
+first-word p95 (without it: 5.24 / 6.10 s on 0.34.0, 245 s at 40 on 0.33.0), the same collapse at 40. vLLM's own
+counters say why: the tier **stored** (up to 36 GB in a 10 s interval, 6 % full at most) but was **never read**
+(`kv_offload_cpu_cache_read_usage_perc` 0, *External prefix cache hit rate* 0.0 % on all 102 samples). The long-text
+check after the churn: 20/20. So for Qwen3.6, a hybrid, the offload as shipped in 0.34.0 brings nothing; why the
+stored blocks never match (perhaps the recurrent state, which a hybrid's prefix needs, is not in the tier) was not
+looked into.

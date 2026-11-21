@@ -697,6 +697,9 @@ export default (test) => {
       // fails closed without a review channel). A dsh pin that adds a tool fails here, so someone looks at it first.
       const KNOWN = ['edit', 'exit_plan_mode', 'glob', 'grep', 'read', 'read_image', 'skill', 'todo_write', 'write'];
       assert.deepEqual([...offered].filter((n) => !KNOWN.includes(n)), [], `a tool the fence was not checked against: ${[...offered].sort().join(' ')}`);
+      // dsh's own plan mode is off: LOL Vibe never enters it (Plan first is its own), and models called exit_plan_mode
+      // in vain, a refused step each time (Qwen3.6 in 4 tasks of 7, 2026-11-21).
+      assert.ok(!offered.has('exit_plan_mode'), `exit_plan_mode still offered: ${[...offered].sort().join(' ')}`);
       const fenced = JSON.parse(S.fenceHooks('n', 'f')).hooks.PreToolUse[0].matcher.split('|');
       for (const n of ['write', 'edit']) assert.ok(fenced.includes(n), `${n} goes through the fence`);
       const b = await r.studio.prompt({ projectId: PID, threadId: 'real-plan', model: 'm', text: 'Carry out the plan above.' });

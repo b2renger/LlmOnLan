@@ -135,6 +135,9 @@ export function buildPatch(o: { baseUrl: string; model: string; contextWindow: n
         'tool-workflow', 'workflow-ptc', 'tool-web', 'web-search-deepseek', 'web-fetch-http', 'web',
         'session-telemetry-otel', 'session-log-deepseek', 'plugin-package-inventory-deepseek',
         'llm-deepseek', 'llm-deepseek-account', 'deepseek-account',
+        // dsh's own plan mode: LOL Vibe never enters it (Plan first is LOL's, STUDENT_PLAN_MODE_PLAN), and its
+        // exit_plan_mode only ever came back refused, a lost step (Qwen3.6 in 4 tasks of 7, 2026-11-21).
+        'plan-mode',
     ];
     return [
         '# Written by LlmOnLan before every start of its coding agent (src/main/studio.ts). Edits are overwritten.',
