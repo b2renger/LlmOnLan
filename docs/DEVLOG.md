@@ -9,6 +9,26 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-21 (03:08) — Two plans for the owner, the picture plan's inputs and runner, vLLM 0.34's KV offload read (night n° 12)
+
+- **[BLENDER_TOOLS_ENV_PLAN](plans/BLENDER_TOOLS_ENV_PLAN.md)** (proposed): Blender's mcpo through
+  `TOOL_SERVER_CONNECTIONS` (env, as the Computer's), selected as `server:lol-blender` (0.13.4's id for an env OpenAPI
+  server, `routers/tools.py:149`), so 0.13.4 and later can come. The toggle would then restart Open WebUI.
+- **[PICTURE_TO_PAGE_PLAN](plans/PICTURE_TO_PAGE_PLAN.md)** (proposed; plans ▸ Next 18). Read on the way: an agent turn
+  sends only the message's text (`controller.mjs:594-599`), and **dsh's `read_image` refuses** for LOL Vibe's model:
+  it asks the route's `inputModalities` (`dsh-tool-fs` `assertImageCapableRoute`), and `dsh-llm-pi-ai` takes a model
+  as text-only (`DEFAULT_INPUT = ["text"]`) unless the patch declares `input`, which `buildPatch` does not.
+- **Step 1's inputs, made here so the truth is known:** `docs/spike/ide/pictures/ui.html` (a room-booking page) and
+  `scene.html` (three.js r160 from the client: a red cube, a blue sphere, a yellow cone, green ground), rendered to
+  1024×640 PNGs by `pictures/render.js` (the client's Electron, a hidden window; `ELECTRON_RUN_AS_NODE` cleared). Two
+  agent tasks, `t6-ui-shot` and `t7-scene`, with checks of what a script can see (10 texts, 3 fields, a Book button,
+  the teal and the orange; the four shapes and their four hues), both passing on the true pages; `run.js` copies a
+  task's `from-repo.txt` files (three.js, not a second 654 KB copy). **The runner** `runs/picture_page.mjs`: the
+  picture with the prompt through the chat API (as LOL Vibe's plain chat), the answer's page saved, checked, rendered;
+  proved against a stub serving the true pages (both checks pass, the render identical).
+- **vLLM 0.34's KV offload**, read in the installed source: `--kv-offloading-size <GiB>` (native = `OffloadingConnector`),
+  Mamba state handled, hybrid models need prefix caching. Not tried (TOOL_UPDATES_2026-11-20).
+
 ## 2026-11-21 (02:48) — Open WebUI 0.13.4: the document check passes, the bump is blocked (the Blender tools); the vLLM lifecycle 174/174 (night n° 12)
 
 - **0.13.4 in a scratch venv** (`pip install open-webui==0.13.4`, Python 3.12): `owui_doc_check.sh` **PASS** (with
