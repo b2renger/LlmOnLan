@@ -12,13 +12,21 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(here, '..', '..', '..');
-const [base, model, kind, label, samplesArg = '3', thinking = 'off'] = process.argv.slice(2);
-if (!base || !model || !['ui', 'scene'].includes(kind) || !label) {
-    console.log('usage: node picture_page.mjs <base /v1 URL> <model> <ui|scene> <label> [samples=3] [thinking=off|on]');
+// <task>: `ui` (t6-ui-shot), `scene` (t7-scene), or a task folder of docs/spike/ide/tasks with a truth.json naming its
+// picture and its kind (page or scene).
+const [base, model, task, label, samplesArg = '3', thinking = 'off'] = process.argv.slice(2);
+const TASKS = path.join(ROOT, 'docs', 'spike', 'ide', 'tasks');
+const taskDir = { ui: 't6-ui-shot', scene: 't7-scene' }[task] || task;
+const truthFile = path.join(TASKS, String(taskDir), 'truth.json');
+const truth = fs.existsSync(truthFile) ? JSON.parse(fs.readFileSync(truthFile, 'utf8')) : task === 'ui' ? { kind: 'page', picture: 'ui.png' } : task === 'scene' ? { kind: 'scene', picture: 'scene.png' } : null;
+if (!base || !model || !truth || !label) {
+    console.log('usage: node picture_page.mjs <base /v1 URL> <model> <ui|scene|task folder with a truth.json> <label> [samples=3] [thinking=off|on]');
     process.exit(2);
 }
-const TASK = path.join(ROOT, 'docs', 'spike', 'ide', 'tasks', kind === 'ui' ? 't6-ui-shot' : 't7-scene');
-const picture = path.join(TASK, 'seed', kind === 'ui' ? 'ui.png' : 'scene.png');
+const kind = truth.kind === 'page' ? 'ui' : 'scene';
+const TASK = path.join(TASKS, taskDir);
+const picture = path.join(TASK, 'seed', truth.picture);
+const tag = { ui: 'ui', scene: 'scene' }[task] || taskDir;   // the result folders' name: t6/t7 keep theirs
 const THREE = path.join(ROOT, 'shell', 'renderer', 'chat', 'sandbox', 'lib', 'three.min.js');
 const ASK = {
     ui: 'This picture is a screenshot of a web page. Make an index.html that reproduces it as closely as you can: the same layout, colours, texts and form fields. Plain HTML and CSS in one file, no framework, nothing loaded from the internet. Answer with the whole file in one ```html block.',
@@ -29,7 +37,7 @@ const electron = path.join(ROOT, 'shell', 'node_modules', 'electron', 'dist', pr
 const render = path.join(ROOT, 'docs', 'spike', 'ide', 'pictures', 'render.js');
 const dataUrl = `data:image/png;base64,${fs.readFileSync(picture).toString('base64')}`;
 
-const out = { label, model, kind, base, thinking, picture: path.relative(ROOT, picture), samples: [] };
+const out = { label, model, kind, task: taskDir, base, thinking, picture: path.relative(ROOT, picture), samples: [] };
 for (let i = 1; i <= Number(samplesArg); i++) {
     const t0 = Date.now();
     // One retry on a dropped connection (a reset once in six requests through serve.sh's relay, 2026-11-21).
@@ -46,7 +54,7 @@ for (let i = 1; i <= Number(samplesArg); i++) {
     const j = await r.json().catch(() => ({}));
     const text = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
     const m = /```html\s*([\s\S]*?)```/i.exec(text) || /(<!doctype html[\s\S]*<\/html>)/i.exec(text);
-    const dir = path.join(RES, `${label}-${kind}-${i}`);
+    const dir = path.join(RES, `${label}-${tag}-${i}`);
     fs.mkdirSync(dir, { recursive: true });
     const s = { n: i, status: r.status, secs: +((Date.now() - t0) / 1000).toFixed(1), completionTokens: j.usage ? j.usage.completion_tokens : null, html: !!m };
     if (m) {
@@ -61,7 +69,7 @@ for (let i = 1; i <= Number(samplesArg); i++) {
         if (!s.shot) s.shotError = (shot.stderr || shot.stdout || '').slice(-300);
     } else s.answer = text.slice(0, 400) || JSON.stringify(j).slice(0, 400);
     out.samples.push(s);
-    console.log(`[${label}] ${kind} ${i}: ${s.status} ${s.secs}s html=${s.html} check=${s.check ? JSON.stringify(s.check) : '-'} shot=${s.shot}`);
+    console.log(`[${label}] ${tag} ${i}: ${s.status} ${s.secs}s html=${s.html} check=${s.check ? JSON.stringify(s.check) : '-'} shot=${s.shot}`);
 }
-fs.writeFileSync(path.join(RES, `${label}-${kind}.json`), JSON.stringify(out, null, 1) + '\n');
-console.log(`[${label}] ${kind}: ${out.samples.filter((x) => x.check && x.check.pass).length}/${out.samples.length} pass the check → ${path.join(RES, `${label}-${kind}.json`)}`);
+fs.writeFileSync(path.join(RES, `${label}-${tag}.json`), JSON.stringify(out, null, 1) + '\n');
+console.log(`[${label}] ${tag}: ${out.samples.filter((x) => x.check && x.check.pass).length}/${out.samples.length} pass the check → ${path.join(RES, `${label}-${tag}.json`)}`);

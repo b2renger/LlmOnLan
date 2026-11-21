@@ -1,0 +1,1 @@
+{"kind":"scene","picture":"desk.png","geometries":["BoxGeometry","CylinderGeometry","ConeGeometry"],"light":true,"hues":[["brown/orange",15,45]]}

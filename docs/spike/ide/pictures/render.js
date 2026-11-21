@@ -8,6 +8,8 @@ const path = require('path');
 const [page, out, w = '1024', h = '640'] = process.argv.slice(2).filter((a) => !a.startsWith('--') && !/render\.js$/.test(a) && a !== '.');
 app.whenReady().then(async () => {
     const win = new BrowserWindow({ show: false, width: Number(w), height: Number(h), useContentSize: true, webPreferences: { offscreen: false } });
+    // A page whose script throws renders black: say why.
+    win.webContents.on('console-message', (e) => { if (e.level === 'error') console.log('[page]', e.message); });
     await win.loadFile(path.resolve(page));
     // A three.js page sets window.__rendered after its first frame; a plain page is ready once loaded.
     for (let i = 0; i < 50; i++) {

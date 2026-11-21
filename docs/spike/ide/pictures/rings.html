@@ -1,0 +1,37 @@
+<!doctype html>
+<!-- PICTURE_TO_PAGE_PLAN step 1: a third scene (rings.png). The truth: five cylinders in a row, shorter to taller, red,
+     orange, yellow, green, blue; a purple torus (a ring) floating above the middle one; a dark navy background, no floor. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Rings</title><style>html,body{margin:0;overflow:hidden;background:#000}</style></head>
+<body>
+<script src="../../../../shell/renderer/chat/sandbox/lib/three.min.js"></script>
+<script>
+  const W = 1024, H = 640;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  document.body.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0b1340);
+  const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+  camera.position.set(0, 2.6, 9);
+  camera.lookAt(0, 1.4, 0);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+  const key = new THREE.DirectionalLight(0xffffff, 1.1);
+  key.position.set(3, 6, 6);
+  scene.add(key);
+  const colours = [0xe63946, 0xf77f00, 0xfcbf49, 0x2a9d8f, 0x3a86ff];
+  colours.forEach((c, i) => {
+    const h = 0.8 + i * 0.55;
+    const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, h, 40), new THREE.MeshStandardMaterial({ color: c }));
+    cyl.position.set(-3.2 + i * 1.6, h / 2, 0);
+    scene.add(cyl);
+  });
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.18, 24, 64), new THREE.MeshStandardMaterial({ color: 0x9d4edd }));
+  ring.position.set(0, 3.6, 0);
+  ring.rotation.x = 0.35;
+  scene.add(ring);
+  renderer.render(scene, camera);
+  window.__rendered = true;
+</script>
+</body>
+</html>

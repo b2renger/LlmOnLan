@@ -1,0 +1,1 @@
+{"kind":"scene","picture":"rings.png","geometries":["CylinderGeometry","TorusGeometry"],"hues":[["red",340,15],["orange",15,38],["yellow",38,60],["teal",150,200],["blue",200,240],["purple",255,300]]}
