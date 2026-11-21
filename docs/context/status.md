@@ -23,6 +23,14 @@ DEVLOG 2026-11-17), with a **Repair Open WebUI's database** button for the lapto
 ([OWUI_REPAIR_PLAN](../plans/OWUI_REPAIR_PLAN.md), approved 2026-11-18). Next: HUMAN_TESTS A28 on the release. On v0.2.18
 and before, those laptops need the manual repair (A28's last lines).
 
+**Unreleased on `main`** (since v0.2.19 and farm-v0.0.54; 64 commits by 2026-11-21 03:00), each behind its human test
+and the owner's go. **Client:** LOL Vibe's page beside its code and the pop-out window (VIBE_PAGE_PLAN, HUMAN_TESTS
+A29); *Plan first* beside the message box, one per chat (G14); an attached document read once per chat
+(`RAG_SYSTEM_CONTEXT`, J16 step 6). **Farm:** Qwen3.8 drafting ahead and keeping its state in 16 bits (J19); 128k of
+context per person by default, Automatic 24 on the PRO 6000 (J16); a saved vLLM list running its built-ins with the
+current flags; the panel's seat text. **Open WebUI stays at 0.13.3:** 0.13.4 would drop the Blender tools
+([BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md), for the owner).
+
 The full plan is built, released and in multi-user testing. Where to look: the map of the docs,
 [docs/README.md](../../docs/README.md); the dated build log with how each piece was tested, [docs/DEVLOG.md](../../docs/DEVLOG.md);
 what a person must still check, [docs/HUMAN_TESTS.md](../../docs/HUMAN_TESTS.md) (★ = before the next release; its Part 4
