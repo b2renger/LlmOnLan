@@ -406,7 +406,12 @@ const NEMOTRON_ARGS = ['--kv-cache-dtype', 'fp8', '--enable-prefix-caching', '--
 // Qwen3.8 drafts 3 tokens ahead with the checkpoint's own MTP layer (VLLM_DRAFT_PLAN, owner 2026-11-18): twice the speed
 // alone and for 30 people at once, the same answers, a fifth to a third fewer people in the pool (vllm.js facts()).
 // Probabilistic drafts: HyperQwen's issue #73 measured greedy, vLLM's default, as the wrong one for sampled answers.
+// Its recurrent state in 16 bits, not 32 (QWEN38_FP16_STATE_PLAN, owner 2026-11-19/20; measured 2026-11-20 on the PRO
+// 6000, 50 GiB, 32k): vLLM counts 31.95 conversations instead of 24.69, 30 people ~28k deep pass (2.5 s, 50.9 tok/s)
+// where they failed, people at once 24 → ≥ 32, the long-text check unchanged (20/20 at ~28k). Not Qwen3.6: with
+// drafting it failed 30 people ~50k deep twice (2026-11-19).
 const QWEN38_ARGS = ['--kv-cache-dtype', 'fp8_e4m3', '--enable-prefix-caching', '--mamba-cache-mode', 'align',
+    '--mamba-ssm-cache-dtype', 'float16',
     '--reasoning-parser', 'qwen3', '--enable-auto-tool-choice', '--tool-call-parser', 'qwen3_coder',
     '--speculative-config', '{"method":"mtp","num_speculative_tokens":3,"draft_sample_method":"probabilistic"}'];
 // Gemma 4 (vLLM's own recipe, docs.vllm.ai Google/Gemma4): its thinking and tool-call parsers. The checkpoint's
@@ -443,7 +448,7 @@ const VLLM_LIBRARY = [
         id: 'qwen3.8-27b-nvfp4', label: 'Qwen3.8 27B · NVFP4', repo: 'nvidia/Qwen3.8-27B-NVFP4',
         sizeGb: 21.9, weightsGib: 20.7, vision: true, presencePenalty: null, args: QWEN38_ARGS,
         catalog: 'qwen3.8-27b', measured: 'qwen38',
-        note: 'The best answers of the three. Drafts ahead: about 155 tok/s alone and 94 each for 30 people on an RTX PRO 6000 (30 people 23k deep passed), for about a quarter more memory a person. Too slow on a DGX Spark.',
+        note: 'The best answers of the three. Drafts ahead and keeps its state in 16 bits: about 155 tok/s alone and 124 each for 30 people on an RTX PRO 6000, 32 people at 32k (30 people 28k deep passed). Keep it at 32k: at 64k 20 people 50k deep failed. Too slow on a DGX Spark.',
     },
     {
         id: 'gemma-4-12b', label: 'Gemma 4 12B · NVFP4', repo: 'unsloth/gemma-4-12b-it-NVFP4',

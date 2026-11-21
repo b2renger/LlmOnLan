@@ -77,7 +77,13 @@
     (`--speculative-config` method `mtp`, 3 tokens, probabilistic: about twice the speed alone and for 30 people, the same
     quality gate); `vllm.js` `facts()` reads the flag and charges what drafting costs (× (L + 1) / L a token, + 3 state
     pages a draft token, `DRAFT_RUNTIME_GIB` 5.5 beside the weights), a Qwen3.8 folder an operator adds gets no drafting
-    (`withoutDraft`), and the snapshot's `backend.mtp` says so; not tested on a Spark. A list saved before
+    (`withoutDraft`), and the snapshot's `backend.mtp` says so; not tested on a Spark. Since 2026-11-21 (night n° 12,
+    [QWEN38_FP16_STATE_PLAN](../plans/QWEN38_FP16_STATE_PLAN.md)) it also keeps its **recurrent state in 16 bits**
+    (`--mamba-ssm-cache-dtype float16`; vLLM counted 31.95 conversations of 32k on 50 GiB instead of 24.69, 30 people
+    ~28k deep pass where they failed, the long-text check unchanged): `facts()` halves the state charge when the flag
+    says `float16` or `bfloat16`, and Qwen3.8's 32k label is ≥ 32 (vLLM 0.33.0, `measured-extra.json`), so Automatic
+    seats 32 at 32k. Qwen3.6 keeps 32 bits (it failed 30 people ~50k deep with the flag). Qwen3.8 belongs at 32k: at
+    64k, 20 people 50k deep failed with and without the flag. A list saved before
     a version added models gets them at the next start, except the ids in `vllm.removed` (a Remove of a built-in);
     and sets people at once, context per person and GPU memory for conversations
     (Automatic: measured seats capped by what the pool holds; the pool from free memory less the model, ~4 GB,

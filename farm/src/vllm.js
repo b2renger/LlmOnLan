@@ -289,16 +289,22 @@ const DRAFT_RUNTIME_GIB = 5.5;
 // the fp8 figure when the model's flags keep the context in 16 bits), and what vLLM charges each request for the
 // model's recurrent state. MTP drafting (VLLM_DRAFT_PLAN) costs each person more: its layer is one more full-attention
 // layer (× (L + 1) / L), and each draft token holds 3 more pages of recurrent state, half the 6-page charge (vLLM's own
-// admission count, 2026-11-18: 12 → 21 blocks a request with 3 drafts; 31 → 22 people at 32k on a 50 GiB pool).
+// admission count, 2026-11-18: 12 → 21 blocks a request with 3 drafts; 31 → 22 people at 32k on a 50 GiB pool). A
+// recurrent state kept in 16 bits (--mamba-ssm-cache-dtype float16 or bfloat16, QWEN38_FP16_STATE_PLAN) costs half:
+// vLLM's own count rose 24.69 → 31.95 at 32k and 16.32 → 19.10 at 64k for Qwen3.8 on 50 GiB (2026-11-20); halving the
+// charge gives 1.25 and 1.14 times, a little under vLLM's 1.29 and 1.17. ponytail: the whole charge halves, its small
+// conv share too; the upgrade path is the catalog's state split into its SSM and conv parts.
 function facts(entry) {
     const m = entry && entry.catalog && CATALOG.models.find((x) => x.id === entry.catalog);
     const draft = draftOf(entry && entry.args);
     const draftGib = draft && draft.method === 'mtp' ? DRAFT_RUNTIME_GIB : 0;
     if (!m || !m.kv_bytes_per_token_fp8) return { kvBytesPerToken: null, stateBytes: null, nativeCtx: m ? m.context_native ?? null : null, draftGib };
-    const fp8 = /^fp8/.test(String(flagMap(entry.args || [])['--kv-cache-dtype'] || ''));
+    const flags = flagMap(entry.args || []);
+    const fp8 = /^fp8/.test(String(flags['--kv-cache-dtype'] || ''));
+    const state16 = /^b?float16$/.test(String(flags['--mamba-ssm-cache-dtype'] || ''));
     const mtp = draft && draft.method === 'mtp' ? draft.tokens : 0;
     const full = (m.arch && m.arch.full_attn_layers) || 0;
-    const charge = m.vllm_state_charge_bytes ?? 2 * (m.recurrent_state_bytes || 0);
+    const charge = (m.vllm_state_charge_bytes ?? 2 * (m.recurrent_state_bytes || 0)) / (state16 ? 2 : 1);
     return {
         kvBytesPerToken: m.kv_bytes_per_token_fp8 * (fp8 ? 1 : 2) * (mtp && full ? (full + 1) / full : 1),
         // Plus the sliding-window layers' share, which stops growing past the window (Gemma 4: 168 MB a person;

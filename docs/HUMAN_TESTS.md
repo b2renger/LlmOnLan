@@ -1880,6 +1880,9 @@ It costs each person about 6 % of speed at 30 (RESULTS ▸ *LiteLLM 1.106.9 agai
 *Proves:* [VLLM_DRAFT_PLAN](plans/VLLM_DRAFT_PLAN.md) where it matters: a real laptop on the farm, Open WebUI and LOL
 Vibe (the coding agent too) on Qwen3.8 drafting with its MTP layer. Measured without a person (night n° 10, RESULTS ▸
 *Qwen3.8 drafting ahead*): 155 tok/s alone against 67, 94 each for 30 against 51, the agent's five tasks 5/5 in 158 s.
+**Since 2026-11-21 its recurrent state is kept in 16 bits** ([QWEN38_FP16_STATE_PLAN](plans/QWEN38_FP16_STATE_PLAN.md)):
+measured without a person on 2026-11-20, 124 tok/s each for 30 at once, and 30 people ~28k deep pass where they failed;
+Automatic now seats **32** at 32k, not 16.
 *Needs:* the PRO 6000 with nobody on it, this checkout, a laptop with the client, 20 minutes. The installed Farm app
 does not have it yet: a **test farm from this checkout** stands in for it, and the Farm app, its settings and
 production's vLLM stay untouched. Like every farm it starts an Ollama beside its engine: the `ollama` on PATH (the
@@ -1893,17 +1896,21 @@ there (8 GB): `ollama rm gemma4:12b` after the test if you do not want it. Its L
 1. Quit the Farm app (its tray icon ▸ Quit). In a terminal at the checkout: `node docs/spike/runs/draft_test_farm.mjs start`.
    The first time, it writes `%USERPROFILE%\lol-test-farm\lol.config.json` (your farm's name with *(test: drafting)*,
    the same ports and beacon, Qwen3.8 at 32k, web search and the other plugins off) and starts that farm in the
-   window. Wait for *vLLM is ready … 16 people at once* (10 to 15 minutes: the rehearsal took 12).
+   window. Wait for *vLLM is ready … 32 people at once* (10 to 15 minutes: the rehearsal took 12; a checkout from
+   before 2026-11-21 says 16).
 2. On the laptop, click the connection status at the top (its dot and text): the farms found are cards in that
    popover. Click the card **… (test: drafting)** once: to the client it is another farm (it has its own id), so a
    click pins it. After the test, click **Automatic — least busy farm** there to undo the pin.
 3. In Open WebUI, ask something long (*"Explain photosynthesis to a 12-year-old, in 400 words"*), then the same with
    thinking. In LOL Vibe, a project: *"Write a small web page with a button that counts clicks"*. If you can, two or
    three laptops at once.
-4. Read the panel (`http://<farm>:41997/lol/admin`, the Farm app's password): the model, *16 people at once*.
+4. Read the panel (`http://<farm>:41997/lol/admin`, the Farm app's password): the model, *32 people at once*
+   (Automatic: *Measured on this card with this model: ≥ 32 at 32k*).
 
 *Expect:* answers come about twice as fast as Qwen3.8 did on 14 November (alone it streams ~155 tokens a second,
-about 110 words; Qwen3.6 today ~250 tokens); thinking stays in its fold, never in the answer; LOL Vibe's agent writes its files. **The way
+about 110 words; Qwen3.6 today ~250 tokens); with two or three laptops at once each still streams far faster than you
+read; thinking stays in its fold, never in the answer; LOL Vibe's agent writes its files; the panel says 32 people at
+once. **The way
 back:** `node docs/spike/runs/draft_test_farm.mjs stop` in the same terminal folder, then start the Farm app (it brings
 back Qwen3.6 as it was). In the test farm's panel, **do not Download or Remove a model**: its vLLM folder links to
 production's models. Write on *Found* how fast it felt, and any answer that came out wrong or cut.

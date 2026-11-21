@@ -4326,11 +4326,25 @@ test('vLLM sizing: the pool, people per pool, Automatic seats and vLLM\'s own ca
     assert.equal(V.facts({ ...lib[0], args: [] }).kvBytesPerToken, 20480, 'no fp8 flag: 16-bit context memory');
     // Qwen3.8 drafts with its MTP layer, 3 tokens (VLLM_DRAFT_PLAN): one more full-attention layer of the 16, and 3 more
     // pages of state a draft token; vLLM's own admission count fell 31 → 22 people at 32k on 50 GiB, 19 → 15 at 64k.
-    const q38 = V.facts(lib[2]);
-    assert.deepEqual(q38, { kvBytesPerToken: 34816, stateBytes: 770703360, nativeCtx: 262144, draftGib: 5.5 }, 'fp8_e4m3 is fp8, plus the MTP layer');
-    const plain38 = V.facts({ ...lib[2], args: lib[2].args.filter((a, i, all) => a !== '--speculative-config' && all[i - 1] !== '--speculative-config') });
+    // Its state in 16 bits (QWEN38_FP16_STATE_PLAN): B = the flags before 2026-11-21, G = the farm's.
+    const without = (flag) => lib[2].args.filter((a, i, all) => a !== flag && all[i - 1] !== flag);
+    const q38B = V.facts({ ...lib[2], args: without('--mamba-ssm-cache-dtype') });
+    assert.deepEqual(q38B, { kvBytesPerToken: 34816, stateBytes: 770703360, nativeCtx: 262144, draftGib: 5.5 }, 'fp8_e4m3 is fp8, plus the MTP layer');
+    const plain38 = V.facts({ ...lib[2], args: without('--mamba-ssm-cache-dtype').filter((a, i, all) => a !== '--speculative-config' && all[i - 1] !== '--speculative-config') });
     assert.equal(plain38.kvBytesPerToken, 32768, 'without drafting: the catalog figure');
-    assert.deepEqual([32768, 65536].map((c) => [V.peopleFit(50, c, plain38), V.peopleFit(50, c, q38)]), [[38, 28], [21, 17]], 'drafting costs about what vLLM counted');
+    assert.deepEqual([32768, 65536].map((c) => [V.peopleFit(50, c, plain38), V.peopleFit(50, c, q38B)]), [[38, 28], [21, 17]], 'drafting costs about what vLLM counted');
+    const q38 = V.facts(lib[2]);
+    assert.deepEqual(q38, { ...q38B, stateBytes: 770703360 / 2 }, 'float16: half the state charge, drafts included; the context memory unchanged');
+    assert.equal(V.facts({ ...lib[2], args: [...without('--mamba-ssm-cache-dtype'), '--mamba-ssm-cache-dtype', 'bfloat16'] }).stateBytes, 770703360 / 2);
+    assert.equal(V.facts({ ...lib[2], args: [...without('--mamba-ssm-cache-dtype'), '--mamba-ssm-cache-dtype', 'float32'] }).stateBytes, 770703360);
+    // Against vLLM's own count on 50 GiB (2026-11-20, step 1.4): G/B 31.95/24.69 = 1.29 at 32k, 19.10/16.32 = 1.17 at
+    // 64k. The farm's count rises a little less (never more) than vLLM's.
+    for (const [c, vllmRatio] of [[32768, 31.95 / 24.69], [65536, 19.10 / 16.32]]) {
+        const per = (f) => c * f.kvBytesPerToken + f.stateBytes;   // one person's whole conversation, unrounded
+        const ratio = per(q38B) / per(q38);
+        assert.ok(ratio > 1.1 && ratio <= vllmRatio && ratio > vllmRatio * 0.95, `${c}: ${ratio} against vLLM's ${vllmRatio}`);
+    }
+    assert.deepEqual([32768, 65536].map((c) => V.peopleFit(50, c, q38)), [35, 20]);
     assert.ok(lib[2].args.includes('--speculative-config') && JSON.parse(V.flagMap(lib[2].args)['--speculative-config']).draft_sample_method === 'probabilistic');
     assert.ok(!V.familyArgs('Qwen3.8-27B-AWQ').includes('--speculative-config'), 'another Qwen3.8 checkpoint may have no MTP layer: no drafting');
     assert.ok(!V.newLibraryEntry({ folder: 'Qwen3.8-27B-Uncensored' }, lib, []).entry.args.includes('--speculative-config'));
@@ -4347,6 +4361,7 @@ test('vLLM sizing: the pool, people per pool, Automatic seats and vLLM\'s own ca
     assert.deepEqual(seats(lib[1], PRO, 65536), { seats: 16, source: 'measured', label: '16' }, 'Nemotron at 64k');
     assert.deepEqual(seats(lib[1], 'NVIDIA GB10', 65536), { seats: 4, source: 'measured', label: '< 8' }, '"< 8": half of it');
     assert.deepEqual(seats(lib[2], PRO, 65536), { seats: 24, source: 'measured', label: '≥ 24' }, '"≥ 24": 24');
+    assert.deepEqual(seats(lib[2], PRO, 32768, 35), { seats: 32, source: 'measured', label: '≥ 32' }, 'Qwen3.8 at 32k with its state in 16 bits (vLLM 0.33.0, 2026-11-20), in place of 0.30\'s 16');
     assert.equal(seats(lib[0], PRO, 8192).seats, 96, 'a smaller context counts on the nearest measured one above');
     assert.deepEqual(seats(lib[0], PRO, 65536, 10), { seats: 10, source: 'memory', label: '48' }, 'never more than the pool holds (8 GB → 10)');
     assert.deepEqual(seats(lib[0], PRO, 262144, 30), { seats: 16, source: 'memory', label: null }, 'past the measured contexts');

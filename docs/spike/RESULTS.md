@@ -1423,6 +1423,11 @@ The whole card (the owner quit the Farm app at 08:42), vLLM 0.33.0 on the trial 
 (`QWEN36_ARGS`; `QWEN38_ARGS` with MTP drafting), a 50 GiB pool (the live farm's), `--max-num-seqs 192`. Files:
 `results/lc1120-*`. Pass = first word p95 < 5 s and p10 ≥ 15 tok/s. Plans: CONTEXT_128K_PLAN, QWEN38_FP16_STATE_PLAN.
 
+**In the farm since night n° 12 (2026-11-21):** the labels through `build_measured.py`'s own rule (every turn = the
+first follow-up and the later one both pass): Qwen3.6 at 128k **24** (steady 32), Qwen3.8 + fp16 state at 32k **≥ 32**
+(without the flag 24). Both in `docs/spike/explorer/measured-extra.json`, merged into the farm's `measured.json`; the
+vLLM default context is 128k and `QWEN38_ARGS` carries `--mamba-ssm-cache-dtype float16`.
+
 **Qwen3.6 35B-A3B at `--max-model-len 131072`:** vLLM counts 34.47 conversations of 128k (4,518,343 tokens).
 
 | Test | Result |

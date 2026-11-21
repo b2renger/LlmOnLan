@@ -55,7 +55,8 @@ file stays the whole list.
 - **Qwen3.8's recurrent state in fp16** ([QWEN38_FP16_STATE_PLAN](QWEN38_FP16_STATE_PLAN.md)): **step 1 passed
   2026-11-20 at 32k** (30 people 28k deep pass with the flag, fail without; people at once 24 → ≥ 32; the long-text
   check unchanged; at 64k both fail alike). Steps 2–4 in night n° 12, after CONTEXT_128K_PLAN (confirmed by the owner
-  2026-11-20 12:46). **S**.
+  2026-11-20 12:46). **S**. **Built in night n° 12** (unreleased): the flag, `facts()` halving the state charge, the 32k
+  label ≥ 32 (Automatic 32); HUMAN_TESTS J19 for the owner.
 - **A plan mode for students in LOL Vibe** ([STUDENT_PLAN_MODE_PLAN](STUDENT_PLAN_MODE_PLAN.md), approved by the owner
   2026-11-20 12:46, as written): a *Plan first* switch, the fence refusing writes while the agent plans, *Go ahead*
   and *Change the plan*. **M**. **Built by day, 2026-11-20** (unreleased; the plan's *Built* says the four choices

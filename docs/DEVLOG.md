@@ -9,6 +9,25 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-21 (02:28) — Qwen3.8 keeps its recurrent state in 16 bits (night n° 12, side task)
+
+QWEN38_FP16_STATE_PLAN steps 2–4 (step 1 passed 2026-11-20; confirmed by the owner 12:46).
+- `QWEN38_ARGS` + `--mamba-ssm-cache-dtype float16`, its comment with step 1's numbers; the entry's note: 124 tok/s
+  each for 30, 32 people at 32k, keep it at 32k.
+- `vllm.js` `facts()`: the state charge (drafts included) halves when the flag says `float16` or `bfloat16`. Checked
+  against step 1.4 (vLLM's *Maximum concurrency* on 50 GiB, B 24.69 / 16.32, G 31.95 / 19.10): one person's
+  conversation shrinks 1.252× at 32k and 1.144× at 64k, against vLLM's 1.294× and 1.170×, a little under. The test
+  compares the unrounded memory per person (the rounded counts, 20/17 at 64k, overshot vLLM's ratio: the first
+  version of the assertion failed on that). The advisor's point: `facts()` is tuned to vLLM's admission count, the
+  1.4 numbers are its concurrency line, so the test asserts ratios, not counts.
+- Qwen3.8's 32k label: G's run through the generator's rule, every turn ≥ 32 (B: 24), in `measured-extra.json` (one
+  line of the scratch script that made Qwen3.6's 128k point); the farm's copy changed in Qwen3.8's 32k cells only.
+  Automatic on a 46 GiB pool: 32 at 32k (measured), 18 at 64k and 9 at 128k (memory).
+- Docs: farm.md, farm/README, RESULTS, the plan's *Built*, HUMAN_TESTS J19 (32 people at once). Farm **290/290**.
+- **Finding, not built:** Qwen3.8's 64k label (≥ 24, vLLM 0.30, no drafting) is stale; memory caps it at ~18 on the
+  farm's pool, and 20 people 50k deep failed at 64k on 2026-11-20. And with vLLM's default at 128k, an operator who
+  picks Qwen3.8 in the list gets 128k (≈ 9 seats) unless they set 32k: the context is one setting for all models.
+
 ## 2026-11-21 (02:22) — 128k of context per person by default; Open WebUI reads a document once per chat (night n° 12)
 
 CONTEXT_128K_PLAN, approved 2026-11-19 (steps 1, 2, 4–6) and 2026-11-20 12:46 (step 3, "24, 128k can be the default").

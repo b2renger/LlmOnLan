@@ -711,5 +711,95 @@
    }
   },
   "note": "vLLM 0.33.0 (2026-11-20, a trial root beside the farm's): nvidia/Qwen3.6-35B-A3B-NVFP4 with the farm's flags (QWEN36_ARGS), --max-model-len 131072, a 50 GiB pool (the live farm's; 4,518,343 tokens, vLLM's count 34.47 conversations of 128k), --append ~120k deep. Replaces vLLM 0.30.0's 32 of 2026-10-04, which ran on a 58 GiB pool. 28 and 30 at once missed the first follow-up's 5 s by 0.4 and 0.9 s (CONTEXT_128K_PLAN)."
+ },
+ {
+  "id": "pro6000/vllm/qwen38",
+  "box": "pro6000",
+  "engine": "vllm",
+  "model": "qwen38",
+  "people": {
+   "followup_32k": {
+    "every": {
+     "pass": 32,
+     "fail": null,
+     "label": "≥ 32",
+     "tested": [
+      16,
+      24,
+      32
+     ]
+    },
+    "steady": {
+     "pass": 32,
+     "fail": null,
+     "label": "≥ 32",
+     "tested": [
+      16,
+      24,
+      32
+     ]
+    },
+    "profile": "followup_32k_append"
+   }
+  },
+  "profiles": {
+   "followup_32k_append": {
+    "levels": [
+     {
+      "c": 16,
+      "ttft_p95": 2.549,
+      "dec_p10": 52.85,
+      "r1": {
+       "ttft_p95": 2.553,
+       "dec_p10": 51.91,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.716,
+       "dec_p10": 60.43,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 24,
+      "ttft_p95": 3.65,
+      "dec_p10": 39.9,
+      "r1": {
+       "ttft_p95": 3.655,
+       "dec_p10": 38.71,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.659,
+       "dec_p10": 44.4,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     },
+     {
+      "c": 32,
+      "ttft_p95": 4.188,
+      "dec_p10": 29.9,
+      "r1": {
+       "ttft_p95": 4.219,
+       "dec_p10": 27.44,
+       "pass": true
+      },
+      "r2": {
+       "ttft_p95": 0.605,
+       "dec_p10": 36.06,
+       "pass": true
+      },
+      "pass_every": true,
+      "pass_steady": true
+     }
+    ],
+    "source": "docs/spike/results/lc1120-G32-label30k__bench__followup-append__think-default__20261120-093705.json"
+   }
+  },
+  "note": "vLLM 0.33.0 (2026-11-20, a trial root beside the farm's): nvidia/Qwen3.8-27B-NVFP4 with the farm's flags (QWEN38_ARGS: MTP drafting, 3 tokens) and --mamba-ssm-cache-dtype float16 (QWEN38_FP16_STATE_PLAN step 1.3), --max-model-len 32768, a 50 GiB pool (vLLM's count 31.95 conversations of 32k), --append ~30k deep. 16, 24 and 32 all passed; without the flag 32 failed (24). Replaces vLLM 0.30.0's 16 of 2026-10-04 (no drafting)."
  }
 ]

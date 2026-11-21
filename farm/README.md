@@ -275,7 +275,7 @@ tools and see pictures where they can, with gate scores within a point or two of
 |---|---|---|---|
 | Qwen3.6 35B-A3B (the default) | yes | no | 24 people at 128k (vLLM 0.33.0) and 48 at 64k on an RTX PRO 6000, 8 at 64k on a DGX Spark |
 | Nemotron 3.5 Lightning 30B-A3B | no | no | 160 at 32k on an RTX PRO 6000, 16 on a DGX Spark |
-| Qwen3.8 27B | yes | no | 16 at 32k on an RTX PRO 6000; too slow on a Spark. **Drafts ahead** with its own MTP layer (since 2026-11-19, below) |
+| Qwen3.8 27B | yes | no | 32 at 32k on an RTX PRO 6000 (vLLM 0.33.0, drafting, its state in 16 bits since 2026-11-21); too slow on a Spark. **Drafts ahead** with its own MTP layer (since 2026-11-19, below) |
 | Gemma 4 12B (`unsloth/gemma-4-12b-it-NVFP4`, 9.3 GB) | yes | yes | 16 at 32k, 8 at 64k on an RTX PRO 6000 (≥ 64 / ≥ 48 once the first follow-up is past) |
 | Qwen3-Omni 30B-A3B (`Qwen/Qwen3-Omni-30B-A3B-Instruct`, 70.5 GB, FP8 at load) | yes | yes, and writes down speech | 20 at 32k, 10 at 64k on an RTX PRO 6000 in a 30 GiB pool: its memory binds first (~30 / ~14 on a PRO 6000 of its own) |
 | Flint 40B-A2.5B (`RecursiveSI/flint-nvfp4-gguf` + `RecursiveSI/flint`'s config, 22.9 GB) | no | no | 40 at 32k, 20 at 64k on an RTX PRO 6000, its memory the limit (bf16 context only) |

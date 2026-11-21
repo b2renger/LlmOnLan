@@ -90,3 +90,19 @@ bar (G no worse than B anywhere, better at 32k), so **steps 2–4 go ahead** und
 
 Not in this plan: Qwen3.6, until its 50k failure is explained. Not other hybrids either (Nemotron's Mamba-2 state):
 nothing was measured on them.
+
+## Steps 2–4 built (night n° 12, 2026-11-21; unreleased)
+
+- **Step 2:** `QWEN38_ARGS` gains `--mamba-ssm-cache-dtype float16`; the entry's note says it, and that Qwen3.8 belongs
+  at 32k.
+- **Step 3:** `facts()` halves the state charge (drafts included) when the flag says `float16` or `bfloat16`. Against
+  step 1.4's counts on 50 GiB the farm's memory per person shrinks 1.25 times at 32k and 1.14 at 64k, where vLLM's own
+  count rose 1.29 and 1.17: a little under, never over (a farm test asserts it, with B and G side by side). Qwen3.8's
+  32k label is G's **≥ 32** (16, 24, 32 all pass; B gave 24), in `measured-extra.json`; Automatic seats 32 at 32k.
+- **Step 4:** farm.md, farm/README, RESULTS, the entry's note; HUMAN_TESTS J19 expects 32 people at once.
+- Farm 290/290. Not run: a farm started from the panel with the flag (J19).
+- **Left as it was, a finding:** Qwen3.8's 64k label (≥ 24, vLLM 0.30.0, no drafting) is stale: memory caps Automatic
+  at about 18 on the farm's pool, and on 2026-11-20 20 people 50k deep failed at 64k with and without the flag. With
+  vLLM's default now 128k, an operator who picks Qwen3.8 gets 128k and about 9 seats unless they set 32k: the context
+  is one setting for every model.
+
