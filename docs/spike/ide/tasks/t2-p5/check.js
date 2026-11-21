@@ -25,6 +25,10 @@ function run() {
     ctx.int = (n) => Math.trunc(Number(n)); ctx.float = Number; ctx.str = String; ctx.millis = () => ctx.frameCount * 16.7; ctx.deltaTime = 16.7;
     ctx.PI = Math.PI; ctx.TWO_PI = 2 * Math.PI; ctx.HALF_PI = Math.PI / 2; ctx.QUARTER_PI = Math.PI / 4; ctx.mouseX = 0; ctx.mouseY = 0; ctx.keyIsDown = () => false;
     ctx.dist = (a, b, c, d) => Math.hypot(c - a, d - b);
+    // The page's DOM, as far as p5's elements go: `slider.parent(document.querySelector('body'))` runs in a browser,
+    // and a stub without `document` failed a right answer (Qwen3.6, 2026-11-21).
+    ctx.document = { body: el({}), querySelector: () => el({}), getElementById: () => el({}), createElement: () => el({}) };
+    ctx.window = ctx;
     ctx.abs = Math.abs; ctx.sqrt = Math.sqrt; ctx.min = Math.min; ctx.max = Math.max; ctx.round = Math.round; ctx.floor = Math.floor; ctx.sign = Math.sign;
     ctx.createVector = (x = 0, y = 0) => ({ x, y, mag() { return Math.hypot(this.x, this.y); }, setMag(m) { const k = m / (Math.hypot(this.x, this.y) || 1); this.x *= k; this.y *= k; return this; }, normalize() { return this.setMag(1); }, mult(k) { this.x *= k; this.y *= k; return this; }, add(v) { this.x += v.x; this.y += v.y; return this; }, copy() { return ctx.createVector(this.x, this.y); }, set(a, b) { this.x = a; this.y = b; return this; } });
     ctx.LEFT = 'left'; ctx.CENTER = 'center'; ctx.RIGHT = 'right'; ctx.TOP = 'top';
