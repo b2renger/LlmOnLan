@@ -394,7 +394,7 @@ another cause: send its `logs/owui.log`.
 
 ### A29 A page from an answer, its code beside it, edited live
 *Proves:* [VIBE_PAGE_PLAN](plans/VIBE_PAGE_PLAN.md) on a real model's page: an error says its block and line, the page
-and its code are side by side, a change runs as you type and stays with the chat, and the page pops out to a window. **A build is ready:** `shell/dist/LlmOnLan-Setup-0.2.20-n12-windows-x64.exe` in the owner's checkout (built 2026-11-21 05:04 from `main` at `8c157ee`, local and unsigned, version 0.2.20-n12): it installs over v0.2.19 and keeps its data, takes Open WebUI from v0.2.19's release, and the real v0.2.20 updates it later. *Needs:* the next client release
+and its code are side by side, a change runs as you type and stays with the chat, and the page pops out to a window. **A build is ready:** `shell/dist/LlmOnLan-Setup-0.2.19+n12-windows-x64.exe` in the owner's checkout (built 2026-11-21 05:07 from `main` at `8c157ee`, local and unsigned, version `0.2.19+n12`: the updater reads it as 0.2.19, so it offers nothing until v0.2.20 ships, then updates to it). It installs over v0.2.19 and keeps its data, and takes Open WebUI from v0.2.19's release. **Not** the `0.2.20-n12` file beside it: that version counts as a prerelease channel of its own and would never update. *Needs:* the next client release
 (v0.2.20), or that build on Windows, and any farm, 10 minutes (a Mac too if you can, on the release). *Was:* new (2026-11-18; the harness scenarios `k30-page-*`
 and `shell/test/page-window-e2e.cjs` run it on a scripted answer, not on a model's, on Windows).
 
@@ -1441,7 +1441,7 @@ min and one at about +180 min (*1 sent*, then *2 sent*), each with its reply; lo
 ### G14 Plan first: the agent proposes, the student approves (five minutes, a student's laptop)
 *Proves:* with **Plan first** on, the coding agent reads the project and answers with a plan, and changes nothing until
 **Go ahead** (STUDENT_PLAN_MODE_PLAN; the fence that refuses its writes is tested on the real agent runtime and in the
-harness, the plan's wording on a real model is not). **A build is ready:** `shell/dist/LlmOnLan-Setup-0.2.20-n12-windows-x64.exe` in the owner's checkout (built 2026-11-21 05:04 from `main` at `8c157ee`, local and unsigned, version 0.2.20-n12): it installs over v0.2.19 and keeps its data, takes Open WebUI from v0.2.19's release, and the real v0.2.20 updates it later. *Needs:* a client build with Plan first (after v0.2.19); a farm
+harness, the plan's wording on a real model is not). **A build is ready:** `shell/dist/LlmOnLan-Setup-0.2.19+n12-windows-x64.exe` in the owner's checkout (built 2026-11-21 05:07 from `main` at `8c157ee`, local and unsigned, version `0.2.19+n12`: the updater reads it as 0.2.19, so it offers nothing until v0.2.20 ships, then updates to it). It installs over v0.2.19 and keeps its data, and takes Open WebUI from v0.2.19's release. **Not** the `0.2.20-n12` file beside it: that version counts as a prerelease channel of its own and would never update. *Needs:* a client build with Plan first (after v0.2.19); a farm
 with Qwen3.6 or qwen3.8; a project with an index.html (any page the agent made). *Was:* new (2026-11-20); the switch
 moved from the Project panel's bar to beside the message box, one per chat, on 2026-11-21 (as the plan was approved).
 1. In the project's chat, **Plan first** beside the message box (it turns to *Plan first: on*, and a line above the
