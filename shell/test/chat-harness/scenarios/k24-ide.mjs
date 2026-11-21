@@ -387,6 +387,7 @@ export default [
             h.eq((await panel(h)).planFirst, true, 'on for this chat');
             h.eq(await h.eval(() => (document.querySelector('#lolchat .chat-composer-tools .chat-plan-first') || {}).getAttribute('aria-pressed')), 'true', 'the switch shows it');
             h.assert(/changes nothing/.test(await h.eval(() => (document.querySelector('#lolchat .chat-composer-above') || {}).textContent || '')), 'the note above the message box says what it does');
+            await h.screenshot('k24-plan-first-on');
 
             // 1. The plan: the agent's write is refused, and the reply says why in its step log.
             await send(h, 'write planned.txt: approved');
@@ -398,6 +399,7 @@ export default [
             const actions = (/** @type {number} */ k) => h.eval((i) => Array.from(document.querySelectorAll('#lolchat .chat-msg.assistant')[i].querySelectorAll('.chat-action')).map((b) => b.getAttribute('data-action')), k);
             const first = await actions(0);
             h.assert(first.includes('plan-go-ahead') && first.includes('plan-change'), `the plan carries its two buttons: ${first}`);
+            await h.screenshot('k24-plan-first-plan');
 
             // 2. Change the plan: the cursor goes to the message box.
             await h.eval(() => { /** @type {HTMLButtonElement} */ (document.querySelectorAll('#lolchat .chat-msg.assistant')[0].querySelector('[data-action="plan-change"]')).click(); return true; });
