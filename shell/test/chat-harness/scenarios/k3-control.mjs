@@ -171,8 +171,14 @@ export default [
             await open(h);
             const dlg = await h.computer.place('dialog', 200, 120);
             await h.computer.set(dlg, { question: 'Which door?', default: 'left' });
+            // The Dialog draws its answer field from the start and only hides it while nobody is asked
+            // (dialog.mjs), so the field being there says nothing: wait for the PARK. Waiting on the field
+            // let step 5 answer before its run had parked, and that run then waited for ever (the
+            // order-dependent failure of 2026-11-19/20, plans ▸ Next 14).
+            await h.waitFor(() => (document.querySelector('#lolcomputer .graph-part-answer') && !window.LolComputer.debug.computer.waits().length ? true : null), { timeout: 5000 });
+            const parked = () => h.waitFor(() => (window.LolComputer.debug.computer.waits().length ? true : null), { timeout: 15000 });
             await startRun(h, {}, dlg);
-            await h.waitFor(() => (document.querySelector('#lolcomputer .graph-part-answer') ? true : null), { timeout: 15000 });
+            await parked();
             const waiting = await h.computer.waits();
             h.eq(waiting.length, 1, 'the park registry holds exactly the one question');
             h.eq(waiting[0].kind, 'dialog');
@@ -185,8 +191,9 @@ export default [
             h.eq((await h.computer.waits()).length, 0, 'and no park is left behind the run (§4.8)');
 
             // 5. …and an ANSWER is what it wants. Same box, same door, this time a human types.
+            h.eq((await h.computer.waits()).length, 0, 'nobody is asked between the two runs');
             await startRun(h, {}, dlg);
-            await h.waitFor(() => (document.querySelector('#lolcomputer .graph-part-answer') ? true : null), { timeout: 15000 });
+            await parked();
             await h.computer.answer(dlg, 'the red one');
             const answered = await report(h);
             h.assert(answered, 'the run ended once the question was answered');
