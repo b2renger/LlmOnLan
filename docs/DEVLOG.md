@@ -9,6 +9,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-21 (04:46) — The Computer's run went on up to a minute after a person answered: a lost wake-up in the run loop (night n° 12)
+
+- **How it showed:** the third full `--phase k` of the night (04:33–04:40, beside two `test:chat` runs and rebuilds)
+  failed k3-control again, in a `report()` wait. `report()` now names its caller and what the page shows: line 208
+  (step 5, after the answer), no park open, the Dialog box still `waiting`. Under load it came back: `--phase k3`
+  beside ten busy-loop processes failed 2 runs of 3, the same line, the same page.
+- **The cause, in `graph/runner.mjs`:** when every branch waits on a park, the loop writes `waiting` to its journal
+  (`await J.flush()`) and then sleeps until `wake()`. A park that settled during the flush called `wake()` while
+  nothing slept: the wake was dropped, and the loop slept until its timer, up to 60 s. A student who answered a Dialog
+  quickly (or a Timer that fired then) saw the run stand still for up to a minute on a busy laptop.
+- **The fix:** a wake that finds the loop awake is kept (`wakePending`), and the next sleep returns at once; an extra
+  wake costs one more pass. **Test first** (`computer-sched`: the store's journal write answers the Dialog and takes
+  20 ms): it timed out at 10 s before, passes now. `--phase k3` under the same load: 3/3. `test:chat` 1989 (1 skipped),
+  lint 0. The scenario's earlier fix (waiting for the park, not the field) was a real race too and stays.
+
 ## 2026-11-21 (04:40) — The coding agent's session logs older than 30 days go (plans ▸ Next 10; night n° 12)
 
 Approved: plans ▸ Next 10 (owner 2026-11-13: 30 days; CLASS_TEST_2026-11-17: after the class). dsh keeps one folder

@@ -613,6 +613,36 @@ export default (test) => {
     assert.equal(specs.ran('after'), 1, 'the answer released the branch behind it');
   });
 
+  test('an answer given while the loop writes its journal is not lost: the run goes on at once, not a minute later (2026-11-21)', async () => {
+    cancelAll();
+    const specs = testSpecs();
+    const d = doc([{ from: 'q', to: 'after', port: 'in' }], [
+      { id: 'q', type: 'asker', state: 'idle', value: null },
+      { id: 'after', type: 'step', state: 'idle', value: null },
+    ]);
+    const session = sessionOver(d, specs);
+    const app = fakeApp();
+    // A slow store (a busy laptop): the person answers WHILE the loop flushes `waiting`, before it sleeps. The
+    // wake that answer sends found nobody asleep and was dropped; the loop then slept up to 60 s (k3-control, step 5).
+    let answered = false;
+    const kvSet = app.repo.kvSet;
+    app.repo.kvSet = async (/** @type {string} */ k, /** @type {any} */ v) => {
+      if (!answered && JSON.stringify(v).includes('"waiting"')) {
+        answered = true;
+        assert.equal(answer('q', { ok: true, text: 'quick' }), true);
+        await new Promise((r) => { setTimeout(r, 20); });
+      }
+      return kvSet(k, v);
+    };
+    const runner = createRunner({ session, app });
+    const t0 = Date.now();
+    const report = await runner.run({});
+    assert.ok(answered, 'the answer came during the journal write');
+    assert.equal(report.waited, 1);
+    assert.equal(session.state('after'), 'done');
+    assert.ok(Date.now() - t0 < 3000, `the run went on at once, not after the loop's long sleep: ${Date.now() - t0} ms`);
+  });
+
   test('Stop rejects every park, and everything unfinished comes back stale with its value kept', async () => {
     cancelAll();
     const specs = testSpecs();

@@ -469,9 +469,14 @@ export function createRunner(o) {
 
     /** Wake the loop when it is suspended on parks: a park settled, a merge arrived, or Stop. */
     /** @type {(() => void)|null} */ let wakeResolve = null;
-    const wake = () => { const r = wakeResolve; wakeResolve = null; if (r) r(); };
+    // A wake that comes while the loop is NOT asleep (a park settled during the journal's flush, just before the
+    // sleep) is kept for the next sleep, which then returns at once: dropped, it left the loop asleep up to 60 s
+    // after a person answered (2026-11-21, k3-control under load). An extra wake costs one more pass of the loop.
+    let wakePending = false;
+    const wake = () => { const r = wakeResolve; wakeResolve = null; if (r) r(); else wakePending = true; };
     /** @param {number} ms */
     const sleepUntilWake = (ms) => new Promise((resolve) => {
+      if (wakePending) { wakePending = false; resolve(undefined); return; }
       wakeResolve = resolve;
       const handle = setTimeout(() => { if (wakeResolve === resolve) { wakeResolve = null; resolve(undefined); } },
         Math.max(1, Math.min(ms, 60000)));

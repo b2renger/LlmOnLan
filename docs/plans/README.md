@@ -227,7 +227,13 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
       `.graph-part-answer` was always already true. Step 5 answered before its second run had parked; that run then
       parked with nobody to answer, and `report()` waited 30 s. The scenario waits for the park itself now
       (`debug.computer.waits()`), and asserts the field is there with nothing parked. 3/3 alone, then `--phase k`
-      223/223 in the full order.
+      223/223 in the full order. **That was not all:** a third full run (beside other work) failed at the same step,
+      and `report()` now names its caller and what the page shows: no park open, the box still `waiting`. Reproduced
+      2 runs in 3 under load (`--phase k3` beside ten CPU burners). **The cause is in the product**, the Computer's run
+      loop (`graph/runner.mjs`): an answer given while the loop flushes its journal, just before it sleeps, woke
+      nobody, and the loop slept up to 60 s, so a run went on up to a minute after a person answered a Dialog, a
+      Confirm or a Timer. A wake that finds the loop awake is now kept for its next sleep; a unit test answers during a
+      slow journal write (it timed out before, passes now); `--phase k3` under the same load 3/3.
     - ~~**k24-the-ide-binds-a-project…** (runs 2 and 4; 3/3 alone): a 20 s `waitFor` came back null.~~ *Found and
       fixed 2026-11-20 by day:* it failed alone too (1 in 3, 2 in 8, 1 in 10), at `k24-ide.mjs:204`, *Address saved*.
       **A race in the page**, not the test: after a refused `http://` address, `gitAct` reloads the saved remote, which

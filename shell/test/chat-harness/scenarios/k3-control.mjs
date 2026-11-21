@@ -72,8 +72,18 @@ const startRun = (h, opts, from) => h.eval((o, seed) => {
     return true;
 }, opts || {}, from || null);
 
-/** Wait for the run started by `startRun` to end, and hand back its report. */
-const report = (h, timeout = 30000) => h.waitFor(() => (window.__k3 === null ? null : window.__k3), { timeout });
+/** Wait for the run started by `startRun` to end, and hand back its report. A timeout names the line that called it
+ *  (h.waitFor names this helper's own line, which does not say which of the scenario's runs hung). */
+const report = async (h, timeout = 30000) => {
+    const caller = ((new Error().stack || '').split('\n').filter((l) => /scenarios[\\/]/.test(l))[1] || '').trim();
+    try {
+        return await h.waitFor(() => (window.__k3 === null ? null : window.__k3), { timeout });
+    } catch (e) {
+        // What the page shows when a run hangs: its parts' states and the parks still open.
+        const seen = await h.eval(() => ({ parks: window.LolComputer.debug.computer.waits().map((w) => w.kind), states: Array.from(document.querySelectorAll('#lolcomputer .graph-part')).map((el) => el.getAttribute('data-state')) })).catch(() => null);
+        throw new Error(`${e.message}; report() from ${caller}; page: ${JSON.stringify(seen)}`);
+    }
+};
 
 /** Does the REAL scheduler serve this page, or the kickoff shim? One cheap run of one Note. */
 async function hasScheduler(/** @type {any} */ h) {
