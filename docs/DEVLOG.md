@@ -22,6 +22,18 @@ commit so the history records that a feature was tested + documented before it w
   per device, 30 a minute, the history caps), its labels (13, each found; **Stop commands** is Preferences' button while
   armed, `renderer/app.js:121`) and its *never by a model* list against `ACTIONS` and `OPENABLE_COVERS`. Nothing
   contradicted; nothing changed.
+- **`docs/COMPUTER_DEBUG_LOG.md`** (05:52–05:53): its labels (*Record log*, *Recording · N events*, *Mark bug*, *What
+  went wrong?*), the 2000-event ring, 25 MB, 15 + 30 recordings, 40 screenshots, 20 requests per 10 s, the once-a-minute
+  poll, *resume* on relaunch, 100 ms frames, 20 sandbox lines a second, 600-character clips, `debugLogDoor`, and
+  `k7-recorder`: all hold. **`docs/LOLCHAT_COMPUTER_TUTORIAL.md`**, in part (05:54–05:57): the 14 lessons' titles and the
+  table's *What it teaches* (lessons 1–4 word for word, 5–14 longer than the subtitles and true to them: port 9000, *Steps
+  at most*, the copies shipped with lessons 12 and 13, lesson 7's saved transcript), and every bold label of its 388
+  that names something on screen (*Save .{ext}*, *Learn* ▸ *Templates*, Ctrl+A, *Select*, *Hand*, the run states…), and
+  its numbers (05:55): 64 KB shown (`text.mjs`), labels up to 150 nodes (`graph-view.mjs`), a recording ≤ 10 min
+  (`audio.mjs` `AUDIO_MAX_SEC`), Converse 12 turns / 6 min (`voice.mjs` defaults), the level 20 times a second, Fetch
+  1 MB / 15 s, Open data 200 rows by default (≤ 1000), the Agent's 6 steps, arrows 10 px / Shift 1 px (`GRID`), F to
+  fit. All hold. Not read yet: its step-by-step prose (n° 14's fallback). (This Git Bash's `grep -i` misses matches in
+  these files: the checks used `grep -F` without `-i`.)
 
 ## 2026-11-22 (05:45) — The coding agent on vLLM: no empty first step in 30, but 4 replies past 300 s; two plans (night n° 13)
 
