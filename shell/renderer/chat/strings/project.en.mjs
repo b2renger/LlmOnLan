@@ -20,7 +20,10 @@ registerStrings('project', {
   keepGoingNote: 'On: your next messages start a loop — the agent works round after round (at most {max}) until it has checked the job is done. Each round is a whole reply of the model on the farm. Stop ends it; it switches off when LlmOnLan closes.',
   planFirst: 'Plan first',
   planFirstOn: 'Plan first: on',
-  planFirstNote: 'On: for each message the agent first reads the project and answers with a plan — the files it would make or change, and why — and changes nothing. Under the plan, Go ahead lets it carry the plan out; Change the plan lets you say what to change. It switches off when LlmOnLan closes.',
+  // The chat's empty state in a chat bound to a project (core.emptyTitle / emptyDetail elsewhere).
+  chatEmptyTitle: 'Ask the coding agent.',
+  chatEmptyDetail: 'This chat is tied to a project: the coding agent answers it, and changes the project’s files on this computer.',
+  planFirstNote:'On: for each message the agent first reads the project and answers with a plan — the files it would make or change, and why — and changes nothing. Under the plan, Go ahead lets it carry the plan out; Change the plan lets you say what to change. It switches off when LlmOnLan closes.',
   useComputer: 'Use the Computer',
   useComputerOn: 'Use the Computer: on',
   useComputerNote: 'On: the agent can also build and run graphs on the Computer (its boxes, its runs) — e.g. a program that watches something and acts — and read your home when Home Assistant is linked in Preferences. Anything that would reach a device stays a dry run until you arm the outputs, or allow home commands, yourself. It switches off when LlmOnLan closes.',

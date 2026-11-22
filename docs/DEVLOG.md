@@ -9,6 +9,19 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-22 (02:10) — A chat bound to a project no longer says "press Project at the top" (night n° 13)
+
+- Found in night n° 12's plan-first screenshot: a new chat bound to a project, with the project open beside it, said
+  *Chat directly with the farm. … To build a web page with the coding agent, press Project at the top.* In-app help
+  wrong against the screen (approved in advance). The empty state now follows the same bound/unbound signal as the
+  *Plan first* switch (`ui/project-panel.mjs` `refresh()`): a bound chat says *Ask the coding agent.* / *This chat is
+  tied to a project: the coding agent answers it, and changes the project's files on this computer.*; any other chat
+  keeps `core.emptyTitle` / `core.emptyDetail`. LOLVIBE_POC_PLAN's step 2 (the plain chat's words, the example asks)
+  is untouched.
+- **Checks:** `k24-plan-first-changes-nothing-until-go-ahead` asserts the plain chat's text, the bound chat's (no
+  *press Project*), and the plain text again in a new chat after (pass; its screenshot shows the new text).
+  `test:chat` 1989 (1 skipped), lint 0 (a first try failed lint rule 5, `t()` on a computed key: written as two literals).
+
 ## 2026-11-21 (06:06) — Pages from a picture: Gemma 4 26B, the third model (PICTURE_TO_PAGE_PLAN step 1; night n° 12)
 
 - **The download:** `nvidia/Gemma-4-26B-A4B-NVFP4` into vLLM 0.34.0's trial root (`~/lol-vllm-034/hf`, never

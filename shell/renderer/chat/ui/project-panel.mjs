@@ -76,6 +76,13 @@ export function install(app) {
   // thread: its binding is read from the store, which answers asynchronously.
   let planThread = '';
   const refresh = () => {
+    // A new chat bound to a project is answered by the coding agent: its empty state says so, not "press Project".
+    const empty = app.els && app.els.empty;
+    if (empty) {
+      const [title, detail] = empty.querySelectorAll('p');
+      if (title) title.textContent = planThread ? t('project.chatEmptyTitle') : t('core.emptyTitle');
+      if (detail) detail.textContent = planThread ? t('project.chatEmptyDetail') : t('core.emptyDetail');
+    }
     const c = app.composer;
     if (!c) return;
     if (typeof c.refreshActions === 'function') c.refreshActions();

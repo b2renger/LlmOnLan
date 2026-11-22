@@ -21,6 +21,10 @@ built in 20.5 s and working, with four stumbles (M2, M3, L2, L3).
   - **L3, words and the first look.** The empty chat says *Chat directly with the farm.* (`strings/core.en.mjs:16`) and
     offers no example; the context meter says *advertised* (`strings/context.en.mjs:12`); a *Thought for 0s* row shows on
     a reply that did not think; and the agent ends with "Open index.html in a browser" while the Preview shows it.
+    (Corrected 2026-11-22, night n° 13, as in-app help wrong against the screen: a chat **bound to a project** said
+    *Chat directly with the farm … press Project at the top* with the project open beside it; it now says *Ask the
+    coding agent.* and that the agent answers and changes the project's files. The plain chat's words and the examples
+    are still step 2.)
   - **A picture cannot reach the agent** ([PICTURE_TO_PAGE_PLAN](PICTURE_TO_PAGE_PLAN.md), step 2 for the owner).
 
 ## What would change

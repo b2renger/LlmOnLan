@@ -370,6 +370,8 @@ export default [
             await h.waitFor(() => (window.LolChat && window.LolChat.ready ? true : null));
             // A chat bound to no project has no switch: the coding agent does not answer there.
             h.eq(await h.eval(() => !!document.querySelector('#lolchat .chat-composer-tools .chat-plan-first')), false, 'no switch in a plain chat');
+            const emptyText = () => h.eval(() => (document.querySelector('#chat-empty') || {}).textContent || '');
+            h.assert(/press Project/.test(await emptyText()), 'a plain chat\'s empty state points to Project');
             await h.eval(() => { window.LolChat.app.work.open('project'); return true; });
             await h.waitFor(() => (document.querySelector('#lolchat .chat-proj-empty:not([hidden]) .chat-proj-name-in') ? true : null));
             await h.eval(() => {
@@ -381,7 +383,9 @@ export default [
 
             // The switch sits beside the message box, for this chat (STUDENT_PLAN_MODE_PLAN as approved, 2026-11-21).
             await h.waitFor(() => (document.querySelector('#lolchat .chat-composer-tools .chat-plan-first') ? true : null), { timeout: 10000 });
-            const flip = () => h.eval(() => { /** @type {HTMLButtonElement} */ (document.querySelector('#lolchat .chat-composer-tools .chat-plan-first')).click(); return true; });
+            const bound = await emptyText();
+            h.assert(/coding agent answers it/.test(bound) && !/press Project/.test(bound), `a bound chat's empty state names the coding agent: ${bound}`);
+            const flip =() => h.eval(() => { /** @type {HTMLButtonElement} */ (document.querySelector('#lolchat .chat-composer-tools .chat-plan-first')).click(); return true; });
             h.eq((await panel(h)).planFirst, false, 'off by default');
             await flip();
             h.eq((await panel(h)).planFirst, true, 'on for this chat');
@@ -440,6 +444,10 @@ export default [
             await h.waitFor((was) => { const s = window.LolChat.debug.project.state(); return s.projectId && s.projectId !== was ? true : null; }, { timeout: 15000, args: [firstId] });
             await h.sleep(500);   // loadRemote's answer for the new project, which fills only an empty field
             h.eq(await h.eval(() => /** @type {HTMLInputElement} */ (document.querySelector('#lolchat .chat-proj-remote-in')).value), '', 'the other project\'s typed address is gone');
+
+            // A new chat is bound to no project: its empty state points to Project again.
+            await h.click('#chat-new');
+            await h.waitFor(() => (/press Project/.test((document.querySelector('#chat-empty') || {}).textContent || '') ? true : null), { timeout: 10000 });
         },
     },
 ];
