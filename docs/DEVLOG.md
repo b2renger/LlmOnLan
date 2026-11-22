@@ -32,7 +32,12 @@ commit so the history records that a feature was tested + documented before it w
   its numbers (05:55): 64 KB shown (`text.mjs`), labels up to 150 nodes (`graph-view.mjs`), a recording ≤ 10 min
   (`audio.mjs` `AUDIO_MAX_SEC`), Converse 12 turns / 6 min (`voice.mjs` defaults), the level 20 times a second, Fetch
   1 MB / 15 s, Open data 200 rows by default (≤ 1000), the Agent's 6 steps, arrows 10 px / Shift 1 px (`GRID`), F to
-  fit. All hold. Not read yet: its step-by-step prose (n° 14's fallback). (This Git Bash's `grep -i` misses matches in
+  fit. All hold. Its prose to line 266 (05:57): every label of steps 3–7 found, and each behaviour pinned by a test:
+  typing into a wired box locks it (`k4-text`, `k8-boxes-text`, `computer-bind`), **Keep my code**
+  (`computer-creative`, `computer-s1`), the seed's **Keep** (`k8-gen-seed`), an answer reused with nothing sent
+  (`c1-run`), **Run everything again** (`k10-run-outcomes`), Esc stops (`c1-canvas`, `c2-canvas`), Ctrl+Enter runs and
+  Enter edits (`canvas.mjs:2833`, `:2895`). Not read yet: from line 267 (*Let the model see what it drew*) to the end
+  (n° 14's fallback). (This Git Bash's `grep -i` misses matches in
   these files: the checks used `grep -F` without `-i`.)
 
 ## 2026-11-22 (05:45) — The coding agent on vLLM: no empty first step in 30, but 4 replies past 300 s; two plans (night n° 13)
