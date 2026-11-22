@@ -18,9 +18,12 @@ commit so the history records that a feature was tested + documented before it w
   steps (that one passed); the 782 s one failed after writing the test file 92 times, 57 edits failing the same way.
   Nothing caps a reply: the studio sets no limit, dsh's `repeat-tool-reminder` only advises. RESULTS has the paragraph;
   rows in `results/ide/n13-vllm034-gemma426__65536.jsonl`. vLLM stopped by `stop034.sh` (its group empty; GPU 964 MiB).
-- Plans for the owner: [AGENT_LOOP_PLAN](plans/AGENT_LOOP_PLAN.md) (the Agent box's `loopOf` rule on the coding agent's
-  calls, after a replay on the logs shows what it would cost; a step limit alone would stop passing runs) and, from
-  03:30, [AGENT_FIRST_STEP_PLAN](plans/AGENT_FIRST_STEP_PLAN.md) (its vLLM line added).
+- Plans for the owner: [AGENT_LOOP_PLAN](plans/AGENT_LOOP_PLAN.md) and, from 03:30,
+  [AGENT_FIRST_STEP_PLAN](plans/AGENT_FIRST_STEP_PLAN.md) (its vLLM line added). **The loop plan's evidence, measured at
+  05:46** (`docs/spike/runs/agent_loop_replay.js`, `agent_error_replay.js`, on the 120 tasks' dsh logs): the Agent box's
+  `loopOf` rule would stop 16 passing tasks (21 with a looser key) for 3 failing; stopping at the fifth identical failure
+  (one tool on one file, the same error) stops 1 passing (it passed after 385 s) and 3 failing, all on dsh's *"old_string
+  and new_string must differ"*; the 1,143 s run repeats no failure. The plan proposes the fifth-failure rule.
 - The final whole harness (04:28–04:44, beside this run): **422/423**, the one loss `k25-graph-preview-live-…`, plans
   ▸ Next 14's order-dependent kind, then 3/3 alone under the same load.
 
