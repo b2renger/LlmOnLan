@@ -9,20 +9,20 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-11-22 (06:08) — LOL Vibe's strings read against the code: the Changes tab's two sentences corrected (night n° 13)
+## 2026-11-22 (06:08, corrected 06:16) — LOL Vibe's strings read against the code; one sentence made precise (night n° 13)
 
 - `strings/project.en.mjs` and `agent.en.mjs` read through: the loop's rounds, the schedule's rules, the share, the
-  token's path, Go ahead's sentence, the loop endings: they hold. Two did not, the same mistake as 03:30's: the Changes
-  tab shows the newest reply **that changed a file** (`ui/project-panel.mjs` `lastChanges`), so
-  - `project.noChanges`, *"The agent's last reply changed nothing."*, appears only when no reply of the chat changed a
-    file: now *"No reply of the agent in this chat has changed a file yet."*; LOLVIBE_IDE_GUIDE's Changes row now says
-    what the tab shows;
-  - `agent.noAnswer`, *"…finished without a word. The Changes tab shows what it did."*, also came after a turn whose calls
-    only read: `resultOf` now points to the Changes tab only when the turn changed or created a file, and otherwise says
-    *"The coding agent finished without a word, and changed no file. Ask again, saying what to change."*
-    (`agent.noAnswerNoChange`; the guide's table has the row). **Test first** (`agent.test.mjs`: a read-only turn
-    failed on the old code). `test:chat` 1989, lint 0, `--phase k24` 5/5. Labelling which reply the tab shows would be
-    new UI: not done.
+  token's path, Go ahead's sentence, the loop endings, and the Changes tab's *"The agent's last reply changed nothing."*:
+  they hold. **The Changes tab shows the agent's last reply**: the controller stores `changes` and `created` on every agent
+  reply, empty ones included (`app/controller.mjs:649-650`), and `ui/project-panel.mjs` `lastChanges` takes the newest
+  reply that has them. (At 06:05 I read `lastChanges`'s comment as "the newest reply that changed something" and changed
+  `project.noChanges` and the guide's Changes row; the advisor asked for the store to be read, and both are back as they
+  were at 06:16.)
+- `agent.noAnswer`, *"…finished without a word. The Changes tab shows what it did."*, also came after a turn whose calls
+  only read; the tab would then say the reply changed nothing. `resultOf` now names the Changes tab only when the turn
+  changed or made a file, and otherwise says *"The coding agent finished without a word, and changed no file. Ask
+  again, saying what to change."* (`agent.noAnswerNoChange`; the guide's table has the row). **Test first**
+  (`agent.test.mjs`: a read-only turn failed on the old code). `test:chat` and lint after the correction: below.
 - Then (06:09–06:12) `studio` (Chat / Split / Panel, the grip's arrows, `workbench.mjs:333`), `context` (262,144 trusted at
   most, 32,768 assumed: `ctx/budget.mjs`), `net` and `composer` (the connection pill's popover has *Add by address*; the
   Farm app's *Share compute with the network* is `farm-app/renderer/index.html:94`; the farm card's password field,
@@ -167,7 +167,8 @@ commit so the history records that a feature was tested + documented before it w
   with a thought and nothing else (*"First, I'll explore the codebase…"*, ~250 tokens, `stop`, no text, no tool call),
   and dsh ends the turn: 3 of the first 60 agent tasks, on both versions (t4-refactor each time; read in dsh's session
   log). LOL Vibe then said *"The coding agent finished without a word. The Changes tab shows what it did."*, but it did
-  nothing, and the Changes tab shows the newest reply **that changed something**, an earlier one.
+  nothing (the tab then says *"The agent's last reply changed nothing."*; corrected 06:16, this line first said the tab
+  showed an earlier reply's changes, which `app/controller.mjs:649-650` rules out).
 - `projects/agent.mjs` `resultOf`: with no text and no tool call, `agent.noAction`: *"The coding agent stopped before it
   did anything: nothing changed. Send your message again, or press Regenerate."* With tool calls, the old sentence.
   **Test first:** `agent.test.mjs` failed on the old code (*a turn that did nothing: … The Changes tab shows what it

@@ -30,8 +30,8 @@ message box, one per chat (G14); an attached document read once per chat (`RAG_S
 Computer run no longer stands still up to a minute after a person answers a Dialog, a Confirm or a Timer (the run
 loop's lost wake-up); a project's page keeps its saved data across a restart (the Preview's port); the coding
 agent's session logs kept 30 days; dsh's own plan mode off; a chat tied to a project says the coding agent answers it
-(not *press Project*); a coding-agent turn that did nothing, or only read, says so (it pointed to the Changes tab, which
-shows the newest reply that changed a file). **Farm:** Qwen3.8 drafting ahead and keeping its state in 16 bits (J19); 128k of
+(not *press Project*); a coding-agent turn that did nothing, or only read, says so (it said the Changes tab showed what it
+did). **Farm:** Qwen3.8 drafting ahead and keeping its state in 16 bits (J19); 128k of
 context per person by default, Automatic 24 on the PRO 6000 (J16); a saved vLLM list running its built-ins with the
 current flags; the panel's seat text. **Open WebUI stays at 0.13.3:** 0.13.4 would drop the Blender tools
 ([BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md), for the owner).

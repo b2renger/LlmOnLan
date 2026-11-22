@@ -538,7 +538,7 @@ export default [
     },
     {
         // Night n° 13: Gemma 4 26B on Ollama sometimes thinks, then stops, with no text and no tool call (3 tasks of 90).
-        // The reply must say nothing was done, not send the student to the Changes tab (an earlier reply's changes).
+        // The reply must say nothing was done, and how to go on, not send the student to the Changes tab.
         name: 'k24-an-agent-turn-that-did-nothing-says-so',
         needsMock: true,
         timeoutMs: 60000,

@@ -125,7 +125,7 @@ going until done** work as for one you typed.
 |---|---|
 | **Preview** | the project's `index.html` (or the page, picture or sound you opened in the file list), live; it reloads after each reply. **Reload** redraws it. |
 | **Code** | the file you picked in the list. You can edit it: **Save** (or Ctrl+S). Tab indents, Enter keeps the indent. It follows the agent: after a reply (or **Go back**, or **Pull**) it shows the new text — unless you have unsaved edits, which it keeps. |
-| **Changes** | what the newest reply that changed a file changed (a reply that changed nothing leaves it as it was): the old text and the new, edit by edit. |
+| **Changes** | what the agent's last reply changed: the old text and the new, edit by edit. |
 | **History** | every reply that changed a file, and every Save, newest first. Pick one to see what it changed. **Go back to this version** makes the files what they were then — as a new step, so you can come back again. |
 
 Buttons on top: **Other project** (tie the chat to another one), **Open folder**, **Open in browser** (the page in

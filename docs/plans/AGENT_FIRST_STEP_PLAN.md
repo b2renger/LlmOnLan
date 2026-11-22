@@ -14,7 +14,7 @@ versions (1 and 2), always on the refactoring task. None of the ~250 agent tasks
 
 A student sees an empty reply. Since tonight it at least says so (*"The coding agent stopped before it did anything:
 nothing changed. Send your message again, or press Regenerate."*, `projects/agent.mjs` `resultOf`, built as a reproduced
-bug); before, it pointed to the Changes tab, which shows an earlier reply's changes.
+bug); before, it said *"The Changes tab shows what it did"*, of a reply that did nothing.
 
 ## What would change
 

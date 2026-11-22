@@ -66,13 +66,13 @@ export default (test) => {
     assert.equal(resultOf(quiet, { reason: 'completed' }).status, 'done');
     assert.match(quiet.content, /Changes tab/, 'a turn with only tool calls still says something');
     // Gemma 4 26B on Ollama (night n° 13, 3 runs of 60): a first step that only thinks, then stops. Nothing was done, so
-    // the Changes tab would show an EARLIER reply's changes: the sentence must not send a student there.
+    // the Changes tab would only say this reply changed nothing: the sentence says so itself, and how to go on.
     const idle = emptyTurn();
     applyRecord(idle, { kind: 'step', text: '', reasoning: 'First, I\'ll explore the codebase.', stopReason: 'stop', outTokens: 257 });
     assert.equal(resultOf(idle, { reason: 'completed' }).status, 'done');
     assert.doesNotMatch(idle.content, /Changes tab/, `a turn that did nothing: ${idle.content}`);
     assert.match(idle.content, /before it did anything/);
-    // Calls that only read, and no word: nothing changed either, so the Changes tab would again show an earlier reply's.
+    // Calls that only read, and no word: nothing changed either; the sentence says so rather than send a student to the tab.
     const reader = emptyTurn();
     applyRecord(reader, { kind: 'call', callId: 'r1', name: 'read', target: 'index.html' });
     applyRecord(reader, { kind: 'result', callId: 'r1', ok: true, diffs: [] });
