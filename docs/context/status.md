@@ -23,14 +23,15 @@ DEVLOG 2026-11-17), with a **Repair Open WebUI's database** button for the lapto
 ([OWUI_REPAIR_PLAN](../plans/OWUI_REPAIR_PLAN.md), approved 2026-11-18). Next: HUMAN_TESTS A28 on the release. On v0.2.18
 and before, those laptops need the manual repair (A28's last lines).
 
-**Unreleased on `main`** (since v0.2.19 and farm-v0.0.54; by 2026-11-22 04:10), each behind its human test and the
+**Unreleased on `main`** (since v0.2.19 and farm-v0.0.54; by 2026-11-22 06:08), each behind its human test and the
 owner's go. **Client** (a local build for the tests: `shell/dist/LlmOnLan-Setup-0.2.19+n13-windows-x64.exe`, HUMAN_TESTS
 G14): LOL Vibe's page beside its code and the pop-out window (VIBE_PAGE_PLAN, HUMAN_TESTS A29); *Plan first* beside the
 message box, one per chat (G14); an attached document read once per chat (`RAG_SYSTEM_CONTEXT`, J16 step 6); a
 Computer run no longer stands still up to a minute after a person answers a Dialog, a Confirm or a Timer (the run
 loop's lost wake-up); a project's page keeps its saved data across a restart (the Preview's port); the coding
 agent's session logs kept 30 days; dsh's own plan mode off; a chat tied to a project says the coding agent answers it
-(not *press Project*); a coding-agent turn that did nothing says so (it pointed to the Changes tab). **Farm:** Qwen3.8 drafting ahead and keeping its state in 16 bits (J19); 128k of
+(not *press Project*); a coding-agent turn that did nothing, or only read, says so (it pointed to the Changes tab, which
+shows the newest reply that changed a file). **Farm:** Qwen3.8 drafting ahead and keeping its state in 16 bits (J19); 128k of
 context per person by default, Automatic 24 on the PRO 6000 (J16); a saved vLLM list running its built-ins with the
 current flags; the panel's seat text. **Open WebUI stays at 0.13.3:** 0.13.4 would drop the Blender tools
 ([BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md), for the owner).
