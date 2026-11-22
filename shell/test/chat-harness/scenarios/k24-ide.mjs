@@ -450,4 +450,90 @@ export default [
             await h.waitFor(() => (/press Project/.test((document.querySelector('#chat-empty') || {}).textContent || '') ? true : null), { timeout: 10000 });
         },
     },
+    {
+        // Review 2026-11-15 M2, walked as a student (night n° 13): a reading list kept in the browser, a book added, LlmOnLan
+        // "restarted" (the studio disposed as on quit and made again on the same data folder, the page reloaded), and the
+        // book is still there because the Preview came back on the same origin. The page reports its list to the parent
+        // (a cross-origin frame's DOM is out of reach) and takes a book by postMessage, as a form would add it.
+        name: 'k24-preview-keeps-its-page-data-across-a-restart',
+        needsMock: true,
+        timeoutMs: 120000,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            const PAGE = '<h1>My books</h1><ul id="l"></ul><script>const get=()=>JSON.parse(localStorage.getItem("books")||"[]");'
+                + 'const show=()=>{const b=get();document.getElementById("l").innerHTML=b.map((x)=>"<li>"+x+"</li>").join("");parent.postMessage({books:b},"*");};'
+                + 'addEventListener("message",(e)=>{if(!e.data)return;if(e.data.add&&!get().includes(e.data.add))localStorage.setItem("books",JSON.stringify([...get(),e.data.add]));show();});show();</script>';
+            const listen = () => h.eval(() => {
+                /** @type {any} */ (window).__books = null;
+                addEventListener('message', (e) => { if (e.data && Array.isArray(e.data.books)) /** @type {any} */ (window).__books = e.data.books; });
+                return true;
+            });
+            const books = async (/** @type {string} */ want) => {
+                try {
+                    return await h.waitFor((w) => {
+                        const b = /** @type {any} */ (window).__books;
+                        return Array.isArray(b) && JSON.stringify(b) === w ? b : null;
+                    }, { timeout: 20000, args: [want] });
+                } catch (e) {
+                    const last = await h.eval(() => JSON.stringify(/** @type {any} */ (window).__books));
+                    const s = await panel(h);
+                    throw new Error(`the page reports ${want}: it last said ${last}, the Preview at ${s && s.frame} (${/** @type {Error} */ (e).message})`);
+                }
+            };
+            const shown = () => named('the Preview frame', h.waitFor(() => {
+                const s = window.LolChat.debug.project && window.LolChat.debug.project.state();
+                const f = /** @type {HTMLIFrameElement|null} */ (document.querySelector('#lolchat .chat-proj-frame'));
+                return s && s.serveUrl && s.files.includes('index.html') && f && f.getBoundingClientRect().height > 100 ? s : null;
+            }, { timeout: 20000 }));
+
+            await h.fresh();
+            await h.waitFor(() => (window.LolChat && window.LolChat.ready ? true : null));
+            await h.eval(() => { window.LolChat.app.work.open('project'); return true; });
+            await h.waitFor(() => (document.querySelector('#lolchat .chat-proj-empty:not([hidden]) .chat-proj-name-in') ? true : null));
+            await h.eval(() => {
+                /** @type {HTMLInputElement} */ (document.querySelector('#lolchat .chat-proj-name-in')).value = 'books';
+                /** @type {HTMLFormElement} */ (document.querySelector('#lolchat .chat-proj-new')).requestSubmit();
+                return true;
+            });
+            await h.waitFor(() => { const s = window.LolChat.debug.project && window.LolChat.debug.project.state(); return s && s.projectId && s.serveUrl ? true : null; }, { timeout: 15000 });
+            await listen();
+            await send(h, `write index.html: ${PAGE}`);
+            const wrote = await settled(h, 1);
+            h.eq(wrote.status, 'done', `the agent wrote the page: ${wrote.text}`);
+            const before = await shown();
+            await books('[]');
+            // The Preview reloads itself after a reply: a message to a frame being replaced is lost, so post until the page
+            // reports the book (the page adds a book once).
+            await named('the page takes a book', h.waitFor(() => {
+                const b = /** @type {any} */ (window).__books;
+                if (Array.isArray(b) && b.includes('Dune')) return true;
+                const f = /** @type {HTMLIFrameElement|null} */ (document.querySelector('#lolchat .chat-proj-frame'));
+                if (f && f.contentWindow) f.contentWindow.postMessage({ add: 'Dune' }, '*');
+                return null;
+            }, { timeout: 20000 }));
+            await books('["Dune"]');
+            await h.screenshot('k24-preview-books-before-restart');
+
+            // LlmOnLan quits and starts again on the same data folder.
+            const threadId = await h.eval(() => window.LolChat.app.state.threadId);
+            h.eq(await h.eval(() => /** @type {any} */ (window).lolHarness.restartStudio()), true, 'the studio restarted');
+            await h.reload();
+            await h.waitFor(() => (window.LolChat && window.LolChat.ready ? true : null));
+            await listen();
+            await h.eval(async (id) => { await window.LolChat.app.controller.selectThread(id); window.LolChat.app.work.open('project'); return true; }, threadId);
+            const after = await shown();
+            h.eq(after.serveUrl, before.serveUrl, 'the Preview came back on the same origin');
+            // The page reported at its load, maybe before this window listened: ask for its list (never an add, which would
+            // put a lost book back), until it answers.
+            const said = await named('the page answers after the restart', h.waitFor(() => {
+                const b = /** @type {any} */ (window).__books;
+                if (Array.isArray(b)) return b;
+                const f = /** @type {HTMLIFrameElement|null} */ (document.querySelector('#lolchat .chat-proj-frame'));
+                if (f && f.contentWindow) f.contentWindow.postMessage({ list: 1 }, '*');
+                return null;
+            }, { timeout: 20000 }));
+            h.eq(said, ['Dune'], 'the book is still there');
+            await h.screenshot('k24-preview-books-after-restart');
+        },
+    },
 ];

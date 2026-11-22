@@ -266,7 +266,7 @@ function wireStudio() {
     let factory = null;
     try { if (fs.existsSync(STUDIO_BUILD)) factory = require(STUDIO_BUILD).createStudio; } catch (e) { console.error('[harness-main] studio build unloadable:', e && e.message); }
     if (typeof factory !== 'function' || !process.env.LOL_HARNESS_NODE) return false;
-    studio = factory({
+    const make = () => factory({
         dataDir: () => tmpDir(),
         projectsRoot: () => path.join(tmpDir(), 'projects'),
         farm: () => ({ endpoint: 'http://127.0.0.1:9/v1', key: null, ctxPerSlot: 32768 }),
@@ -278,6 +278,10 @@ function wireStudio() {
         // Tokens in memory for the harness (the shell encrypts them with safeStorage).
         tokens: (() => { const m = new Map(); return { safe: () => true, get: (h) => m.get(h) || null, set: (h, t) => { if (t) m.set(h, t); else m.delete(h); return true; } }; })(),
     });
+    studio = make();
+    // LlmOnLan quit and started again, as far as the studio sees it: the old one disposed (as on will-quit), a new one
+    // on the same data folder. The scenario reloads the page after it (k24-preview-keeps-its-page-data).
+    ipcMain.handle('harness:studio-restart', async () => { await studio.dispose(); studio = make(); return true; });
     ipcMain.handle('lol:studio:prompt', (_e, o) => (o && typeof o === 'object' ? studio.prompt(o) : { ok: false, code: 'E_ARGS', message: 'bad arguments' }));
     ipcMain.handle('lol:studio:stop', () => studio.stop());
     ipcMain.handle('lol:studio:status', () => studio.status());

@@ -62,8 +62,11 @@ if (process.argv.includes('--lol-studio=1')) api.studio = {
     onEvent: (fn) => { ipcRenderer.on('lol:studio:event', (_e, msg) => fn(msg)); },
 };
 // As shell/src/preload/index.ts: every frame runs this file, the door goes to the main frame alone, and any other frame loses WebRTC.
-if (process.isMainFrame === true) contextBridge.exposeInMainWorld('lol', api);
-else {
+if (process.isMainFrame === true) {
+    contextBridge.exposeInMainWorld('lol', api);
+    // The harness's own door, apart from window.lol (whose keys h0 holds to the shell's): a studio restart in place.
+    contextBridge.exposeInMainWorld('lolHarness', { restartStudio: () => ipcRenderer.invoke('harness:studio-restart') });
+} else {
     contextBridge.executeInMainWorld({
         func: () => { for (const name of Object.getOwnPropertyNames(window)) if (/^(webkit)?RTC/.test(name)) delete window[name]; },
     });

@@ -9,7 +9,25 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-11-22 (02:10) — A chat bound to a project no longer says "press Project at the top" (night n° 13)
+## 2026-11-22 (02:17) — The Preview's kept port walked as a student, through a restart, in the harness (night n° 13)
+
+- n° 12's *Next* (3): the fix of 2026-11-21 (review M2: a project's Preview asks for its last port, so its page's
+  `localStorage` survives a restart) had a studio unit test with no browser in it. New scenario
+  `k24-preview-keeps-its-page-data-across-a-restart`: the mock agent writes a reading list kept in `localStorage`; a
+  book is added (by postMessage, as a form would; the frame is cross-origin, so the page reports its list to the
+  parent); then LlmOnLan "restarts": a harness-only channel `harness:studio-restart` disposes the studio as on quit
+  and makes a new one on the same data folder (`main.cjs`), exposed as `window.lolHarness.restartStudio()` beside
+  `window.lol` (whose keys h0 holds to the shell's); the page reloads, the chat is opened again, the Preview comes back
+  **on the same origin** and the page still lists the book. Screenshots before and after (the session's scratch).
+- **Proved:** 3 of 3 passes; with the fix undone in the compiled `build/main/studio.js` (`want = undefined`) it fails:
+  *got http://127.0.0.1:53258/, want http://127.0.0.1:54323/*; rebuilt after. The in-place restart is stricter than a
+  real one on one point: the old server had served the frame just before (a real quit drops its connections with the
+  process); Windows gave the port back each time.
+- **Seen once, not again:** one run's agent reply ended in *error* in 0.6 s (the mock dsh, the first message); the 8
+  runs after it did not. Recorded, not chased.
+- `--phase k24` 4/4, `--phase h0` 13/13.
+
+## 2026-11-22 (02:09) — A chat bound to a project no longer says "press Project at the top" (night n° 13)
 
 - Found in night n° 12's plan-first screenshot: a new chat bound to a project, with the project open beside it, said
   *Chat directly with the farm. … To build a web page with the coding agent, press Project at the top.* In-app help
