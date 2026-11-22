@@ -17,14 +17,15 @@ model**. Your project is a folder on this computer; nothing is kept on the farm.
 4. Type a name and press **New project**. The chat is now tied to that project folder:
    `<your data folder>/LOL Studio Projects/<name>…`.
 
-The model: two models were proven with this agent on five real tasks, on the farm's vLLM: **Qwen3.6** (the farm's
-vLLM default; 11 of 15 on 2026-10-23) and **Flint** (13 of 15 on vLLM 0.33.0, 2026-11-02; not on Ollama). The farm's
-**LOL Vibe** preset serves one of them where vLLM is set up. **qwen3.8** and **nemotron** passed a single edit test (3 of 3,
-2026-09-28): when the farm serves one of those two, a project chat starts on it. The line under the project's name
-says how the chosen model did on code edits: Gemma 4 26B *is good at editing code*; **gemma4** (12B) *is weak at editing
-code: it often runs out of room before it finishes*; Qwen3.6 was *tried on code: 3 of 5 tasks on 15 November (10–11 of 15
-before). Ask for one change at a time.* A model nobody measured, Flint among them, reads *Nobody has tried … on code edits
-yet*.
+The model: two models are proven with this agent on its five real tasks: **Qwen3.6** (the farm's vLLM default; 11 of 15
+on 2026-10-23) and **Gemma 4 26B** (12 of 15 on vLLM 0.33.0, 2026-11-06; on Ollama, where it is the farm's default, 14
+of 15 on 2026-11-10 and 43 of 45 on 2026-11-22). The farm's **LOL Vibe** preset serves one of them where vLLM is set up.
+A project chat starts on a model the panel calls *good at editing code* when the farm serves one: Gemma 4 26B, or
+**qwen3.8** or **nemotron** (each passed a single edit test, 3 of 3, 2026-09-28). The line under the project's name says
+how the chosen model did on code edits: Gemma 4 26B *is good at editing code*; **gemma4** (12B) *is weak at editing code:
+it often runs out of room before it finishes*; Qwen3.6 was *tried on code: 3 of 5 tasks on 15 November (10–11 of 15
+before). Ask for one change at a time.* A model nobody measured reads *Nobody has tried … on code edits yet*: Flint among
+them (13 of 15 on vLLM 0.33.0, 2026-11-02), which the preset no longer offers since Gemma 4 26B took its place.
 
 ## 2. Ask
 

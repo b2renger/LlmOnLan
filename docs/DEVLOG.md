@@ -9,6 +9,18 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-22 (04:25) — LOLVIBE_IDE_GUIDE read against the code: its model paragraph was a fortnight old (night n° 13)
+
+- §1 said the two models proven with the coding agent were Qwen3.6 and **Flint**, and that a project chat starts on
+  qwen3.8 or nemotron. The code: `farm/src/presets.js` `AGENT_PROVEN` is Qwen3.6 and **Gemma 4 26B** (Flint "no longer
+  proven here" since 2026-11-09), and `projects/models.mjs` `pickEditor` starts on any model `KNOWN` rates good:
+  Gemma 4 26B, qwen3.8, nemotron. Rewritten to that, with tonight's 43 of 45 on Ollama 0.40.16; Flint named as unmeasured
+  in LlmOnLan's list (it has no `KNOWN` entry).
+- Held to the code and left as written: Ctrl+1 / Ctrl+\\ (`workbench.mjs`), the schedule's 5 minutes (`MIN_EVERY_MIN`),
+  ~120 MB, 10 rounds, and every message §7's table quotes (11, each found in the strings or main).
+- Not changed: the weak-model sentence (*"If the farm serves qwen3.8 or nemotron…"*, `strings/project.en.mjs`), which
+  leaves Gemma 4 26B out: HUMAN_TESTS's open question 5 already asks the owner what it should name.
+
 ## 2026-11-22 (04:23) — The class rehearsal twice; the agent's empty turn walked in the harness (night n° 13)
 
 - **The class rehearsal** (CLASS_REHEARSAL_PLAN step 4: 2 clients, 3 min, Open WebUI 0.13.3 from v0.2.19's release,
