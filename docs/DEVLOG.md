@@ -38,7 +38,12 @@ commit so the history records that a feature was tested + documented before it w
   (`c1-run`), **Run everything again** (`k10-run-outcomes`), Esc stops (`c1-canvas`, `c2-canvas`), Ctrl+Enter runs and
   Enter edits (`canvas.mjs:2833`, `:2895`). Then to the end of Part 1 (05:58): Edit code, Go to line, Live, `lol.orbit`,
   the Graph box (a six-node starter, 1000 nodes / 5000 links, dashed INFERRED and dotted AMBIGUOUS, `graph-view.mjs`),
-  Tidy, Ctrl+Y: all hold. Not read yet: Part 2 (*import the examples*, line 326) to the end (n° 14's fallback). (This Git Bash's `grep -i` misses matches in
+  Tidy, Ctrl+Y: all hold. Part 2 and Part 3 to *Write a prompt for ComfyQ* (05:58–06:00): the examples and their
+  harness scenario, Replace from file's question, Join as / Filter's tests, Export's *Include results*, the drop types
+  (`drop-route.mjs`), the 60-page PDF limit, Converse's 18 events, 8 states, 13 labels and talk-over on by default
+  (`voice.mjs`), Send's defaults (9000, 6454, 1883, 115200), its labels, disarm on another graph (`runbar.mjs:581`) and
+  panic at quit (`index.ts:1490`): all hold. Not read yet: from *Write a prompt for ComfyQ* (line 521) to the end
+  (n° 14's fallback). (This Git Bash's `grep -i` misses matches in
   these files: the checks used `grep -F` without `-i`.)
 
 ## 2026-11-22 (05:45) — The coding agent on vLLM: no empty first step in 30, but 4 replies past 300 s; two plans (night n° 13)
