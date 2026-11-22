@@ -204,6 +204,7 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     `k1-runbar-escape-stops-from-the-bar`; n° 9: `k25-graph-preview-live-a-drag-on-a-node-moves-the-drawing`; n° 10,
     2026-11-19 02:48: `k3-control`, the 207th, a 30 s `waitFor`), each passing alone 3/3 and, k1 and k25, 8/8 under a
     20-client rehearsal's load: not load, a full run's order. Likely this same defect: the step above finds it for both.
+    *2026-11-22 (n° 13): k25 again, once in a full run (422/423, beside a vLLM measurement), then 3/3 alone under that load.*
     *2026-11-15 (review H1):* the harness's sandbox failures depend on the case of the drive letter the harness was
     started with (`c:\` refused the runner), now fixed; measure 45 again with it before looking for another cause.
     *2026-11-19 (night n° 10, 05:10–05:32), measured again: Electron 45.3.2 in a worktree of `main` (its own
