@@ -9,6 +9,20 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-22 (05:52) — The Computer's context module and HOME_ASSISTANT.md read against the code: they hold (night n° 13)
+
+- Docs to the code (approved in advance; the Computer is not n° 15's review area). **`docs/context/computer.md`**: every
+  file it names exists (three tests in `shell/test/chat/unit/`); its numbers each found in the file it names:
+  Open data ≤ 1000 rows (`opendata.mjs` `MAX_ROWS`); Home 168 h, 240 points, 720 device-hours, 5 s, 8 MB
+  (`homeAssistant.ts`); Classify 0.6; Agent 12 steps and `loopOf`; Converse 15 s, ×4 / 0.07, 8 turns, 16 kHz, 250 / 150
+  ms (`converse.mjs`, `voice.mjs`); outputs 20 msg/s, DMX 3 frames/s (`outputs.ts`); `RUN_LIMITS` 8 / 50 / 10 min / 2000;
+  `GATE_TYPES`; Fetch 1 MB; the sandbox `allow-scripts` only, `host.mjs` the only iframe maker, three r160, d3 7.9.0; the
+  Record log 25 MB / 15 / 30; MCP on 41995; 12 templates and lessons 1–14 by name; ComfyQ's bundle 54 / 36 / 14 from
+  `5d19e35`; `HIDDEN_ATTRS` with every coordinate. **`docs/HOME_ASSISTANT.md`**: its limits (30 a kind, 20 s, 1 a second
+  per device, 30 a minute, the history caps), its labels (13, each found; **Stop commands** is Preferences' button while
+  armed, `renderer/app.js:121`) and its *never by a model* list against `ACTIONS` and `OPENABLE_COVERS`. Nothing
+  contradicted; nothing changed.
+
 ## 2026-11-22 (05:45) — The coding agent on vLLM: no empty first step in 30, but 4 replies past 300 s; two plans (night n° 13)
 
 - To learn whether the empty first step (3 of 90 on Ollama) is Ollama's: Gemma 4 26B NVFP4 on vLLM 0.34.0 in night
