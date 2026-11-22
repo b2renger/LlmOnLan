@@ -220,6 +220,13 @@ export default (test) => {
     ], { at: { x: 0, y: 0 }, importGraph });
     assert.deepEqual(log.imports.slice(-1), ['a.lolgraph.json']);
     assert.deepEqual(out.refused, [{ name: 'b.lolgraph.json', reason: t('drops.oneGraph', { name: 'b.lolgraph.json' }) }]);
+    // A canvas with no importer wired (night n° 13: the one refusal no test reached): the graph file is refused in words,
+    // nothing is imported and no box is made of it.
+    const before = log.imports.length; const parts = doc.parts.length;
+    const none = await app.drops.route([text('c.lolgraph.json', '{"lolgraph":4}')], { at: { x: 0, y: 0 } });
+    assert.deepEqual(none.refused, [{ name: 'c.lolgraph.json', reason: t('drops.noGraphDoor', { name: 'c.lolgraph.json' }) }]);
+    assert.equal(log.imports.length, before, 'nothing imported');
+    assert.equal(doc.parts.length, parts, 'and no box made of it');
   });
 
   test('refusals: no open graph, too many files, a text file too big or binary — each a sentence; past three, one line counts the rest', async () => {

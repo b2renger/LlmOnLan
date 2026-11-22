@@ -23,6 +23,18 @@ commit so the history records that a feature was tested + documented before it w
     (`agent.noAnswerNoChange`; the guide's table has the row). **Test first** (`agent.test.mjs`: a read-only turn
     failed on the old code). `test:chat` 1989, lint 0, `--phase k24` 5/5. Labelling which reply the tab shows would be
     new UI: not done.
+- Then (06:09–06:12) `studio` (Chat / Split / Panel, the grip's arrows, `workbench.mjs:333`), `context` (262,144 trusted at
+  most, 32,768 assumed: `ctx/budget.mjs`), `net` and `composer` (the connection pill's popover has *Add by address*; the
+  Farm app's *Share compute with the network* is `farm-app/renderer/index.html:94`; the farm card's password field,
+  `renderer/app.js:1034`), `core`, `sidebar` (double-click renames): they hold. The other string files carry no
+  number of their own (their limits come from the code through placeholders); their behaviour sentences are n° 14's.
+- `drops`: each refusal it words has a test, except `noGraphDoor` (a graph file dropped where no importer is wired):
+  now in `computer-drops.test.mjs` (the sentence, nothing imported, no box made); with the branch disabled the test
+  fails, the code restored unchanged. `test:chat` 1989.
+- A first map for n° 14 (06:15): the string keys of `queue`, `store`, `takes`, `tree`, `render`, `ask`, `projects`,
+  `dialogs` and `etiquette` that no test names. It overstates: the nine `projects` error sentences it listed are all
+  reached by tests through their error codes (`E_ROOT` … `E_LOCKED`). Read each sentence in the code or by its text, not by
+  its key.
 
 ## 2026-11-22 (05:52) — The Computer's context module and HOME_ASSISTANT.md read against the code: they hold (night n° 13)
 
