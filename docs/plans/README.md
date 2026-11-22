@@ -165,7 +165,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     E4. **M**.
 12. **Measure Ripple-65B Preview**, a dense model tuned for coding: about 4–13 people at 64k on the PRO 6000 by
     estimate, so a small group's model at best. It needs a vLLM nightly in a root of its own, after Now 3
-    ([the study](../research/RIPPLE_65B_STUDY.md)). Nanbeige, also dense and tuned for agents with a shell, did 5/15 on our
+    ([the study](../research/RIPPLE_65B_STUDY.md)). *2026-11-22: no nightly any more: vLLM 0.34.0 (2026-11-16) lists
+    "Ricursive Ripple-65B Preview … `ripple` reasoning and tool parsers | #65745", and night n° 12's trial root
+    `~/lol-vllm-034` has 0.34.0, if the owner keeps it. Still after Now 3 (J15 open); 57 GB + 8 GB to download.* Nanbeige, also dense and tuned for agents with a shell, did 5/15 on our
     fenced agent: expect the same risk. **S**, the owner's quiet hour.
 
 13. **From Qwen Code** ([the review](../research/QWEN_CODE_2026-11-14.md), owner 2026-11-14: "those are good, we need
