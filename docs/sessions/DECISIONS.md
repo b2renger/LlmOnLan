@@ -25,6 +25,8 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## The farms and the room
 
+- **Default taken, 2026-11-22** (n° 12's question 2, no answer by 02:00): the **Documents preset stays at 64k** with
+  Qwen3.6 (at 128k its rule would pick Nemotron, which sees no pictures); Balanced is the 128k preset.
 - **2026-11-18, the chat.** The Sparks stay live and without a password, classes included: "stop asking me that. There
   is a reason for the spark being live and having no password atm." Two farms in a room is the client's to handle.
 - **2026-11-18, the chat.** The class Mac's 137 s first start: "explainable by the download time".
@@ -69,6 +71,10 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## LOL Vibe and the Computer
 
+- **Default taken, 2026-11-22** (n° 12's question 3, no answer by 02:00): LOL Vibe from a picture,
+  [PICTURE_TO_PAGE_PLAN](../plans/PICTURE_TO_PAGE_PLAN.md) steps 2–4 **not built**; Figma not measured (no frames).
+- **Default taken, 2026-11-22** (n° 12's question 5, no answer by 02:00):
+  [LOLVIBE_POC_PLAN](../plans/LOLVIBE_POC_PLAN.md) steps 2–4 **not built**.
 - **Default taken, 2026-11-21** (n° 11's question 7, no answer by 02:00): *Plan first* moves **beside the message box,
   per thread**, as the approved plan says (it was built in the Project panel's bar, per project).
 - **Default taken, 2026-11-21** (n° 11's question 6, no answer by 02:00): Figma through **the export path only** (a
@@ -86,6 +92,10 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## Open WebUI, privacy, cloud
 
+- **Default taken, 2026-11-22** (n° 12's question 1, no answer by 02:00): Open WebUI **stays at 0.13.3**;
+  [BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md) not built.
+- **Default taken, 2026-11-22** (n° 12's question 4, no answer by 02:00): **nothing is released**; G14 and A29 wait on
+  the local build `0.2.19+n12`, J16 on the next Farm app.
 - **2026-11-20, the chat (12:46).** n° 11's question 2, `RAG_SYSTEM_CONTEXT=true`: "yes". An attached document goes
   into the system message and is read once per chat ([CONTEXT_128K_PLAN](../plans/CONTEXT_128K_PLAN.md) step 3).
 - **2026-11-20, the chat (12:46).** n° 11's question 5, Open WebUI 0.13.4: "yes we can bump". The pin bump with its
