@@ -42,8 +42,26 @@ commit so the history records that a feature was tested + documented before it w
   harness scenario, Replace from file's question, Join as / Filter's tests, Export's *Include results*, the drop types
   (`drop-route.mjs`), the 60-page PDF limit, Converse's 18 events, 8 states, 13 labels and talk-over on by default
   (`voice.mjs`), Send's defaults (9000, 6454, 1883, 115200), its labels, disarm on another graph (`runbar.mjs:581`) and
-  panic at quit (`index.ts:1490`): all hold. Not read yet: from *Write a prompt for ComfyQ* (line 521) to the end
-  (n° 14's fallback). (This Git Bash's `grep -i` misses matches in
+  panic at quit (`index.ts:1490`): all hold. Then ComfyQ and the boards (05:59): FLUX.2 Klein's six workflows (the bundle;
+  FLUX.3 Klein's four are others), the Arduino sketches in `docs/examples/arduino/`, Receive's two modes, the panel's
+  *Message bus* (`farm/src/presets.js:36`), the handed graph's *Run it* / *Cancel*: all hold. Then to the end
+  (06:00): Fetch's credentials refusal (`io.ts:128`), Open data's ten most common values, the template's digit rule,
+  the Home command's two locks (Allow commands…, then Arm; never armed mid-run, `runbar.mjs:374`), the Agent's step
+  line, Classify off by default (`farm/src/config.js:551`), Part 4's labels and background priority, the File box,
+  the keyboard table (H, V, F, Shift+1/2, Ctrl+0, Ctrl+= / −, Alt+Shift resize, `canvas.mjs`), the right-click menu
+  and the troubleshooting messages: all hold. **The tutorial read to its end; nothing to correct.** Not done: walking
+  each section's flow in the harness (its behaviours were matched to tests or read in the code, not run).
+- The per-box examples (`computer/examples/`, 06:00), begun: the Control group's ten read; spot-checked in the code:
+  Toggle publishes its value even off (`toggle.mjs:3`), Trigger hands on `{topic, data}` or `{tick, at}`, the Title's
+  Small / Medium / Large. Then Bring in, Show and Think (06:01–06:03): the Image's 1536 px (`image.mjs` `MAX_EDGE`), Open
+  data's and Home's output shapes, Repeat's `{item} {i} {n}`, Filter's remembered verdicts, Collect's four join modes,
+  the rest as already checked above. **All four groups hold; nothing to correct.** The twelve templates' quoted labels
+  (06:02: *Choose the board…*, *How it got there*, *Outputs: dry run*, *Keep my code*, *Listen: write down what is said*,
+  *You can talk over it*, *first sound*…) are the ones checked above, and their stickies' numbers hold against their
+  own settings (06:03): Research's eight generations (eight Instructions), Ask a dataset's 8 steps, A board on Wi-Fi's
+  Trigger (`gapSec` 2, `perHour` 1800; the ESP32 sketch publishes every second), Comfort advisor's CO2 over 1000 ppm,
+  Energy report's 24 hours, Talk to a board's half second. Every template has at least one harness scenario (all
+  passed tonight). **The Computer's help, end to end: nothing to correct.** (This Git Bash's `grep -i` misses matches in
   these files: the checks used `grep -F` without `-i`.)
 
 ## 2026-11-22 (05:45) — The coding agent on vLLM: no empty first step in 30, but 4 replies past 300 s; two plans (night n° 13)
