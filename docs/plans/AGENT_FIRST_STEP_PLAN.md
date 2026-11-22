@@ -10,7 +10,7 @@ the model's first step was a thought (*"First, I'll explore the codebase to loca
 `stop`, with no text and no tool call, and dsh ended the turn (read in dsh's session log). It happened on both Ollama
 versions (1 and 2), always on the refactoring task. None of the ~250 agent tasks stored before tonight
 (`docs/spike/results/ide/`, vLLM and Ollama 0.33.0, Gemma 4 26B among them) shows it; at 1 in 30, 0 of 15 on Ollama
-0.33.0 proves nothing either way.
+0.33.0 proves nothing either way. On vLLM 0.34.0 the same night: 0 of 30 (which, at 1 in 30, says little either).
 
 A student sees an empty reply. Since tonight it at least says so (*"The coding agent stopped before it did anything:
 nothing changed. Send your message again, or press Regenerate."*, `projects/agent.mjs` `resultOf`, built as a reproduced

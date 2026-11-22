@@ -1622,3 +1622,13 @@ same; the coding agent leans worse on 0.40.17 (40 of 45 against 43, longer runs)
 serving Qwen3.8 or Nemotron 3 Nano on Ollama with its tools' bounds (not measured). Before 0.40.17 rides in a Farm app
 release: the agent's tasks again, or the next Ollama release tried the same way. Results: `results/n13-ollama0401{6,7}-gemma426__*.json`
 and `results/n13-ollama-0.40.16-vs-0.40.17__agent-and-probe.json`.
+
+**The same agent tasks on vLLM** (the same night, 04:26–05:43, to learn whether the empty first step is Ollama's):
+Gemma 4 26B NVFP4 on vLLM 0.34.0 (night n° 12's trial root `~/lol-vllm-034`, the farm's Gemma 4 flags, 64k a person,
+pool 50 GiB, ready in 1.6 min), directly on the relay as on 2026-11-06, the five tasks × 6 passes (30 tasks):
+**26/30, no empty first step** (0 of 30 says little at Ollama's 1 in 30: it happens a third of the time by chance),
+but **4 of 30 ran past 300 s in one reply**: t5 782 s and 205 steps (failed: it rewrote the test file 92 times, 57 edits
+failing with the same error), t4 385 s / 109 steps, t5 514 s / 126 steps and 1,143 s / 407 steps (those three passed).
+On 2026-11-06 (vLLM 0.33.0) one run of 15 went past 300 s; on Ollama tonight the longest was 145 s. Nothing caps a
+reply's steps (LlmOnLan's studio sets none; dsh's `repeat-tool-reminder` only advises), and the reply holds the
+student's seat: [AGENT_LOOP_PLAN](../plans/AGENT_LOOP_PLAN.md). Rows: `results/ide/n13-vllm034-gemma426__65536.jsonl`.

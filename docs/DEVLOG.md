@@ -9,6 +9,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-22 (05:45) — The coding agent on vLLM: no empty first step in 30, but 4 replies past 300 s; two plans (night n° 13)
+
+- To learn whether the empty first step (3 of 90 on Ollama) is Ollama's: Gemma 4 26B NVFP4 on vLLM 0.34.0 in night
+  n° 12's trial root (`serve_gemma64.sh` → `docs/spike/runs/trial_serve.sh`, the farm's Gemma 4 flags, 64k, pool 50 GiB;
+  never production's root), the agent directly on the relay as on 2026-11-06, the five tasks × 6 passes (04:28–05:43).
+  **26/30; 0 empty first steps** (at 1 in 30, not proof). **4 of 30 past 300 s in one reply**, up to 1,143 s and 407
+  steps (that one passed); the 782 s one failed after writing the test file 92 times, 57 edits failing the same way.
+  Nothing caps a reply: the studio sets no limit, dsh's `repeat-tool-reminder` only advises. RESULTS has the paragraph;
+  rows in `results/ide/n13-vllm034-gemma426__65536.jsonl`. vLLM stopped by `stop034.sh` (its group empty; GPU 964 MiB).
+- Plans for the owner: [AGENT_LOOP_PLAN](plans/AGENT_LOOP_PLAN.md) (the Agent box's `loopOf` rule on the coding agent's
+  calls, after a replay on the logs shows what it would cost; a step limit alone would stop passing runs) and, from
+  03:30, [AGENT_FIRST_STEP_PLAN](plans/AGENT_FIRST_STEP_PLAN.md) (its vLLM line added).
+- The final whole harness (04:28–04:44, beside this run): **422/423**, the one loss `k25-graph-preview-live-…`, plans
+  ▸ Next 14's order-dependent kind, then 3/3 alone under the same load.
+
 ## 2026-11-22 (04:25) — LOLVIBE_IDE_GUIDE read against the code: its model paragraph was a fortnight old (night n° 13)
 
 - §1 said the two models proven with the coding agent were Qwen3.6 and **Flint**, and that a project chat starts on
