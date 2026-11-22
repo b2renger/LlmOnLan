@@ -9,6 +9,22 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-22 (04:23) — The class rehearsal twice; the agent's empty turn walked in the harness (night n° 13)
+
+- **The class rehearsal** (CLASS_REHEARSAL_PLAN step 4: 2 clients, 3 min, Open WebUI 0.13.3 from v0.2.19's release,
+  `TEMP` and `TMP` pointed into the session's scratch so its folders stay there; n° 12's two were left in `%TEMP%`).
+  Run 1 (04:11, `results/rehearsal-2026-11-220316-2c.json`): **0 farm moves, no *keeps exiting*, `sealHeard` 0**, but
+  Open WebUI's first start took ~31 s on both clients (n° 12: ~14 s): ready at 49.9 and 33.4 s, first chats at 36.7 and
+  33.9 s. Run 2 at once, the same settings (`-220321-2c.json`): first start 17 s, ready at 36.4 s (client0, after its
+  designed restart onto its farm) and 19.8 s, first chats at 22.8 and 20.7 s; again 0 moves, no *keeps exiting*,
+  `sealHeard` 0; ~798 MiB a client. So run 1's slow start was the freshly unpacked sidecar's first run (cold files),
+  not the client. (A `du` of the scratch, stopped at once, overlapped run 2's first two minutes; it was still the
+  faster one.)
+- **The agent's empty turn in the harness:** the mock dsh learns `think-only` (one step that only thinks, `stop`), and
+  `k24-an-agent-turn-that-did-nothing-says-so` checks that the reply says *stopped before it did anything: nothing
+  changed*, not the Changes tab, with the thought in the step log (screenshot in the session's scratch). `--phase k24`
+  5/5; `test:chat` 1989, lint 0. AGENT_FIRST_STEP_PLAN's scenario would start from it.
+
 ## 2026-11-22 (04:05) — Night n° 12's "Xet stall" was Xet writing late: no stall, no fix (night n° 13)
 
 - n° 12 found a Hugging Face download through Xet "stalled after a minute" and said an operator could meet it through

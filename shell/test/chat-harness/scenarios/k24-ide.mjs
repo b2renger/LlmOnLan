@@ -536,4 +536,31 @@ export default [
             await h.screenshot('k24-preview-books-after-restart');
         },
     },
+    {
+        // Night n° 13: Gemma 4 26B on Ollama sometimes thinks, then stops, with no text and no tool call (3 tasks of 90).
+        // The reply must say nothing was done, not send the student to the Changes tab (an earlier reply's changes).
+        name: 'k24-an-agent-turn-that-did-nothing-says-so',
+        needsMock: true,
+        timeoutMs: 60000,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            await h.fresh();
+            await h.waitFor(() => (window.LolChat && window.LolChat.ready ? true : null));
+            await h.eval(() => { window.LolChat.app.work.open('project'); return true; });
+            await h.waitFor(() => (document.querySelector('#lolchat .chat-proj-empty:not([hidden]) .chat-proj-name-in') ? true : null));
+            await h.eval(() => {
+                /** @type {HTMLInputElement} */ (document.querySelector('#lolchat .chat-proj-name-in')).value = 'idle';
+                /** @type {HTMLFormElement} */ (document.querySelector('#lolchat .chat-proj-new')).requestSubmit();
+                return true;
+            });
+            await h.waitFor(() => { const s = window.LolChat.debug.project && window.LolChat.debug.project.state(); return s && s.projectId ? true : null; }, { timeout: 15000 });
+            await send(h, 'think-only: add a footer');
+            const r = await settled(h, 1);
+            h.eq(r.status, 'done', `the reply ended: ${r.text}`);
+            h.assert(/stopped before it did anything: nothing changed/.test(r.text), `it says nothing was done: ${r.text}`);
+            h.assert(!/Changes tab/.test(r.text), 'and does not point to the Changes tab');
+            h.assert(/explore the codebase/.test(r.reasoning), `its thought is in the step log: ${r.reasoning}`);
+            await h.screenshot('k24-agent-did-nothing');
+        },
+    },
 ];

@@ -8,6 +8,7 @@
 //   "slow"                             → the turn waits 60 s before it answers (for Stop)
 //   "crash"                            → the process dies mid-turn (for the runtime-died path)
 //   "farm-full"                        → the turn ends on the seat gate's 429, as dsh reports it (RATE_LIMIT, not retried)
+//   "think-only"                       → one step that only thinks, then `stop`: no text, no tool call
 // With the "keep going" sentence (studio.ts GOAL_PROMPT) it acts out dsh's goal loop, with the real event shapes
 // (goal/change; each round a user/message whose source is {kind:"goal", round}):
 //   "rounds N"                         → create_goal, then N rounds, each writing round-<n>.txt; the last completes it
@@ -115,6 +116,17 @@ async function turn(sessionId, text) {
     // pi-ai's text for an openai-SDK error: "<status>: <the parsed error object>" (utils/error-body.js formatProviderError).
     const said = { message: 'All 2 seats on this server are in use. Try again in a moment.', type: 'rate_limit_error', code: 'lol_seats_full' };
     event(sessionId, 'turn/end', { turn: 1, reason: { kind: 'error', error: { code: 'RATE_LIMIT', status: 429, message: `429: ${JSON.stringify(said)}` } } });
+    status(sessionId, 'idle');
+    return;
+  }
+  if (/think-only/.test(text)) {
+    // Gemma 4 26B on Ollama, as dsh recorded it (night n° 13, 3 tasks of 90): a first step that is a thought and nothing
+    // else, `stop`, and dsh ends the turn.
+    event(sessionId, 'assistant/message', {
+      turn: 1, step: 1, usage: { inputTokens: 120, outputTokens: 257, totalTokens: 377 },
+      message: { role: 'assistant', content: [{ type: 'reasoning', text: 'First, I\'ll explore the codebase to locate the files.' }], source: { kind: 'model', replayState: { response: { stopReason: 'stop' } } } },
+    });
+    event(sessionId, 'turn/end', { turn: 1, reason: { kind: 'completed' } });
     status(sessionId, 'idle');
     return;
   }
