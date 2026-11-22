@@ -1551,7 +1551,8 @@ for "+12 %" is typography, not a wrong copy; the saved pages, not new answers):*
 **Qwen3.6 16/18, Qwen3.8 14/18**; the JSON files keep the first scores.
 
 **Pages from a picture, the third model: Gemma 4 26B-A4B** (the same night, 05:55–06:05; `nvidia/Gemma-4-26B-A4B-NVFP4`
-downloaded into vLLM 0.34.0's trial root, 18.85 GB in 27 min over plain HTTP after a first try through Xet stalled;
+downloaded into vLLM 0.34.0's trial root, 18.85 GB in 27 min over plain HTTP, after a first try through Xet showed
+nothing on disk for a minute and was stopped: Xet writes late, as line 312 above says, and night n° 13 saw it finish;
 the farm's flags, 32k, 50 GiB; ready in 6.5 min, its first start compiling; label `lc1121-v034-gemma426`; the same
 six inputs, 3 samples, thinking off, the check already blind to spaces):
 

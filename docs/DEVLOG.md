@@ -9,6 +9,18 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-22 (04:05) — Night n° 12's "Xet stall" was Xet writing late: no stall, no fix (night n° 13)
+
+- n° 12 found a Hugging Face download through Xet "stalled after a minute" and said an operator could meet it through
+  the panel's **Download** (`farm/vllm/install.sh` runs `"$ROOT/.venv/bin/hf" download`, Xet on). Tried tonight with
+  that same tool (vLLM 0.34.0's trial root: `huggingface_hub` 2.4.0, `hf-xet` 1.8.0), `Qwen/Qwen3-1.7B` (3.9 GB) into
+  the session's scratch (`HF_HOME` there too), the folder measured every 15 s: **Xet on, twice:** 16 MB on disk for 2.5
+  to 3 minutes, then jumps; done in 5:03 and 5:09. **Xet off:** steady ~10.7 MB/s, 5:54. Nothing stalls: n° 12 stopped
+  a download in Xet's silent start. Known before: RESULTS line 312 (the spike: "a 'stalled' `.incomplete` file was
+  still downloading. I killed one download needlessly") and the panel's own meter text, *"files are written in large
+  pieces, so this number jumps"* (`farm/src/vllm.js` `installStepText`), whose only limit is a 6-hour timeout.
+- RESULTS's Gemma line corrected ("stopped", not "stalled"). The downloads deleted.
+
 ## 2026-11-22 (03:46) — Ollama 0.40.17: the coding agent's tasks three passes a version; the verdict narrowed (night n° 13)
 
 - The advisor, before the trial was called done: the 03:07 verdict ("safe to carry") rested on one sampled agent pass
