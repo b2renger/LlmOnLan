@@ -36,8 +36,9 @@ commit so the history records that a feature was tested + documented before it w
   typing into a wired box locks it (`k4-text`, `k8-boxes-text`, `computer-bind`), **Keep my code**
   (`computer-creative`, `computer-s1`), the seed's **Keep** (`k8-gen-seed`), an answer reused with nothing sent
   (`c1-run`), **Run everything again** (`k10-run-outcomes`), Esc stops (`c1-canvas`, `c2-canvas`), Ctrl+Enter runs and
-  Enter edits (`canvas.mjs:2833`, `:2895`). Not read yet: from line 267 (*Let the model see what it drew*) to the end
-  (n° 14's fallback). (This Git Bash's `grep -i` misses matches in
+  Enter edits (`canvas.mjs:2833`, `:2895`). Then to the end of Part 1 (05:58): Edit code, Go to line, Live, `lol.orbit`,
+  the Graph box (a six-node starter, 1000 nodes / 5000 links, dashed INFERRED and dotted AMBIGUOUS, `graph-view.mjs`),
+  Tidy, Ctrl+Y: all hold. Not read yet: Part 2 (*import the examples*, line 326) to the end (n° 14's fallback). (This Git Bash's `grep -i` misses matches in
   these files: the checks used `grep -F` without `-i`.)
 
 ## 2026-11-22 (05:45) — The coding agent on vLLM: no empty first step in 30, but 4 replies past 300 s; two plans (night n° 13)
