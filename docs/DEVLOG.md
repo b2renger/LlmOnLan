@@ -9,6 +9,18 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-22 (03:46) — Ollama 0.40.17: the coding agent's tasks three passes a version; the verdict narrowed (night n° 13)
+
+- The advisor, before the trial was called done: the 03:07 verdict ("safe to carry") rested on one sampled agent pass
+  that leaned the wrong way (155 calls against 93, 605 s against 454 s). Two more passes a version through the same
+  farm and pass-through, 0.40.17 first in the second pair: 0.40.16 14, 15, 14 (**43/45**, 1,456 s, 363 calls);
+  0.40.17 13, 12, 15 (**40/45**, 1,647 s, 413 calls). One pass of three apart by the 02:20 rules (pass 2, t4-refactor
+  failing all three); over 90 tasks, inside the noise. The verdict now reads: no bump on its own, and not yet shown
+  safe to carry in a Farm app release (RESULTS, TOOL_UPDATES). Also corrected after the advisor: `think: false` reached
+  Ollama on every request that asked for it, not on every request (dsh's 119 send no `think`), and Qwen3.5/3.8's
+  renderer gets the kept keywords through Ollama's own marshaller (`qwen35.go`, `api/types.go`).
+- The first step that only thinks: 3 of 90 tasks in all (LOLVIBE_IDE_GUIDE: about 1 in 30).
+
 ## 2026-11-22 (03:30) — A coding-agent turn that did nothing no longer points to the Changes tab (night n° 13)
 
 - Found in the Ollama trial's reruns (the advisor asked for them): Gemma 4 26B on Ollama sometimes ends its first step

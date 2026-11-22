@@ -8,7 +8,7 @@ body. The pins were checked in the repo the same minute.
 |---|---|---|---|
 | vLLM | 0.33.0 | none (0.34.0 of 2026-11-16 was tried tonight: RESULTS 2026-11-21, no bump on its own) | — |
 | Open WebUI | 0.13.3 | none (0.13.4 blocked: BLENDER_TOOLS_ENV_PLAN) | — |
-| **Ollama** | v0.40.16 (`farm-app/src/main/runtimeManager.ts` `RUNTIME_PINS`) | **v0.40.17**, not a prerelease; GitHub's API gives `created_at` 2026-11-21T03:03:47Z and `published_at` 2026-11-10T22:25:00Z, and the body's compare link ends at `v0.40.17-rc3` (read 2026-11-22; the 2026-11-20 pass saw it as rc2) | Two fixes on the farm's path (below). Tried 2026-11-22: no bump on its own, nothing regressed |
+| **Ollama** | v0.40.16 (`farm-app/src/main/runtimeManager.ts` `RUNTIME_PINS`) | **v0.40.17**, not a prerelease; GitHub's API gives `created_at` 2026-11-21T03:03:47Z and `published_at` 2026-11-10T22:25:00Z, and the body's compare link ends at `v0.40.17-rc3` (read 2026-11-22; the 2026-11-20 pass saw it as rc2) | Two fixes on the farm's path (below). Tried 2026-11-22: no bump on its own; the coding agent leans worse, inside the noise |
 | LiteLLM | 1.106.9 (`farm/src/commands/install.js` `LITELLM_PIN`) | 1.108.14 (2026-11-20 23:43), 1.111.0-rc.3 | Not read; the 2026-11-20 pass found nothing for us on these lines |
 | llama.cpp | b12377 (`farm/src/llamacpp.js` `PINNED_BUILD`) | up to b12602 (2026-11-21 04:28) | Not read |
 | Electron | ^42.5.0 | none since 45.4.1 (2026-11-19) | 45 stays plans ▸ Next 14 |
@@ -55,7 +55,8 @@ word, not a session's own. Nothing was changed tonight.
 ### The trial, 2026-11-22: no bump on its own
 
 [RESULTS, "Ollama 0.40.17 against 0.40.16"](../spike/RESULTS.md): gemma4:26b, the farm's default on Ollama, behind a
-scratch farm. The same scores (28/28 thinking off on both; 27 and 28 of 28 thinking on; the coding agent 14 and 13 of
-15, inside the noise), the same speed (within 2 %) and memory (within 8 MiB); 0 thinking with `think: false` on both;
-the tool keywords reach Ollama through LiteLLM but not Gemma's prompt. Nothing regressed, nothing gained for the farm's
-default model: the bump can ride with the next Farm app release; it is not a reason for one.
+scratch farm. The same gate (28/28 thinking off on both; 27 and 28 of 28 thinking on), the same speed (within 2 %) and
+memory (within 8 MiB); 0 thinking with `think: false` on both; the tool keywords reach Ollama through LiteLLM but not
+Gemma's prompt. The coding agent, three passes a version: 40 of 45 on 0.40.17 against 43 on 0.40.16, longer runs:
+leaning worse, inside the noise. Nothing gained for the farm's default model: not a reason for a Farm app release, and
+not yet shown safe to carry in one (the agent's tasks again first, or the next release tried the same way).

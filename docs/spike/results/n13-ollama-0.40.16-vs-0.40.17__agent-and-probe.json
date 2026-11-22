@@ -1,352 +1,1040 @@
 {
  "kind": "ollama-trial",
  "date": "2026-11-22",
- "notes": "night n13: gemma4:26b (Q4_K_M, digest 001e5dafc3c7) behind a scratch farm (LiteLLM 1.106.9, 2 seats, num_ctx 32768, q8_0, flash attention), a logging tap between LiteLLM and a scratch Ollama on 11500; the same models folder for both versions, one after the other. Agent: docs/spike/ide/run.js, dsh 0.1.7-rc.2, 32768 reply tokens, five tasks x 3. Probe: one tool, days with or without minimum/maximum/default, temperature 0, thinking off.",
+ "notes": "night n13: gemma4:26b (Q4_K_M, digest 001e5dafc3c7) behind a scratch farm (LiteLLM 1.106.9, 2 seats, num_ctx 32768, q8_0, flash attention), a logging tap between LiteLLM and a scratch Ollama on 11500; the same models folder for both versions, one after the other. Agent: docs/spike/ide/run.js, dsh 0.1.7-rc.2, 32768 reply tokens, five tasks x 3. Probe: one tool, days with or without minimum/maximum/default, temperature 0, thinking off. Three passes per version (the advisor asked for more than one sampled run): pass 1 at 02:42 (0.40.16) and 02:54 (0.40.17); pass 2 at 03:10 (0.40.17 first) and 03:18 (0.40.16); pass 3 at 03:27 (0.40.16) and 03:36 (0.40.17).",
  "agent": {
-  "0.40.16": [
-   {
-    "task": "t1-median",
-    "rep": "1",
-    "pass": true,
-    "fails": [],
-    "wallS": 21.266,
-    "steps": 7,
-    "calls": 6,
-    "failedCalls": 1,
-    "outTokens": 3377
-   },
-   {
-    "task": "t2-p5",
-    "rep": "1",
-    "pass": true,
-    "fails": [],
-    "wallS": 22.379,
-    "steps": 5,
-    "calls": 4,
-    "failedCalls": 1,
-    "outTokens": 5746
-   },
-   {
-    "task": "t3-tests",
-    "rep": "1",
-    "pass": true,
-    "fails": [],
-    "wallS": 18.564,
-    "steps": 6,
-    "calls": 5,
-    "failedCalls": 0,
-    "outTokens": 4613
-   },
-   {
-    "task": "t4-refactor",
-    "rep": "1",
-    "pass": true,
-    "fails": [],
-    "wallS": 21.867,
-    "steps": 9,
-    "calls": 8,
-    "failedCalls": 1,
-    "outTokens": 5163
-   },
-   {
-    "task": "t5-tdd",
-    "rep": "1",
-    "pass": true,
-    "fails": [],
-    "wallS": 145.383,
-    "steps": 13,
-    "calls": 12,
-    "failedCalls": 2,
-    "outTokens": 31242
-   },
-   {
-    "task": "t1-median",
-    "rep": "2",
-    "pass": true,
-    "fails": [],
-    "wallS": 16.068,
-    "steps": 10,
-    "calls": 9,
-    "failedCalls": 2,
-    "outTokens": 3294
-   },
-   {
-    "task": "t2-p5",
-    "rep": "2",
-    "pass": true,
-    "fails": [],
-    "wallS": 29.087,
-    "steps": 4,
-    "calls": 3,
-    "failedCalls": 0,
-    "outTokens": 6971
-   },
-   {
-    "task": "t3-tests",
-    "rep": "2",
-    "pass": true,
-    "fails": [],
-    "wallS": 12.434,
-    "steps": 5,
-    "calls": 4,
-    "failedCalls": 0,
-    "outTokens": 2884
-   },
-   {
-    "task": "t4-refactor",
-    "rep": "2",
-    "pass": false,
-    "fails": [
-     "no money.js",
-     "cart.js still defines a helper",
-     "cart.js does not import ./money",
-     "invoice.js still defines a helper",
-     "invoice.js does not import ./money"
-    ],
-    "wallS": 2.129,
-    "steps": 1,
-    "calls": 0,
-    "failedCalls": 0,
-    "outTokens": 263
-   },
-   {
-    "task": "t5-tdd",
-    "rep": "2",
-    "pass": true,
-    "fails": [],
-    "wallS": 29.748,
-    "steps": 11,
-    "calls": 10,
-    "failedCalls": 3,
-    "outTokens": 6668
-   },
-   {
-    "task": "t1-median",
-    "rep": "3",
-    "pass": true,
-    "fails": [],
-    "wallS": 20.38,
-    "steps": 7,
-    "calls": 6,
-    "failedCalls": 2,
-    "outTokens": 4903
-   },
-   {
-    "task": "t2-p5",
-    "rep": "3",
-    "pass": true,
-    "fails": [],
-    "wallS": 51.649,
-    "steps": 8,
-    "calls": 7,
-    "failedCalls": 2,
-    "outTokens": 10532
-   },
-   {
-    "task": "t3-tests",
-    "rep": "3",
-    "pass": true,
-    "fails": [],
-    "wallS": 19.776,
-    "steps": 6,
-    "calls": 5,
-    "failedCalls": 0,
-    "outTokens": 4455
-   },
-   {
-    "task": "t4-refactor",
-    "rep": "3",
-    "pass": true,
-    "fails": [],
-    "wallS": 15.505,
-    "steps": 10,
-    "calls": 9,
-    "failedCalls": 2,
-    "outTokens": 3033
-   },
-   {
-    "task": "t5-tdd",
-    "rep": "3",
-    "pass": true,
-    "fails": [],
-    "wallS": 28.189,
-    "steps": 6,
-    "calls": 5,
-    "failedCalls": 0,
-    "outTokens": 7295
-   }
-  ],
-  "0.40.17": [
-   {
-    "task": "t1-median",
-    "rep": "1",
-    "pass": true,
-    "fails": [],
-    "wallS": 19.052,
-    "steps": 7,
-    "calls": 6,
-    "failedCalls": 1,
-    "outTokens": 4582
-   },
-   {
-    "task": "t2-p5",
-    "rep": "1",
-    "pass": true,
-    "fails": [],
-    "wallS": 41.471,
-    "steps": 5,
-    "calls": 4,
-    "failedCalls": 0,
-    "outTokens": 8364
-   },
-   {
-    "task": "t3-tests",
-    "rep": "1",
-    "pass": true,
-    "fails": [],
-    "wallS": 100.655,
-    "steps": 39,
-    "calls": 38,
-    "failedCalls": 3,
-    "outTokens": 19378
-   },
-   {
-    "task": "t4-refactor",
-    "rep": "1",
-    "pass": true,
-    "fails": [],
-    "wallS": 26.327,
-    "steps": 12,
-    "calls": 11,
-    "failedCalls": 2,
-    "outTokens": 3828
-   },
-   {
-    "task": "t5-tdd",
-    "rep": "1",
-    "pass": false,
-    "fails": [
-     "the tests were changed"
-    ],
-    "wallS": 104.108,
-    "steps": 25,
-    "calls": 24,
-    "failedCalls": 2,
-    "outTokens": 19601
-   },
-   {
-    "task": "t1-median",
-    "rep": "2",
-    "pass": true,
-    "fails": [],
-    "wallS": 18.138,
-    "steps": 6,
-    "calls": 5,
-    "failedCalls": 1,
-    "outTokens": 4632
-   },
-   {
-    "task": "t2-p5",
-    "rep": "2",
-    "pass": true,
-    "fails": [],
-    "wallS": 42.51,
-    "steps": 5,
-    "calls": 4,
-    "failedCalls": 0,
-    "outTokens": 9899
-   },
-   {
-    "task": "t3-tests",
-    "rep": "2",
-    "pass": true,
-    "fails": [],
-    "wallS": 19.521,
-    "steps": 8,
-    "calls": 7,
-    "failedCalls": 0,
-    "outTokens": 4855
-   },
-   {
-    "task": "t4-refactor",
-    "rep": "2",
-    "pass": true,
-    "fails": [],
-    "wallS": 30.855,
-    "steps": 14,
-    "calls": 13,
-    "failedCalls": 3,
-    "outTokens": 6402
-   },
-   {
-    "task": "t5-tdd",
-    "rep": "2",
-    "pass": true,
-    "fails": [],
-    "wallS": 23.351,
-    "steps": 9,
-    "calls": 8,
-    "failedCalls": 0,
-    "outTokens": 5040
-   },
-   {
-    "task": "t1-median",
-    "rep": "3",
-    "pass": true,
-    "fails": [],
-    "wallS": 14.501,
-    "steps": 6,
-    "calls": 5,
-    "failedCalls": 1,
-    "outTokens": 3327
-   },
-   {
-    "task": "t2-p5",
-    "rep": "3",
-    "pass": true,
-    "fails": [],
-    "wallS": 92.946,
-    "steps": 8,
-    "calls": 7,
-    "failedCalls": 1,
-    "outTokens": 18729
-   },
-   {
-    "task": "t3-tests",
-    "rep": "3",
-    "pass": false,
-    "fails": [
-     "the tests fail on the real slugify.js"
-    ],
-    "wallS": 24.38,
-    "steps": 8,
-    "calls": 7,
-    "failedCalls": 0,
-    "outTokens": 6046
-   },
-   {
-    "task": "t4-refactor",
-    "rep": "3",
-    "pass": true,
-    "fails": [],
-    "wallS": 22.928,
-    "steps": 11,
-    "calls": 10,
-    "failedCalls": 2,
-    "outTokens": 5034
-   },
-   {
-    "task": "t5-tdd",
-    "rep": "3",
-    "pass": true,
-    "fails": [],
-    "wallS": 24.04,
-    "steps": 7,
-    "calls": 6,
-    "failedCalls": 0,
-    "outTokens": 5952
-   }
-  ]
+  "0.40.16": {
+   "pass1": [
+    {
+     "task": "t1-median",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 21.266,
+     "steps": 7,
+     "calls": 6,
+     "failedCalls": 1,
+     "outTokens": 3377
+    },
+    {
+     "task": "t2-p5",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 22.379,
+     "steps": 5,
+     "calls": 4,
+     "failedCalls": 1,
+     "outTokens": 5746
+    },
+    {
+     "task": "t3-tests",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 18.564,
+     "steps": 6,
+     "calls": 5,
+     "failedCalls": 0,
+     "outTokens": 4613
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 21.867,
+     "steps": 9,
+     "calls": 8,
+     "failedCalls": 1,
+     "outTokens": 5163
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 145.383,
+     "steps": 13,
+     "calls": 12,
+     "failedCalls": 2,
+     "outTokens": 31242
+    },
+    {
+     "task": "t1-median",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 16.068,
+     "steps": 10,
+     "calls": 9,
+     "failedCalls": 2,
+     "outTokens": 3294
+    },
+    {
+     "task": "t2-p5",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 29.087,
+     "steps": 4,
+     "calls": 3,
+     "failedCalls": 0,
+     "outTokens": 6971
+    },
+    {
+     "task": "t3-tests",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 12.434,
+     "steps": 5,
+     "calls": 4,
+     "failedCalls": 0,
+     "outTokens": 2884
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "2",
+     "pass": false,
+     "fails": [
+      "no money.js",
+      "cart.js still defines a helper",
+      "cart.js does not import ./money",
+      "invoice.js still defines a helper",
+      "invoice.js does not import ./money"
+     ],
+     "wallS": 2.129,
+     "steps": 1,
+     "calls": 0,
+     "failedCalls": 0,
+     "outTokens": 263
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 29.748,
+     "steps": 11,
+     "calls": 10,
+     "failedCalls": 3,
+     "outTokens": 6668
+    },
+    {
+     "task": "t1-median",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 20.38,
+     "steps": 7,
+     "calls": 6,
+     "failedCalls": 2,
+     "outTokens": 4903
+    },
+    {
+     "task": "t2-p5",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 51.649,
+     "steps": 8,
+     "calls": 7,
+     "failedCalls": 2,
+     "outTokens": 10532
+    },
+    {
+     "task": "t3-tests",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 19.776,
+     "steps": 6,
+     "calls": 5,
+     "failedCalls": 0,
+     "outTokens": 4455
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 15.505,
+     "steps": 10,
+     "calls": 9,
+     "failedCalls": 2,
+     "outTokens": 3033
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 28.189,
+     "steps": 6,
+     "calls": 5,
+     "failedCalls": 0,
+     "outTokens": 7295
+    }
+   ],
+   "pass2": [
+    {
+     "task": "t1-median",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 21.753,
+     "steps": 8,
+     "calls": 7,
+     "failedCalls": 1,
+     "outTokens": 3601
+    },
+    {
+     "task": "t2-p5",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 45.706,
+     "steps": 7,
+     "calls": 6,
+     "failedCalls": 1,
+     "outTokens": 10687
+    },
+    {
+     "task": "t3-tests",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 16.918,
+     "steps": 5,
+     "calls": 4,
+     "failedCalls": 0,
+     "outTokens": 4164
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 53.534,
+     "steps": 25,
+     "calls": 24,
+     "failedCalls": 3,
+     "outTokens": 8745
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 45.898,
+     "steps": 9,
+     "calls": 8,
+     "failedCalls": 0,
+     "outTokens": 10891
+    },
+    {
+     "task": "t1-median",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 14.191,
+     "steps": 6,
+     "calls": 5,
+     "failedCalls": 1,
+     "outTokens": 3293
+    },
+    {
+     "task": "t2-p5",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 50.464,
+     "steps": 8,
+     "calls": 7,
+     "failedCalls": 0,
+     "outTokens": 11685
+    },
+    {
+     "task": "t3-tests",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 16.72,
+     "steps": 7,
+     "calls": 6,
+     "failedCalls": 0,
+     "outTokens": 3815
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 29.005,
+     "steps": 16,
+     "calls": 15,
+     "failedCalls": 3,
+     "outTokens": 4674
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 19.691,
+     "steps": 5,
+     "calls": 4,
+     "failedCalls": 1,
+     "outTokens": 4882
+    },
+    {
+     "task": "t1-median",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 16.514,
+     "steps": 9,
+     "calls": 8,
+     "failedCalls": 1,
+     "outTokens": 3689
+    },
+    {
+     "task": "t2-p5",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 96.548,
+     "steps": 9,
+     "calls": 8,
+     "failedCalls": 1,
+     "outTokens": 23724
+    },
+    {
+     "task": "t3-tests",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 19.845,
+     "steps": 5,
+     "calls": 4,
+     "failedCalls": 0,
+     "outTokens": 5422
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 43.58,
+     "steps": 32,
+     "calls": 31,
+     "failedCalls": 3,
+     "outTokens": 3937
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 23.091,
+     "steps": 5,
+     "calls": 4,
+     "failedCalls": 0,
+     "outTokens": 6000
+    }
+   ],
+   "pass3": [
+    {
+     "task": "t1-median",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 15.17,
+     "steps": 6,
+     "calls": 5,
+     "failedCalls": 1,
+     "outTokens": 3444
+    },
+    {
+     "task": "t2-p5",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 23.652,
+     "steps": 6,
+     "calls": 5,
+     "failedCalls": 0,
+     "outTokens": 5902
+    },
+    {
+     "task": "t3-tests",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 27.027,
+     "steps": 6,
+     "calls": 5,
+     "failedCalls": 0,
+     "outTokens": 6784
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 66.545,
+     "steps": 26,
+     "calls": 25,
+     "failedCalls": 7,
+     "outTokens": 11695
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 30.958,
+     "steps": 5,
+     "calls": 4,
+     "failedCalls": 0,
+     "outTokens": 8182
+    },
+    {
+     "task": "t1-median",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 15.764,
+     "steps": 7,
+     "calls": 6,
+     "failedCalls": 2,
+     "outTokens": 3406
+    },
+    {
+     "task": "t2-p5",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 46.431,
+     "steps": 4,
+     "calls": 3,
+     "failedCalls": 0,
+     "outTokens": 11176
+    },
+    {
+     "task": "t3-tests",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 16.508,
+     "steps": 5,
+     "calls": 4,
+     "failedCalls": 0,
+     "outTokens": 4298
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 51.758,
+     "steps": 21,
+     "calls": 20,
+     "failedCalls": 3,
+     "outTokens": 10067
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 32.207,
+     "steps": 7,
+     "calls": 6,
+     "failedCalls": 0,
+     "outTokens": 8557
+    },
+    {
+     "task": "t1-median",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 18.235,
+     "steps": 8,
+     "calls": 7,
+     "failedCalls": 2,
+     "outTokens": 4108
+    },
+    {
+     "task": "t2-p5",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 52.747,
+     "steps": 9,
+     "calls": 8,
+     "failedCalls": 0,
+     "outTokens": 12286
+    },
+    {
+     "task": "t3-tests",
+     "rep": "3",
+     "pass": false,
+     "fails": [
+      "the tests fail on the real slugify.js"
+     ],
+     "wallS": 15.874,
+     "steps": 6,
+     "calls": 5,
+     "failedCalls": 0,
+     "outTokens": 3838
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 57.217,
+     "steps": 22,
+     "calls": 21,
+     "failedCalls": 3,
+     "outTokens": 12437
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 19.275,
+     "steps": 6,
+     "calls": 5,
+     "failedCalls": 0,
+     "outTokens": 4779
+    }
+   ]
+  },
+  "0.40.17": {
+   "pass1": [
+    {
+     "task": "t1-median",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 19.052,
+     "steps": 7,
+     "calls": 6,
+     "failedCalls": 1,
+     "outTokens": 4582
+    },
+    {
+     "task": "t2-p5",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 41.471,
+     "steps": 5,
+     "calls": 4,
+     "failedCalls": 0,
+     "outTokens": 8364
+    },
+    {
+     "task": "t3-tests",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 100.655,
+     "steps": 39,
+     "calls": 38,
+     "failedCalls": 3,
+     "outTokens": 19378
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 26.327,
+     "steps": 12,
+     "calls": 11,
+     "failedCalls": 2,
+     "outTokens": 3828
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "1",
+     "pass": false,
+     "fails": [
+      "the tests were changed"
+     ],
+     "wallS": 104.108,
+     "steps": 25,
+     "calls": 24,
+     "failedCalls": 2,
+     "outTokens": 19601
+    },
+    {
+     "task": "t1-median",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 18.138,
+     "steps": 6,
+     "calls": 5,
+     "failedCalls": 1,
+     "outTokens": 4632
+    },
+    {
+     "task": "t2-p5",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 42.51,
+     "steps": 5,
+     "calls": 4,
+     "failedCalls": 0,
+     "outTokens": 9899
+    },
+    {
+     "task": "t3-tests",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 19.521,
+     "steps": 8,
+     "calls": 7,
+     "failedCalls": 0,
+     "outTokens": 4855
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 30.855,
+     "steps": 14,
+     "calls": 13,
+     "failedCalls": 3,
+     "outTokens": 6402
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 23.351,
+     "steps": 9,
+     "calls": 8,
+     "failedCalls": 0,
+     "outTokens": 5040
+    },
+    {
+     "task": "t1-median",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 14.501,
+     "steps": 6,
+     "calls": 5,
+     "failedCalls": 1,
+     "outTokens": 3327
+    },
+    {
+     "task": "t2-p5",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 92.946,
+     "steps": 8,
+     "calls": 7,
+     "failedCalls": 1,
+     "outTokens": 18729
+    },
+    {
+     "task": "t3-tests",
+     "rep": "3",
+     "pass": false,
+     "fails": [
+      "the tests fail on the real slugify.js"
+     ],
+     "wallS": 24.38,
+     "steps": 8,
+     "calls": 7,
+     "failedCalls": 0,
+     "outTokens": 6046
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 22.928,
+     "steps": 11,
+     "calls": 10,
+     "failedCalls": 2,
+     "outTokens": 5034
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 24.04,
+     "steps": 7,
+     "calls": 6,
+     "failedCalls": 0,
+     "outTokens": 5952
+    }
+   ],
+   "pass2": [
+    {
+     "task": "t1-median",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 22.275,
+     "steps": 9,
+     "calls": 8,
+     "failedCalls": 1,
+     "outTokens": 4065
+    },
+    {
+     "task": "t2-p5",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 63.118,
+     "steps": 7,
+     "calls": 6,
+     "failedCalls": 0,
+     "outTokens": 12529
+    },
+    {
+     "task": "t3-tests",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 24.941,
+     "steps": 6,
+     "calls": 5,
+     "failedCalls": 1,
+     "outTokens": 6147
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "1",
+     "pass": false,
+     "fails": [
+      "no money.js",
+      "cart.js still defines a helper",
+      "cart.js does not import ./money",
+      "invoice.js still defines a helper",
+      "invoice.js does not import ./money"
+     ],
+     "wallS": 1.949,
+     "steps": 1,
+     "calls": 0,
+     "failedCalls": 0,
+     "outTokens": 257
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 26.157,
+     "steps": 6,
+     "calls": 5,
+     "failedCalls": 0,
+     "outTokens": 6776
+    },
+    {
+     "task": "t1-median",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 17.969,
+     "steps": 8,
+     "calls": 7,
+     "failedCalls": 1,
+     "outTokens": 4053
+    },
+    {
+     "task": "t2-p5",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 50.426,
+     "steps": 8,
+     "calls": 7,
+     "failedCalls": 1,
+     "outTokens": 12929
+    },
+    {
+     "task": "t3-tests",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 18.945,
+     "steps": 9,
+     "calls": 8,
+     "failedCalls": 0,
+     "outTokens": 4544
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "2",
+     "pass": false,
+     "fails": [
+      "check.js was changed"
+     ],
+     "wallS": 99.721,
+     "steps": 44,
+     "calls": 43,
+     "failedCalls": 11,
+     "outTokens": 16535
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 50.729,
+     "steps": 11,
+     "calls": 10,
+     "failedCalls": 0,
+     "outTokens": 9459
+    },
+    {
+     "task": "t1-median",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 15.034,
+     "steps": 8,
+     "calls": 7,
+     "failedCalls": 1,
+     "outTokens": 3179
+    },
+    {
+     "task": "t2-p5",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 32.63,
+     "steps": 7,
+     "calls": 6,
+     "failedCalls": 1,
+     "outTokens": 6399
+    },
+    {
+     "task": "t3-tests",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 15.702,
+     "steps": 7,
+     "calls": 6,
+     "failedCalls": 0,
+     "outTokens": 3994
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "3",
+     "pass": false,
+     "fails": [
+      "no money.js",
+      "cart.js still defines a helper",
+      "cart.js does not import ./money",
+      "invoice.js still defines a helper",
+      "invoice.js does not import ./money"
+     ],
+     "wallS": 2.012,
+     "steps": 1,
+     "calls": 0,
+     "failedCalls": 0,
+     "outTokens": 240
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 21.207,
+     "steps": 5,
+     "calls": 4,
+     "failedCalls": 0,
+     "outTokens": 5559
+    }
+   ],
+   "pass3": [
+    {
+     "task": "t1-median",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 18.122,
+     "steps": 6,
+     "calls": 5,
+     "failedCalls": 1,
+     "outTokens": 2940
+    },
+    {
+     "task": "t2-p5",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 77.804,
+     "steps": 11,
+     "calls": 10,
+     "failedCalls": 1,
+     "outTokens": 18620
+    },
+    {
+     "task": "t3-tests",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 16.875,
+     "steps": 8,
+     "calls": 7,
+     "failedCalls": 0,
+     "outTokens": 4017
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 71.499,
+     "steps": 29,
+     "calls": 28,
+     "failedCalls": 4,
+     "outTokens": 9363
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "1",
+     "pass": true,
+     "fails": [],
+     "wallS": 41.614,
+     "steps": 9,
+     "calls": 8,
+     "failedCalls": 2,
+     "outTokens": 9360
+    },
+    {
+     "task": "t1-median",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 18.093,
+     "steps": 8,
+     "calls": 7,
+     "failedCalls": 1,
+     "outTokens": 3864
+    },
+    {
+     "task": "t2-p5",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 46.055,
+     "steps": 4,
+     "calls": 3,
+     "failedCalls": 0,
+     "outTokens": 11208
+    },
+    {
+     "task": "t3-tests",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 17.746,
+     "steps": 7,
+     "calls": 6,
+     "failedCalls": 0,
+     "outTokens": 4300
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 71.634,
+     "steps": 22,
+     "calls": 21,
+     "failedCalls": 7,
+     "outTokens": 13401
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "2",
+     "pass": true,
+     "fails": [],
+     "wallS": 22.011,
+     "steps": 6,
+     "calls": 5,
+     "failedCalls": 0,
+     "outTokens": 5435
+    },
+    {
+     "task": "t1-median",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 15.356,
+     "steps": 8,
+     "calls": 7,
+     "failedCalls": 1,
+     "outTokens": 3471
+    },
+    {
+     "task": "t2-p5",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 92.882,
+     "steps": 9,
+     "calls": 8,
+     "failedCalls": 1,
+     "outTokens": 17448
+    },
+    {
+     "task": "t3-tests",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 14.493,
+     "steps": 5,
+     "calls": 4,
+     "failedCalls": 0,
+     "outTokens": 3582
+    },
+    {
+     "task": "t4-refactor",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 29.208,
+     "steps": 14,
+     "calls": 13,
+     "failedCalls": 1,
+     "outTokens": 5803
+    },
+    {
+     "task": "t5-tdd",
+     "rep": "3",
+     "pass": true,
+     "fails": [],
+     "wallS": 26.023,
+     "steps": 5,
+     "calls": 4,
+     "failedCalls": 0,
+     "outTokens": 6544
+    }
+   ]
+  }
  },
  "probe": [
   {

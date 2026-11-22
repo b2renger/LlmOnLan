@@ -1588,7 +1588,7 @@ were written at 02:20, before the first run.
 | The 28-item gate, thinking on | 27/28 (`math_digits` cut at 16,384), 176 s | 28/28 (the same item at 16,008), 174 s | 28/28, 164 s |
 | One person: first word, writing | 0.32 s, 269 tok/s | 0.31 s, 266 tok/s | — |
 | Two people: first word, writing each | 0.35 s, 198 tok/s | 0.34 s, 197 tok/s | — |
-| The coding agent, five tasks × 3 | **14/15**, 21 s a task (median) | **13/15**, 24 s a task | 14/15, 22 s |
+| The coding agent, five tasks × 3, three passes | **43/45** (14, 15, 14), 1,456 s in all | **40/45** (13, 12, 15), 1,647 s | 14/15 in one pass, 22 s a task |
 | A tool with `minimum`/`maximum`/`default` against without | 109 and 109 prompt tokens; `days: 10` both | 109 and 109; `days: 10` both | — |
 
 - **Thinking off** reached Ollama as `think: false` on every request that asked for it (the pass-through: 60 of 218 on
@@ -1604,13 +1604,20 @@ were written at 02:20, before the first run.
   on Ollama, 2026-11-02). The coding agent's eight tools (dsh 0.1.7-rc.2: edit, glob, grep, read,
   read_image, skill, todo_write, write) use one such keyword, `additionalProperties: false` on `todo_write`'s items;
   the Computer's MCP tools use none (`shell/src/main/mcp.ts`).
-- **The agent's two misses on 0.40.17** (t5 rep 1 changed the tests it was given, as on 2026-11-10; t3 rep 3 wrote
-  tests that fail on the real code) and its longer runs (155 tool calls against 93, two runs past 100 s) are one
-  sampled run each way; 0.40.16 had its own 145 s run and one miss (t4 rep 2 stopped after one step). By the rules: no
-  difference.
+- **The coding agent, three passes a version** (the first pass alone, 14 against 13, was one sampled run; the advisor
+  asked for more; the second pair ran 0.40.17 first). 0.40.17 passed 40 of 45 against 43, took 13 % longer in all and
+  made 14 % more tool calls (413 against 363). By the rules one pass of three is a difference (pass 2: 12 against 15,
+  t4-refactor failing all three times), the other two are not: **0.40.17 leans worse for the agent, inside sampling
+  noise over 90 tasks**, neither shown worse nor shown as good. Its misses: t4-refactor ×3, t5 (changed the tests it
+  was given, as on 2026-11-10), t3 (tests that fail on the real code); 0.40.16's: t4 and t3.
+- **A first step that only thinks**, on both versions: 3 of the 90 tasks (1 on 0.40.16, 2 on 0.40.17, all t4-refactor)
+  ended after ~250 tokens of thought (*"First, I'll explore the codebase…"*), `stop`, no text and no tool call, and dsh
+  ended the turn (dsh's session log). LOL Vibe said the Changes tab showed what it did; it now says nothing was done
+  (DEVLOG 2026-11-22 03:30).
 - **Speed and memory:** within 2 % and 8 MiB. The llama.cpp bump changed neither for this model.
 
-**Verdict: no bump on its own.** Nothing measured moves for the farm's default model, and neither fix reaches it. Nothing
-regressed either: 0.40.17 is safe to carry in the next Farm app release, where it would help a farm serving Qwen3.8 or
-Nemotron 3 Nano on Ollama with its tools' bounds (not measured). Results: `results/n13-ollama0401{6,7}-gemma426__*.json`
+**Verdict: no bump on its own.** Its two fixes do not reach the farm's default model; the gate, speed and memory are the
+same; the coding agent leans worse on 0.40.17 (40 of 45 against 43, longer runs), inside the noise. It would help a farm
+serving Qwen3.8 or Nemotron 3 Nano on Ollama with its tools' bounds (not measured). Before 0.40.17 rides in a Farm app
+release: the agent's tasks again, or the next Ollama release tried the same way. Results: `results/n13-ollama0401{6,7}-gemma426__*.json`
 and `results/n13-ollama-0.40.16-vs-0.40.17__agent-and-probe.json`.

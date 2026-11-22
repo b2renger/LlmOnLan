@@ -183,7 +183,7 @@ A Gitea on your LAN works the same way (an `https://` address).
 | *The coding agent cannot work in this folder …* | Windows only: the data folder is on a second drive, a USB stick or a network folder. Move it into your user folder (Preferences ▸ Data location), then send again. |
 | *This file changed since you opened it … so it was not saved* | The agent edited it meanwhile. Copy your changes, click the file in the list (the new version opens), paste them back, **Save**. |
 | *The coding agent stopped before it answered* | Ask again: it restarts, and it gets a short recap of the chat. |
-| *The coding agent stopped before it did anything* | The model only thought, then stopped (seen with Gemma 4 26B on Ollama, about 1 time in 20). Nothing changed: send your message again, or press **Regenerate**. |
+| *The coding agent stopped before it did anything* | The model only thought, then stopped (seen with Gemma 4 26B on Ollama, about 1 time in 30). Nothing changed: send your message again, or press **Regenerate**. |
 | *… refused the token* | Make a new token with *Contents: read and write* on that repository, and save it again. |
 | *… both have changes the other lacks* | Your work is safe (committed). Push is refused too: bring the other side's work another way, or keep this copy. |
 | *This project's folder is not there any more* | It was moved or deleted outside LlmOnLan: put it back in `LOL Studio Projects`, or press **Other project**. |
