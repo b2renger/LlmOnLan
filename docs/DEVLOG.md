@@ -22,7 +22,9 @@ commit so the history records that a feature was tested + documented before it w
   only read; the tab would then say the reply changed nothing. `resultOf` now names the Changes tab only when the turn
   changed or made a file, and otherwise says *"The coding agent finished without a word, and changed no file. Ask
   again, saying what to change."* (`agent.noAnswerNoChange`; the guide's table has the row). **Test first**
-  (`agent.test.mjs`: a read-only turn failed on the old code). `test:chat` and lint after the correction: below.
+  (`agent.test.mjs`: a read-only turn failed on the old code). After the correction (`79073f5`): `test:chat` 1989 (1
+  skipped), lint 0, and the whole chat harness **423/423** (06:18–06:35); the local build `0.2.19+n13` made again from it
+  (06:18).
 - Then (06:09–06:12) `studio` (Chat / Split / Panel, the grip's arrows, `workbench.mjs:333`), `context` (262,144 trusted at
   most, 32,768 assumed: `ctx/budget.mjs`), `net` and `composer` (the connection pill's popover has *Add by address*; the
   Farm app's *Share compute with the network* is `farm-app/renderer/index.html:94`; the farm card's password field,

@@ -23,7 +23,7 @@ DEVLOG 2026-11-17), with a **Repair Open WebUI's database** button for the lapto
 ([OWUI_REPAIR_PLAN](../plans/OWUI_REPAIR_PLAN.md), approved 2026-11-18). Next: HUMAN_TESTS A28 on the release. On v0.2.18
 and before, those laptops need the manual repair (A28's last lines).
 
-**Unreleased on `main`** (since v0.2.19 and farm-v0.0.54; by 2026-11-22 06:08), each behind its human test and the
+**Unreleased on `main`** (since v0.2.19 and farm-v0.0.54; by 2026-11-22 06:18), each behind its human test and the
 owner's go. **Client** (a local build for the tests: `shell/dist/LlmOnLan-Setup-0.2.19+n13-windows-x64.exe`, HUMAN_TESTS
 G14): LOL Vibe's page beside its code and the pop-out window (VIBE_PAGE_PLAN, HUMAN_TESTS A29); *Plan first* beside the
 message box, one per chat (G14); an attached document read once per chat (`RAG_SYSTEM_CONTEXT`, J16 step 6); a
