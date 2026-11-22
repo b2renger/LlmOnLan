@@ -61,8 +61,17 @@ export default (test) => {
     assert.equal(out.status, 'error', 'an empty answer that hit the cap is not "done"');
     assert.match(out.error.farmMessage, /ran out of room/);
     const quiet = emptyTurn();
+    applyRecord(quiet, { kind: 'call', callId: 'c1', name: 'write', target: 'index.html' });
+    applyRecord(quiet, { kind: 'result', callId: 'c1', ok: true, diffs: [{ path: 'index.html', oldText: '', newText: '<p>hi</p>' }], created: true });
     assert.equal(resultOf(quiet, { reason: 'completed' }).status, 'done');
     assert.match(quiet.content, /Changes tab/, 'a turn with only tool calls still says something');
+    // Gemma 4 26B on Ollama (night n° 13, 3 runs of 60): a first step that only thinks, then stops. Nothing was done, so
+    // the Changes tab would show an EARLIER reply's changes: the sentence must not send a student there.
+    const idle = emptyTurn();
+    applyRecord(idle, { kind: 'step', text: '', reasoning: 'First, I\'ll explore the codebase.', stopReason: 'stop', outTokens: 257 });
+    assert.equal(resultOf(idle, { reason: 'completed' }).status, 'done');
+    assert.doesNotMatch(idle.content, /Changes tab/, `a turn that did nothing: ${idle.content}`);
+    assert.match(idle.content, /before it did anything/);
   });
 
   // Multi-user 1.6: dsh no longer retries a 429 by itself (studio.ts), so the seat gate's refusal must become the SAME

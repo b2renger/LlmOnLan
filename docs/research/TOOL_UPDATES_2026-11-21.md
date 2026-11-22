@@ -44,8 +44,9 @@ word, not a session's own. Nothing was changed tonight.
 - **Tool schemas** (ollama#19686): Ollama decoded a tool's parameters into a struct that knew only `type`,
   `description`, `enum`, `items`, `properties`, `required` and `anyOf`; any other keyword (`default`, `minimum`, …) was
   dropped before the prompt was built. Now kept; what a model sees depends on its renderer (corrected after the
-  trial, which found the first reading wrong): Nemotron 3 Nano's and Flint's print every kept keyword, **Gemma 4's
-  prints only `nullable`**, Qwen3-Coder's change is cleanup (ollama#19686's diff). In our own code: the Computer's MCP
+  trial, which found the first reading wrong): Nemotron 3 Nano's and Flint's print every kept keyword, and so does
+  Qwen3.5/3.8's (it marshals Ollama's own types, whose marshaller now adds them back: `qwen35.go`, `api/types.go`);
+  **Gemma 4's prints only `nullable`**; Qwen3-Coder's change is cleanup (ollama#19686's diff). In our own code: the Computer's MCP
   tools (`shell/src/main/mcp.ts`) use only modeled keywords; the Agent box's `additionalProperties: false` is a
   `response_format`, not a tool, so it does not go this way. The coding agent's (dsh 0.1.7-rc.2) eight tools, read from
   requests captured in the trial, use one: `additionalProperties: false` on `todo_write`'s items.

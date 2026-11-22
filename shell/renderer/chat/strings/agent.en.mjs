@@ -39,4 +39,5 @@ registerStrings('agent', {
   outOfRoom: 'The model ran out of room before it finished. Ask for a smaller change, or pick a model that is good at editing code (the Project panel says which).',
   endedEarly: 'The coding agent stopped before it answered ({reason}).',
   noAnswer: 'The coding agent finished without a word. The Changes tab shows what it did.',
+  noAction: 'The coding agent stopped before it did anything: nothing changed. Send your message again, or press Regenerate.',
 });

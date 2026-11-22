@@ -145,7 +145,9 @@ export function resultOf(s, done) {
   }
   if (!s.content && /length|max/i.test(String(s.stopReason || ''))) return { status: 'error', error: local(t('agent.outOfRoom'), 'stream_error') };
   if (done.reason !== 'completed') return { status: 'error', error: local(t('agent.endedEarly', { reason: done.reason }), 'stream_error') };
-  if (!s.content) s.content = t('agent.noAnswer');
+  // No word and no tool call (Gemma 4 on Ollama sometimes only thinks, then stops): nothing changed, so the Changes tab
+  // would show an earlier reply's changes. Say it did nothing.
+  if (!s.content) s.content = Object.keys(s.calls).length ? t('agent.noAnswer') : t('agent.noAction');
   return { status: 'done', abortedBy: null, error: null };
 }
 

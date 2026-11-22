@@ -9,6 +9,19 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-22 (03:30) — A coding-agent turn that did nothing no longer points to the Changes tab (night n° 13)
+
+- Found in the Ollama trial's reruns (the advisor asked for them): Gemma 4 26B on Ollama sometimes ends its first step
+  with a thought and nothing else (*"First, I'll explore the codebase…"*, ~250 tokens, `stop`, no text, no tool call),
+  and dsh ends the turn: 3 of the first 60 agent tasks, on both versions (t4-refactor each time; read in dsh's session
+  log). LOL Vibe then said *"The coding agent finished without a word. The Changes tab shows what it did."*, but it did
+  nothing, and the Changes tab shows the newest reply **that changed something**, an earlier one.
+- `projects/agent.mjs` `resultOf`: with no text and no tool call, `agent.noAction`: *"The coding agent stopped before it
+  did anything: nothing changed. Send your message again, or press Regenerate."* With tool calls, the old sentence.
+  **Test first:** `agent.test.mjs` failed on the old code (*a turn that did nothing: … The Changes tab shows what it
+  did.*); its old "only tool calls" case had no tool call in it, and now has one. `test:chat` 1989, lint 0.
+  LOLVIBE_IDE_GUIDE §7 has the row. Whether the farm should do more (a nudge to act) is a plan, not tonight's.
+
 ## 2026-11-22 (03:07) — Ollama 0.40.17 against the pinned 0.40.16, gemma4:26b behind a scratch farm: no bump on its own (night n° 13)
 
 - n° 12's *Next* (2), the trial TOOL_UPDATES_2026-11-21 asked for. Read first in Ollama's code: the thinking-off change
