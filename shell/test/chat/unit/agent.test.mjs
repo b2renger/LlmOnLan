@@ -72,6 +72,13 @@ export default (test) => {
     assert.equal(resultOf(idle, { reason: 'completed' }).status, 'done');
     assert.doesNotMatch(idle.content, /Changes tab/, `a turn that did nothing: ${idle.content}`);
     assert.match(idle.content, /before it did anything/);
+    // Calls that only read, and no word: nothing changed either, so the Changes tab would again show an earlier reply's.
+    const reader = emptyTurn();
+    applyRecord(reader, { kind: 'call', callId: 'r1', name: 'read', target: 'index.html' });
+    applyRecord(reader, { kind: 'result', callId: 'r1', ok: true, diffs: [] });
+    assert.equal(resultOf(reader, { reason: 'completed' }).status, 'done');
+    assert.doesNotMatch(reader.content, /Changes tab/, `a turn that only read: ${reader.content}`);
+    assert.match(reader.content, /changed no file/);
   });
 
   // Multi-user 1.6: dsh no longer retries a 429 by itself (studio.ts), so the seat gate's refusal must become the SAME

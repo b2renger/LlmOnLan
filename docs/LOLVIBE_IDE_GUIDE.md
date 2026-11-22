@@ -125,7 +125,7 @@ going until done** work as for one you typed.
 |---|---|
 | **Preview** | the project's `index.html` (or the page, picture or sound you opened in the file list), live; it reloads after each reply. **Reload** redraws it. |
 | **Code** | the file you picked in the list. You can edit it: **Save** (or Ctrl+S). Tab indents, Enter keeps the indent. It follows the agent: after a reply (or **Go back**, or **Pull**) it shows the new text — unless you have unsaved edits, which it keeps. |
-| **Changes** | what the agent's last reply changed: the old text and the new, edit by edit. |
+| **Changes** | what the newest reply that changed a file changed (a reply that changed nothing leaves it as it was): the old text and the new, edit by edit. |
 | **History** | every reply that changed a file, and every Save, newest first. Pick one to see what it changed. **Go back to this version** makes the files what they were then — as a new step, so you can come back again. |
 
 Buttons on top: **Other project** (tie the chat to another one), **Open folder**, **Open in browser** (the page in
@@ -184,6 +184,7 @@ A Gitea on your LAN works the same way (an `https://` address).
 | *The coding agent cannot work in this folder …* | Windows only: the data folder is on a second drive, a USB stick or a network folder. Move it into your user folder (Preferences ▸ Data location), then send again. |
 | *This file changed since you opened it … so it was not saved* | The agent edited it meanwhile. Copy your changes, click the file in the list (the new version opens), paste them back, **Save**. |
 | *The coding agent stopped before it answered* | Ask again: it restarts, and it gets a short recap of the chat. |
+| *The coding agent finished without a word, and changed no file* | It only read the project. Ask again, saying what to change. |
 | *The coding agent stopped before it did anything* | The model only thought, then stopped (seen with Gemma 4 26B on Ollama, about 1 time in 30). Nothing changed: send your message again, or press **Regenerate**. |
 | *… refused the token* | Make a new token with *Contents: read and write* on that repository, and save it again. |
 | *… both have changes the other lacks* | Your work is safe (committed). Push is refused too: bring the other side's work another way, or keep this copy. |

@@ -9,6 +9,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-22 (06:08) — LOL Vibe's strings read against the code: the Changes tab's two sentences corrected (night n° 13)
+
+- `strings/project.en.mjs` and `agent.en.mjs` read through: the loop's rounds, the schedule's rules, the share, the
+  token's path, Go ahead's sentence, the loop endings: they hold. Two did not, the same mistake as 03:30's: the Changes
+  tab shows the newest reply **that changed a file** (`ui/project-panel.mjs` `lastChanges`), so
+  - `project.noChanges`, *"The agent's last reply changed nothing."*, appears only when no reply of the chat changed a
+    file: now *"No reply of the agent in this chat has changed a file yet."*; LOLVIBE_IDE_GUIDE's Changes row now says
+    what the tab shows;
+  - `agent.noAnswer`, *"…finished without a word. The Changes tab shows what it did."*, also came after a turn whose calls
+    only read: `resultOf` now points to the Changes tab only when the turn changed or created a file, and otherwise says
+    *"The coding agent finished without a word, and changed no file. Ask again, saying what to change."*
+    (`agent.noAnswerNoChange`; the guide's table has the row). **Test first** (`agent.test.mjs`: a read-only turn
+    failed on the old code). `test:chat` 1989, lint 0, `--phase k24` 5/5. Labelling which reply the tab shows would be
+    new UI: not done.
+
 ## 2026-11-22 (05:52) — The Computer's context module and HOME_ASSISTANT.md read against the code: they hold (night n° 13)
 
 - Docs to the code (approved in advance; the Computer is not n° 15's review area). **`docs/context/computer.md`**: every

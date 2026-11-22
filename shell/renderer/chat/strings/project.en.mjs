@@ -79,7 +79,8 @@ registerStrings('project', {
   binary: 'Not a text file: the Preview shows it.',
   binaryOther: 'Not a text file, so it cannot be shown here. Open folder shows it on this computer.',
   noIndex: 'There is no {page} yet. Ask the agent to make one.',
-  noChanges: 'The agent\'s last reply changed nothing.',
+  // Shown only when no reply of this chat changed a file: the tab shows the newest reply that did (ui/project-panel.mjs lastChanges).
+  noChanges: 'No reply of the agent in this chat has changed a file yet.',
   newFile: 'New file: {path}',
   modelGood: '{model} is good at editing code.',
   modelWeak: '{model} is weak at editing code: it often runs out of room before it finishes. If the farm serves qwen3.8 or nemotron, pick one in the model menu at the top of the chat.',

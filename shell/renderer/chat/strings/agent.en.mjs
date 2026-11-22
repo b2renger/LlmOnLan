@@ -40,4 +40,5 @@ registerStrings('agent', {
   endedEarly: 'The coding agent stopped before it answered ({reason}).',
   noAnswer: 'The coding agent finished without a word. The Changes tab shows what it did.',
   noAction: 'The coding agent stopped before it did anything: nothing changed. Send your message again, or press Regenerate.',
+  noAnswerNoChange: 'The coding agent finished without a word, and changed no file. Ask again, saying what to change.',
 });

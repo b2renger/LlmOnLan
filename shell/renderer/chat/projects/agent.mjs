@@ -145,9 +145,10 @@ export function resultOf(s, done) {
   }
   if (!s.content && /length|max/i.test(String(s.stopReason || ''))) return { status: 'error', error: local(t('agent.outOfRoom'), 'stream_error') };
   if (done.reason !== 'completed') return { status: 'error', error: local(t('agent.endedEarly', { reason: done.reason }), 'stream_error') };
-  // No word and no tool call (Gemma 4 on Ollama sometimes only thinks, then stops): nothing changed, so the Changes tab
-  // would show an earlier reply's changes. Say it did nothing.
-  if (!s.content) s.content = Object.keys(s.calls).length ? t('agent.noAnswer') : t('agent.noAction');
+  // No word: the Changes tab shows the newest reply that CHANGED a file, so point to it only when this one did. No tool call
+  // at all (Gemma 4 on Ollama sometimes only thinks, then stops): it did nothing.
+  const changed = s.changes.length > 0 || s.created.length > 0;
+  if (!s.content) s.content = changed ? t('agent.noAnswer') : Object.keys(s.calls).length ? t('agent.noAnswerNoChange') : t('agent.noAction');
   return { status: 'done', abortedBy: null, error: null };
 }
 
