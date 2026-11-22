@@ -9,6 +9,28 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-22 (03:07) — Ollama 0.40.17 against the pinned 0.40.16, gemma4:26b behind a scratch farm: no bump on its own (night n° 13)
+
+- n° 12's *Next* (2), the trial TOOL_UPDATES_2026-11-21 asked for. Read first in Ollama's code: the thinking-off change
+  (ollama#19684) touches only models that cannot turn thinking off (Gemma 4 can); the schema change (ollama#19686) keeps
+  unmodeled keywords, and each renderer decides what it prints; and v0.40.17 also bumps its llama.cpp to b12257.
+- **Setup** (all in the session's scratch, the live farm off since Saturday): both Windows builds unpacked into their
+  own folders; `gemma4:26b` pulled once (18 GB, 02:09–02:35); a scratch farm (gate 4290) → a 28-line logging
+  pass-through on 11510 → the scratch Ollama on 11500 with the farm's env; one version after the other on the same
+  models folder. The expected result and the noise rules written at 02:20, before the first run.
+- **Results** (RESULTS, the new section): the same on both: 28/28 thinking off with 0 thinking, 27 and 28 of 28 thinking
+  on (the miss: one item cut at 16,384 tokens), the agent 14 and 13 of 15, speed within 2 %, memory within 8 MiB
+  (21,161 and 21,169 MiB loaded; 20.6 GiB on 0.33.0). The pass-through shows `think: false` on every request and the
+  tool keywords reaching Ollama; the prompt does not grow on 0.40.17 because **Gemma 4's renderer prints only
+  `nullable`**. TOOL_UPDATES's first reading (that it prints them all) corrected. dsh's eight tools read from the
+  captured requests: one unmodeled keyword (`todo_write`'s `additionalProperties: false`).
+- **Verdict:** nothing gained or lost for the farm's default model; the bump can ride with the next Farm app release.
+  Nothing changed in the code.
+- Two slips, fixed before any result was kept: the first start passed `6` for `16` (the label right, the notes "0.40.6"),
+  stopped at its warm-up; TaskStop left the script running (as the memory warns), killed by hand.
+- After: `lol down`, the pass-through and the Ollama runner stopped by path; nothing of the session's left running;
+  GPU 951 MiB.
+
 ## 2026-11-22 (02:17) — The Preview's kept port walked as a student, through a restart, in the harness (night n° 13)
 
 - n° 12's *Next* (3): the fix of 2026-11-21 (review M2: a project's Preview asks for its last port, so its page's
@@ -24,7 +46,8 @@ commit so the history records that a feature was tested + documented before it w
   real one on one point: the old server had served the frame just before (a real quit drops its connections with the
   process); Windows gave the port back each time.
 - **Seen once, not again:** one run's agent reply ended in *error* in 0.6 s (the mock dsh, the first message); the 8
-  runs after it did not. Recorded, not chased.
+  runs after it did not, nor 10 more in a row (02:20) or the whole harness after (02:21–02:37, **422/422**). Recorded,
+  not chased.
 - `--phase k24` 4/4, `--phase h0` 13/13.
 
 ## 2026-11-22 (02:09) — A chat bound to a project no longer says "press Project at the top" (night n° 13)

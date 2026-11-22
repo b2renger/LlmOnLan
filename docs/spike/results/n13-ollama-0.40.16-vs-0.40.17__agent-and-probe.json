@@ -1,0 +1,485 @@
+{
+ "kind": "ollama-trial",
+ "date": "2026-11-22",
+ "notes": "night n13: gemma4:26b (Q4_K_M, digest 001e5dafc3c7) behind a scratch farm (LiteLLM 1.106.9, 2 seats, num_ctx 32768, q8_0, flash attention), a logging tap between LiteLLM and a scratch Ollama on 11500; the same models folder for both versions, one after the other. Agent: docs/spike/ide/run.js, dsh 0.1.7-rc.2, 32768 reply tokens, five tasks x 3. Probe: one tool, days with or without minimum/maximum/default, temperature 0, thinking off.",
+ "agent": {
+  "0.40.16": [
+   {
+    "task": "t1-median",
+    "rep": "1",
+    "pass": true,
+    "fails": [],
+    "wallS": 21.266,
+    "steps": 7,
+    "calls": 6,
+    "failedCalls": 1,
+    "outTokens": 3377
+   },
+   {
+    "task": "t2-p5",
+    "rep": "1",
+    "pass": true,
+    "fails": [],
+    "wallS": 22.379,
+    "steps": 5,
+    "calls": 4,
+    "failedCalls": 1,
+    "outTokens": 5746
+   },
+   {
+    "task": "t3-tests",
+    "rep": "1",
+    "pass": true,
+    "fails": [],
+    "wallS": 18.564,
+    "steps": 6,
+    "calls": 5,
+    "failedCalls": 0,
+    "outTokens": 4613
+   },
+   {
+    "task": "t4-refactor",
+    "rep": "1",
+    "pass": true,
+    "fails": [],
+    "wallS": 21.867,
+    "steps": 9,
+    "calls": 8,
+    "failedCalls": 1,
+    "outTokens": 5163
+   },
+   {
+    "task": "t5-tdd",
+    "rep": "1",
+    "pass": true,
+    "fails": [],
+    "wallS": 145.383,
+    "steps": 13,
+    "calls": 12,
+    "failedCalls": 2,
+    "outTokens": 31242
+   },
+   {
+    "task": "t1-median",
+    "rep": "2",
+    "pass": true,
+    "fails": [],
+    "wallS": 16.068,
+    "steps": 10,
+    "calls": 9,
+    "failedCalls": 2,
+    "outTokens": 3294
+   },
+   {
+    "task": "t2-p5",
+    "rep": "2",
+    "pass": true,
+    "fails": [],
+    "wallS": 29.087,
+    "steps": 4,
+    "calls": 3,
+    "failedCalls": 0,
+    "outTokens": 6971
+   },
+   {
+    "task": "t3-tests",
+    "rep": "2",
+    "pass": true,
+    "fails": [],
+    "wallS": 12.434,
+    "steps": 5,
+    "calls": 4,
+    "failedCalls": 0,
+    "outTokens": 2884
+   },
+   {
+    "task": "t4-refactor",
+    "rep": "2",
+    "pass": false,
+    "fails": [
+     "no money.js",
+     "cart.js still defines a helper",
+     "cart.js does not import ./money",
+     "invoice.js still defines a helper",
+     "invoice.js does not import ./money"
+    ],
+    "wallS": 2.129,
+    "steps": 1,
+    "calls": 0,
+    "failedCalls": 0,
+    "outTokens": 263
+   },
+   {
+    "task": "t5-tdd",
+    "rep": "2",
+    "pass": true,
+    "fails": [],
+    "wallS": 29.748,
+    "steps": 11,
+    "calls": 10,
+    "failedCalls": 3,
+    "outTokens": 6668
+   },
+   {
+    "task": "t1-median",
+    "rep": "3",
+    "pass": true,
+    "fails": [],
+    "wallS": 20.38,
+    "steps": 7,
+    "calls": 6,
+    "failedCalls": 2,
+    "outTokens": 4903
+   },
+   {
+    "task": "t2-p5",
+    "rep": "3",
+    "pass": true,
+    "fails": [],
+    "wallS": 51.649,
+    "steps": 8,
+    "calls": 7,
+    "failedCalls": 2,
+    "outTokens": 10532
+   },
+   {
+    "task": "t3-tests",
+    "rep": "3",
+    "pass": true,
+    "fails": [],
+    "wallS": 19.776,
+    "steps": 6,
+    "calls": 5,
+    "failedCalls": 0,
+    "outTokens": 4455
+   },
+   {
+    "task": "t4-refactor",
+    "rep": "3",
+    "pass": true,
+    "fails": [],
+    "wallS": 15.505,
+    "steps": 10,
+    "calls": 9,
+    "failedCalls": 2,
+    "outTokens": 3033
+   },
+   {
+    "task": "t5-tdd",
+    "rep": "3",
+    "pass": true,
+    "fails": [],
+    "wallS": 28.189,
+    "steps": 6,
+    "calls": 5,
+    "failedCalls": 0,
+    "outTokens": 7295
+   }
+  ],
+  "0.40.17": [
+   {
+    "task": "t1-median",
+    "rep": "1",
+    "pass": true,
+    "fails": [],
+    "wallS": 19.052,
+    "steps": 7,
+    "calls": 6,
+    "failedCalls": 1,
+    "outTokens": 4582
+   },
+   {
+    "task": "t2-p5",
+    "rep": "1",
+    "pass": true,
+    "fails": [],
+    "wallS": 41.471,
+    "steps": 5,
+    "calls": 4,
+    "failedCalls": 0,
+    "outTokens": 8364
+   },
+   {
+    "task": "t3-tests",
+    "rep": "1",
+    "pass": true,
+    "fails": [],
+    "wallS": 100.655,
+    "steps": 39,
+    "calls": 38,
+    "failedCalls": 3,
+    "outTokens": 19378
+   },
+   {
+    "task": "t4-refactor",
+    "rep": "1",
+    "pass": true,
+    "fails": [],
+    "wallS": 26.327,
+    "steps": 12,
+    "calls": 11,
+    "failedCalls": 2,
+    "outTokens": 3828
+   },
+   {
+    "task": "t5-tdd",
+    "rep": "1",
+    "pass": false,
+    "fails": [
+     "the tests were changed"
+    ],
+    "wallS": 104.108,
+    "steps": 25,
+    "calls": 24,
+    "failedCalls": 2,
+    "outTokens": 19601
+   },
+   {
+    "task": "t1-median",
+    "rep": "2",
+    "pass": true,
+    "fails": [],
+    "wallS": 18.138,
+    "steps": 6,
+    "calls": 5,
+    "failedCalls": 1,
+    "outTokens": 4632
+   },
+   {
+    "task": "t2-p5",
+    "rep": "2",
+    "pass": true,
+    "fails": [],
+    "wallS": 42.51,
+    "steps": 5,
+    "calls": 4,
+    "failedCalls": 0,
+    "outTokens": 9899
+   },
+   {
+    "task": "t3-tests",
+    "rep": "2",
+    "pass": true,
+    "fails": [],
+    "wallS": 19.521,
+    "steps": 8,
+    "calls": 7,
+    "failedCalls": 0,
+    "outTokens": 4855
+   },
+   {
+    "task": "t4-refactor",
+    "rep": "2",
+    "pass": true,
+    "fails": [],
+    "wallS": 30.855,
+    "steps": 14,
+    "calls": 13,
+    "failedCalls": 3,
+    "outTokens": 6402
+   },
+   {
+    "task": "t5-tdd",
+    "rep": "2",
+    "pass": true,
+    "fails": [],
+    "wallS": 23.351,
+    "steps": 9,
+    "calls": 8,
+    "failedCalls": 0,
+    "outTokens": 5040
+   },
+   {
+    "task": "t1-median",
+    "rep": "3",
+    "pass": true,
+    "fails": [],
+    "wallS": 14.501,
+    "steps": 6,
+    "calls": 5,
+    "failedCalls": 1,
+    "outTokens": 3327
+   },
+   {
+    "task": "t2-p5",
+    "rep": "3",
+    "pass": true,
+    "fails": [],
+    "wallS": 92.946,
+    "steps": 8,
+    "calls": 7,
+    "failedCalls": 1,
+    "outTokens": 18729
+   },
+   {
+    "task": "t3-tests",
+    "rep": "3",
+    "pass": false,
+    "fails": [
+     "the tests fail on the real slugify.js"
+    ],
+    "wallS": 24.38,
+    "steps": 8,
+    "calls": 7,
+    "failedCalls": 0,
+    "outTokens": 6046
+   },
+   {
+    "task": "t4-refactor",
+    "rep": "3",
+    "pass": true,
+    "fails": [],
+    "wallS": 22.928,
+    "steps": 11,
+    "calls": 10,
+    "failedCalls": 2,
+    "outTokens": 5034
+   },
+   {
+    "task": "t5-tdd",
+    "rep": "3",
+    "pass": true,
+    "fails": [],
+    "wallS": 24.04,
+    "steps": 7,
+    "calls": 6,
+    "failedCalls": 0,
+    "outTokens": 5952
+   }
+  ]
+ },
+ "probe": [
+  {
+   "label": "n13-ollama04016-gemma426",
+   "rich": false,
+   "i": 0,
+   "status": 200,
+   "prompt": 109,
+   "completion": 18,
+   "call": "{\"city\": \"Lyon\", \"days\": 10}",
+   "text": "",
+   "ms": 200
+  },
+  {
+   "label": "n13-ollama04016-gemma426",
+   "rich": false,
+   "i": 1,
+   "status": 200,
+   "prompt": 109,
+   "completion": 18,
+   "call": "{\"city\": \"Lyon\", \"days\": 10}",
+   "text": "",
+   "ms": 117
+  },
+  {
+   "label": "n13-ollama04016-gemma426",
+   "rich": false,
+   "i": 2,
+   "status": 200,
+   "prompt": 109,
+   "completion": 18,
+   "call": "{\"city\": \"Lyon\", \"days\": 10}",
+   "text": "",
+   "ms": 111
+  },
+  {
+   "label": "n13-ollama04016-gemma426",
+   "rich": true,
+   "i": 0,
+   "status": 200,
+   "prompt": 109,
+   "completion": 18,
+   "call": "{\"city\": \"Lyon\", \"days\": 10}",
+   "text": "",
+   "ms": 108
+  },
+  {
+   "label": "n13-ollama04016-gemma426",
+   "rich": true,
+   "i": 1,
+   "status": 200,
+   "prompt": 109,
+   "completion": 18,
+   "call": "{\"city\": \"Lyon\", \"days\": 10}",
+   "text": "",
+   "ms": 107
+  },
+  {
+   "label": "n13-ollama04016-gemma426",
+   "rich": true,
+   "i": 2,
+   "status": 200,
+   "prompt": 109,
+   "completion": 18,
+   "call": "{\"city\": \"Lyon\", \"days\": 10}",
+   "text": "",
+   "ms": 106
+  },
+  {
+   "label": "n13-ollama04017-gemma426",
+   "rich": false,
+   "i": 0,
+   "status": 200,
+   "prompt": 109,
+   "completion": 18,
+   "call": "{\"city\": \"Lyon\", \"days\": 10}",
+   "text": "",
+   "ms": 167
+  },
+  {
+   "label": "n13-ollama04017-gemma426",
+   "rich": false,
+   "i": 1,
+   "status": 200,
+   "prompt": 109,
+   "completion": 18,
+   "call": "{\"city\": \"Lyon\", \"days\": 10}",
+   "text": "",
+   "ms": 117
+  },
+  {
+   "label": "n13-ollama04017-gemma426",
+   "rich": false,
+   "i": 2,
+   "status": 200,
+   "prompt": 109,
+   "completion": 18,
+   "call": "{\"city\": \"Lyon\", \"days\": 10}",
+   "text": "",
+   "ms": 109
+  },
+  {
+   "label": "n13-ollama04017-gemma426",
+   "rich": true,
+   "i": 0,
+   "status": 200,
+   "prompt": 109,
+   "completion": 18,
+   "call": "{\"city\": \"Lyon\", \"days\": 10}",
+   "text": "",
+   "ms": 107
+  },
+  {
+   "label": "n13-ollama04017-gemma426",
+   "rich": true,
+   "i": 1,
+   "status": 200,
+   "prompt": 109,
+   "completion": 18,
+   "call": "{\"city\": \"Lyon\", \"days\": 10}",
+   "text": "",
+   "ms": 107
+  },
+  {
+   "label": "n13-ollama04017-gemma426",
+   "rich": true,
+   "i": 2,
+   "status": 200,
+   "prompt": 109,
+   "completion": 18,
+   "call": "{\"city\": \"Lyon\", \"days\": 10}",
+   "text": "",
+   "ms": 106
+  }
+ ]
+}

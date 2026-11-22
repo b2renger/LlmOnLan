@@ -1566,3 +1566,48 @@ samples**: the layout is right (the three cards in one row, the chart beside the
 at a percentage height inside a box with no height of its own, so none shows. Every Qwen3.6 and Qwen3.8 dashboard draws
 its bars (the six shots looked at again at 06:09). The check passes two of Gemma's: it reads texts and colours, not
 what is drawn. A check that measures the rendered bars, or a look by eye, is what catches it.
+
+# Ollama 0.40.17 against 0.40.16 (RTX PRO 6000, 2026-11-22)
+
+**Why:** the farm pins Ollama v0.40.16 (`farm-app/src/main/runtimeManager.ts` `RUNTIME_PINS`); v0.40.17 lists two fixes
+on the farm's path, thinking off and tool schemas ([TOOL_UPDATES_2026-11-21](../research/TOOL_UPDATES_2026-11-21.md)),
+and bumps its bundled llama.cpp from b12177 to b12257. Night n° 13 (Sunday, the live farm off, the card free).
+
+**How it ran.** The farm's default Ollama model, `gemma4:26b` (Q4_K_M, digest `001e5dafc3c7`), pulled into a scratch
+models folder; a scratch farm (`lol up` from its own folder, gate 4290, LiteLLM 1.106.9, 2 seats, `num_ctx` 32768) in
+front of a scratch Ollama on 11500 with the farm's settings (2 in parallel, q8_0 cache, flash attention, kept loaded),
+each version in turn on the same folder; a small logging pass-through between LiteLLM and Ollama recorded what reached
+Ollama. Both versions ran the model through their bundled `llama-server`, so the llama.cpp bump was on its path. The
+expected result and the rules (one item of 28, one task of 15 is noise; speed 5 %, first word 20 %, memory 0.5 GiB)
+were written at 02:20, before the first run.
+
+| Check | Ollama 0.40.16 (the pin) | Ollama 0.40.17 | 0.33.0, 2026-11-10 |
+|---|---|---|---|
+| GPU memory, model loaded (32k, 2 seats) | 21,161 MiB | 21,169 MiB | 20.6 GiB |
+| The 28-item gate, thinking off | **28/28**, 30 s, 13.3k tokens, 0 thinking | **28/28**, 21 s, 10.0k tokens, 0 thinking | 28/28, 37 s |
+| The 28-item gate, thinking on | 27/28 (`math_digits` cut at 16,384), 176 s | 28/28 (the same item at 16,008), 174 s | 28/28, 164 s |
+| One person: first word, writing | 0.32 s, 269 tok/s | 0.31 s, 266 tok/s | — |
+| Two people: first word, writing each | 0.35 s, 198 tok/s | 0.34 s, 197 tok/s | — |
+| The coding agent, five tasks × 3 | **14/15**, 21 s a task (median) | **13/15**, 24 s a task | 14/15, 22 s |
+| A tool with `minimum`/`maximum`/`default` against without | 109 and 109 prompt tokens; `days: 10` both | 109 and 109; `days: 10` both | — |
+
+- **Thinking off** reached Ollama as `think: false` on every request (the pass-through), and both versions thought 0
+  characters with it. As read in Ollama's code: the change maps off to a model's lowest level only for a model that
+  cannot turn thinking off, and Gemma 4 can.
+- **Tool schemas:** LiteLLM passes the keywords on (the pass-through shows `minimum`, `maximum` and `default` reaching
+  Ollama), but on both versions the prompt is the same size: 0.40.17 keeps the keywords, and **Gemma 4's renderer prints
+  only `nullable` of them** (ollama#19686's `gemma4.go`). Nemotron 3 Nano's renderer prints them all, and so does
+  Flint's (not run here; the farm offers Flint in vLLM's list, `farm/src/presets.js`, and ollama#19191 broke its reads
+  on Ollama, 2026-11-02). The coding agent's eight tools (dsh 0.1.7-rc.2: edit, glob, grep, read,
+  read_image, skill, todo_write, write) use one such keyword, `additionalProperties: false` on `todo_write`'s items;
+  the Computer's MCP tools use none (`shell/src/main/mcp.ts`).
+- **The agent's two misses on 0.40.17** (t5 rep 1 changed the tests it was given, as on 2026-11-10; t3 rep 3 wrote
+  tests that fail on the real code) and its longer runs (155 tool calls against 93, two runs past 100 s) are one
+  sampled run each way; 0.40.16 had its own 145 s run and one miss (t4 rep 2 stopped after one step). By the rules: no
+  difference.
+- **Speed and memory:** within 2 % and 8 MiB. The llama.cpp bump changed neither for this model.
+
+**Verdict: no bump on its own.** Nothing measured moves for the farm's default model, and neither fix reaches it. Nothing
+regressed either: 0.40.17 is safe to carry in the next Farm app release, where it would help a farm serving Nemotron 3
+Nano on Ollama with its tools' bounds (not measured). Results: `results/n13-ollama0401{6,7}-gemma426__*.json`
+and `results/n13-ollama-0.40.16-vs-0.40.17__agent-and-probe.json`.
