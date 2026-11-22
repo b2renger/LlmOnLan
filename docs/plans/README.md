@@ -369,6 +369,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 - **[BLENDER_TOOLS_ENV_PLAN](BLENDER_TOOLS_ENV_PLAN.md)** (night n° 12, proposed): the Blender tools through
   `TOOL_SERVER_CONNECTIONS` (env, as the Computer's), so Open WebUI 0.13.4 and later can come without losing them.
   **S**. Until the owner says yes, Open WebUI stays at 0.13.3 (plans ▸ Now, the bump: blocked).
+- **[AGENT_FIRST_STEP_PLAN](AGENT_FIRST_STEP_PLAN.md)** (night n° 13, proposed): Gemma 4 26B on Ollama ends 1 coding
+  task in 30 with a thought and nothing else (3 of 90, both Ollama versions); LlmOnLan would ask it once, in the same
+  reply, to go on. **S**. Until then the reply says nothing was done (built tonight as a reproduced bug).
 0. **Client v0.2.19** with [OWUI_START_PLAN](OWUI_START_PLAN.md) (built 2026-11-17 on `main`, approved by the owner):
    your go to push `main` and tag it, then HUMAN_TESTS A28 on the release. `main` now also carries the Agent box's
    loop stop (Next 13, night n° 9; unit tests and the harness, not in A28) and
