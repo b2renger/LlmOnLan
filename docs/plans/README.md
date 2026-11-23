@@ -385,6 +385,11 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 ## 4. Waiting on the owner
 
 **The ones that unblock the most:**
+- **[FARM_START_PLAN](FARM_START_PLAN.md)** (2026-11-23, by day, the owner's ask: *"it takes ages to start vllm and
+  the farm"*): measured, a start is ~2 min 30 s from the Farm app's launch, ~5 min 30 s when FlashInfer rebuilds its
+  kernels. Done the same day (a reproduced bug): the sessions' trial roots no longer make production rebuild them.
+  Proposed: vLLM starts with the farm (−29 s), the panel shows the time and the truth, precompiled kernels (a new
+  dependency: measure first), the weights' load strategy. **S + S + M + S**.
 - **[BLENDER_TOOLS_ENV_PLAN](BLENDER_TOOLS_ENV_PLAN.md)** (night n° 12, proposed): the Blender tools through
   `TOOL_SERVER_CONNECTIONS` (env, as the Computer's), so Open WebUI 0.13.4 and later can come without losing them.
   **S**. Until the owner says yes, Open WebUI stays at 0.13.3 (plans ▸ Now, the bump: blocked).
