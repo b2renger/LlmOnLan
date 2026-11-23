@@ -9,6 +9,16 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-23 (09:13) — The class rehearsal by day, after the night stopped (n° 14)
+
+- `REH_SIDECAR=<the v0.2.19 sidecar> node test/rehearsal/run.js --clients 2 --minutes 3` after `npm run build`, TEMP in
+  the session's scratch (09:08–09:13): **0 farm moves, no *keeps exiting*, `sealHeard` empty** for both clients; ready
+  50.4 / 31.2 s, first chats 36.7 / 31.9 s (`results/rehearsal-2026-11-230813-2c.json`). The 50 s matches n° 13's first
+  run of a sidecar cold on disk (49.9 s); not a finding. No process of it left (`Win32_Process`: ComfyUI only).
+- Also by day: the model survey cut off at 02:28, finished ([MODELS_2026-11-23](research/MODELS_2026-11-23.md)):
+  nothing released 2026-11-12 to 11-23 fits our cards with a released engine; the night cron renewed (`1a777bdd`,
+  expires 2026-11-30).
+
 ## 2026-11-23 (09:08) — Inkling 2 Mini read, its trial stopped: the owner waits for official support (by day, n° 14)
 
 - The owner's ask (08:41): Inkling 2, "better scores than qwen3.8 with smaller weights". Read in its repository and
