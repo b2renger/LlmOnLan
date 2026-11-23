@@ -49,7 +49,9 @@
     which `build_page.js` merges into the generated table by id), 4 on a DGX Spark (vLLM 0.30.0's label, not measured again). `src/vllm.js` (shaped like `llamacpp.js`; pure planning +
     the process half) drives the scripts in `farm/vllm/` (`serve.sh` with the farm's whole argv in
     `LOL_VLLM_ARGS_B64`, `stop.sh`, `install.sh`, the read-only `status.sh`; on Windows through `wsl.exe` with a
-    timeout on every call). The panel installs it (the **download slot**: outside the job slot and `serialize`,
+    timeout on every call; `serve.sh` gives every root but production's `~/lol-vllm` its own FlashInfer kernel folder,
+    `FLASHINFER_WORKSPACE_BASE=<root>`: a trial root sharing production's made its next start rebuild them, ~3 min,
+    2026-11-23). The panel installs it (the **download slot**: outside the job slot and `serialize`,
     never `busy`, resumable), installs **vLLM 0.33.0** (`vllm.version`; branch `vllm-033`, 2026-11-02: the five models
     below checked on it, Qwen3.6 48 people at 64k every turn against 0.30.0's 32 the same day; an install of another
     version is offered **Update vLLM**, never run by itself, which builds the new version in `.venv-next` and swaps it in

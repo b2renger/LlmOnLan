@@ -1908,7 +1908,8 @@ there (8 GB): `ollama rm gemma4:12b` after the test if you do not want it. Its L
    The first time, it writes `%USERPROFILE%\lol-test-farm\lol.config.json` (your farm's name with *(test: drafting)*,
    the same ports and beacon, Qwen3.8 at 32k, web search and the other plugins off) and starts that farm in the
    window. Wait for *vLLM is ready … 32 people at once* (10 to 15 minutes: the rehearsal took 12; a checkout from
-   before 2026-11-21 says 16).
+   before 2026-11-21 says 16; its first start since 2026-11-23 builds its GPU kernels in its own folder, a few minutes
+   more once, so that it no longer makes the Farm app's next start rebuild them).
 2. On the laptop, click the connection status at the top (its dot and text): the farms found are cards in that
    popover. Click the card **… (test: drafting)** once: to the client it is another farm (it has its own id), so a
    click pins it. After the test, click **Automatic — least busy farm** there to undo the pin.

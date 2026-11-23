@@ -6,7 +6,7 @@
 #   Windows: wsl -d Ubuntu --cd <repo>\farm\vllm -e bash ./test_scripts.sh
 D="$(cd "$(dirname "$0")" && pwd)"
 FAKE="$(cd "$D/../test/fake-vllm" && pwd)"
-TESTS="${*:-daemon stopsh interactive devnull guard badfloor crash rewrite managed marker refusals rotation tilde status install update stopscope foreign timelimit}"
+TESTS="${*:-daemon stopsh interactive devnull guard badfloor crash rewrite managed marker refusals rotation tilde flashinfer status install update stopscope foreign timelimit}"
 ROOT=/tmp/lol-as-root; ROOT2=/tmp/lol-as-root2; LINK=/tmp/lol-as-link; EMPTY=/tmp/lol-as-empty; TH=/tmp/lol-as-home
 mkroot() {   # a root whose vllm and hf are the fakes, with the dist-info folder an install of vLLM 0.30.0 has
   pkill -KILL -f "$1/" 2>/dev/null
@@ -14,7 +14,7 @@ mkroot() {   # a root whose vllm and hf are the fakes, with the dist-info folder
   cp "$FAKE/vllm" "$FAKE/fake_vllm.py" "$FAKE/hf" "$1/.venv/bin/"; chmod +x "$1/.venv/bin/vllm" "$1/.venv/bin/hf"
   ln -s /usr/bin/python3 "$1/.venv/bin/python"
 }
-for r in "$ROOT" "$ROOT2" "$TH/r"; do mkroot "$r"; done
+for r in "$ROOT" "$ROOT2" "$TH/r" "$TH/lol-vllm"; do mkroot "$r"; done
 rm -rf "$LINK" "$EMPTY"; mkdir -p "$LINK" "$EMPTY"; ln -s "$ROOT/.venv" "$LINK/.venv"
 free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'; }
 PORT=$(free_port); PORT2=$(free_port); while [ "$PORT2" = "$PORT" ]; do PORT2=$(free_port); done
@@ -40,7 +40,7 @@ st() { LOL_VLLM_ROOT="${1:-$ROOT}" LOL_VLLM_ROOTS="${2:-}" bash "$D/status.sh" >
 b64() { python3 -c 'import base64, sys; print(base64.b64encode("\0".join(sys.argv[1:]).encode()).decode())' "$@"; }   # as vllm.js joins it
 daemon() { LOL_VLLM_DAEMON=1 FAKE_DELAY="${FAKE_DELAY:-1}" exec bash "$D/serve.sh" "$@" < /dev/null > "$OUT" 2>&1; }   # with &: it execs, so $! is serve.sh
 clean() {
-  for r in "$ROOT" "$ROOT2" "$TH/r" "$LINK"; do
+  for r in "$ROOT" "$ROOT2" "$TH/r" "$TH/lol-vllm" "$LINK"; do
     LOL_VLLM_ROOT="$r" bash "$D/stop.sh" >/dev/null 2>&1; LOL_VLLM_ROOT="$r" bash "$D/stop.sh" install >/dev/null 2>&1
     pkill -KILL -f "$r/" 2>/dev/null; rm -rf "$r/run" "$r/logs" "$r/hf"
   done
@@ -210,6 +210,20 @@ t_tilde() {
   check "status.sh finds it" bash -c "grep -qx 'running=$P' '$ST' && grep -qx 'root=$TH/r' '$ST'"
   HOME="$TH" LOL_VLLM_ROOT='~/r' bash "$D/stop.sh" > /dev/null
   check "stop.sh stops it" exits $P 50 143
+}
+t_flashinfer() {
+  echo "FlashInfer's kernels: a root of its own keeps them in it, production's (~/lol-vllm) where they always were"
+  fienv() { local v; v=$(pgrep -f "$1/.venv/bin/fake_vllm" | head -1); tr '\0' '\n' < "/proc/$v/environ" 2>/dev/null | sed -n 's/^FLASHINFER_WORKSPACE_BASE=//p'; }
+  HOME="$TH" LOL_VLLM_ROOT='~/r' daemon &
+  local P=$!
+  wait_answers 30 >/dev/null
+  check "another root: FlashInfer builds in that root" [ "$(fienv "$TH/r")" = "$TH/r" ]
+  HOME="$TH" LOL_VLLM_ROOT='~/r' bash "$D/stop.sh" > /dev/null; exits $P 50 143 > /dev/null
+  HOME="$TH" LOL_VLLM_ROOT='~/lol-vllm' daemon &
+  P=$!
+  wait_answers 30 >/dev/null
+  check "production's root: FlashInfer's own default (~/.cache/flashinfer), untouched" bash -c "pgrep -f '$TH/lol-vllm/.venv/bin/fake_vllm' > /dev/null && [ -z '$(fienv "$TH/lol-vllm")' ]"
+  HOME="$TH" LOL_VLLM_ROOT='~/lol-vllm' bash "$D/stop.sh" > /dev/null; exits $P 50 143 > /dev/null
 }
 t_status() {
   echo "status.sh: running, ready, env, arg, found= across two roots, installs, a linked venv, models, a stale pgid"

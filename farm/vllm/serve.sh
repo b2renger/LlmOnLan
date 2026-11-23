@@ -109,6 +109,11 @@ fi
 DRV_SO=$(ls /usr/lib/wsl/lib/libcuda.so.1 2>/dev/null || ldconfig -p | awk '/libcuda.so.1 /{print $NF; exit}')
 [ -n "$DRV_SO" ] && ln -sf "$DRV_SO" "$SHIM/libcuda.so"
 export FLASHINFER_EXTRA_LDFLAGS="-L$SHIM"
+# FlashInfer keeps those kernels in ~/.cache/flashinfer/<its version>, with this root's paths in their build files: a
+# second root with production's FlashInfer (a trial root) rewrote them, and production's next start rebuilt every kernel,
+# about 3 minutes more (2026-11-14, 11-19, 11-23: DEVLOG 2026-11-23). Every other root builds in its own folder;
+# production's (~/lol-vllm) keeps the one it has, so no farm rebuilds anything for this.
+[ "${ROOT%/}" = "$HOME/lol-vllm" ] || export FLASHINFER_WORKSPACE_BASE="$ROOT"
 [ -e "$MODEL" ] && export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"   # local weights (a folder, or one GGUF file): never ask huggingface.co
 
 "$ROOT/.venv/bin/python" "$HERE/relay.py" 127.0.0.1 "$PORT" "$SOCK" >> "$LOG" 2>&1 < /dev/null 3<&- &

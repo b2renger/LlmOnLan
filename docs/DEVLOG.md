@@ -9,6 +9,38 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-23 (11:41) — Why vLLM took ~5 minutes to start on the PRO 6000: trial roots rebuilt production's kernels
+
+The owner (11:25): *"it takes ages to start vllm and the farm basically"*. Read from the live farm's logs (read only:
+`%APPDATA%\LlmOnLan Farm\farm.log`, `~/lol-vllm/logs/vllm.log`), nothing of the live farm touched.
+- **This morning:** the farm up at 11:06:44 (29 s for Ollama, document search, LiteLLM, SearXNG, OCR, in that order),
+  then *Starting vLLM*. At 11:11:57, 5 min 7 s in, the job was cancelled from the panel (`up.js:1549`, `r.cancelled`:
+  *Stopped. vLLM is not running*), about a minute before it would have been ready; Balanced applied, Start again at
+  11:12:46, ready at 11:14:48 (2 min 2 s).
+- **The 5 minutes:** vLLM's *Initial profiling/warmup run took 175.00 s* (the second start: 17.42 s). In those 175 s
+  FlashInfer rebuilt its JIT modules from source (`~/.cache/flashinfer/0.7.2.post1/120f/cached_ops/gemm_sm120`:
+  `build.ninja` rewritten at 11:08:04, ~28 `nvcc` objects until 11:10:27; then `gemm`, `sampling`, `batch_prefill…`,
+  `xqa…`, the one the cancel cut). No input of theirs had changed since 2026-11-02 (`ninja -t deps`): `build.ninja`
+  itself had, i.e. the command.
+- **Why:** FlashInfer keys that folder by its version only, and writes the venv's paths into it. `~/lol-vllm-033` (the
+  sessions' trial root, the same FlashInfer 0.7.2.post1) rewrote it with its own; production's next start rebuilt it
+  with production's. Every slow production start since 2026-11-14 follows trials in 033, every fast one does not:
+  11-13 trials → 11-14 12:08 172.59 s; 11-18/19 trials → 11-19 16:28 167.79 s; 11-20 trials → today 175.00 s; and
+  11-14 12:16, 11-16, 11-18, today 11:12 at 16.9–19.9 s. 033's own log mirrors it (its first start after production
+  runs: 162.96–249.52 s, then ~18 s). Not the WSL boot (11-16 and 11-18 were fresh boots, fast); not torch.compile
+  (its cache loads in 0.4–0.5 s either way). `~/lol-vllm-034` (FlashInfer 0.7.3) and the nightly (0.7.4) have folders of
+  their own.
+- **Fixed (`farm/vllm/serve.sh`):** a root other than `~/lol-vllm` gets `FLASHINFER_WORKSPACE_BASE=<root>` (checked:
+  it moves 0.7.2.post1's JIT folder to `<root>/.cache/flashinfer/…`). Production keeps its folder, so no farm rebuilds
+  anything for this. The live farm runs its own copy of the script (`VLLM_DIR` in the Farm app); this reaches the test
+  farms and trial roots, which run the checkout's, at once. J19's first start in 033 will build its own kernels once.
+- **Test first:** `test_scripts.sh` *flashinfer* (a fake vLLM's environment: another root's base is that root,
+  production's is unset) failed, then passed; the whole script suite **131/131**, farm **292/292**.
+- **Left for a plan** (the owner's ask, not built): the farm starts vLLM only after its other services (~29 s); the
+  panel said *the first start takes a few minutes longer* through a rebuild that was not a first start, and shows no
+  time; a first start on a new farm or after a vLLM update still JIT-compiles (FlashInfer's precompiled kernels,
+  `flashinfer-jit-cache`, are not installed: vLLM warns at each start); the weights take 31 s from a cold disk, 17 warm.
+
 ## 2026-11-23 (09:13) — The class rehearsal by day, after the night stopped (n° 14)
 
 - `REH_SIDECAR=<the v0.2.19 sidecar> node test/rehearsal/run.js --clients 2 --minutes 3` after `npm run build`, TEMP in
