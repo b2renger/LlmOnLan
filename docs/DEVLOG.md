@@ -23,8 +23,11 @@ The owner, 17:41: *"re-check passed on +n14, release v0.2.20"*; the go of 12:11 
   v0.2.19's. The `main` push started no other workflow.
 - **What it brings:** status.md ▸ *Client v0.2.20* (LOL Vibe's page beside its code, Plan first and its buttons, the
   document read once per chat, the Computer's lost wake-up, the Preview's port, and the coding agent's smaller fixes).
-  The owner's `0.2.19+n14` reads as 0.2.19 to the updater: it is offered 0.2.20.
+  The owner's `0.2.19+n14` reads as 0.2.19 to the updater (build metadata is ignored), so it should be offered 0.2.20
+  at its next update check: not seen yet.
 - **Now unblocked:** PLAN_FIRST_NEW_CHAT_PLAN (plans ▸ Now); Electron 45 (Next 14).
+- **For a person:** the update arriving on the owner's client (About reads 0.2.20 after the restart): the release's
+  update path, seen for real; A29 on a Mac, on the release, if one is at hand.
 
 ## 2026-11-23 (12:22) — FARM_START_PLAN step 2: a vLLM start says what it does and that it stops by itself
 
