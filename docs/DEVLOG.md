@@ -25,7 +25,7 @@ the panel at 5 min 7 s. The bar already showed *running for …* on a job that m
   the note (extracted with stub helpers), none on a finished bar, the kernel phase without *first start*; it failed,
   then passed: farm **293/293**. Not seen on a real panel yet: J19's test farm tonight runs this checkout.
 
-## 2026-11-23 (11:50) — Plan first's buttons: visible on the newest plan, and the message box says what to write
+## 2026-11-23 (11:49) — Plan first's buttons: visible on the newest plan, and the message box says what to write
 
 The owner, G14 on `0.2.19+n13` (11:25): *"it works as expected, but yes the buttons are very small and not really
 visible, in terms of UX they should be more visible and it should be more natural to go through this chain of thoughts
