@@ -294,6 +294,7 @@ function makeJobs({ kick = () => {}, logger = log } = {}) {
         bytesPerSec: j.bytesPerSec ?? null, etaSec: j.etaSec ?? null,
         cancellable: !!(j.cancel && !j.done && !j.cancelled), cancelled: !!j.cancelled,
         about: j.about || null,   // a download's library entry (the panel's row says downloading)
+        note: j.note || null,     // a line the panel shows under a running job's bar (FARM_START_PLAN step 2)
     };
     // A body that returned is not busy, even in the few microtasks before `done` is set: a restart queued from
     // inside serialize (onVllmDown) must not be refused by the job it follows.
@@ -358,9 +359,10 @@ function makeJobs({ kick = () => {}, logger = log } = {}) {
         });
     }
     const ctl = (j) => ({ cancelled: () => j.cancelled, job: j });
-    function runJob(kind, label, fn, { cancel = null } = {}) {
+    function runJob(kind, label, fn, { cancel = null, note = null } = {}) {
         if (busy()) return busyErr();
         const j = open(kind, label, cancel);
+        j.note = note;
         job = j;
         // Tell the fleet NOW, not at the next 10 s health tick: clients switch to
         // "the server is switching models…" before the proxy bounce can surface as
@@ -1555,7 +1557,10 @@ async function run(args) {
             if (r.code === 3) { enterGuard(null, r.message); return { ok: false, error: r.message }; }
             if (!(await fallbackToOllama(`vLLM could not start: ${r.message}`, { portIsOthers: !!r.portIsOthers, ran: !!r.ran }))) return { ok: false, error: vllmState.text };
             return { ok: false, error: `vLLM could not start: ${r.message} The farm serves with Ollama for now.` };
-        }, { cancel: () => stopVllmProcess() });
+        // A start can sit minutes on one phase (its GPU kernels, after an install or an update): the panel says that a
+        // stuck one ends by itself (src/vllm.js, `waitReady`'s stall rule), so nobody stops one a minute from ready
+        // (2026-11-23).
+        }, { cancel: () => stopVllmProcess(), note: 'If vLLM writes nothing for 10 minutes, the farm stops it by itself.' });
     }
 
     // vLLM stopped answering, or its process ended (§5.7): look before acting. A server that is running and ready

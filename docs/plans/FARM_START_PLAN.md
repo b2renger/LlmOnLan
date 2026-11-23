@@ -44,7 +44,10 @@ which step 3 is for.
    · 0:42*); the kernel phase stops saying *the first start takes a few minutes longer* (false on a rebuild) and says
    *building GPU kernels for this vLLM: up to 5 minutes, once after an install or an update*; under the bar, one line:
    *a start takes about 2 minutes; the farm stops it by itself if it shows no progress for 10 minutes*. No time
-   saved, but a start is no longer stopped a minute from ready.
+   saved, but a start is no longer stopped a minute from ready. **Built 2026-11-23 by day** (the bar already showed
+   *running for …* on a job that moves no bytes; what was missing was the truth): the kernel phase's words, and a job's
+   `note` under its running bar (a vLLM start: *If vLLM writes nothing for 10 minutes, the farm stops it by itself.*);
+   test first, farm 293/293. Seen on a real panel: J19's test farm, night n° 15.
 3. **Precompiled kernels (M, a new dependency: the owner's yes).** vLLM warns at every start that FlashInfer's
    precompiled kernels are missing (`flashinfer-cubin`, `flashinfer-jit-cache` not installed). Installed with vLLM by
    `install.sh` (and by Update vLLM), no farm would compile them: a new farm's first start, and the first after each vLLM

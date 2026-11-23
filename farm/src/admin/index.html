@@ -986,6 +986,7 @@ function barOf(x, slot) {
     // the folder on disk, which Hugging Face's downloader fills in large pieces, late, so they can sit still for
     // minutes and then jump (the live test, 2026-10-08).
     if ((!bits.length || slot === 'download') && x.startedAt) bits.push('running for ' + esc(dur(Math.round((Date.now() - x.startedAt) / 1000))));
+    if (x.note) bits.push(esc(x.note));   // the job's own line (a vLLM start: it stops by itself when stuck)
   }
   return `<div class="jobbar${x.done ? (x.ok ? ' done' : ' failed') : ''}">`
     + `<div class="jobtop"><b>${esc(x.label)}</b><span>${esc(x.done ? (x.ok ? (x.message || 'done') : (x.error || 'failed')) : x.message)}${running && x.percent != null ? ' · ' + x.percent + '%' : ''}`

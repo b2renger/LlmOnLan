@@ -9,6 +9,22 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-23 (12:40) — FARM_START_PLAN step 2: a vLLM start says what it does and that it stops by itself
+
+Approved by the owner at 12:11 (*"yes on all those"*). This morning's start sat 3 minutes on *preparing the GPU (the
+first start takes a few minutes longer)* while FlashInfer rebuilt its kernels (no first start), and was stopped from
+the panel at 5 min 7 s. The bar already showed *running for …* on a job that moves no bytes (`admin/index.html`
+`barOf`); what was missing was the truth.
+- `src/vllm.js` `PHASES.kernels`: *preparing the GPU (seconds; up to 5 minutes once after vLLM is installed or
+  updated)*.
+- `makeJobs`: `runJob(kind, label, fn, { cancel, note })`, the job's view carries `note`; the panel shows it under a
+  running bar after the time; the vLLM start job's note: *If vLLM writes nothing for 10 minutes, the farm stops it by
+  itself.* (`waitReady`'s stall rule, `stallMs` 10 min on the log's growth). The Farm app's window is this panel, so it
+  comes with the next Farm app.
+- **Test first** (`farm/test/run.js`, *a vLLM start says what it does …*): the job's note, `barOf` with the time and
+  the note (extracted with stub helpers), none on a finished bar, the kernel phase without *first start*; it failed,
+  then passed: farm **293/293**. Not seen on a real panel yet: J19's test farm tonight runs this checkout.
+
 ## 2026-11-23 (11:50) — Plan first's buttons: visible on the newest plan, and the message box says what to write
 
 The owner, G14 on `0.2.19+n13` (11:25): *"it works as expected, but yes the buttons are very small and not really

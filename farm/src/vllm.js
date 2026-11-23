@@ -725,7 +725,7 @@ const PHASES = {
     starting: 'starting vLLM',
     reading: 'reading the model',
     weights: 'loading the model weights',
-    kernels: 'preparing the GPU (the first start takes a few minutes longer)',
+    kernels: 'preparing the GPU (seconds; up to 5 minutes once after vLLM is installed or updated)',
     graphs: 'capturing GPU graphs',
     almost: 'almost ready',
     ready: 'ready',

@@ -4716,6 +4716,36 @@ test('vLLM: wsl.exe\'s UTF-16, its list, and status.sh\'s report as recorded (§
     assert.deepEqual(V.memOf(V.parseStatus('gpu=NVIDIA GB10, [N/A], [N/A], 12.1\nmem_total_kb=124991588\nmem_available_kb=115343360\n')).unified, true);
 });
 
+test('a vLLM start says what it does and that it stops by itself: its note under the bar, the kernel phase\'s true words (FARM_START_PLAN step 2)', async () => {
+    // 2026-11-23: a start rebuilding its kernels sat 3 minutes on "the first start takes a few minutes longer" (it was
+    // no first start), and was stopped from the panel at 5 min 7 s, about a minute before it would have been ready.
+    const { makeJobs } = require('../src/commands/up');
+    const quiet = { ok() {}, err() {}, step() {}, warn() {} };
+    const jobs = makeJobs({ logger: quiet });
+    let release; const held = new Promise((r) => { release = r; });
+    jobs.runJob('engine', 'Starting vLLM', async () => { await held; return { ok: true }; }, { note: 'If vLLM writes nothing for 10 minutes, the farm stops it by itself.' });
+    await new Promise((r) => setImmediate(r));
+    assert.equal(jobs.jobView().note, 'If vLLM writes nothing for 10 minutes, the farm stops it by itself.', 'the job carries its note');
+    jobs.runDownload('download', 'Downloading X', async () => ({ ok: true }));
+    release(); await new Promise((r) => setTimeout(r, 10));
+    const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
+    const start = html.indexOf('function barOf');
+    const end = html.indexOf('\n}\n', start) + 2;
+    assert.ok(start > 0 && end > start, 'panel source moved — update the extraction anchors');
+    const ctx = {};
+    new Function('ctx', 'esc', 'dur', 'sizeOf', 'rateOf', 'etaOf', html.slice(start, end) + '; ctx.barOf = barOf;')(ctx, (s) => String(s), (sec) => `${sec}s`, String, String, String);
+    const running = { label: 'Starting vLLM', message: 'preparing the GPU', percent: null, done: false, startedAt: Date.now() - 290_000, note: 'If vLLM writes nothing for 10 minutes, the farm stops it by itself.' };
+    const bar = ctx.barOf(running, 'job');
+    assert.ok(/running for 29\ds/.test(bar), `the time it has run is still there: ${bar}`);
+    assert.ok(bar.includes('If vLLM writes nothing for 10 minutes, the farm stops it by itself.'), `and the note under it: ${bar}`);
+    assert.ok(!ctx.barOf({ ...running, done: true, ok: true, message: 'vLLM is ready.' }, 'job').includes('stops it by itself'), 'a finished job no longer says it');
+    const V = require('../src/vllm');
+    const k = V.startPhase('(EngineCore pid=1) INFO 11-23 11:08:04 [monitor.py:62] [backbone] torch.compile took 0.50 s in total\n');
+    assert.equal(k.key, 'kernels');
+    assert.ok(!/first start/.test(k.text), `no "first start" on what may be a rebuild: ${k.text}`);
+    assert.ok(/after vLLM is installed or updated/.test(k.text), `it says when it takes long: ${k.text}`);
+});
+
 test('the download slot: outside serialize and busy(), a restart and a switch run during it, one download at a time, Stop cancels (§11.1-16, D7)', async () => {
     const { makeJobs } = require('../src/commands/up');
     const quiet = { ok() {}, err() {}, step() {}, warn() {} };
