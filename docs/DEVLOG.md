@@ -11,7 +11,7 @@ commit so the history records that a feature was tested + documented before it w
 
 ## 2026-11-23 (02:23) — GETTING_STARTED behind the default model's switch and the 128k default; the release's two tests hold (night n° 14)
 
-- **`docs/GETTING_STARTED.md`** (last touched 2026-11-14) against the code. Six corrections: the farm's Ollama default
+- **`docs/GETTING_STARTED.md`** (last touched 2026-11-14) against the code, and the root README's ~18 GB too. Six corrections: the farm's Ollama default
   is `gemma4:26b` for GPUs of 24 GB and above, not `gemma4:12b` at 262k (`farm/src/config.js:660-670`, since
   2026-11-10); the first run downloads ~27 GB (~28 with an NVIDIA GPU), as the guide's own table and its `lol install`
   line say, not ~18; the GPU line targets ≥ 24 GB for that default, with llama.cpp's shipped quant (Qwen3.8-27B

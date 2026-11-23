@@ -118,7 +118,7 @@ installer that turns a GPU box into a running farm with **no terminal and no
 prerequisites**. (Its **update checks are manual**: it tells you a new build exists and links the
 download — unlike the client, it never installs one for you. Check it after each client release so the
 farm doesn't drift behind the fleet.) On first launch a wizard downloads its own Ollama + Python and
-the model weights, builds the service venvs, and starts the farm — budget **~18 GB of downloads plus
+the model weights, builds the service venvs, and starts the farm — budget **~27 GB of downloads plus
 its own Python/Ollama runtime** on that first run (about 1.2 GB more on an NVIDIA box, for document search:
 llama.cpp's build and a small model; the llama.cpp engine's own model is fetched only if you enable it later)
 ([breakdown](docs/GETTING_STARTED.md#first-run-download-both-routes)); from then on the window IS the farm's
