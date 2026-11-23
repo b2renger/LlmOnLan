@@ -417,7 +417,7 @@ and the page changes as you stop typing; the answer's own block shows **edited**
 Step 7: the window shows the same tabs, page and strip, and the side column says the page is in its own window; your
 change there runs as you type, and when you close the window the page comes back beside the chat with that change.
 Step 8: the model's code is back, *edited* is gone.
-- [ ] Done · Found:
+- [x] Done by the owner, 2026-11-23, on `0.2.19+n13` · Found: "On A29 we are good to go": passes.
 
 ### A10 Code, pictures and files
 *Proves:* the sandbox and the File box on a real disk. *Was:* 3.1, 3.5, 3.6, 3.9; LOLCHAT_RIG §15, §15b, §18 (a paused
@@ -1461,7 +1461,11 @@ the Preview shows the footer. After 5, the change is made at once, with no plan.
 enough for a student to follow. **And whether a student finds the two buttons:** like every message's actions they
 show only while the pointer is over the reply (small and grey, `css/thread.css`; seen in the harness's shot, 2026-11-21).
 If not, the fix is the one a seat wait already has: always visible on a plan.
-- [ ] Done · Found:
+- [x] Done by the owner, 2026-11-23, on `0.2.19+n13` · Found: "it works as expected, but yes the buttons are very small
+  and not really visible, in terms of UX they should be more visible and it should be more natural to go through this
+  chain of thoughts using the buttons"; and "In a new chat it looks like we cannot start with a plan ... we should be
+  able to start with a plan" (a new chat starts in no project, even one opened from a project's chat, and the switch
+  exists only in a project's chat: `ui/workbench.mjs` AP.1, `ui/project-panel.mjs` `visible`).
 
 ## H. Home Assistant on a real home
 

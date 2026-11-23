@@ -25,6 +25,8 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## The farms and the room
 
+- **2026-11-23, the chat (11:25).** "it takes ages to start vllm and the farm basically. Can we do some improvements and
+  optimisations in this matter ?" And on J19 and J15: "look like things you could do on your own, right ?"
 - **2026-11-23, the chat (09:06).** Inkling 2: "No lets wait for official support in either of the backend we have.
   Put that into to the todo list (evaluate inkling 2 small for a replacement of qwen3.6 or qwen3.8)." No trial on a
   vLLM nightly; plans ▸ Next 20 waits for a release of vLLM, Ollama (on NVIDIA) or llama.cpp that supports it. (Small
@@ -77,6 +79,10 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## LOL Vibe and the Computer
 
+- **2026-11-23, the chat (11:25).** HUMAN_TESTS G14 (Plan first) and A29 (the page beside its code) on `0.2.19+n13`:
+  A29 "we are good to go"; G14 "works as expected, but yes the buttons are very small and not really visible, in
+  terms of UX they should be more visible and it should be more natural to go through this chain of thoughts using the
+  buttons". And: "In a new chat it looks like we cannot start with a plan ... we should be able to start with a plan".
 - **Default taken, 2026-11-23** (n° 13's question 1, no answer by 02:00): [AGENT_LOOP_PLAN](../plans/AGENT_LOOP_PLAN.md)
   **not built**; a coding-agent reply that goes round in circles is stopped by the student's Stop only.
 - **Default taken, 2026-11-23** (n° 13's question 2, no answer by 02:00):
