@@ -25,6 +25,8 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## The farms and the room
 
+- **Default taken, 2026-11-23** (n° 13's question 4, no answer by 02:00): `~/lol-vllm-034` in WSL (27 GB, vLLM 0.34.0
+  and Gemma 4 26B NVFP4) is **kept**.
 - **Default taken, 2026-11-22** (n° 12's question 2, no answer by 02:00): the **Documents preset stays at 64k** with
   Qwen3.6 (at 128k its rule would pick Nemotron, which sees no pictures); Balanced is the 128k preset.
 - **2026-11-18, the chat.** The Sparks stay live and without a password, classes included: "stop asking me that. There
@@ -71,6 +73,13 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## LOL Vibe and the Computer
 
+- **Default taken, 2026-11-23** (n° 13's question 1, no answer by 02:00): [AGENT_LOOP_PLAN](../plans/AGENT_LOOP_PLAN.md)
+  **not built**; a coding-agent reply that goes round in circles is stopped by the student's Stop only.
+- **Default taken, 2026-11-23** (n° 13's question 2, no answer by 02:00):
+  [AGENT_FIRST_STEP_PLAN](../plans/AGENT_FIRST_STEP_PLAN.md) **not built**; a reply that only thought says nothing was
+  done.
+- **Default taken, 2026-11-23** (n° 13's question 3, no answer by 02:00): the Project panel's weak-model sentence
+  (`project.modelWeak`, *qwen3.8 or nemotron*) is **unchanged**.
 - **Default taken, 2026-11-22** (n° 12's question 3, no answer by 02:00): LOL Vibe from a picture,
   [PICTURE_TO_PAGE_PLAN](../plans/PICTURE_TO_PAGE_PLAN.md) steps 2–4 **not built**; Figma not measured (no frames).
 - **Default taken, 2026-11-22** (n° 12's question 5, no answer by 02:00):
