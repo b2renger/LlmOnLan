@@ -87,6 +87,8 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## LOL Vibe and the Computer
 
+- **2026-11-23, the chat (17:41).** "re-check passed on +n14, release v0.2.20": the go of 12:11 holds; v0.2.20 is
+  tagged from a `main` whose `shell/` is `5cf6743`'s.
 - **2026-11-23, the chat (12:11).** Client **v0.2.20 with the new plan buttons, after the owner's two-minute re-check on
   `0.2.19+n14`: "yes"**. The go holds once the owner reports that re-check passed; the release ships what was
   re-checked (`git diff 5cf6743 -- shell` empty at the tag), so no `shell/` change lands on `main` before it.
