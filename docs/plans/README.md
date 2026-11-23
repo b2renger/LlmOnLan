@@ -44,17 +44,15 @@ file stays the whole list.
 
 ## 1. Now
 
-- **Client v0.2.20** (the owner, 2026-11-23 12:11: "yes", with the new plan buttons, **once the owner reports G14's
-  two-minute re-check on `0.2.19+n14` passed**): `npm run release:patch` from a `main` whose `shell/` is `5cf6743`'s
-  (`git diff 5cf6743 -- shell` empty), CI watched, the assets checked. Until the tag, **no `shell/` change on `main`**.
 - **A farm that is ready sooner** ([FARM_START_PLAN](FARM_START_PLAN.md), approved by the owner 2026-11-23 12:11, "yes on
   all those"): measured, ~2 min 30 s from the Farm app's launch, ~5 min 30 s when FlashInfer rebuilds; the trial-root
   rebuilds fixed the same day. Steps: vLLM alongside the other services (−29 s), the panel's elapsed time and the
   truth, precompiled kernels (`flashinfer-jit-cache-sm120f`, 194 MB: measured first, night n° 15), the weights' load
-  strategy (measured first, night n° 15). **S + S + M + S**. Farm only: not held by the client's tag.
+  strategy (measured first, night n° 15). **S + S + M + S**. Farm only.
 - **Start a new chat with a plan** ([PLAN_FIRST_NEW_CHAT_PLAN](PLAN_FIRST_NEW_CHAT_PLAN.md), approved by the owner
   2026-11-23 12:11): (a) a new chat from a project's chat stays in it; (b) every new chat offers *Plan first*. **S + S**.
-  **After the v0.2.20 tag.** One question: on by default in a new chat (default if no answer: off, as decided 2026-11-20).
+  **Ready:** v0.2.20 is tagged (2026-11-23 17:41; the owner's re-check passed). One question: on by default in a new
+  chat (default if no answer: off, as decided 2026-11-20).
 - **128k of context per person by default** ([CONTEXT_128K_PLAN](CONTEXT_128K_PLAN.md), approved by the owner
   2026-11-19 18:15, for a night session after the tests of 2026-11-20): the vLLM default and the Balanced preset at
   128k, Qwen3.6's 128k label measured on 0.33.0 (24; the owner, 2026-11-20 12:46: "24, 128k can be the default").
@@ -229,7 +227,7 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     `--phase k` 221/222. That run's one failure, `k3-sched`, passed 4/4 alone: the fourth scenario of the
     order-dependent kind, a different defect. The full run after the fix (42, 05:57–06:12): **420/420**, after three
     full runs that lost one scenario each. **Next: the bump itself** (both apps; the sync `safeStorage` calls before
-    46), after v0.2.20 ships, with `--phase p` and a full run on 45.
+    46), v0.2.20 having shipped (2026-11-23), with `--phase p` and a full run on 45.
     *2026-11-20 (day n° 11), the four read and three fixed* (read each one's waits, n° 10's *Next*):
     - **k1-escape** set `delayMs`, which the mock never reads (its knob is `askDelayMs`), so its "20 s reply" did not
       exist and Escape raced a run that ended in a moment;

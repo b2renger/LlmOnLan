@@ -1471,7 +1471,8 @@ it: the agent plans again.* until the next reply starts (`k24-plan-first-changes
 - [x] Re-check of the buttons (2 minutes, on `shell/dist/LlmOnLan-Setup-0.2.19+n14-windows-x64.exe`, built 2026-11-23
   12:07 from `5cf6743`; it installs over `+n13` and keeps the data), steps 2 to 4 only: under the plan, *Go ahead*
   and *Change the plan* are there without moving the pointer, and read as the way on · Done by the owner, 2026-11-23,
-  on `0.2.19+n14` · Found: "re-check passed on +n14, release v0.2.20".
+  on `0.2.19+n14` · Found: "re-check passed on +n14, release v0.2.20" (released as v0.2.20 the same day: tag 17:41,
+  CI green 18:19).
 
 ## H. Home Assistant on a real home
 

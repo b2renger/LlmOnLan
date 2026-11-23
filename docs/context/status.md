@@ -3,12 +3,12 @@
 > Moved verbatim from CLAUDE.md on 2026-11-12 (the split into context modules). It describes `main` unless a line
 > names a release or says *not released yet*. Keep it true: a change to the code it describes changes this file in the same commit.
 
-## Build status (2026-11-18) — released: client `v0.2.19` (OWUI `0.13.3`) · Farm app `farm-v0.0.54`
+## Build status (2026-11-23) — released: client `v0.2.20` (OWUI `0.13.3`) · Farm app `farm-v0.0.54`
 
 > What each release brought, from v0.2.0 on: the DEVLOG's release entries ([docs/DEVLOG.md](../../docs/DEVLOG.md), headed
 > "Release …"; v0.2.5 is in its 2026-09-29 afternoon entry, farm-v0.0.47 and 0.0.48 in its 2026-10-13 ones).
-> `origin/main` = the last release (client v0.2.19, 2026-11-18, cut by day on the owner's go; before it v0.2.18 and
-> Farm app farm-v0.0.54, 2026-11-16, and v0.2.17 and farm-v0.0.53, 2026-11-12). Since that day the work is
+> `origin/main` = the last release (client v0.2.20, 2026-11-23, cut by day on the owner's go; before it v0.2.19,
+> 2026-11-18, v0.2.18 and Farm app farm-v0.0.54, 2026-11-16, and v0.2.17 and farm-v0.0.53, 2026-11-12). Since that day the work is
 > committed on `main` in the owner's checkout, backed up to the `night` branch, and pushed to `main` only at a release
 > (CLAUDE.md, *How we work*). The modules
 > describe the code; a change from 2026-11-05 on names the release that brought it.
@@ -23,18 +23,23 @@ DEVLOG 2026-11-17), with a **Repair Open WebUI's database** button for the lapto
 ([OWUI_REPAIR_PLAN](../plans/OWUI_REPAIR_PLAN.md), approved 2026-11-18). Next: HUMAN_TESTS A28 on the release. On v0.2.18
 and before, those laptops need the manual repair (A28's last lines).
 
-**Unreleased on `main`** (since v0.2.19 and farm-v0.0.54; by 2026-11-23 12:08), each behind its human test and the
-owner's go. **Client** (a local build for the tests: `shell/dist/LlmOnLan-Setup-0.2.19+n14-windows-x64.exe`, 12:07 from
-`5cf6743`; G14 and A29 passed on `+n13` on 2026-11-23, G14's re-check of the buttons on `+n14`): LOL Vibe's page beside
-its code and the pop-out window (VIBE_PAGE_PLAN, HUMAN_TESTS A29); *Plan first* beside the message box, one per chat,
-its *Go ahead* and *Change the plan* shown without a hover on the newest plan (G14); an attached document read once per chat (`RAG_SYSTEM_CONTEXT`, J16 step 6); a
-Computer run no longer stands still up to a minute after a person answers a Dialog, a Confirm or a Timer (the run
-loop's lost wake-up); a project's page keeps its saved data across a restart (the Preview's port); the coding
-agent's session logs kept 30 days; dsh's own plan mode off; a chat tied to a project says the coding agent answers it
-(not *press Project*); a coding-agent turn that did nothing, or only read, says so (it said the Changes tab showed what it
-did). **Farm:** Qwen3.8 drafting ahead and keeping its state in 16 bits (J19); 128k of
+**Client v0.2.20** (2026-11-23, by day, on the owner's go after G14's re-check on `0.2.19+n14`: tag 17:41 from
+`5cf6743`'s `shell/`, CI green on all 5 builds at 18:19, 27 files as v0.2.19, the four update feeds at 0.2.20, the
+sidecar manifest unchanged, Open WebUI 0.13.3 bundle rev 2, so an update downloads no Open WebUI): LOL Vibe's page
+beside its code and the pop-out window (VIBE_PAGE_PLAN, HUMAN_TESTS A29); *Plan first* beside the message box, one per
+chat, its *Go ahead* and *Change the plan* shown without a hover on the newest plan (G14); an attached document read
+once per chat (`RAG_SYSTEM_CONTEXT`, J16 step 6); a Computer run no longer stands still up to a minute after a person
+answers a Dialog, a Confirm or a Timer (the run loop's lost wake-up); a project's page keeps its saved data across a
+restart (the Preview's port); the coding agent's session logs kept 30 days; dsh's own plan mode off; a chat tied to a
+project says the coding agent answers it (not *press Project*); a coding-agent turn that did nothing, or only read,
+says so (it said the Changes tab showed what it did).
+
+**Unreleased on `main`** (since v0.2.20 and farm-v0.0.54; by 2026-11-23 18:21), each behind its human test and the
+owner's go. **Client:** nothing yet. **Farm:** Qwen3.8 drafting ahead and keeping its state in 16 bits (J19); 128k of
 context per person by default, Automatic 24 on the PRO 6000 (J16); a saved vLLM list running its built-ins with the
-current flags; the panel's seat text; a finished job's bar that leaves the panel's top after 5 minutes (a failed one stays). **Open WebUI stays at 0.13.3:** 0.13.4 would drop the Blender tools
+current flags; the panel's seat text; a finished job's bar that leaves the panel's top after 5 minutes (a failed one
+stays); every vLLM root but production's builds FlashInfer's kernels in its own folder (`serve.sh`); a vLLM start's
+bar says the farm stops a stuck one by itself, and its kernel phase no longer says *first start* (FARM_START step 2). **Open WebUI stays at 0.13.3:** 0.13.4 would drop the Blender tools
 ([BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md), for the owner).
 
 The full plan is built, released and in multi-user testing. Where to look: the map of the docs,

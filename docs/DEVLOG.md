@@ -9,6 +9,23 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-23 (18:21) — Release client v0.2.20 (by day, on the owner's go after G14's re-check)
+
+The owner, 17:41: *"re-check passed on +n14, release v0.2.20"*; the go of 12:11 held on that re-check (DECISIONS).
+- **The gate:** `git diff 5cf6743 -- shell` empty, the tree clean; the owner's answer committed first (`ee5c62e`), then
+  `npm run release:patch` in `shell/` (17:41): `8ae6f5a` *release: v0.2.20*, the annotated tag, `origin main` pushed
+  with it. The released tree's checks are those of `5cf6743` (11:49 above): k24 5/5, `test:chat` 1989, lint 0, the
+  harness 423/423, perf 9/9; `shell/test/e2e.js` not run (it cannot run here).
+- **CI** (`release` run 45219401146): green on all six jobs, 17:41 → 18:19 (Windows 7 min 31 s, macOS, Linux x64 and
+  arm64, the Intel-mac sidecar). **Latest**, not a prerelease; 27 files, as v0.2.19; `latest.yml`, `latest-mac.yml`,
+  `latest-linux.yml` and `latest-linux-arm64.yml` read 0.2.20; `owui-sidecar-manifest.json` is v0.2.19's (Open WebUI
+  0.13.3, bundle rev 2), so an updated client downloads no Open WebUI. The page carries the installer table, as
+  v0.2.19's. The `main` push started no other workflow.
+- **What it brings:** status.md ▸ *Client v0.2.20* (LOL Vibe's page beside its code, Plan first and its buttons, the
+  document read once per chat, the Computer's lost wake-up, the Preview's port, and the coding agent's smaller fixes).
+  The owner's `0.2.19+n14` reads as 0.2.19 to the updater: it is offered 0.2.20.
+- **Now unblocked:** PLAN_FIRST_NEW_CHAT_PLAN (plans ▸ Now); Electron 45 (Next 14).
+
 ## 2026-11-23 (12:22) — FARM_START_PLAN step 2: a vLLM start says what it does and that it stops by itself
 
 Approved by the owner at 12:11 (*"yes on all those"*). This morning's start sat 3 minutes on *preparing the GPU (the

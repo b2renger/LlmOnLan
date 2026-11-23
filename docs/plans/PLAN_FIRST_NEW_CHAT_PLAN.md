@@ -1,7 +1,7 @@
 # PLAN_FIRST_NEW_CHAT_PLAN: start a new chat with a plan
 
 **Status: approved by the owner, 2026-11-23** ((a) and (b), the chat 12:11; one question below). Size **S + S**.
-**Built after the v0.2.20 tag:** no `shell/` change lands on `main` before it (DECISIONS 2026-11-23).
+**Built after the v0.2.20 tag** (DECISIONS 2026-11-23): v0.2.20 is tagged (2026-11-23 17:41), so it may be built now.
 
 The owner, G14 on `0.2.19+n13`: *"In a new chat it looks like we cannot start with a plan ... we should be able to start
 with a plan"*; then, on (b): *"it is good practice to elaborate a plan rather than start coding right away so yes it is
