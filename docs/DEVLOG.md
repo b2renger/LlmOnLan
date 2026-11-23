@@ -9,6 +9,42 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-23 (02:19) — The k25 drag flake: not the frame's timing; the scenario now names what covers the frame (night n° 14)
+
+- `k25-graph-preview-live-a-drag-on-a-node-moves-the-drawing` failed in two full runs (n° 9, n° 13) with **0 %** of the
+  pixels changed and the canvas unpanned, and passes alone (30/30 tonight, always 3.0–3.1 %) and in its file's own order
+  (`--phase k25` 3/3). A probe scenario (kept out of the repo) repeated the drag in one window: the scenario's 12 steps
+  take 175–186 ms (each move is handled in a frame); a **1-step drag of 4–18 ms still moves the drawing, 10/10**, so the
+  d3 tick runs in the same frame as the move (`sandbox/graph-view.mjs:269-272`): a gesture too fast for a frame is
+  ruled out. A plain element laid over the live frame gives **exactly the recorded symptom, 3/3: 0 % moved, the canvas
+  unpanned.** Toasts sit bottom right (`chat/css/dialogs.css:52`), away from the drag point (541, 291).
+- So before the drag the scenario now asks what is under the pointer (`document.elementFromPoint`) and fails with its
+  path if it is not the live frame (3/3 alone). The cause is not found: the next failure names it. The probe ran beside
+  the first full harness run of the night (slot 1).
+- **The pinned tools** (`gh release list`, 02:17): nothing newer since n° 13's pass (vLLM 0.34.0, Open WebUI 0.13.4,
+  Ollama v0.40.17, LiteLLM 1.106.12 on our line, Electron 45.4.1, python-build-standalone 20261110); llama.cpp's builds
+  b12626 → b12638, not read (not the default engine).
+
+## 2026-11-23 (02:18) — The Computer's box strings: what they promise about privacy, numbers and the farm's labels holds (night n° 14)
+
+- Approved docs-to-code work after the objective, by risk, not every line (`parts-*`, `parts`, `graph`, `computer`,
+  `palette`; `computer-gen`'s prompts are the model's, not read). **Privacy promises, each in the code:** Fetch has no
+  inputs, so *"nothing from the graph is sent"* (`graph/parts/fetch.mjs:80`, 15 s and 5 redirects in
+  `src/main/io.ts:26-27`); Listen off hands on a text line and no sound part exists (`graph/parts/audio.mjs:695-708`);
+  a picture reaches the farm only in an Instruction (no other `images` carrier; the Agent sends `images: []`, the MCP
+  tools say *"(a picture)"*, `computer/mcp-tools.mjs:34`); Open data asks only data.gouv.fr's two hosts, every redirect
+  hop checked (`opendata.mjs:27-29`, `:134`); the Agent has no output tool (`agent.mjs:83`); a Trigger fires only armed
+  and on screen (`trigger.mjs:44-45`); Classify is not a generation. The local voice is the OS's `speechSynthesis`:
+  *offline* read in the code, not checked on the wire.
+- **Numbers:** 200 characters inline (`graph/bind.mjs:55`), 0.1–3600 s and 8 waits (`timer.mjs`, the run's iteration
+  limit), 8 MB a graph file (`serialize.mjs:77`), amber past 80 % (`runbar.mjs:43`), 5 s a sandbox compute
+  (`sandbox/protocol.mjs:55`), 1 MB a fetch. **The farm's labels** the strings send an operator to (*Speech to text*,
+  *Classify (Laya)*, *Voice (TTS)*, the message bus, *Document OCR*) are the panel's (`farm/src/plugins/registry.js`).
+- Found, not changed: `graph.wireCycle` is never shown (cycles became legal; the one loop refusal left is
+  `loop-ungated`, with the six gates, `graph/model.mjs:191`); `computer.runOutcomeCycle` names three of the six gates
+  but is reached only by a hand-edited file (`graph/runner.mjs:1111-1116`); Condition's hint lists *yes, true, oui* and
+  *no, false, non* where the code also takes *y, 1, affirmative* and *n, 0* (`condition.mjs:69-70`): a simplification.
+
 ## 2026-11-23 (02:07) — LOL Vibe's nine other string files read against the code: what a person reads holds (night n° 14)
 
 - The objective (n° 13's default: no answer came). `queue`, `store`, `takes`, `tree`, `render`, `ask`, `projects`,

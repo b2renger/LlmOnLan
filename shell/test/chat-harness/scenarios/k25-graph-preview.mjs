@@ -248,6 +248,19 @@ export default [
             }, sel(a.id, ''));
             h.assert(r && r.width > 100, `the live frame is on the box: ${JSON.stringify(r)}`);
             const at = { x: r.left + ((tx + cx * k) * r.width) / 400, y: r.top + ((ty + cy * k) * r.height) / 300 };
+            // Two full runs saw 0 % move, the canvas unpanned, the scenario passing alone (and a 4 ms drag moves the
+            // drawing: night n° 14's probe). Name what the drag starts on, so a next failure says what covered the frame.
+            const under = await h.eval((p) => {
+                const e = document.elementFromPoint(p.x, p.y);
+                if (!e) return 'nothing';
+                if (e.classList.contains('sandbox-live-frame')) return 'the live frame';
+                const path = [];
+                for (let n = e; n && n !== document.body && path.length < 4; n = n.parentElement) {
+                    path.push(n.tagName.toLowerCase() + (n.id ? '#' + n.id : '') + (typeof n.className === 'string' && n.className.trim() ? '.' + n.className.trim().split(/\s+/).join('.') : ''));
+                }
+                return path.join(' < ');
+            }, at);
+            h.eq(under, 'the live frame', 'the drag starts on the live graph, not on something over it');
             await h.input.drag(at, { x: at.x + 80, y: at.y + 50 }, { steps: 12 });
             // The drawing moves on the simulation's next frames: look until it has, up to 5 s, rather than once after a
             // fixed 700 ms (one full run photographed it unmoved, 0 %: DEVLOG 2026-11-17).
