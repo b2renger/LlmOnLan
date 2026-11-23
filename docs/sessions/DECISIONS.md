@@ -25,6 +25,14 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## The farms and the room
 
+- **2026-11-23, the chat (12:11).** [FARM_START_PLAN](../plans/FARM_START_PLAN.md), its four steps (vLLM alongside the
+  other services; the panel's elapsed time and the truth; precompiled kernels, measured first; a faster way to load the
+  weights): "yes on all those". Step 3 is measured on a trial root, then installed if the numbers hold.
+- **2026-11-23, the chat (12:11).** "May tonight's session quit the Farm app if it's running at 02:00, run J19, and
+  restart the Farm app before 06:30?" → "Yes". A Farm app found off at 02:00 stays off.
+- **2026-11-23, the chat (12:11).** "J15: on a test farm, or on the Farm app itself at night (Download, Use this, then
+  back to Qwen3.6)?" → "after J19 yes": the default offered, **the test farm, after J19** (the Farm app itself only if
+  the owner says so).
 - **2026-11-23, the chat (11:25).** "it takes ages to start vllm and the farm basically. Can we do some improvements and
   optimisations in this matter ?" And on J19 and J15: "look like things you could do on your own, right ?"
 - **2026-11-23, the chat (09:06).** Inkling 2: "No lets wait for official support in either of the backend we have.
@@ -79,6 +87,14 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## LOL Vibe and the Computer
 
+- **2026-11-23, the chat (12:11).** Client **v0.2.20 with the new plan buttons, after the owner's two-minute re-check on
+  `0.2.19+n14`: "yes"**. The go holds once the owner reports that re-check passed; the release ships what was
+  re-checked (`git diff 5cf6743 -- shell` empty at the tag), so no `shell/` change lands on `main` before it.
+- **2026-11-23, the chat (12:11).** Plan first in a new chat: "(a) A new chat opened from a project's chat stays in that
+  project, so Plan first is there before the first message. => yes"; "(b) Every new chat offers Plan first, and
+  turning it on asks which project to use, or makes one. => yes it is good practice to elaborate a plan rather than
+  start coding right away so yes it is an important to plan first when start a new chat, new project"
+  ([PLAN_FIRST_NEW_CHAT_PLAN](../plans/PLAN_FIRST_NEW_CHAT_PLAN.md); after the v0.2.20 tag).
 - **2026-11-23, the chat (11:25).** HUMAN_TESTS G14 (Plan first) and A29 (the page beside its code) on `0.2.19+n13`:
   A29 "we are good to go"; G14 "works as expected, but yes the buttons are very small and not really visible, in
   terms of UX they should be more visible and it should be more natural to go through this chain of thoughts using the

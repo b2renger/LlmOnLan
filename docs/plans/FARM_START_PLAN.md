@@ -1,6 +1,7 @@
 # FARM_START_PLAN: a farm that is ready sooner, and says how long
 
-**Status: proposed, for the owner** (2026-11-23, by day). Size **S + S + M + S**, each step on its own. The owner
+**Status: approved by the owner, 2026-11-23** (12:11, *"yes on all those"*; step 3 is measured first, then installed if
+the numbers hold). Size **S + S + M + S**, each step on its own. The owner
 (2026-11-23, 11:25): *"it takes ages to start vllm and the farm basically. Can we do some improvements and
 optimisations in this matter ?"*
 
@@ -47,9 +48,12 @@ which step 3 is for.
 3. **Precompiled kernels (M, a new dependency: the owner's yes).** vLLM warns at every start that FlashInfer's
    precompiled kernels are missing (`flashinfer-cubin`, `flashinfer-jit-cache` not installed). Installed with vLLM by
    `install.sh` (and by Update vLLM), no farm would compile them: a new farm's first start, and the first after each vLLM
-   update, would take about 3 minutes less. **To measure first, on a trial root (nothing of production touched):** the
-   wheels' size (a school's network did ~6 MB/s), that they hold the RTX PRO 6000's sm_120 and the Spark's sm_121
-   kernels, and the time saved.
+   update, would take about 3 minutes less. **Found (2026-11-23, 12:20):** `flashinfer-jit-cache` 0.7.2.post1+cu130 is a
+   4.5 KB shim that requires one wheel per GPU family; ours is **`flashinfer-jit-cache-sm120f`** (sm_120 and the Spark's
+   sm_121), **194 MB** for x86_64 and 188 MB for aarch64, on FlashInfer's GitHub release `v0.7.2.post1` and its index
+   `https://flashinfer.ai/whl/cu130`; `flashinfer-cubin` 0.7.2.post1 (1.67 GB) is there too, not on PyPI. **To measure
+   first, on a trial root (nothing of production touched):** a cold Qwen3.6 start in an empty kernel folder, then the
+   sm120f wheel alone (`--no-deps`) and the same start again; `flashinfer-cubin` only if the first leaves a build.
 4. **The weights from a cold disk (S, research).** 31 s cold against 17 s warm for 20 GB. Measure vLLM's
    `--safetensors-load-strategy` options on a trial root; adopt one only if it saves 10 s or more, in the model's
    flags (the farm owns them).
@@ -63,8 +67,6 @@ An ordinary start: ~2 min 30 s from the Farm app's launch → **~2 min** (step 1
 start or the first after a vLLM update: ~5 min 30 s → **~2 min** (step 3). And a person who knows what the bar is
 doing (step 2).
 
-## Questions
+## Answered
 
-1. Steps 1, 2 and 4: build them? *Recommended:* yes.
-2. Step 3, a new dependency of the farm's vLLM install: measure it on a trial root, then decide with the numbers?
-   *Recommended:* yes, measure first.
+The owner, 2026-11-23 12:11: yes to steps 1, 2 and 4, and to step 3 measured first (DECISIONS).
