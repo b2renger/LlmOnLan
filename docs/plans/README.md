@@ -347,8 +347,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
 - **The farm:**
   - free a person's seat when they quit (D-F1; "Free an idle seat after" covers it today);
-  - the panel drops a finished job's bar after a few minutes (review 2026-11-15 L1: *Updating vLLM … with Qwen3.8* stayed up
-    while Qwen3.6 served);
+  - ~~the panel drops a finished job's bar after a few minutes (review 2026-11-15 L1: *Updating vLLM … with Qwen3.8* stayed
+    up while Qwen3.6 served)~~ *built 2026-11-23 (night n° 14, unreleased): a bar that finished well leaves after 5 min, a
+    failed one stays until the next job; a farm test;*
   - load signals (busy, queued, perf) for Ollama (D-F2);
   - vision from Ollama's `/api/show` instead of the name pattern (D-F4);
   - per-host slots on a multi-host Ollama farm;

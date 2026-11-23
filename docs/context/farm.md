@@ -168,7 +168,8 @@
     model, context, memory, people at once, reply cap or extra flags: `vllm.js` `restart`), and **Free an idle seat after** (`proxy.seatIdleSec`,
     1–60 min, the workshop setting — alone it applies live, no restart); Ollama download/offer/stop/delete/Make default;
     the plugin switches and the Blender fleet recommendation; and the clients with their seats. Long operations run as one
-    job whose progress the panel polls. vLLM's install and model downloads run beside it in a second slot, the download slot, with their own bar and Stop. A Stop of vLLM is not kept: the
+    job whose progress the panel polls. vLLM's install and model downloads run beside it in a second slot, the download slot, with their own bar and Stop. A bar that
+    finished well leaves the top 5 minutes after its end; a failed one stays until the next job (`shownBar`, 2026-11-23). A Stop of vLLM is not kept: the
     next farm start starts vLLM again. Everything persists to
     `lol.config.json` (`configFile.js` raw patch — never the schema-parsed config) **except** the Blender
     recommendation (the plugin switches persist since 2026-10-27, `<plugin>.enabled`, written once the plugin came up or

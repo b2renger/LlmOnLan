@@ -1652,6 +1652,25 @@ test('panel formats download numbers for a person, not a debugger', () => {
     assert.equal(etaOf(null), '');
 });
 
+test('panel: a job that finished well leaves the top after 5 minutes; a failed one stays until the next (review 2026-11-15 L1)', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
+    const start = html.indexOf('const DONE_BAR_MS');
+    const end = html.indexOf('function barOf');
+    assert.ok(start > 0 && end > start, 'panel source moved — update the extraction anchors');
+    const ctx = {};
+    new Function('ctx', html.slice(start, end) + '; ctx.out = { shownBar, DONE_BAR_MS };')(ctx);
+    const { shownBar, DONE_BAR_MS } = ctx.out;
+    assert.equal(DONE_BAR_MS, 5 * 60 * 1000);
+    const now = 1_000_000_000;
+    const ok = { label: 'Updating vLLM', done: true, ok: true, finishedAt: now - DONE_BAR_MS - 1 };
+    assert.equal(shownBar(ok, now), null, 'a success older than 5 minutes is not drawn');
+    assert.equal(shownBar({ ...ok, finishedAt: now - 60_000 }, now).label, 'Updating vLLM', 'a recent success still says so');
+    assert.ok(shownBar({ ...ok, ok: false, error: 'no space' }, now), 'a failure stays: it is the only place that says why');
+    assert.ok(shownBar({ label: 'Installing vLLM', done: false, startedAt: now - 3_600_000 }, now), 'a running job always shows');
+    assert.ok(shownBar({ ...ok, finishedAt: null }, now), 'a farm older than finishedAt keeps its bar');
+    assert.equal(shownBar(null, now), null);
+});
+
 // ---- external engine (vLLM/SGLang/… — a server we route to but never run) ---
 test('external engine config defaults: off, keyless, declared capacity', () => {
     const c = ConfigSchema.parse({});

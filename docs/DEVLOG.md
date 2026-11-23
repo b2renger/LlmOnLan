@@ -9,6 +9,20 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-23 (02:28, committed 08:42) — The farm panel drops a bar that finished well after 5 minutes (plans ▸ Later; review 2026-11-15 L1; night n° 14)
+
+- `farm/src/admin/index.html` drew `s.job` and `s.download` whatever their age, so *"Updating vLLM — vLLM 0.33.0 is
+  installed, with Qwen3.8"* stayed at the top for days while Qwen3.6 served. `shownBar(x, now)`: a bar that finished
+  **well** leaves 5 minutes after its `finishedAt` (the job view already carried it, `commands/up.js:289`); a **failed**
+  one stays until the next job, the only place that says why; a running one always shows. Nothing a finished success
+  says is lost: the pending Ollama restart is the panel's standing line (`admin/index.html:614`). The panel polls every
+  5 s, so the bar leaves on its own. Like the running bar's *running for*, it takes the farm's and the page's clocks to
+  agree. **Test first:** `farm/test/run.js` cuts `DONE_BAR_MS` and `shownBar` out of the page (the panel's own pattern)
+  and failed before the change; the farm suite **292/292** after. `docs/context/farm.md` says it. Not walked in a real
+  panel.
+- The whole chat harness **beside ten CPU burners** (02:27–02:43), with tonight's k25 check: **423/423** (k25 passed
+  again). The first run, idle (02:10–02:26): 423/423.
+
 ## 2026-11-23 (02:23) — GETTING_STARTED behind the default model's switch and the 128k default; the release's two tests hold (night n° 14)
 
 - **`docs/GETTING_STARTED.md`** (last touched 2026-11-14) against the code, and the root README's ~18 GB too. Six corrections: the farm's Ollama default

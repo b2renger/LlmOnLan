@@ -235,7 +235,7 @@ function render(s) {
   // Two bars (docs/archive/plans/VLLM_MANAGED_PLAN.md §7.3): the JOB (a switch, a start, an Apply,
   // an Ollama pull) and the DOWNLOAD (installing vLLM, a vLLM model), which runs
   // while the farm keeps serving. Each gets Stop when it can be stopped halfway.
-  const jobBar = barOf(job, 'job') + barOf(s.download, 'download');
+  const jobBar = barOf(shownBar(job, Date.now()), 'job') + barOf(shownBar(s.download, Date.now()), 'download');
 
   // --- what serves ----------------------------------------------------------------
   // The headline answers the two questions the panel never used to: what is users'
@@ -964,6 +964,14 @@ const GIB = 2 ** 30;
 // One bar: the job (slot 'job') or the download (slot 'download'). The numbers line under it says how far, how
 // fast and how much longer; Stop when the farm can stop it halfway. A percentage alone left the operator asking
 // "is this moving at all?" through a 30 GB pull (owner report 2026-09-10).
+// A job that finished well says so for a few minutes, then its bar leaves the top (review 2026-11-15 L1: "vLLM 0.33.0
+// is installed, with Qwen3.8" stayed for days while Qwen3.6 served). A failed one stays until the next job: it is the
+// only place that says why. The farm's clock and this page's are taken to agree, as the running bar's time does.
+const DONE_BAR_MS = 5 * 60 * 1000;
+function shownBar(x, now) {
+  return x && x.done && x.ok && x.finishedAt && now - x.finishedAt > DONE_BAR_MS ? null : x;
+}
+
 function barOf(x, slot) {
   if (!x) return '';
   const running = !x.done;
