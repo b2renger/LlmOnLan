@@ -2,7 +2,7 @@
 
 LlmOnLan has **two pieces**:
 
-- **The farm** — the `lol` CLI (or the Farm app) running on one or more **GPU boxes**. It serves the model(s) over the LAN — through **Ollama** by default (`gemma4:12b` with its full **262k context**, vision included), the opt-in **llama.cpp** speed engine, or **vLLM** for many people at once on a big NVIDIA card (Windows with WSL, or Linux such as a DGX Spark; installed and run by the farm), all chosen in the farm's panel — hosts shared **web search**, **document OCR** and **document search** (and, opt-in, **neural voice**, **speech to text**, **Classify** and a **message bus** for the Computer), and **broadcasts itself** so clients find it automatically.
+- **The farm** — the `lol` CLI (or the Farm app) running on one or more **GPU boxes**. It serves the model(s) over the LAN — through **Ollama** by default (`gemma4:26b`, Gemma 4 26B, vision included, for GPUs of 24 GB and above), the opt-in **llama.cpp** speed engine, or **vLLM** for many people at once on a big NVIDIA card (Windows with WSL, or Linux such as a DGX Spark; installed and run by the farm), all chosen in the farm's panel — hosts shared **web search**, **document OCR** and **document search** (and, opt-in, **neural voice**, **speech to text**, **Classify** and a **message bus** for the Computer), and **broadcasts itself** so clients find it automatically.
 - **The client app** — a desktop app (bundled, unmodified Open WebUI) that people install on their laptops. It **auto-discovers the farm** on the same network — no URL, no config — and keeps all chat data on their own machine.
 
 You set up the farm once per GPU box, and everyone else just installs the client app.
@@ -62,7 +62,7 @@ Run it and follow the wizard; leave the window open — that *is* the farm. Full
 ⚙ **Settings** ▸ **Share compute with the network** (the farm restarts by itself). Turn on **Launch at login**
 there too, so the farm starts again when someone logs in after the computer restarts.
 
-> **The first run downloads ~18 GB, ~19 GB with an NVIDIA GPU** (see the table above) **plus its own Python/Ollama runtime**. The screen
+> **The first run downloads ~27 GB, ~28 GB with an NVIDIA GPU** (see the table above) **plus its own Python/Ollama runtime**. The screen
 > narrates each step and shows download percentages. On a slow line the screen can say the farm stopped making
 > progress while it is still downloading: wait (see [Known rough edges](#known-rough-edges-v1)). Pressing the
 > wizard's **Retry**, **Start the farm** or the top bar's **Start** at that moment stops the farm's run, and a
@@ -86,7 +86,8 @@ cd LlmOnLan
 - **[Python 3.10–3.13](https://python.org)** — for the LiteLLM proxy (3.9 is enough for it alone), the **default-on** web search and document OCR (these need 3.10+), and (if you enable it) voice. `lol install` will **not** install Python for you. On Windows, `py -3.12` works after installing Python.
 - **[git](https://git-scm.com)** (you already used it to clone).
 - **[Ollama](https://ollama.com)** and **LiteLLM** are installed **for you** by the next step — and the **llama.cpp** backend too, only if you enable it (on an NVIDIA box, document search brings llama.cpp's build anyway, see below).
-- **GPU:** the shipped defaults target an **NVIDIA card with ≥ 12 GB VRAM**. The llama.cpp bootstrap is automatic on **Windows x64 + NVIDIA** and on the **DGX Spark** (linux-arm64 — our CI publishes the binary). Anywhere else the farm serves via **Ollama automatically** (no config edit needed); installing llama.cpp yourself and setting `llamacpp.binDir` re-enables the fast engine.
+- **GPU:** the shipped default model (Gemma 4 26B on Ollama) targets an **NVIDIA card with ≥ 24 GB VRAM**; the
+  llama.cpp engine's shipped quant fits 12–16 GB cards (the table under *Serving a group*). The llama.cpp bootstrap is automatic on **Windows x64 + NVIDIA** and on the **DGX Spark** (linux-arm64 — our CI publishes the binary). Anywhere else the farm serves via **Ollama automatically** (no config edit needed); installing llama.cpp yourself and setting `llamacpp.binDir` re-enables the fast engine.
 
 ### Bootstrap (one command)
 
@@ -217,7 +218,8 @@ with `LOL_ENDPOINT=http://<box-ip>:4000/v1` if discovery isn't available.
 
 ## 3. Using it
 
-- **Model** — pick it in the top-left dropdown. It's preselected for you: everyone lands on the farm's
+- **Model** — pick it in the model menu inside the message box, at the bottom right (Open WebUI 0.13; the top-left
+  dropdown before it). It's preselected for you: everyone lands on the farm's
   model, shown under the name the operator chose in the farm panel (`gemma4:26b` by default;
   `assistant` on a llama.cpp or vLLM farm). That name is a stable id, so the operator can swap the
   checkpoint underneath without breaking your existing chats.
@@ -337,8 +339,9 @@ admin panel; clients that never made an explicit choice then enable it automatic
 > By hand: out of the box the farm (gemma4 on Ollama) answers **two requests at a time**; raise it in the panel
 > (the serving engine's section ▸ **People served at once**; on Ollama it applies after a farm restart). On llama.cpp the
 > default is 1, and the slots share one context pool: a person alone gets the whole window. On a big NVIDIA
-> card (an RTX PRO 6000, a DGX Spark), choose **vLLM** in the panel (**Serve with vLLM**): it serves many people at once (48 at 64k on a
-> PRO 6000, 8 on a Spark, measured), and *Automatic* sets how many. See
+> card (an RTX PRO 6000, a DGX Spark), choose **vLLM** in the panel (**Serve with vLLM**): it serves many people at once (on a
+> PRO 6000 24 at 128k, the default context per person, or 48 at 64k; 8 at 64k on a Spark; measured), and *Automatic*
+> sets how many. See
 > [farm/README.md ▸ vLLM, run by the farm](../farm/README.md#vllm-run-by-the-farm). When every seat is taken, a
 > new question gets a clear "all seats in use" until someone has been idle 15 min (*Access* ▸ **Free an idle
 > seat after**; 2 min suits a workshop). **Plan capacity ↗** at the top of the panel says which hardware and
@@ -483,7 +486,7 @@ Ollama engine the farm *measures* instead of computing (it loads the model at 16
 what the VRAM holds, verifies that with one more load — halving once if it spilled to system RAM —
 and remembers the answer; e.g. gemma4:26b gets two people at about 48k on a 24 GB card and its native 262k on a 48 GB
 one). Pick a
-number only to trade context for more slots. On vLLM the row is **Context per person**, a number (64k by
+number only to trade context for more slots. On vLLM the row is **Context per person**, a number (128k by
 default, at most what the model reads; a longer one fits fewer people), and there **People served at once** and
 **GPU memory for conversations** are Automatic; **Plan capacity ↗** shows what each choice serves.
 

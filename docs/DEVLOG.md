@@ -9,6 +9,28 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-23 (02:23) — GETTING_STARTED behind the default model's switch and the 128k default; the release's two tests hold (night n° 14)
+
+- **`docs/GETTING_STARTED.md`** (last touched 2026-11-14) against the code. Six corrections: the farm's Ollama default
+  is `gemma4:26b` for GPUs of 24 GB and above, not `gemma4:12b` at 262k (`farm/src/config.js:660-670`, since
+  2026-11-10); the first run downloads ~27 GB (~28 with an NVIDIA GPU), as the guide's own table and its `lol install`
+  line say, not ~18; the GPU line targets ≥ 24 GB for that default, with llama.cpp's shipped quant (Qwen3.8-27B
+  UD-IQ2_S, `config.js:202`) for 12–16 GB cards, as its table already says; vLLM's context per person is **128k by
+  default** (`config.js:496`; n° 12), 24 people on a PRO 6000 at 128k or 48 at 64k, as `farm/README.md:276` says;
+  and Open WebUI 0.13's model menu is in the message box, bottom right (night n° 6 saw it in the real app; CLASS_SHEETS
+  says the same), not the top-left dropdown. Held: the 24k whole-document threshold (`configBridge.ts:242`), the
+  12 s *not responding* (`discovery.ts:73`), the 0.8 GB chat engine, the keys and LOL Vibe's labels. Not checked: the
+  web search line names Open WebUI 0.11's menu (dated, so not false; 0.13.3's not seen tonight), the panel walkthrough
+  of §5 (the farm's review area), the Blender section.
+- **CLASS_SHEETS** (the sheets of the 17 November class): true for the released client and Farm app (64k, 48 seats,
+  12 s, the 15 min seat); its Spark row describes that day's password, gone since (owner 2026-11-18). To refresh before
+  another class, with the next Farm app (128k, 24 seats): the queue.
+- **HUMAN_TESTS G14 and A29 read against the code, step by step**, so the release's two tests do not send the owner
+  wrong: A29's labels (the `render` strings), its re-run after a pause (250 + 450 ms, inside the second it says), the
+  window that brings the page back when closed (`page-panel.mjs:404-405`); G14's note line, *Carry out the plan above.*,
+  the fence's step-log sentence (`src/main/studio.ts:848-849`), and that planning blocks every tool that writes (the
+  agent's eight tools have no shell: `edit, glob, grep, read, read_image, skill, todo_write, write`). Both hold.
+
 ## 2026-11-23 (02:19) — The k25 drag flake: not the frame's timing; the scenario now names what covers the frame (night n° 14)
 
 - `k25-graph-preview-live-a-drag-on-a-node-moves-the-drawing` failed in two full runs (n° 9, n° 13) with **0 %** of the
