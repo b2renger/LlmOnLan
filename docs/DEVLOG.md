@@ -9,7 +9,7 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-11-23 (12:40) — FARM_START_PLAN step 2: a vLLM start says what it does and that it stops by itself
+## 2026-11-23 (12:22) — FARM_START_PLAN step 2: a vLLM start says what it does and that it stops by itself
 
 Approved by the owner at 12:11 (*"yes on all those"*). This morning's start sat 3 minutes on *preparing the GPU (the
 first start takes a few minutes longer)* while FlashInfer rebuilt its kernels (no first start), and was stopped from
