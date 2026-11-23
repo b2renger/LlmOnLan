@@ -9,6 +9,36 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-23 (02:07) — LOL Vibe's nine other string files read against the code: what a person reads holds (night n° 14)
+
+- The objective (n° 13's default: no answer came). `queue`, `store`, `takes`, `tree`, `render`, `ask`, `projects`,
+  `dialogs`, `etiquette` (201 keys): each key's call site mapped (a `grep` explorer; its claims checked), and each
+  behaviour sentence read against the code that shows it. **Nothing a person reads was untrue; nothing changed.**
+- Checked and true: `store.memory` (a late database open replays what was typed: `state/repo.mjs:187-206`) and
+  `writeFailed`'s *Preferences ▸ Data location* and export (`renderer/index.html:88`, `library.exportAll`);
+  `takes.whyNoModel`'s six boxes are exactly the `passes: true` parts, and the Instruction is the only `modelOf`;
+  `whyNoOcr`'s *Document OCR* is the panel's Plugins row with Enable (`farm/src/admin/index.html:530-541`), the Farm
+  app's window; *Ctrl+Enter* in `tree.editHint` and the page editor's hints is true on a Mac too (both take Ctrl or Cmd:
+  `ui/edit-inline.mjs:111`, `computer/code-editor.mjs:256`); the fork copies up to and including the message
+  (`app/branching.mjs:120-146`); delete asks and nothing undoes it; the chat's system prompt reaches the model through
+  the header's own transform (`ui/thread-header.mjs:28-41`) and the coding agent never reads it; Alt+←/→ and the other
+  shortcuts; `etiquette.waitingManual` (`MAX_ATTEMPTS` 5), `gaveUp` (15 min; the panel's *Free an idle seat after*,
+  `admin/index.html:348`), `refusedWaiting`'s Stop (shown beside the held Send, `ui/composer.mjs:433-442`, and handed to
+  the wait's cancel handler), `notifyHint` (no focus, 8 s); `render.noteAborted`, `outsideContext`'s *Keep in context*,
+  the page panel's pop-out and its failure.
+- Found, not changed (none reaches a person in normal use):
+  - `queue.*`: no code in the app starts a batch (`app.ask.queue` has no caller; the graph runner keeps its own
+    queue, `graph/runner.mjs:46`); only tests show the chip. `queue.stalled`'s *"The farm stayed busy"* would be wrong
+    when this laptop's own slot is what refused (`ask.busy`'s own comment says so).
+  - `projects.err_*` are a fallback: the bridge shows the main process's own message whenever it has one
+    (`projects/bridge.mjs:229-234`), and `explain()` has no caller in the app. `err_E_QUOTA`'s *"This project"* would
+    be wrong for the 200-projects refusal (`src/main/projects.ts:416`), which is never worded by it.
+  - `render.noteInterrupted` (*"…LOL Vibe closed while it was still streaming"*) also comes back on a chat exported
+    while a reply streamed, then imported (`app/transfer-format.mjs:67`): a corner.
+  - Unused keys: `dialogs.close`; `ask.retry` (only the harness's stand-in panel, `s0-ask.mjs:186`). For n° 15's review.
+  - `takes.whyEngineNoAudio`: true of the farm's path (LiteLLM's `ollama_chat` transform drops sound parts,
+    `graph/takes.mjs:36-43`); not checked against Ollama itself.
+
 ## 2026-11-22 (06:08, corrected 06:16) — LOL Vibe's strings read against the code; one sentence made precise (night n° 13)
 
 - `strings/project.en.mjs` and `agent.en.mjs` read through: the loop's rounds, the schedule's rules, the share, the
