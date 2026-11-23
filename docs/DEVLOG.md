@@ -9,6 +9,26 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-23 (11:50) — Plan first's buttons: visible on the newest plan, and the message box says what to write
+
+The owner, G14 on `0.2.19+n13` (11:25): *"it works as expected, but yes the buttons are very small and not really
+visible, in terms of UX they should be more visible and it should be more natural to go through this chain of thoughts
+using the buttons"*. They were every reply's actions: 11 px grey, shown only while the pointer is over the reply.
+- `css/thread.css`: on the newest reply (`.chat-msg:not(:has(~ .chat-msg))`), a plan's *Go ahead* (the accent, the
+  Send button's) and *Change the plan* show with no hover, 13 px, first in their row, on one line each; on an older plan
+  they are gone (its *Go ahead* would have carried out the newest plan). No JS for either.
+- `ui/project-panel.mjs`: *Change the plan* also sets the message box's hint, *Say what to change in the plan, then send
+  it: the agent plans again.* (`agent.changePlanHint`), back to the usual one when the next reply starts (`STREAM_START`:
+  Go ahead sends without the box, so the composer's `submit` was not enough, as the first run of the test showed) or
+  another chat opens.
+- **Test first:** `k24-plan-first-changes-nothing-until-go-ahead` checks the buttons' opacity without a hover, Go
+  ahead's size and colour, the hint, its return, and no buttons on the older plan; it failed (opacity 0, 11 px), then
+  passed; the shot `k24-plan-first-plan.png` looked at. k24 5/5, `test:chat` 1989 (1 skipped), lint 0; the whole
+  harness **423/423** and its perf group **9/9** (the long threads: the `:has()` rule on every reply costs nothing seen).
+- **Not built (a question for the owner):** *"In a new chat it looks like we cannot start with a plan"*: a new chat
+  starts in no project (`ui/workbench.mjs` AP.1, even one opened from a project's chat) and the switch exists only in
+  a project's chat.
+
 ## 2026-11-23 (11:41) — Why vLLM took ~5 minutes to start on the PRO 6000: trial roots rebuilt production's kernels
 
 The owner (11:25): *"it takes ages to start vllm and the farm basically"*. Read from the live farm's logs (read only:

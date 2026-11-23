@@ -210,6 +210,19 @@
   align-items: center;
 }
 #lolchat .chat-action:hover { color: var(--text); border-color: var(--border); background: var(--surface-2); }
+/* Plan first's way on (G14, the owner 2026-11-23: "the buttons are very small and not really visible"): on the newest
+   reply, a plan's Go ahead and Change the plan show with no hover, as buttons, first in its row, Go ahead in the accent.
+   On an older plan they are gone: Go ahead carries out the newest plan ("the plan above"), never that one. */
+#lolchat .chat-msg:not(:has(~ .chat-msg)) .chat-msg-foot:has([data-action='plan-go-ahead']) { flex-wrap: wrap; }
+#lolchat .chat-msg:not(:has(~ .chat-msg)) .chat-actions:has(> [data-action='plan-go-ahead']) { opacity: 1; margin-left: 0; order: -1; gap: 6px; flex-wrap: wrap; }
+#lolchat .chat-msg:not(:has(~ .chat-msg)) .chat-action[data-action^='plan-'] {
+  font-size: 13px; padding: 6px 12px; border-radius: 8px; white-space: nowrap; flex: none;
+  color: var(--text); background: var(--surface-2); border-color: var(--border);
+}
+#lolchat .chat-msg:not(:has(~ .chat-msg)) .chat-action[data-action='plan-go-ahead'] { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+#lolchat .chat-msg:not(:has(~ .chat-msg)) .chat-action[data-action='plan-go-ahead']:hover { filter: brightness(1.08); }
+#lolchat .chat-msg:not(:has(~ .chat-msg)) .chat-action[data-action='plan-change']:hover { border-color: var(--accent-hover); }
+#lolchat .chat-msg:has(~ .chat-msg) .chat-action[data-action^='plan-'] { display: none; }
 
 /* A touch device never hovers: keep the actions visible there rather than unreachable. */
 @media (hover: none) {

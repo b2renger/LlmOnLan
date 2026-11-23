@@ -1458,14 +1458,18 @@ unchanged (no new entry); if the agent tried to write, its step log says *planni
 person approves the plan*. After 3, the cursor is in the message box and the next answer is a new plan with grey
 text. After 4, a message *Carry out the plan above.* and a reply that writes both files (History: one *Agent:* entry);
 the Preview shows the footer. After 5, the change is made at once, with no plan. Note whether the plans were clear
-enough for a student to follow. **And whether a student finds the two buttons:** like every message's actions they
-show only while the pointer is over the reply (small and grey, `css/thread.css`; seen in the harness's shot, 2026-11-21).
-If not, the fix is the one a seat wait already has: always visible on a plan.
+enough for a student to follow. **And whether a student finds the two buttons:** until `0.2.19+n13` they showed only
+while the pointer was over the reply, small and grey (the owner's run below). **Since 2026-11-23** the newest plan shows
+them without a hover, as buttons, *Go ahead* in the accent colour (the Send button's), *Change the plan* beside it; an
+older plan shows neither; after *Change the plan* the message box's hint reads *Say what to change in the plan, then send
+it: the agent plans again.* until the next reply starts (`k24-plan-first-changes-nothing-until-go-ahead` checks all three).
 - [x] Done by the owner, 2026-11-23, on `0.2.19+n13` · Found: "it works as expected, but yes the buttons are very small
   and not really visible, in terms of UX they should be more visible and it should be more natural to go through this
   chain of thoughts using the buttons"; and "In a new chat it looks like we cannot start with a plan ... we should be
   able to start with a plan" (a new chat starts in no project, even one opened from a project's chat, and the switch
   exists only in a project's chat: `ui/workbench.mjs` AP.1, `ui/project-panel.mjs` `visible`).
+- [ ] Re-check of the buttons (2 minutes, on the build after `0.2.19+n13`), steps 2 to 4 only: under the plan, *Go ahead*
+  and *Change the plan* are there without moving the pointer, and read as the way on · Found:
 
 ## H. Home Assistant on a real home
 

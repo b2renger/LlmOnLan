@@ -44,9 +44,9 @@ export function install(app) {
     available: () => true,
     create: (/** @type {HTMLElement} */ host, /** @type {any} */ a) => createPanel(host, a || app),
   });
-  // "Plan first" (STUDENT_PLAN_MODE_PLAN): a plan's reply (controller.mjs sets `planning`) carries two buttons. They show
-  // on every plan of the thread; Go ahead always carries out the latest one ("the plan above"). ponytail: a row's
-  // buttons are built once and cannot tell the last reply; hiding them on older plans needs that in thread-view.
+  // "Plan first" (STUDENT_PLAN_MODE_PLAN): a plan's reply (controller.mjs sets `planning`) carries two buttons. Go ahead
+  // always carries out the latest plan ("the plan above"): css/thread.css shows them, without a hover, on the newest
+  // reply only (G14, 2026-11-23).
   const planReply = (/** @type {any} */ msg) => !!msg && msg.role === 'assistant' && msg.planning === true && msg.status === 'done';
   app.registry.add(SLOTS.MESSAGE_ACTIONS, {
     id: 'plan-go-ahead',
@@ -69,7 +69,20 @@ export function install(app) {
     label: t('agent.changePlan'),
     hint: t('agent.tipChangePlan'),
     visible: planReply,
-    run: (/** @type {any} */ _msg, /** @type {any} */ a) => { const c = (a || app).composer; if (c && typeof c.focus === 'function') c.focus(); },
+    // The cursor goes to the message box, whose hint says what to write there (G14, 2026-11-23); the usual hint is back
+    // at the next reply, however it was sent (Go ahead sends without the box), or in another chat.
+    run: (/** @type {any} */ _msg, /** @type {any} */ a) => {
+      const ap = a || app;
+      const c = ap.composer;
+      const input = ap.els && ap.els.input;
+      if (input && ap.bus) {
+        input.placeholder = t('agent.changePlanHint');
+        /** @type {Array<() => void>} */ const offs = [];
+        const back = () => { offs.forEach((off) => off()); input.placeholder = t('core.inputPlaceholder'); };
+        offs.push(ap.bus.on(EV.STREAM_START, back), ap.bus.on(EV.THREAD_SELECTED, back));
+      }
+      if (c && typeof c.focus === 'function') c.focus();
+    },
   });
   // The switch itself sits beside the message box, one per chat (the plan as approved; n° 11's question 7, default taken
   // 2026-11-21), shown in a chat bound to a project, where the coding agent answers. `planThread` follows the open

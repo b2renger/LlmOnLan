@@ -403,11 +403,28 @@ export default [
             const actions = (/** @type {number} */ k) => h.eval((i) => Array.from(document.querySelectorAll('#lolchat .chat-msg.assistant')[i].querySelectorAll('.chat-action')).map((b) => b.getAttribute('data-action')), k);
             const first = await actions(0);
             h.assert(first.includes('plan-go-ahead') && first.includes('plan-change'), `the plan carries its two buttons: ${first}`);
+            // G14 (the owner, 2026-11-23: "the buttons are very small and not really visible"): on the newest reply they
+            // show with no pointer over it, as buttons a student sees, Go ahead in the accent colour.
+            const look = (/** @type {number} */ k) => h.eval((i) => {
+                const row = document.querySelectorAll('#lolchat .chat-msg.assistant')[i];
+                const go = /** @type {HTMLElement|null} */ (row.querySelector('[data-action="plan-go-ahead"]'));
+                const cs = go ? getComputedStyle(go) : null;
+                const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+                const probe = document.createElement('i'); probe.style.color = accent; document.body.appendChild(probe);
+                const accentRgb = getComputedStyle(probe).color; probe.remove();
+                return { hovered: row.matches(':hover'), opacity: getComputedStyle(/** @type {Element} */ (row.querySelector('.chat-actions'))).opacity,
+                    shown: !!go && cs.display !== 'none', size: cs ? parseFloat(cs.fontSize) : 0, accent: !!cs && cs.backgroundColor === accentRgb };
+            }, k);
+            const seen = await look(0);
+            h.assert(seen.shown && (seen.opacity === '1' || seen.hovered), `the newest plan's buttons show without a hover: ${JSON.stringify(seen)}`);
+            h.assert(seen.size >= 13 && seen.accent, `Go ahead reads as the button to press: ${JSON.stringify(seen)}`);
             await h.screenshot('k24-plan-first-plan');
 
             // 2. Change the plan: the cursor goes to the message box.
             await h.eval(() => { /** @type {HTMLButtonElement} */ (document.querySelectorAll('#lolchat .chat-msg.assistant')[0].querySelector('[data-action="plan-change"]')).click(); return true; });
             h.eq(await h.eval(() => (document.activeElement ? document.activeElement.id : '')), 'chat-input', 'Change the plan puts the cursor in the message box');
+            const hint = () => h.eval(() => /** @type {HTMLTextAreaElement} */ (document.getElementById('chat-input')).placeholder);
+            h.eq(await hint(), 'Say what to change in the plan, then send it: the agent plans again.', 'and the message box says what to write there');
 
             // 3. Go ahead: one message, carried out in the same agent session; the file lands; that reply is no plan.
             await h.eval(() => { /** @type {HTMLButtonElement} */ (document.querySelectorAll('#lolchat .chat-msg.assistant')[0].querySelector('[data-action="plan-go-ahead"]')).click(); return true; });
@@ -422,6 +439,8 @@ export default [
             h.eq(asked[asked.length - 1], 'Carry out the plan above.', 'Go ahead sent its one sentence');
             const second = await actions(1);
             h.assert(!second.includes('plan-go-ahead'), `the carried-out reply has no Go ahead: ${second}`);
+            h.assert(!(await look(0)).shown, 'an older plan offers no Go ahead: it would carry out the newest plan, not that one');
+            h.assert((await hint()) !== 'Say what to change in the plan, then send it: the agent plans again.', 'the usual hint of the message box is back once a message was sent');
 
             await flip();
             h.eq((await panel(h)).planFirst, false, 'and the switch goes off again');

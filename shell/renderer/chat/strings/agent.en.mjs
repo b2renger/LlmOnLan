@@ -33,6 +33,7 @@ registerStrings('agent', {
   goAheadText: 'Carry out the plan above.',
   changePlan: 'Change the plan',
   tipChangePlan: 'Say what to change in the message box; the agent plans again',
+  changePlanHint: 'Say what to change in the plan, then send it: the agent plans again.',
 
   // When a turn does not end with an answer.
   noApp: 'The coding agent runs in the LlmOnLan app, not here.',

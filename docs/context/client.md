@@ -71,7 +71,9 @@
   Computer*, every `mcp__computer__*` tool (a second PreToolUse group, `^mcp__computer__`). Not in the runtime's key, so
   the plan and its *Go ahead* share one dsh session. The reply carries `planning: true` and two actions
   (`ui/project-panel.mjs`): **Go ahead** sends `agent.goAheadText`, which `isGoAhead` never plans (not while a seat
-  wait holds the slot); **Change the plan** focuses the message box. Tests: studio unit (the fence, the marker's life,
+  wait holds the slot); **Change the plan** focuses the message box and sets its hint (`agent.changePlanHint`) until
+  the next reply starts or another chat opens. On the newest reply the two show without a hover, as buttons (Go ahead
+  in the accent); an older plan shows neither (`css/thread.css`, `:has()`; G14, the owner 2026-11-23). Tests: studio unit (the fence, the marker's life,
   the real dsh refusing in its sandbox, and the tools the real dsh offers: a new one fails the test),
   `k24-plan-first-changes-nothing-until-go-ahead`.
   **Keep going until done** (2026-09-29, [IDE_PLAN §6](../../docs/plans/IDE_PLAN.md)): a person's per-project switch (off by

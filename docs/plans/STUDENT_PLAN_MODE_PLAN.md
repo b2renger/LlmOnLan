@@ -74,8 +74,8 @@ As written, with four choices the session made, each for the owner to overturn:
 - **The Computer's tools are refused too** while planning, when *Use the Computer* is on: the fence also runs before
   `mcp__computer__*` calls (a second hook group; it skips the file checks there). Otherwise a plan could still build
   or run a graph. So is `create_goal`, so a plan with *Keep going until done* on never starts a loop.
-- **The buttons stay under every plan of the chat** (a reply's buttons are built once and cannot tell the last one);
-  *Go ahead* carries out the newest plan. Marked `ponytail:` in `ui/project-panel.mjs`.
+- **The buttons are on the newest plan only** (since 2026-11-23, G14: a CSS rule on the newest reply shows them
+  without a hover, as buttons, and hides them on an older plan, whose *Go ahead* would have carried out the newest).
 - **The go-ahead is the message, not a state:** a message that says exactly *Carry out the plan above.* is never
   planned, so Regenerate on it carries out too, and nothing is left armed by a click whose send failed.
 
