@@ -25,6 +25,10 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## The farms and the room
 
+- **2026-11-23, the chat (09:06).** Inkling 2: "No lets wait for official support in either of the backend we have.
+  Put that into to the todo list (evaluate inkling 2 small for a replacement of qwen3.6 or qwen3.8)." No trial on a
+  vLLM nightly; plans ▸ Next 20 waits for a release of vLLM, Ollama (on NVIDIA) or llama.cpp that supports it. (Small
+  is 594B and fits no card here; Mini is the one in range: the plan says so.)
 - **Default taken, 2026-11-23** (n° 13's question 4, no answer by 02:00): `~/lol-vllm-034` in WSL (27 GB, vLLM 0.34.0
   and Gemma 4 26B NVFP4) is **kept**.
 - **Default taken, 2026-11-22** (n° 12's question 2, no answer by 02:00): the **Documents preset stays at 64k** with

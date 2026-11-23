@@ -79,7 +79,17 @@ beside the weights, against Qwen3.6's measured 24 and 48. The recipe's own figur
 
 ## 5. Measured on the PRO 6000
 
-*(filled in by the trial below)*
+**Not measured.** A trial root with vLLM's nightly (`docs/spike/runs/nightly_root.sh`, `~/lol-vllm-nightly`:
+`0.34.0rc1.dev1165+g418af6073`, which registers `Inkling2LoopForConditionalGeneration`, the `inkling` reasoning and
+tool parsers, and sees the card as capability 12.0) was built at 08:47; the checkpoint's download was stopped at
+09:06, part-way, when the owner chose to **wait for official support in a backend we have** (DECISIONS 2026-11-23;
+plans ▸ Next 20). Ready for that day: the 58 GiB pool of earlier trials, `--reasoning-parser inkling
+--enable-auto-tool-choice --tool-call-parser inkling` (the recipe's flags), the gate's *thinking off* sent as
+`reasoning_effort: "none"` (its template reads that, not `enable_thinking`; default 0.9), and `fr_probe.py`.
+
+The recipe's own capacity line, for the estimate in §4: on one GB200, "with 32K, 64K and 128K-token sessions, about
+45, 32 and 20 sessions run at 100 tokens/s per user"; scaled to the ~60 GB this card leaves beside the weights, about
+**8 people at 128k and 13 at 64k** (estimated), against Qwen3.6's measured 24 and 48.
 
 ## Sources
 

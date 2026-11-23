@@ -9,6 +9,18 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-23 (09:08) — Inkling 2 Mini read, its trial stopped: the owner waits for official support (by day, n° 14)
+
+- The owner's ask (08:41): Inkling 2, "better scores than qwen3.8 with smaller weights". Read in its repository and
+  vLLM's recipe ([the research](research/INKLING_2_MINI_2026-11-23.md)): Mini is 26.4B / 3.4B active (5.4B with its
+  three passes), 20.2 GB NVFP4, Apache 2.0, pictures in; the vendor's table ties it with Qwen3.8-27B overall, ahead on
+  agentic coding and long documents; weaker outside English (its card). vLLM serves it from main only (#69028,
+  2026-11-21), Ollama on Apple Silicon only, llama.cpp not yet; the PRO 6000 (SM120) is not on the recipe's verified
+  list; about 8 people at 128k and 13 at 64k on this card (estimated from the recipe's GB200 line).
+- A nightly trial root was built (`docs/spike/runs/nightly_root.sh`; `~/lol-vllm-nightly`, 23 GB with a part of the
+  checkpoint) and a French probe written (`docs/spike/runs/fr_probe.py`). At 09:06 the owner: wait for official
+  support; the download stopped (09:07, nothing of it left running, the GPU at 922 MiB). Plans ▸ Next 20.
+
 ## 2026-11-23 (02:28, committed 08:42) — The farm panel drops a bar that finished well after 5 minutes (plans ▸ Later; review 2026-11-15 L1; night n° 14)
 
 - `farm/src/admin/index.html` drew `s.job` and `s.download` whatever their age, so *"Updating vLLM — vLLM 0.33.0 is

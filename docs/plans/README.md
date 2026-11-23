@@ -342,6 +342,18 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
       a 128k chat from filling with repeated skill and knowledge lists. **Approved 2026-11-20 12:46** (now in *1. Now*);
       **blocked 2026-11-21** (the Blender tools; BLENDER_TOOLS_ENV_PLAN).
     - vLLM: the owner says go for the bump, after the trial. **S** each.
+20. **Evaluate Inkling 2 as a replacement of Qwen3.6 or Qwen3.8** (the owner, 2026-11-23 09:06: "lets wait for
+    official support in either of the backend we have. Put that into to the todo list (evaluate inkling 2 small for a
+    replacement of qwen3.6 or qwen3.8)"). **Waits for official support:** a vLLM **release** that serves
+    `Inkling2LoopForConditionalGeneration` (in main since #69028, 2026-11-21; the recipe says 0.35.0+), an Ollama
+    **release** that runs it on NVIDIA (today on Apple Silicon only, #19799), or llama.cpp merging #32187/#32695. Each
+    session's look at the pinned tools' releases checks for it. *Which one:* **Inkling 2 Small** is 594B total (17B
+    active), about 300 GB in NVFP4: it fits neither the PRO 6000 nor a Spark; **Inkling 2 Mini** (26.4B, 20.2 GB) is
+    the one in our range ([the research](../research/INKLING_2_MINI_2026-11-23.md)), so the evaluation is Mini's
+    unless the owner says otherwise. *Then:* people per card at 128k and 64k against Qwen3.6's 24 and 48 (estimated
+    ~8 and ~13), the gate, a French classroom probe (`docs/spike/runs/fr_probe.py`; the vendor says it is weaker
+    outside English), the coding agent's tasks, and the think-off switch (it reads `reasoning_effort`, not
+    `enable_thinking`). **S**, the measurement; the adoption is the owner's.
 
 ## 3. Later
 
