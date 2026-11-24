@@ -8,7 +8,15 @@ beside its code, the document read once per chat, the Computer's lost wake-up). 
 the farm: **the client shell and Open WebUI's contract**. Beside it, while the card was free: J19's measured parts and
 FARM_START steps 3 and 4 measured (the owner's yes, 2026-11-23 12:11). The Farm app was off at 02:00 and stayed off.*
 
-**How it ran:** (in progress)
+**How it ran:** reading each change in scope as someone who wants it to fail, with tonight's real runs as evidence: J19's
+test farm from the checkout (Qwen3.8 drafting, its start from an empty kernel folder, a restart, 30 people through the
+gate, the agent's five tasks, the panel in headless Edge), and FARM_START step 3's cold starts of Qwen3.6 and Qwen3.8
+on the trial root. Three read-only explorers mapped Open WebUI's contract surface and fact-checked `client.md` and
+`farm.md` (+ the farm README's first 610 lines) against the code; every claim used here was re-read in the code.
+
+**Suites (02:19–02:24):** farm `node test/run.js` **293/293** (after M1's fix; 292 + the new check failing before it);
+shell `npm run test:chat` **1989 passed, 0 failed, 1 skipped**, its lint rules 0 violations in 296 files; farm-app
+`npm test` **12 + 3**; `farm/vllm/test_scripts.sh` in WSL **131/131**. The client harness: below.
 
 ## Findings, by severity
 
@@ -22,10 +30,14 @@ and it gave the kernel phase *preparing the GPU (seconds; up to 5 minutes once a
 bound taken from Qwen3.6's rebuilds (168–250 s). *Proof:* tonight's test farm, Qwen3.8 (drafting, 32k) on a root with an
 empty kernel folder: `~/lol-vllm-033/logs/vllm.log`, the first JIT build at 02:03:14, graph capture at 02:10:48, so the
 phase that text names ran 7 min 34 s; the whole start 605 s (02:01:46 → ready). A person told *up to 5 minutes* sees
-minute 6 go by on Qwen3.8, the model the owner keeps for coding. *Fixed tonight* (a run reproduced it; test first):
-*seconds; several minutes once after vLLM is installed or updated*, no number; the test now fails on any bound under 8
-minutes (it failed on the old text, farm **293/293** after); farm.md and FARM_START_PLAN say so. Not released (the next
-Farm app), so no person met it.
+minute 6 go by on Qwen3.8, the model the owner keeps for coding. **And the cause was wider than step 2 named:** a model's first start builds
+kernels of its own. Qwen3.6's cold start built 6 modules, Qwen3.8's 10; they share 5, and Qwen3.8's own include
+`fp4_gemm_cutlass_sm120` (about 2½ minutes) and four attention kernels for its head ratio (`head_group_ratio_6` against
+Qwen3.6's `_8`; the module names in `scratchpad/step3/*.modules`, from `~/lol-vllm-033/logs/vllm.log`). So the first
+*Use this* on a model is slow too, and its confirm said *about 2 minutes*. *Fixed tonight* (a run reproduced it; test
+first): the phase says *seconds; several minutes the first time with a model, or after vLLM is installed or updated*, no
+number; *Use this* says *about 2 minutes, longer the first time with a model*; the test fails on a bound under 8 minutes
+and on either sentence missing; farm.md and FARM_START_PLAN say so. Not released (the next Farm app), so no person met it.
 
 ### Low
 

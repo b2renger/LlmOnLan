@@ -4748,6 +4748,11 @@ test('a vLLM start says what it does and that it stops by itself: its note under
     // "up to 5 minutes" was false where it matters most. A bound it gives must hold for the slowest one measured.
     const bound = /up to (\d+) minutes/.exec(k.text);
     assert.ok(!bound || Number(bound[1]) >= 8, `no bound shorter than a measured build (7 min 34 s): ${k.text}`);
+    // And a model's first start builds kernels of its own (Qwen3.6's set and Qwen3.8's differ, 2026-11-24): the phase and
+    // the panel's Use this say so, where a switch to a model never served starts one.
+    assert.ok(/first time with a model/.test(k.text), `a model's first start is named: ${k.text}`);
+    const use = html.slice(html.indexOf("on('button[data-vuse]'"), html.indexOf("on('button[data-vrm]'"));
+    assert.ok(/about 2 minutes, longer the first time with a model/.test(use), 'Use this says a first start with a model takes longer');
 });
 
 test('the download slot: outside serialize and busy(), a restart and a switch run during it, one download at a time, Stop cancels (§11.1-16, D7)', async () => {

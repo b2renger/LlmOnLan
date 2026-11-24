@@ -42,8 +42,9 @@ which step 3 is for.
    in `farm/test/run.js`, and a scratch farm timed before and after.
 2. **The panel says what it does and for how long (S).** The phase gets its time beside it (*loading the model weights
    · 0:42*); the kernel phase stops saying *the first start takes a few minutes longer* (false on a rebuild) and says
-   *building GPU kernels for this vLLM: up to 5 minutes, once after an install or an update* (built as *several minutes*:
-   Qwen3.8's first build took 7 min 34 s, review 2026-11-24); under the bar, one line:
+   *building GPU kernels for this vLLM: up to 5 minutes, once after an install or an update* (built as *several minutes the
+   first time with a model, or after vLLM is installed or updated*: Qwen3.8's first build took 7 min 34 s, and each model
+   builds kernels of its own, review 2026-11-24); under the bar, one line:
    *a start takes about 2 minutes; the farm stops it by itself if it shows no progress for 10 minutes*. No time
    saved, but a start is no longer stopped a minute from ready. **Built 2026-11-23 by day** (the bar already showed
    *running for …* on a job that moves no bytes; what was missing was the truth): the kernel phase's words, and a job's
@@ -58,6 +59,28 @@ which step 3 is for.
    `https://flashinfer.ai/whl/cu130`; `flashinfer-cubin` 0.7.2.post1 (1.67 GB) is there too, not on PyPI. **To measure
    first, on a trial root (nothing of production touched):** a cold Qwen3.6 start in an empty kernel folder, then the
    sm120f wheel alone (`--no-deps`) and the same start again; `flashinfer-cubin` only if the first leaves a build.
+   **Measured (night n° 15, 2026-11-24, `~/lol-vllm-033`: vLLM 0.33.0, torch 2.14 on CUDA 13.2, FlashInfer 0.7.2.post1;
+   each start from an empty kernel folder, through `trial_serve.sh`, the GPU free):**
+
+   | Cold start, empty kernel folder | Start → ready | Profiling/warmup | Kernels built |
+   |---|---|---|---|
+   | Qwen3.6 64k, without | 331 s | 168 s | 6 |
+   | Qwen3.6 64k, **with the wheels** | **125 s** | **17 s** | 1 (`trtllm_utils`) |
+   | Qwen3.8 32k (J19's farm start, without) | 605 s | 253 s | 10 |
+   | Qwen3.8 32k, **with the wheels** | **251 s** (torch.compile 31 s again: the trial's flags missed the farm's cache) | **18 s** | 5 (`trtllm_utils`, 4 of its head ratio) |
+
+   **The numbers hold:** 3½ to 4 minutes off a first start, for a **195 MB** download (371 MB installed). What to
+   install: the shim `flashinfer-jit-cache==<FlashInfer's version>+cu130` and the one provider for the card,
+   `flashinfer-jit-cache-sm120f` (sm_120 and the Spark's sm_121), **both `--no-deps`**: the shim requires all six
+   providers (sm80, sm89, sm90a, sm100a, sm103a, sm120f). The CUDA label follows FlashInfer's own rule
+   (`flashinfer/__main__.py` `_resolve_jit_cache_cuda_version`: the newest of 12.9, 13.0, 13.4 at or below torch's, so
+   13.2 → cu130); shim, provider and FlashInfer must carry the same version, or FlashInfer only warns and builds
+   (`flashinfer/jit/env.py` `_get_aot_providers`). Seen working: FlashInfer lists the provider (`sm120f`, 566 modules).
+   Left as it was: the autotune (its cache lives in the kernel folder), `flashinfer-cubin` (1.67 GB, not tried: what is still
+   built, with the autotune, took 30 s on Qwen3.6 and about 1½ minutes on Qwen3.8). **A model's first start builds kernels of its own** (Qwen3.6 and Qwen3.8 share 5
+   of their modules), which the wheels mostly cover too. For the build (session n° 16): `install.sh` after vLLM, the
+   card's architecture from `nvidia-smi --query-gpu=compute_cap`; Update vLLM the same; no wheel for a card it has none
+   for (the farm builds, as today).
 4. **The weights from a cold disk (S, research).** 31 s cold against 17 s warm for 20 GB. Measure vLLM's
    `--safetensors-load-strategy` options on a trial root; adopt one only if it saves 10 s or more, in the model's
    flags (the farm owns them).

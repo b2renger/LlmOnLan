@@ -725,8 +725,9 @@ const PHASES = {
     starting: 'starting vLLM',
     reading: 'reading the model',
     weights: 'loading the model weights',
-    // Several minutes, not a number: Qwen3.6 rebuilt in 168-250 s, Qwen3.8's first build took 7 min 34 s (2026-11-24).
-    kernels: 'preparing the GPU (seconds; several minutes once after vLLM is installed or updated)',
+    // Several minutes, not a number: Qwen3.6 rebuilt in 168-250 s, Qwen3.8's first build took 7 min 34 s; and a model's
+    // first start builds kernels of its own (Qwen3.6 and Qwen3.8 share five of their modules, not the rest), 2026-11-24.
+    kernels: 'preparing the GPU (seconds; several minutes the first time with a model, or after vLLM is installed or updated)',
     graphs: 'capturing GPU graphs',
     almost: 'almost ready',
     ready: 'ready',

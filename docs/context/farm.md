@@ -173,8 +173,9 @@
     job whose progress the panel polls. vLLM's install and model downloads run beside it in a second slot, the download slot, with their own bar and Stop. A bar that
     finished well leaves the top 5 minutes after its end; a failed one stays until the next job (`shownBar`, 2026-11-23). A running
     bar with no bytes to count (a vLLM start, an install's libraries) shows how long it has run, as every download does, and its job's `note` (a vLLM start: *If vLLM writes nothing for 10 minutes, the farm stops it
-    by itself*, `waitReady`'s stall rule); the kernel phase says *seconds; several minutes once after vLLM is installed or
-    updated* (FARM_START_PLAN step 2, 2026-11-23; Qwen3.8's first build took 7 min 34 s, so no number, 2026-11-24). A Stop of vLLM is not kept: the
+    by itself*, `waitReady`'s stall rule); the kernel phase says *seconds; several minutes the first time with a model, or after vLLM is
+    installed or updated* (FARM_START_PLAN step 2, 2026-11-23; 2026-11-24: Qwen3.8's first build took 7 min 34 s, so no
+    number, and each model builds kernels of its own, so *Use this* says *longer the first time with a model*). A Stop of vLLM is not kept: the
     next farm start starts vLLM again. Everything persists to
     `lol.config.json` (`configFile.js` raw patch — never the schema-parsed config) **except** the Blender
     recommendation (the plugin switches persist since 2026-10-27, `<plugin>.enabled`, written once the plugin came up or
