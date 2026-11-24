@@ -95,11 +95,10 @@ at 64k and 11 at 128k passed*, farm.md says why the old run failed (farm 293/293
 
 ## Questions (suspicions not proved)
 
-1. **Qwen3.6's "failed 30 people ~50k deep" with the fp16 state and drafting** (QWEN38_FP16_STATE_PLAN:28, farm.md:87)
-   may be the same bench shape as L5's (a question replaced each turn); not re-run tonight. If it holds with appended
-   turns, Qwen3.6 could keep its state in 16 bits too (more people at 64k and 128k): a measurement for a night with the
-   card free.
-
+1. ~~**Qwen3.6's "failed 30 people ~50k deep" with the fp16 state and drafting**~~ *answered the same night by
+   measurement:* the farm serves Qwen3.6 without drafting, and so served, with the flag, 28 people ~120k deep pass at
+   128k where 24 did (32 fail, 5.31 s), the long-text check 20/20 at ~120k: a plan for the owner,
+   [QWEN36_FP16_STATE_PLAN](../plans/QWEN36_FP16_STATE_PLAN.md).
 2. **A complete model the farm calls partial.** `farm/vllm/status.sh:48-55` marks a model `partial=1` if any
    `*.incomplete` file is anywhere under its folder; the farm then serves with Ollama and says *press Download to
    finish it*. Tonight `~/lol-vllm-034/hf/Gemma-4-26B-A4B-NVFP4` (filled by a session's script on 2026-11-21) had two in

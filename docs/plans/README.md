@@ -390,8 +390,6 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     exercise them; or wire the batch where a plan wants it.
 - ~~**Qwen3.8 above 32k** (review 2026-11-24 Q1)~~ *measured the same night: Automatic's 21 at 64k and 11 at 128k pass
   everyone deep, appended turns (review L5); nothing to build.*
-- **Qwen3.6's state in 16 bits, measured again in a chat's shape** (review 2026-11-24, question 1): its 2026-11-19
-  failure may be the bench's replaced question, as Qwen3.8's was. A night with the card free.
 - **Test hygiene:**
   - `sidecar/.venv` made again at the pin (review 2026-11-24 L2: it is 0.10.1, three pins behind; the owner's, it deletes a
     folder; `sidecar/README.md` step 3);
@@ -402,6 +400,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 - ~~**Split DEVLOG.md** at 2026-10-01 into the archive.~~ *Done 2026-11-13: [archive/DEVLOG_2026-06_to_09.md](../archive/DEVLOG_2026-06_to_09.md).*
 
 ## 4. Waiting on the owner
+
+- **Qwen3.6's recurrent state in 16 bits** ([QWEN36_FP16_STATE_PLAN](QWEN36_FP16_STATE_PLAN.md), proposed 2026-11-24):
+  measured as the farm serves it, 28 people ~120k deep pass at 128k where 24 did, the long-text check 20/20. **S**.
 
 **The ones that unblock the most:**
 - **[BLENDER_TOOLS_ENV_PLAN](BLENDER_TOOLS_ENV_PLAN.md)** (night n° 12, proposed): the Blender tools through

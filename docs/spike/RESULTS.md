@@ -1479,6 +1479,12 @@ tok/s (vLLM counts 20.25 conversations of 64k); **11 people ~100k deep at 128k p
 The 64k failure above was the question replaced each turn, not the model: Automatic's 21 and 11 hold. Files:
 `results/q1-n15-q38-*`.
 
+**Qwen3.6 as the farm serves it (no drafting) + `--mamba-ssm-cache-dtype float16`, 2026-11-24** (the label run's shape:
+128k, 50 GiB, appended turns, ~120k deep, 3 rounds): vLLM counts 37.06 conversations (34.47 without); **24 pass (4.06 s
+/ 25.3), 28 pass (4.55 s / 22.8)**, 32 fail (5.31 s / 19.9); the long-text check at ~120k **20/20**. Without the flag 28
+failed (5.35 s, above): 24 → 28 ([QWEN36_FP16_STATE_PLAN](../plans/QWEN36_FP16_STATE_PLAN.md), proposed). Files:
+`results/q1b-n15-q36-fp16-*`.
+
 # A vLLM start: precompiled kernels and the weights' read (RTX PRO 6000, 2026-11-24)
 
 Night n° 15, FARM_START_PLAN steps 3 and 4, the GPU free, the Farm app off. The trial root `~/lol-vllm-033` (vLLM
