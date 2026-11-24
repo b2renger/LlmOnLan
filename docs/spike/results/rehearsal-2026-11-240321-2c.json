@@ -1,0 +1,158 @@
+{
+ "at": "2026-11-24T03:21:27.987Z",
+ "clients": 2,
+ "minutes": 3,
+ "outage": {
+  "silentS": 20,
+  "everyS": 60
+ },
+ "blipS": null,
+ "farm": "two scratch farms",
+ "seats": "all on 127.0.0.1",
+ "slowStart": null,
+ "bursts": null,
+ "firstStartRecords": [
+  {
+   "ready": true,
+   "marker": false
+  },
+  {
+   "ready": true,
+   "marker": false
+  }
+ ],
+ "owui": "0.13.3",
+ "build": "this checkout",
+ "sealHeard": [],
+ "connections": {
+  "client0": [
+   "127.0.0.1"
+  ],
+  "client1": [
+   "127.0.0.1"
+  ]
+ },
+ "memory": [
+  {
+   "atS": 89,
+   "perClientMiB": [
+    52,
+    52
+   ],
+   "totalMiB": 104,
+   "freeMiB": 100469
+  },
+  {
+   "atS": 119,
+   "perClientMiB": [
+    582,
+    583
+   ],
+   "totalMiB": 1165,
+   "freeMiB": 99755
+  },
+  {
+   "atS": 149,
+   "perClientMiB": [
+    795,
+    795
+   ],
+   "totalMiB": 1590,
+   "freeMiB": 102482
+  },
+  {
+   "atS": 179,
+   "perClientMiB": [
+    795,
+    795
+   ],
+   "totalMiB": 1590,
+   "freeMiB": 102497
+  },
+  {
+   "atS": 209,
+   "perClientMiB": [
+    796,
+    795
+   ],
+   "totalMiB": 1591,
+   "freeMiB": 102492
+  },
+  {
+   "atS": 239,
+   "perClientMiB": [
+    795,
+    795
+   ],
+   "totalMiB": 1590,
+   "freeMiB": 102500
+  },
+  {
+   "atS": 269,
+   "perClientMiB": [
+    795,
+    795
+   ],
+   "totalMiB": 1590,
+   "freeMiB": 102522
+  },
+  {
+   "atS": 269,
+   "perClientMiB": [
+    795,
+    795
+   ],
+   "totalMiB": 1590,
+   "freeMiB": 102515
+  }
+ ],
+ "perClient": [
+  {
+   "client": 0,
+   "farmMoves": 0,
+   "farms": [
+    "5.0s Rehearsal farm A (lossy)"
+   ],
+   "states": [
+    "4.7s starting",
+    "40.3s ready",
+    "40.3s restarting",
+    "40.4s starting",
+    "53.7s ready",
+    "186.7s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 53.729,
+   "starts": 2,
+   "chatError": null,
+   "launchedS": 84.129,
+   "firstChatS": 41.257,
+   "chatFarm": "Rehearsal farm A (lossy)",
+   "aimedAtS": null,
+   "owuiSignIn": null
+  },
+  {
+   "client": 1,
+   "farmMoves": 0,
+   "farms": [
+    "0.9s Rehearsal farm A (lossy)"
+   ],
+   "states": [
+    "1.0s starting",
+    "36.3s ready",
+    "182.4s stopped"
+   ],
+   "keepsExiting": false,
+   "repairable": false,
+   "readyS": 36.281,
+   "starts": 1,
+   "chatError": null,
+   "launchedS": 88.382,
+   "firstChatS": 37.009,
+   "chatFarm": "Rehearsal farm A (lossy)",
+   "aimedAtS": null,
+   "owuiSignIn": null
+  }
+ ]
+}

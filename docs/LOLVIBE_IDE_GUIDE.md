@@ -53,13 +53,14 @@ what each change does, and how to check it worked. It changes **nothing** while 
 and its steps say so: *planning: nothing is changed until the person approves the plan*). Under the plan:
 
 - **Go ahead** sends *Carry out the plan above.* and the agent makes the changes, in one reply, like any other.
-- **Change the plan** puts the cursor in the message box: say what to change, and the agent plans again.
+- **Change the plan** puts the cursor in the message box, whose hint then reads *Say what to change in the plan, then
+  send it: the agent plans again.*: say what to change, and the agent plans again.
 
 Good for a class: a student reads what will change before it changes, and catches a wrong direction early. The switch
 is per chat (another chat of the same project has its own), off by default, and **off again when LlmOnLan closes**. A message while it is on is always planned,
 even with **Keep going until done** on; with both on, **Go ahead** carries the plan out as a loop. With **Use the Computer**
-on, the agent cannot build or run a graph while it plans either. The buttons stay under every plan of the chat; **Go
-ahead** always carries out the newest one.
+on, the agent cannot build or run a graph while it plans either. The two buttons show under the newest plan without
+moving the pointer, **Go ahead** in the Send button's colour; an older plan shows neither (since v0.2.20).
 
 ### Keep going until done
 

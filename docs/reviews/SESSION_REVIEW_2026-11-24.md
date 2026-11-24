@@ -93,6 +93,13 @@ after an update): it holds. *Fixed tonight:* the note says *with everyone deep i
 at 64k and 11 at 128k passed*, farm.md says why the old run failed (farm 293/293). Files:
 `results/q1-n15-q38-{128k-follow100k-11,64k-follow50k-21}__bench__followup-append__*.json`.
 
+**L6 · `docs/LOLVIBE_IDE_GUIDE.md` *Plan first* · the guide described the buttons as before v0.2.20.** It said *The
+buttons stay under every plan of the chat; Go ahead always carries out the newest one*, and *Change the plan* only moved
+the cursor. Since 2026-11-23 (released in v0.2.20) they show under the newest plan only, without a hover, Go ahead in the
+accent (`css/thread.css`, the `:has()` rules), and Change the plan sets the box's hint (`agent.changePlanHint`). *Proof:*
+the guide's lines 55 and 61 against `thread.css` and `project-panel.mjs` (the harness's
+`k24-plan-first-changes-nothing-until-go-ahead` checks all three, 423/423 tonight). *Fixed tonight.*
+
 ## Questions (suspicions not proved)
 
 1. ~~**Qwen3.6's "failed 30 people ~50k deep" with the fp16 state and drafting**~~ *answered the same night by
