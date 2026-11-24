@@ -97,6 +97,16 @@ at 64k and 11 at 128k passed*, farm.md says why the old run failed (farm 293/293
    turns, Qwen3.6 could keep its state in 16 bits too (more people at 64k and 128k): a measurement for a night with the
    card free.
 
+2. **A complete model the farm calls partial.** `farm/vllm/status.sh:48-55` marks a model `partial=1` if any
+   `*.incomplete` file is anywhere under its folder; the farm then serves with Ollama and says *press Download to
+   finish it*. Tonight `~/lol-vllm-034/hf/Gemma-4-26B-A4B-NVFP4` (filled by a session's script on 2026-11-21) had two in
+   Hugging Face's `.cache/huggingface/download/` (0 bytes and 22 MB) whose names carry the two shards' SHA-256, while
+   both shards' `.metadata` (written when a file completes) were there with the same SHA-256: stale temp files of a
+   retried download. Moved aside (`~/lol-vllm-034/aside-n15/`, nothing deleted), the farm served it. Not proved: that
+   the farm's own Download (`install.sh`, `hf download`) can leave such files, nor that a second Download would clear
+   them. To prove: interrupt a farm Download of a small model mid-file, Download again, run `status.sh`. If it can, the
+   fix is that an `.incomplete` whose SHA-256 has a matching `.metadata` does not count.
+
 ## Checked and found sound
 
 - **Open WebUI's whole contract surface** (an explorer listed every env var, request and webview hook; each
