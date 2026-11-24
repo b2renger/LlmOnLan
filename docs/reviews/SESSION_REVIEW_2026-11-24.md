@@ -8,6 +8,10 @@ beside its code, the document read once per chat, the Computer's lost wake-up). 
 the farm: **the client shell and Open WebUI's contract**. Beside it, while the card was free: J19's measured parts and
 FARM_START steps 3 and 4 measured (the owner's yes, 2026-11-23 12:11). The Farm app was off at 02:00 and stayed off.*
 
+**In numbers:** 8 findings (1 medium, 7 low); 5 fixed tonight (M1, L1, L4, L5, L6), 3 filed (L2 needs the owner: a
+folder to delete; L3 and L7 for Later); 2 questions (1 answered by measurement, which became QWEN36_FP16_STATE_PLAN and
+showed its accuracy cost; 2 open). **The next review's area** (the rotation): LOL Vibe and the IDE.
+
 **How it ran:** reading each change in scope as someone who wants it to fail, with tonight's real runs as evidence: J19's
 test farm from the checkout (Qwen3.8 drafting, its start from an empty kernel folder, a restart, 30 people through the
 gate, the agent's five tasks, the panel in headless Edge), and FARM_START step 3's cold starts of Qwen3.6 and Qwen3.8
@@ -99,6 +103,14 @@ the cursor. Since 2026-11-23 (released in v0.2.20) they show under the newest pl
 accent (`css/thread.css`, the `:has()` rules), and Change the plan sets the box's hint (`agent.changePlanHint`). *Proof:*
 the guide's lines 55 and 61 against `thread.css` and `project-panel.mjs` (the harness's
 `k24-plan-first-changes-nothing-until-go-ahead` checks all three, 423/423 tonight). *Fixed tonight.*
+
+**L7 · `farm/src/capacity/measured.json` (from `measured-extra.json`) · Qwen3.8's 64k and 128k labels predate its
+drafting.** `measuredFor` gives *≥ 24* at 64k and *≥ 12* at 128k (runs without drafting); with drafting and the 16-bit
+state Automatic seats 21 and 11 from the memory (`seatsAuto` takes the lower, so the seats are right), and tonight 21 and
+11 passed everyone deep (L5). The panel's sentence *Measured on this card with this model: ≥ 24 at 64k …* beside 21
+seats is then the old flags' number. *Proof:* `vllm.measuredFor` and `seatsAuto` for `qwen3.8-27b-nvfp4` (node, 02:44).
+*Fix (filed, plans ▸ Later):* the 64k and 128k labels from tonight's runs (21, 11) in `measured-extra.json`, with
+`build_page.js`.
 
 ## Questions (suspicions not proved)
 
