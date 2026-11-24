@@ -11,6 +11,8 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## How the sessions work
 
+- **Default taken, 2026-11-24** (n° 14's question 2, asked again by day 2026-11-23 18:21; no answer by 02:00): **no
+  second nightly job** at 04:17 to wake a night that stopped; the memory and the summary guard it instead.
 - **2026-11-18, the chat.** Sessions are approved **in advance** for: fixing a bug a test or a run reproduces, review
   findings, test flakes, tests for existing behaviour, docs and help corrected to the code, the class rehearsal. They use
   their whole time and stop only when their time is up or everything left needs the owner, listing those items.
@@ -25,6 +27,12 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## The farms and the room
 
+- **Default taken, 2026-11-24** (n° 14's question 1, no answer by 02:00): `~/lol-vllm-nightly` in WSL (23 GB, vLLM's
+  nightly and part of Inkling 2 Mini) is **kept**.
+- **Default taken, 2026-11-24** (n° 14's question 3, no answer by 02:00): **J16 waits for the next Farm app**; no
+  session runs its steps 2 to 5 from a test farm.
+- **Default taken, 2026-11-24** (n° 14's question 4, no answer by 02:00): Inkling 2 **Mini** (26.4B) is the one
+  evaluated when a backend supports it (plans ▸ Next 20).
 - **2026-11-23, the chat (12:11).** [FARM_START_PLAN](../plans/FARM_START_PLAN.md), its four steps (vLLM alongside the
   other services; the panel's elapsed time and the truth; precompiled kernels, measured first; a faster way to load the
   weights): "yes on all those". Step 3 is measured on a trial root, then installed if the numbers hold.
@@ -87,6 +95,8 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## LOL Vibe and the Computer
 
+- **Default taken, 2026-11-24** (PLAN_FIRST_NEW_CHAT_PLAN's question, asked by day 2026-11-23 18:21; no answer by
+  02:00): *Plan first* is **off by default** in a new chat, as decided 2026-11-20; (a) and (b) make it one press away.
 - **2026-11-23, the chat (17:41).** "re-check passed on +n14, release v0.2.20": the go of 12:11 holds; v0.2.20 is
   tagged from a `main` whose `shell/` is `5cf6743`'s.
 - **2026-11-23, the chat (12:11).** Client **v0.2.20 with the new plan buttons, after the owner's two-minute re-check on
