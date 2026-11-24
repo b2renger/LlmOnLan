@@ -68,8 +68,8 @@ file stays the whole list.
   label ≥ 32 (Automatic 32); HUMAN_TESTS J19 for the owner.
 - **A plan mode for students in LOL Vibe** ([STUDENT_PLAN_MODE_PLAN](STUDENT_PLAN_MODE_PLAN.md), approved by the owner
   2026-11-20 12:46, as written): a *Plan first* switch, the fence refusing writes while the agent plans, *Go ahead*
-  and *Change the plan*. **M**. **Built by day, 2026-11-20** (unreleased; the plan's *Built* says the four choices
-  made, for the owner to overturn); HUMAN_TESTS G14 for the owner.
+  and *Change the plan*. **M**. **Built by day, 2026-11-20**, **released in client v0.2.20** (2026-11-23; the plan's *Built* says the four
+  choices made, for the owner to overturn); HUMAN_TESTS G14 passed (the owner, 2026-11-23).
 - **Open WebUI 0.13.4** (plans ▸ Next 19; approved 2026-11-20 12:46: "yes we can bump"): the pin bump and its smoke
   tests, after the 128k build. **Done when** the smoke tests pass and `docs/spike/runs/owui_doc_check.sh` gives PASS on
   0.13.4 (an attached document stays the same in the system message from turn to turn: CONTEXT_128K_PLAN step 3's
@@ -79,7 +79,8 @@ file stays the whole list.
   question in n° 12's summary.
 - **LOL Vibe's page preview, code beside it** ([VIBE_PAGE_PLAN](VIBE_PAGE_PLAN.md), the owner's request of 2026-11-18,
   approved with its three choices): step 1 the side column (errors with block and line, the shared editor, live
-  reload, edits kept with the thread), step 2 the pop-out window. **M**. Built by day, 2026-11-18.
+  reload, edits kept with the thread), step 2 the pop-out window. **M**. Built by day, 2026-11-18; **released in client
+  v0.2.20** (2026-11-23; HUMAN_TESTS A29 passed).
 - **Qwen3.8 drafts ahead** ([VLLM_DRAFT_PLAN](VLLM_DRAFT_PLAN.md), approved 2026-11-18 21:23 in the chat): MTP drafting
   in the Qwen3.8 entry, its memory counted by `facts()`. **S**. Built by night n° 10; J19 for the owner.
 - **The class rehearsal** ([CLASS_REHEARSAL_PLAN](CLASS_REHEARSAL_PLAN.md), approved 2026-11-18): two scratch farms,
@@ -384,7 +385,15 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
   - a notification click brings the window forward (D-C7);
   - a cached thread path (D-V1);
   - the plural string (D-U2).
+  - remove what no person reaches (review 2026-11-24 L3): the batch queue and its chip (`app.ask.queue`, `ui/queue.mjs`,
+    `queue.*`), `projects/bridge.mjs` `explain()` and `projects.err_*`, `graph.wireCycle`, with the tests that only
+    exercise them; or wire the batch where a plan wants it.
+- **Qwen3.8 above 32k** (review 2026-11-24 Q1, not proved): a farm that picked it with *Use this* and never wrote a
+  context follows the 128k default after an update; Automatic sizes its seats to the memory, so a failure is not shown.
+  Measure Qwen3.8 at 128k, everyone ~100k deep; if it fails, a per-model context ceiling in the library entry (a plan).
 - **Test hygiene:**
+  - `sidecar/.venv` made again at the pin (review 2026-11-24 L2: it is 0.10.1, three pins behind; the owner's, it deletes a
+    folder; `sidecar/README.md` step 3);
   - retire the old chat-scope gate;
   - `npm test` runs the chat suites;
   - vllm-lifecycle's stopped-503 assertions follow the new code (needs WSL);
