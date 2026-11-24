@@ -448,7 +448,7 @@ const VLLM_LIBRARY = [
         id: 'qwen3.8-27b-nvfp4', label: 'Qwen3.8 27B · NVFP4', repo: 'nvidia/Qwen3.8-27B-NVFP4',
         sizeGb: 21.9, weightsGib: 20.7, vision: true, presencePenalty: null, args: QWEN38_ARGS,
         catalog: 'qwen3.8-27b', measured: 'qwen38',
-        note: 'The best answers of the three. Drafts ahead and keeps its state in 16 bits: about 155 tok/s alone and 124 each for 30 people on an RTX PRO 6000, 32 people at 32k (30 people 28k deep passed). Keep it at 32k: at 64k 20 people 50k deep failed. Too slow on a DGX Spark.',
+        note: 'The best answers of the three. Drafts ahead and keeps its state in 16 bits: about 155 tok/s alone and 124 each for 30 people on an RTX PRO 6000; with everyone deep in a conversation, 32 people at 32k, 21 at 64k and 11 at 128k passed. Too slow on a DGX Spark.',
     },
     {
         id: 'gemma-4-12b', label: 'Gemma 4 12B · NVFP4', repo: 'unsloth/gemma-4-12b-it-NVFP4',

@@ -1473,6 +1473,12 @@ appended turns: 5.35 s and 5.82 s first word p95 (p50 1.2 and 1.3 s), 17.5 and 1
 so the label stays **24**. Qwen3.8 at 64k with 20 people each ~50k deep: B 54.5 s / 4.7, G 54.7 s / 4.8, both fail
 alike (the cached contexts evicted between turns: vLLM's prefix-cache hit rate down to 0 %).
 
+**Again on 2026-11-24, in a chat's shape** (night n° 15, review L5; G as the farm serves it, a 53 GiB pool as Automatic
+gives on this card, `spike_bench` followup **`--append`**, two rounds): **21 people ~50k deep at 64k pass**, 4.16 s / 44.7
+tok/s (vLLM counts 20.25 conversations of 64k); **11 people ~100k deep at 128k pass**, 3.56 s / 47.5 (11.16 of 128k).
+The 64k failure above was the question replaced each turn, not the model: Automatic's 21 and 11 hold. Files:
+`results/q1-n15-q38-*`.
+
 # A vLLM start: precompiled kernels and the weights' read (RTX PRO 6000, 2026-11-24)
 
 Night n° 15, FARM_START_PLAN steps 3 and 4, the GPU free, the Farm app off. The trial root `~/lol-vllm-033` (vLLM

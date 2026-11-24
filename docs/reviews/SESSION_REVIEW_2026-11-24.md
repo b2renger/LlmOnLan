@@ -78,15 +78,24 @@ farm.md and the README's first 610 lines against the code (an explorer), each li
 (`measured-extra.json` not read by the farm) was wrong: `build_page.js` merges it into `farm/src/capacity/measured.json`,
 as farm.md says. *Fixed tonight.*
 
+**L5 · `farm/src/config.js` Qwen3.8's note (the panel's vLLM list), `docs/context/farm.md:87` · *Keep it at 32k: at
+64k 20 people 50k deep failed* was the bench's shape, not the model's.** The 2026-11-20 run behind it replaced the
+question each turn (`spike_bench` followup without `--append`, its file `lc1120-G64-follow50k-20…`: `append: False`),
+which empties a hybrid model's prefix cache (RESULTS says so for that run: *hit rate down to 0 %*). *Proof:* tonight,
+Qwen3.8 as the farm serves it (drafting, 16-bit state, a 53 GiB pool as Automatic gives), appended turns as in a chat:
+**21 people ~50k deep at 64k pass** (first word p95 4.16 s, p10 44.7 tok/s) and **11 people ~100k deep at 128k pass**
+(3.56 s, 47.5 tok/s): Automatic's own seats at both (`seatsAuto`: 21 and 11, from the memory). This also closes the
+question this review had opened (a farm that picks Qwen3.8 with *Use this* and never wrote a context runs it at 128k
+after an update): it holds. *Fixed tonight:* the note says *with everyone deep in a conversation, 32 people at 32k, 21
+at 64k and 11 at 128k passed*, farm.md says why the old run failed (farm 293/293). Files:
+`results/q1-n15-q38-{128k-follow100k-11,64k-follow50k-21}__bench__followup-append__*.json`.
+
 ## Questions (suspicions not proved)
 
-1. **A farm that picks Qwen3.8 with *Use this* and never wrote a context runs it at 128k after the next update.** The
-   panel's *Use this* posts `{model}` only (`admin/index.html:1714`), `applyChange` keeps the context
-   (`vllm.js:548-571`), `patchSection` writes only the patch (`configFile.js:58-66`), and the default is now 131072
-   (`config.js:496`); nothing holds Qwen3.8 at the 32k its own note asks for (*Keep it at 32k: at 64k 20 people 50k
-   deep failed*). Not proved to fail: Automatic sizes the seats to the memory at 128k, and the 64k failure was more
-   people than vLLM's own count. To prove: Qwen3.8 at 128k, Automatic, everyone ~100k deep. A fix, if it fails: a
-   per-model context ceiling in the library entry, which is a plan.
+1. **Qwen3.6's "failed 30 people ~50k deep" with the fp16 state and drafting** (QWEN38_FP16_STATE_PLAN:28, farm.md:87)
+   may be the same bench shape as L5's (a question replaced each turn); not re-run tonight. If it holds with appended
+   turns, Qwen3.6 could keep its state in 16 bits too (more people at 64k and 128k): a measurement for a night with the
+   card free.
 
 ## Checked and found sound
 

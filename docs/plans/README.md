@@ -388,9 +388,10 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
   - remove what no person reaches (review 2026-11-24 L3): the batch queue and its chip (`app.ask.queue`, `ui/queue.mjs`,
     `queue.*`), `projects/bridge.mjs` `explain()` and `projects.err_*`, `graph.wireCycle`, with the tests that only
     exercise them; or wire the batch where a plan wants it.
-- **Qwen3.8 above 32k** (review 2026-11-24 Q1, not proved): a farm that picked it with *Use this* and never wrote a
-  context follows the 128k default after an update; Automatic sizes its seats to the memory, so a failure is not shown.
-  Measure Qwen3.8 at 128k, everyone ~100k deep; if it fails, a per-model context ceiling in the library entry (a plan).
+- ~~**Qwen3.8 above 32k** (review 2026-11-24 Q1)~~ *measured the same night: Automatic's 21 at 64k and 11 at 128k pass
+  everyone deep, appended turns (review L5); nothing to build.*
+- **Qwen3.6's state in 16 bits, measured again in a chat's shape** (review 2026-11-24, question 1): its 2026-11-19
+  failure may be the bench's replaced question, as Qwen3.8's was. A night with the card free.
 - **Test hygiene:**
   - `sidecar/.venv` made again at the pin (review 2026-11-24 L2: it is 0.10.1, three pins behind; the owner's, it deletes a
     folder; `sidecar/README.md` step 3);

@@ -84,8 +84,10 @@
     (`--mamba-ssm-cache-dtype float16`; vLLM counted 31.95 conversations of 32k on 50 GiB instead of 24.69, 30 people
     ~28k deep pass where they failed, the long-text check unchanged): `facts()` halves the state charge when the flag
     says `float16` or `bfloat16`, and Qwen3.8's 32k label is ≥ 32 (vLLM 0.33.0, `measured-extra.json`), so Automatic
-    seats 32 at 32k. Qwen3.6 keeps 32 bits (with the flag and drafting it failed 30 people ~50k deep). Qwen3.8 belongs at 32k: at
-    64k, 20 people 50k deep failed with and without the flag. A list saved before
+    seats 32 at 32k. Qwen3.6 keeps 32 bits (with the flag and drafting it failed 30 people ~50k deep). Qwen3.8 holds Automatic's
+    seats deeper too, in a chat's shape (appended turns): 21 people ~50k deep at 64k and 11 ~100k deep at 128k passed
+    (2026-11-24, review n° 15); the 2026-11-20 failure of 20 at 64k was the bench's question replaced each turn, which
+    empties its prefix cache (as a Regenerate would). A list saved before
     a version added models gets them at the next start, except the ids in `vllm.removed` (a Remove of a built-in), and
     its built-ins run with this version's flags (`config.js`, 2026-11-21: their measured seats were measured with them);
     a Qwen3.8 the operator adds gets neither drafting nor the 16-bit state (`familyArgs`);
