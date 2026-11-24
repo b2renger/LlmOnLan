@@ -1486,7 +1486,10 @@ failed (5.35 s, above): 24 → 28 ([QWEN36_FP16_STATE_PLAN](../plans/QWEN36_FP16
 the 64k label's own shape (61 GiB, the question replaced, ~62k deep, 3 rounds): vLLM counts 83.97 (73.9 without); 48
 pass (3.56 s / 21.4), **64 pass (4.67 s / 17.8)** where 64 failed without (5.06 s): 48 → 64. **The quality gate**
 (thinking off, 10 runs each, the same night): without 279/280, with **272/280**, `code_parse_duration` missed 6 times in
-10 with it, once without: more people for a little accuracy, the plan's question. Files:
+10 with it, once without: more people for a little accuracy, the plan's question. **Qwen3.8 checked the same way** (as
+the farm serves it, drafting, 32k, 10 runs each): with its 16-bit state **279/280**, without 270/280 (`code_topo_sort` 8
+of 10): no cost seen for the flag that ships in the next Farm app; its runs repeat their token counts (the gate's sampling
+is seeded), so they are weaker evidence than Qwen3.6's, which varied. Files: `results/q1e-n15-q38-*`. Qwen3.6's files:
 `results/q1b-n15-q36-fp16-*`, `results/q1c-n15-q36-fp16-64k-*`.
 
 # A vLLM start: precompiled kernels and the weights' read (RTX PRO 6000, 2026-11-24)

@@ -118,6 +118,10 @@ the guide's lines 55 and 61 against `thread.css` and `project-panel.mjs` (the ha
 
 ## Checked and found sound
 
+- **Qwen3.8's 16-bit state, the unreleased change the next Farm app ships** (QWEN38_FP16_STATE_PLAN adopted it on one
+  gate run and the long-text check): the quality gate 10 runs each side tonight, with it 279/280, without 270/280; no
+  cost seen (its runs repeat their token counts, so weaker evidence than Qwen3.6's, where the same comparison found one:
+  QWEN36_FP16_STATE_PLAN).
 - **Open WebUI's whole contract surface** (an explorer listed every env var, request and webview hook; each
   mismatch it raised re-read here): every env var `owui-contract.md` lists is set (`configBridge.ts` `buildSidecarEnv`,
   `sidecar.ts:267–275`); the shell's requests to Open WebUI are `GET /health` (the lifecycle), the token check
