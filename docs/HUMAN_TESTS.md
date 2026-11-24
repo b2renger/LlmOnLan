@@ -1850,10 +1850,13 @@ run them once the owner closes the farm (Part 3).
 1. Panel ▸ Presets ▸ **Balanced** ▸ Review. Then Apply (vLLM restarts, about 2 minutes).
 2. Panel ▸ Access ▸ *Free an idle seat after* **1 min** ▸ Apply (the bench's seats stay held for that long after it
    ends). Between the steps below, wait a minute.
-3. On the farm box: `lol bench --people --users 24 --rounds 3 --max-tokens 1000 --out class24.json`; then once
-   `lol bench --people --users 26 --rounds 1 --max-tokens 1000`.
-4. The 128k load through the gate (from one address: one seat), from `docs\spike`:
-   `$PY spike_bench.py bench --base-url http://127.0.0.1:4000/v1 --api-key <the farm password> --label pro6000-gate-qwen36-128k --profile followup --prompt-tokens 120000 --rounds 3 --append --levels 16,24 --extend ""`,
+3. On the farm box, in a terminal at the checkout's root (`--url` names the Farm app's gate: without it `lol bench`
+   reads the checkout's own `farm\lol.config.json`):
+   `node farm\bin\lol.js bench --url http://127.0.0.1:4000 --people --users 24 --rounds 3 --max-tokens 1000 --out class24.json`;
+   then once `node farm\bin\lol.js bench --url http://127.0.0.1:4000 --people --users 26 --rounds 1 --max-tokens 1000`.
+4. The 128k load through the gate (from one address: one seat), from `docs\spike` (a farm with a password: add
+   `--api-key <the farm password>`; the PRO 6000 has none, and the gate lets any key through then, `seats.js` `keyOk`):
+   `$PY spike_bench.py bench --base-url http://127.0.0.1:4000/v1 --label pro6000-gate-qwen36-128k --profile followup --prompt-tokens 120000 --rounds 3 --append --levels 16,24 --extend ""`,
    then `$PY spike_bench.py summarize results/pro6000-gate-qwen36-128k*`.
 5. Optional, 64k: vLLM section ▸ *Context per person* 65536 ▸ Apply; `lol bench --people --users 48 --rounds 3
    --max-tokens 1000`, and step 4's line with `--prompt-tokens 62000 --levels 16,32,48` (label `…-64k`). Apply
@@ -2478,7 +2481,8 @@ new (stub farm + offscreen screenshots, DEVLOG 2026-10-27).
 1. Open the panel. Read the Presets card at the top: which preset it says is in use.
 2. Press **Review…** on each of the four, read *Why these*, *What Apply changes* and *Restarts*, then **Close**.
 
-*Expect:* Balanced = vLLM · Qwen3.6 35B-A3B · 64k · people at once Automatic (about 48, measured); Documents = Qwen3.6
+*Expect:* Balanced = vLLM · Qwen3.6 35B-A3B · 128k · people at once Automatic (24, measured; 64k and about 48 before
+the Farm app build named in J16, CONTEXT_128K_PLAN); Documents = Qwen3.6
 · 64k (about 63, measured; *a lead of under 10 % is a tie, which the better model wins*; *when everyone asks at the same
 moment, about 48*); LOL Vibe = Qwen3.6 · 64k (about 64; *Picked for the most people among the models proven with the
 IDE's coding agent: 11/15 on its five tasks, on vLLM. Also proven: Gemma 4 26B-A4B (12/15 on its five tasks, on vLLM
