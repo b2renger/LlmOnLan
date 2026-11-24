@@ -98,7 +98,8 @@ and every download (`admin/index.html:988`). farm.md said Qwen3.6 *failed 30 peo
 flag **and** drafting (QWEN38_FP16_STATE_PLAN:28; `config.js:411-412` names only drafting). *Proof:* a fact check of
 farm.md and the README's first 610 lines against the code (an explorer), each line re-read here; its fourth claim
 (`measured-extra.json` not read by the farm) was wrong: `build_page.js` merges it into `farm/src/capacity/measured.json`,
-as farm.md says. *Fixed tonight.*
+as farm.md says. A second explorer read the README's lines 610 to its end (05:29): one more line behind, the config
+example's `"contextLength": 65536` (L1456; the default is 131072, `config.js:496`); 20 others checked true. *Fixed tonight.*
 
 **L5 · `farm/src/config.js` Qwen3.8's note (the panel's vLLM list), `docs/context/farm.md:87` · *Keep it at 32k: at
 64k 20 people 50k deep failed* was the bench's shape, not the model's.** The 2026-11-20 run behind it replaced the

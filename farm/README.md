@@ -1453,7 +1453,7 @@ nothing. Shape:
             "root": null, "distro": null,      // its folder in Linux (null = ~/lol-vllm, or an install found);
                                                //   the WSL distribution (null = WSL's default)
             "port": 8100, "alias": "assistant", "model": "qwen3.6-35b-a3b",   // a list id
-            "contextLength": 65536, "parallel": "auto", "maxNumSeqs": "auto",
+            "contextLength": 131072, "parallel": "auto", "maxNumSeqs": "auto",   // 128k a person (2026-11-21)
             "kvCacheGib": "auto", "ocrReserveGib": 9, "marginPct": 8, "minFreeGb": "auto",
             "version": "0.33.0", "extraArgs": [], "library": [ /* the seven models of the list */ ] },
                                                //   a list entry may be { "path": "/mnt/f/models/x" }: a folder used where it is
