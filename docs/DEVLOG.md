@@ -9,6 +9,13 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-24 (02:58) — FARM_START step 4 measured: `--safetensors-load-strategy prefetch` reads the weights in half the time from a cold disk (night n° 15)
+
+Qwen3.6 on `~/lol-vllm-033` (vLLM 0.33.0 offers `lazy`, the default, `eager`, `prefetch`, `torchao`), each cold run after
+`posix_fadvise(DONTNEED)` on the model's 15 files (Linux's page cache down to 2 GB): *Loading weights took* default
+30.8 / 30.4 s, `eager` 87.8 / 87.4 s, **`prefetch` 15.2 / 14.3 s**; warm, default 11.6 s, `prefetch` 11.9 s. Adopt
+`prefetch` (the plan's bar was 10 s); not `eager`. FARM_START_PLAN step 4 and RESULTS (*A vLLM start*) hold the tables.
+
 ## 2026-11-24 (02:40) — FARM_START step 3 measured: FlashInfer's precompiled kernels take a cold start from 331 to 125 s; M1 widened to a model's first start (night n° 15)
 
 On the trial root `~/lol-vllm-033` only (vLLM 0.33.0, torch 2.14 on CUDA 13.2, FlashInfer 0.7.2.post1), each start

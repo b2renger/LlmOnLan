@@ -1473,6 +1473,29 @@ appended turns: 5.35 s and 5.82 s first word p95 (p50 1.2 and 1.3 s), 17.5 and 1
 so the label stays **24**. Qwen3.8 at 64k with 20 people each ~50k deep: B 54.5 s / 4.7, G 54.7 s / 4.8, both fail
 alike (the cached contexts evicted between turns: vLLM's prefix-cache hit rate down to 0 %).
 
+# A vLLM start: precompiled kernels and the weights' read (RTX PRO 6000, 2026-11-24)
+
+Night n° 15, FARM_START_PLAN steps 3 and 4, the GPU free, the Farm app off. The trial root `~/lol-vllm-033` (vLLM
+0.33.0, torch 2.14 on CUDA 13.2, FlashInfer 0.7.2.post1), the farm's flags, `docs/spike/runs/trial_serve.sh`, each start
+timed from its launch to *ready*.
+
+| Start | Start → ready | Weights | Profiling/warmup (the kernel builds) | Kernels built |
+|---|---|---|---|---|
+| Qwen3.6 64k, empty kernel folder | 331 s | 30.8 s | 168 s | 6 |
+| the same + `flashinfer-jit-cache` and `-sm120f` 0.7.2.post1+cu130 (195 MB) | **125 s** | 30.7 s | **17 s** | 1 |
+| Qwen3.8 32k, empty folder (J19's farm start, the farm's job) | 605 s | 1.1 s (+ model init 24 s) | 253 s | 10 |
+| the same + the wheels | **251 s** (torch.compile 31 s: a cache miss of the trial's flags) | 17.6 s | **18 s** | 5 |
+| Qwen3.6, every cache warm, the wheels | **80 s** | 11.6 s | — | 0 |
+
+**The weights from a cold disk** (Qwen3.6, its 15 files evicted from Linux's page cache before each run):
+`--safetensors-load-strategy` default 30.8 / 30.4 s, `eager` 87.8 / 87.4 s, **`prefetch` 15.2 / 14.3 s**; warm, default
+11.6 s and `prefetch` 11.9 s. Windows may still cache the WSL disk image, so a first start after a reboot may differ.
+
+**What it means:** FlashInfer's precompiled kernels take 3½ to 4 minutes off a first start (after an install, an update,
+or a model's first start: each model builds kernels of its own, Qwen3.6 6 and Qwen3.8 10, 5 shared), and `prefetch` 16 s
+off a cold disk at no cost warm. Both for the farm's installer and flags (FARM_START_PLAN, session n° 16). Logs:
+`~/lol-vllm-033/logs/vllm.log`, 02:01–02:56.
+
 # vLLM 0.34.0 against 0.33.0, and pages from a picture (RTX PRO 6000, 2026-11-21)
 
 The whole card (the Farm app off since 2026-11-20), vLLM **0.34.0** in its own root (`~/lol-vllm-034`, production's

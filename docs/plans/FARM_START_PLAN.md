@@ -84,6 +84,20 @@ which step 3 is for.
 4. **The weights from a cold disk (S, research).** 31 s cold against 17 s warm for 20 GB. Measure vLLM's
    `--safetensors-load-strategy` options on a trial root; adopt one only if it saves 10 s or more, in the model's
    flags (the farm owns them).
+   **Measured (night n° 15, 2026-11-24, Qwen3.6 on `~/lol-vllm-033`, vLLM 0.33.0, which offers `lazy` (the default),
+   `eager` and `prefetch`; the weights' 15 files evicted from Linux's page cache before each cold run with
+   `posix_fadvise(DONTNEED)`, 2 GB left in the cache):**
+
+   | *Loading weights took* | Cold disk (two runs) | Warm (the weights in memory) |
+   |---|---|---|
+   | the default | 30.8 s, 30.4 s | 11.6 s |
+   | `eager` | 87.8 s, 87.4 s | — |
+   | **`prefetch`** | **15.2 s, 14.3 s** | 11.9 s |
+
+   **`prefetch` saves ~16 s on a cold disk and nothing is lost warm: adopt it** (`--safetensors-load-strategy prefetch` in
+   each built-in's flags, session n° 16). `eager` is three times slower here. Windows may still cache the WSL disk
+   image under Linux, so a true first start after a reboot may differ. With step 3's wheels and every cache warm,
+   Qwen3.6 was ready 80 s after its start (`trial_serve.sh`, no farm around it).
 
 **Not proposed:** fewer CUDA graphs (~15 s, but slower answers with 48 people); keeping vLLM running when the Farm
 app quits (the card stays taken; the farm already takes over a vLLM it finds running).
