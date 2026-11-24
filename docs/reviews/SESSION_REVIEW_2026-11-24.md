@@ -16,7 +16,10 @@ on the trial root. Three read-only explorers mapped Open WebUI's contract surfac
 
 **Suites (02:19–02:24):** farm `node test/run.js` **293/293** (after M1's fix; 292 + the new check failing before it);
 shell `npm run test:chat` **1989 passed, 0 failed, 1 skipped**, its lint rules 0 violations in 296 files; farm-app
-`npm test` **12 + 3**; `farm/vllm/test_scripts.sh` in WSL **131/131**. The client harness: below.
+`npm test` **12 + 3**; `farm/vllm/test_scripts.sh` in WSL **131/131**; the client harness, full run (03:42–03:58,
+v0.2.20's code: Plan first's buttons, the page beside its code, the Computer's wake-up) **423/423**. Its first try
+aborted at once, *cdp port 9333 is already in use*: my own headless Edge for the panel shots had left processes
+holding that port (stopped, then the run). Not run: `shell/test/e2e.js` (it cannot run on this computer).
 
 ## Findings, by severity
 
