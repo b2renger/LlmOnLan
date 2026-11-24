@@ -9,6 +9,28 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-24 (02:40) — FARM_START step 3 measured: FlashInfer's precompiled kernels take a cold start from 331 to 125 s; M1 widened to a model's first start (night n° 15)
+
+On the trial root `~/lol-vllm-033` only (vLLM 0.33.0, torch 2.14 on CUDA 13.2, FlashInfer 0.7.2.post1), each start
+from an empty kernel folder through `docs/spike/runs/trial_serve.sh`, the GPU free; production's root and folder
+untouched. The folders a run filled were moved aside, not deleted (`~/lol-vllm-033/.cache/flashinfer.{j19,before,after-q36}-n15`, 48 MB each).
+- **Without** (Qwen3.6, 64k): 331 s Start → ready, profiling/warmup 168 s, 6 kernels built.
+- **The wheels** (FlashInfer's GitHub release `v0.7.2.post1`): the shim `flashinfer_jit_cache-0.7.2.post1+cu130` (4.5 KB)
+  and the provider `flashinfer_jit_cache_sm120f-0.7.2.post1+cu130` (195 MB), `uv pip install --no-deps` (the shim
+  requires all six architectures' providers): 1 s; FlashInfer lists the provider, 566 modules. cu130 by FlashInfer's own
+  rule (`__main__.py` `_resolve_jit_cache_cuda_version`: the newest of 12.9/13.0/13.4 at or below 13.2).
+- **With:** Qwen3.6 **125 s**, profiling 17 s, 1 kernel built (`trtllm_utils`); Qwen3.8 32k **251 s** (J19's farm start
+  without: 605 s), profiling 18 s, 5 built (`trtllm_utils` and 4 for its head ratio), torch.compile 31 s again (the
+  trial's flags are not the farm's, so its compile cache missed).
+- **Found on the way (review M1, widened):** Qwen3.6's cold start built 6 modules, Qwen3.8's 10, 5 shared: a model's first
+  start builds kernels of its own, so the first *Use this* on a model is slow too. The phase now says *several minutes
+  the first time with a model, or after vLLM is installed or updated*; *Use this* says *about 2 minutes, longer the first
+  time with a model*. Test first: the check failed on the old `farm/src` (stashed), farm **293/293** with the change.
+- **A mistake of mine, no harm:** I edited the measuring script while bash was running it; bash reads a script as it
+  goes, so after vLLM was ready it hit a syntax error and exited; the closed pipe made `serve.sh`'s watchdog stop vLLM
+  (status 143). The run had already measured what it was for (ready at 02:30:27); its log slice was taken by time.
+  Since then a running script is never edited: a new file.
+
 ## 2026-11-24 (02:21) — J19's measured parts on a test farm; the kernel phase's "up to 5 minutes" was false for Qwen3.8 (night n° 15, review M1)
 
 The Farm app was off at 02:00 (`/lol/self` silent, no `LlmOnLan Farm.exe`): it stays off tonight. The GPU held 2872 MiB.
