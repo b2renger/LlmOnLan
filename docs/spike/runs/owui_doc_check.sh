@@ -8,6 +8,8 @@
 # Open WebUI runs twice with the client's document settings (shell/src/main/configBridge.ts), once with the setting off
 # and once on; three questions about a ~100k-token locker list (seed 7, 3,300 records) in one chat each time.
 #   bash owui_doc_check.sh <open-webui executable, e.g. a venv's Scripts/open-webui.exe> <empty work folder>
+# The released sidecar's own Scripts/open-webui.exe does not start (it names the build machine's Python): give a
+# two-line wrapper that runs `<sidecar>/python/python.exe <sidecar>/launcher.py "$@"`, as the client does (2026-11-24).
 # Ports 8196 (the stub) and 8197 (Open WebUI) must be free. Git Bash on Windows (taskkill), or any bash with netstat.
 # Last line: PASS (setting on: the same document hash in message 0 on all three turns) or FAIL. The turns say WRONG:
 # the stub always answers 0000; the answers were checked on a real vLLM (results/lc1120-owui-*.json). About 40 s.

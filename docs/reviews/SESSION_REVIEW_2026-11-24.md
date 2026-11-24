@@ -130,6 +130,11 @@ seats is then the old flags' number. *Proof:* `vllm.measuredFor` and `seatsAuto`
 
 ## Checked and found sound
 
+- **v0.2.20's *document read once per chat*, on the released Open WebUI** (`docs/spike/runs/owui_doc_check.sh`, v0.2.19's
+  sidecar 0.13.3 = v0.2.20's manifest, started as the client starts it, through `launcher.py`; 05:13–05:14): **PASS**,
+  with the setting on, message 0 holds the document (205,921 characters) under one hash on all three turns; off, it
+  moves into each new question with a new hash. (A first try gave the sidecar's `Scripts/open-webui.exe`, which never
+  starts: it names the build machine's Python; the script's header now says so.)
 - **Qwen3.8's 16-bit state, the unreleased change the next Farm app ships** (QWEN38_FP16_STATE_PLAN adopted it on one
   gate run and the long-text check): the quality gate 10 runs each side tonight, with it 279/280, without 270/280; no
   cost seen (its runs repeat their token counts, so weaker evidence than Qwen3.6's, where the same comparison found one:
