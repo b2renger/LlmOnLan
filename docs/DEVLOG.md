@@ -9,6 +9,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-24 (03:41) — Q1 settled (Qwen3.8 holds Automatic's seats at 64k and 128k in a chat's shape: review L5), and J15's measured parts on vLLM 0.34 (night n° 15)
+
+- **Q1 → L5:** Qwen3.8 as the farm serves it, a 53 GiB pool as Automatic gives, `spike_bench` followup `--append`: 11
+  people ~100k deep at 128k pass (3.56 s / 47.5 tok/s; vLLM counts 11.16), 21 ~50k deep at 64k pass (4.16 s / 44.7; vLLM
+  20.25). The panel's *Keep it at 32k: at 64k 20 people 50k deep failed* came from the 2026-11-20 run that replaced the
+  question each turn (prefix-cache hits 0 %): the note now says what passed (32 at 32k, 21 at 64k, 11 at 128k); farm
+  293/293. Files `results/q1-n15-*`.
+- **J15 on a scratch farm** (`~/lol-vllm-034`, vLLM 0.34.0, FlashInfer 0.7.3; the Farm app's is 0.33.0): first refused
+  as *only partly downloaded*: two stale Hugging Face `.incomplete` files under the model (their SHA-256 those of the
+  two shards, whose `.metadata` say complete), moved to `~/lol-vllm-034/aside-n15/` (review question 2). Then ready in
+  438 s, Automatic 20 at 64k (measured), 179 tok/s alone, 125.8 each for 20 (19 of 20 seated: the gate, as designed),
+  thinking kept out, a picture described. The agent: t1, t2, t4 pass; t3 fails its check; **t5 loops** (346 steps, 341
+  writes of one file, 140k tokens, the harness's 20-minute stop). HUMAN_TESTS J15 (*Done by an agent*);
+  `results/j15-n15-*`, `results/ide/j15-n15-20261124-gemma426-vllm034-64k.jsonl`. Stopped 03:41, the GPU at 2671 MiB.
+
 ## 2026-11-24 (02:58) — FARM_START step 4 measured: `--safetensors-load-strategy prefetch` reads the weights in half the time from a cold disk (night n° 15)
 
 Qwen3.6 on `~/lol-vllm-033` (vLLM 0.33.0 offers `lazy`, the default, `eager`, `prefetch`, `torchao`), each cold run after

@@ -1812,6 +1812,19 @@ reading's memory kept aside), and the Presets card's LOL Vibe still picks Qwen3.
 Step 2: answers and titles as with Qwen3.6, and it describes a picture you attach. Step 3: the agent works (about 30 s a
 small task), writes and edits files; it sends many tool calls the agent refuses (a `justification`, `exit_plan_mode`) and
 recovers; note any loop past 75 steps and any reply that runs out of room. Write down how it compares with Qwen3.6.
+- [x] Done by an agent, 2026-11-24 03:09–03:41 (night n° 15), the parts no person is needed for, **on vLLM 0.34.0 (a
+  trial root, `~/lol-vllm-034`), not the Farm app's 0.33.0**, from a scratch farm (own ports, no beacon) · Found: the
+  farm first called the model *only partly downloaded* (two stale Hugging Face temp files under its folder: review
+  2026-11-24 question 2; moved aside, it served). **The start:** 438 s, the first in that root (the J15 text's *about 7
+  minutes* holds). **Automatic: 20 people at 64k, measured**; the LOL Vibe preset still picks Qwen3.6, and its reasons
+  name Gemma 4 26B as proven too (`presets.js` `AGENT_PROVEN`). Through the gate: one person **179 tok/s**; 20 at once
+  **125.8 tok/s each** (19 of 20 a round: the one-person run's address still held a seat, the gate as designed).
+  Thinking stays in `reasoning_content`; a picture described right (*an "EcoSchool" energy dashboard …*). **The agent's
+  five tasks** (`ide/run.js`, 64k, maxTokens 8192, one run): t1, t2, t4 pass (15–58 s, 2–6 refused calls each, then
+  recovered); t3 fails its own check (the tests it wrote fail on the real module); **t5 went round: 346 steps, 341 of
+  them a write of the same file, 140k tokens, until the harness stopped it at 20 minutes** (the file then passed). In
+  LOL Vibe that reply runs until the person presses Stop (AGENT_LOOP_PLAN not built, DECISIONS 2026-11-23). Still the
+  person's: the panel's Download and Use this on the Farm app, Open WebUI's titles and web search, a real project.
 - [ ] Done · Found:
 
 ### J16 A class at once: 24 people at 128k through the seat gate, a long document read once, then web search under a burst
