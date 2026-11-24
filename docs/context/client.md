@@ -44,7 +44,9 @@
   thread to a folder in `DATA_DIR/LOL Studio Projects/`, and that thread's replies come from **DeepSeek Harness**
   (dsh 0.1.7-rc.2) run by main (`src/main/studio.ts`) over its SDK on its OWN Node (its addon refuses Electron 42),
   with a profile patch written from the current farm: 9 file tools, no shell/web/subagents, no DeepSeek cloud row,
-  telemetry off, skills only from `DATA_DIR/skills`; and **the project fence** — a PreToolUse command hook
+  telemetry off, skills only from `DATA_DIR/skills`, dsh's own plan mode off (`plan-mode`: its `exit_plan_mode` only
+  came back refused, 2026-11-21; *Plan first* below is LOL's); its session logs (`DATA_DIR/lol-studio/dsh/sessions`)
+  older than 30 days go once a start (`pruneSessions`, `SESSION_KEEP_DAYS`; nothing reads one back); and **the project fence** — a PreToolUse command hook
   (`FENCE_JS`) that refuses any file tool outside the project, and a write or edit to `project.json` or `.git/` (the
   remote a person's Push sends to; 2026-10-09), because dsh itself confines writes only (on Windows
   dsh runs hooks through PowerShell: the command needs `&` and `; exit $LASTEXITCODE`, else it silently passes; and
@@ -55,6 +57,9 @@
   JavaScript (a .js/.mjs or each inline `<script>` of an .html) with `node:vm`, never running it, and on a SyntaxError
   exits 2 so the model reads the line and fixes it in the same reply. dsh's hook sandbox forbids writing outside the
   project AND starting a process (EPERM): a temp file or `node --check` would pass silently.
+  A reply that ends without a word says what happened (`projects/agent.mjs` `resultOf`): with a file changed or made,
+  *The Changes tab shows what it did*; with tools called and no file changed, *… changed no file. Ask again, saying what
+  to change*; with no tool call at all (Gemma 4 on Ollama sometimes only thinks), *… stopped before it did anything*.
   Skills shipped (seeded one by one into `DATA_DIR/skills`): **ponytail**, **agent-page** (agent pages, below), and **graphify** (`assets/skills/graphify`,
   adapted from Graphify-Labs/graphify v0.9.71, Apache-2.0 + NOTICE: the model writes `graphify-out/graph.json` with
   file tools only — no Python; the panel draws it with the Computer's graph viewer). History = git per project
