@@ -1836,8 +1836,8 @@ and 30 missed the 5 s by 0.4 and 0.9 s). 64k (48 people, Automatic) is step 5's.
 at the new default; that Open WebUI reads an attached document once per chat (`RAG_SYSTEM_CONTEXT`, the plan's step 3);
 and its decision 4's class-size check, which must pass before web search can be on by default again (DEVLOG
 2026-10-06 10:51). **A build is ready (2026-11-24):** `farm-app\dist\LlmOnLan-Farm-Setup-0.0.54+n15.exe` in the owner's checkout
-(103 MB, built 05:18 from `main` at `baa23f8`, local and unsigned; it carries 128k by default, Qwen3.8's drafting and 16-bit
-state, the panel's start bar and its words; checked inside: no config, password or venv). Quit the Farm app (tray ▸
+(103 MB, built 05:28 from `main` at `b9e3598`, local and unsigned; it carries 128k by default, Qwen3.8's drafting and 16-bit
+state, the panel's start bar and its words, a stopped Download no longer left *partly downloaded* (review M2); checked inside: no config, password or venv). Quit the Farm app (tray ▸
 Quit), run it: it installs over farm-v0.0.54 and keeps the settings (K1). Its version reads 0.0.54 to the update check,
 so the next release (farm-v0.0.55) installs over it; do not go back to an older installer. The client: v0.2.20.
 *Needs:* the next Farm app (after farm-v0.0.54) and the next client (after v0.2.19; for step 6
