@@ -403,7 +403,8 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
 - **Qwen3.6's recurrent state in 16 bits** ([QWEN36_FP16_STATE_PLAN](QWEN36_FP16_STATE_PLAN.md), proposed 2026-11-24):
   measured as the farm serves it, 64 people ~62k deep pass at 64k where 48 did, 28 ~120k deep at 128k where 24 did, the
-  long-text check 20/20. **S**.
+  long-text check 20/20; **but** the quality gate 272/280 against 279/280 (a coding item 6 misses in 10 runs): a trade,
+  not recommended. **S**.
 
 **The ones that unblock the most:**
 - **[BLENDER_TOOLS_ENV_PLAN](BLENDER_TOOLS_ENV_PLAN.md)** (night n° 12, proposed): the Blender tools through

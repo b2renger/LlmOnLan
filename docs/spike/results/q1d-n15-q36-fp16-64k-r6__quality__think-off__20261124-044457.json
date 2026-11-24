@@ -1,0 +1,480 @@
+{
+ "kind": "quality",
+ "label": "q1d-n15-q36-fp16-64k-r6",
+ "model": "qwen36",
+ "thinking": "off",
+ "sampling": {
+  "temperature": 0.6,
+  "top_p": 0.95,
+  "top_k": null,
+  "seed": 1234,
+  "max_tokens": 16384,
+  "template_kwargs": {
+   "enable_thinking": false
+  }
+ },
+ "concurrency": 4,
+ "server": {
+  "models": [
+   {
+    "id": "qwen36",
+    "max_model_len": 65536,
+    "owned_by": "vllm",
+    "root": "/home/ateliernum/lol-vllm-033/hf/Qwen3.6-35B-A3B-NVFP4"
+   }
+  ],
+  "vllm_version": "0.33.0"
+ },
+ "host": {
+  "hostname": "AN-A6000PRO",
+  "machine": "AMD64",
+  "system": "Windows",
+  "release": "11",
+  "python": "3.12.10"
+ },
+ "notes": "",
+ "wall_s": 16.4,
+ "summary": {
+  "code": "10/10",
+  "exact": "7/7",
+  "tool": "11/11",
+  "total": "28/28"
+ },
+ "completion_tokens_total": 11768,
+ "set_version": 1,
+ "items": [
+  {
+   "id": "code_roman",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 0.78,
+   "completion_tokens": 152,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "```python\ndef roman_to_int(s: str) -> int:\n    roman_values = {\n        'I': 1,\n        'V': 5,\n        'X': 10,\n        'L': 50,\n        'C': 100,\n        'D': 500,\n        'M': 1000\n    }\n    \n    total = 0\n    prev_value = 0\n    \n    for char in reversed(s):\n        value = roman_values[char]\n        if value < prev_value:\n            total -= value\n        else:\n            total += value\n        prev_value = value\n    \n    return total\n```"
+  },
+  {
+   "id": "code_merge_intervals",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 0.85,
+   "completion_tokens": 164,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": " x[0])\n    \n    merged = [intervals[0]]\n    \n    for current in intervals[1:]:\n        last = merged[-1]\n        # If current interval overlaps with or touches the last merged interval\n        if current[0] <= last[1]:\n            # Merge them by updating the end to the maximum of both ends\n            merged[-1] = [last[0], max(last[1], current[1])]\n        else:\n            # No overlap, add current interval as a new merged interval\n            merged.append(current)\n    \n    return merged\n```"
+  },
+  {
+   "id": "code_parse_duration",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 4.02,
+   "completion_tokens": 793,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "s += num * 60\n    elif s_part and not m_part and not h_part:\n        # m is optional, so if only s is present, that's fine\n        pass\n    \n    if s_part:\n        num = int(s_part[:-1])\n        total_seconds += num\n    elif not s_part and not m_part and not h_part:\n        # Nothing matched at all, but the regex matched an empty string? No, we already checked for empty.\n        # If all three are None, the string was empty which we already handled.\n        pass\n    \n    return total_seconds\n```"
+  },
+  {
+   "id": "code_eval_expr",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 4.13,
+   "completion_tokens": 814,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "peek() != ')':\n                raise ValueError(\"Expected ')'\")\n            consume()  # consume ')'\n            return result\n        elif isinstance(tok, (int, float)):\n            consume()\n            return tok\n        else:\n            raise ValueError(f\"Unexpected token: {tok}\")\n    \n    if not tokens:\n        return 0\n    \n    result = parse_expr()\n    \n    if pos[0] < len(tokens):\n        raise ValueError(f\"Unexpected token after expression: {tokens[pos[0]]}\")\n    \n    return result\n```"
+  },
+  {
+   "id": "code_top_k",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 0.4,
+   "completion_tokens": 73,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "```python\ndef top_k_frequent(words, k):\n    from collections import Counter\n    \n    freq = Counter(words)\n    \n    # Sort by frequency (descending) and then alphabetically (ascending)\n    sorted_words = sorted(freq.keys(), key=lambda x: (-freq[x], x))\n    \n    return sorted_words[:k]\n```"
+  },
+  {
+   "id": "code_topo_sort",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 2.71,
+   "completion_tokens": 538,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": " (though not strictly required)\n    queue.sort()\n    \n    result = []\n    while queue:\n        node = queue.pop(0)\n        result.append(node)\n        for neighbor in adj[node]:\n            in_degree[neighbor] -= 1\n            if in_degree[neighbor] == 0:\n                queue.append(neighbor)\n        # Re-sort queue to maintain deterministic order\n        queue.sort()\n    \n    if len(result) != len(all_nodes):\n        raise ValueError(\"Cycle detected in dependencies\")\n    \n    return result\n```"
+  },
+  {
+   "id": "code_lru",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 2.65,
+   "completion_tokens": 526,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "\n            # Update existing key\n            node = self.cache[key]\n            node.value = value\n            self._move_to_head(node)\n        else:\n            # Create new node\n            new_node = Node(key, value)\n            self.cache[key] = new_node\n            self._add_to_head(new_node)\n            \n            # If capacity exceeded, evict LRU\n            if len(self.cache) > self.capacity:\n                lru_node = self._pop_tail()\n                del self.cache[lru_node.key]\n```"
+  },
+  {
+   "id": "code_rle",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 1.38,
+   "completion_tokens": 268,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "   return \"\".join(result)\n\n\ndef rle_decode(s: str) -> str:\n    if not s:\n        return \"\"\n    \n    result = []\n    i = 0\n    while i < len(s):\n        # Parse the number\n        num_str = \"\"\n        while i < len(s) and s[i].isdigit():\n            num_str += s[i]\n            i += 1\n        \n        count = int(num_str)\n        \n        # Get the character\n        if i < len(s):\n            char = s[i]\n            i += 1\n            result.append(char * count)\n    \n    return \"\".join(result)\n```"
+  },
+  {
+   "id": "code_palindrome",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 1.43,
+   "completion_tokens": 279,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": " right - 1\n    \n    for i in range(n):\n        # Odd length palindromes\n        start1, end1 = expand_around_center(i, i)\n        len1 = end1 - start1 + 1\n        \n        # Even length palindromes\n        start2, end2 = expand_around_center(i, i + 1)\n        len2 = end2 - start2 + 1\n        \n        if len1 > max_len:\n            start = start1\n            max_len = len1\n        if len2 > max_len:\n            start = start2\n            max_len = len2\n    \n    return s[start:start + max_len]\n```"
+  },
+  {
+   "id": "code_business_days",
+   "kind": "code",
+   "pass": true,
+   "reason": "tests pass",
+   "latency_s": 1.72,
+   "completion_tokens": 335,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "emaining_days = total_days % 7\n    \n    # Each full week has 5 business days\n    count = full_weeks * 5\n    \n    # Handle remaining days\n    # Get the weekday of the start date (Monday=0, Sunday=6)\n    start_weekday = start_date.weekday()\n    \n    # Iterate through the remaining days\n    for i in range(remaining_days):\n        current_weekday = (start_weekday + i) % 7\n        # Monday=0 to Friday=4 are business days\n        if current_weekday < 5:\n            count += 1\n    \n    return count\n```"
+  },
+  {
+   "id": "math_div35",
+   "kind": "exact",
+   "pass": true,
+   "reason": "got 400",
+   "latency_s": 4.75,
+   "completion_tokens": 939,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": " formula**\nWe want the count of numbers in $A \\cup B$ that are not in $C$.\nCount $= |A| + |B| - 2|C|$\nCount $= 333 + 199 - 2(66)$\nCount $= 532 - 132$\nCount $= 400$\n\n**Alternative Verification:**\nLet's verify by calculating \"Divisible by 3 only\" and \"Divisible by 5 only\".\n- Divisible by 3 only: $|A| - |C| = 333 - 66 = 267$.\n- Divisible by 5 only: $|B| - |C| = 199 - 66 = 133$.\n- Total = (Divisible by 3 only) + (Divisible by 5 only)\n- Total = $267 + 133 = 400$.\n\nBoth methods yield 400.\n\nANSWER: 400"
+  },
+  {
+   "id": "math_digits",
+   "kind": "exact",
+   "pass": true,
+   "reason": "got 76",
+   "latency_s": 7.04,
+   "completion_tokens": 1388,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "is 76.\n\n**Verification of the number $2^{50}$:**\n$2^{10} = 1024$\n$2^{20} = 1048576$\n$2^{40} = 1099511627776$\n$2^{50} = 2^{40} \\times 2^{10} = 1099511627776 \\times 1024$\n\n   1099511627776\n x          1024\n ----------------\n   4398046511104  (x4)\n  21990232555520  (x20)\n 000000000000000  (x0)\n1099511627776000  (x1000)\n----------------\n1125899906842624\n\nThe calculation is correct. The digits are 1, 1, 2, 5, 8, 9, 9, 9, 0, 6, 8, 4, 2, 6, 2, 4.\nSum: $1+1+2+5+8+9+9+9+0+6+8+4+2+6+2+4 = 76$.\n\nANSWER: 76"
+  },
+  {
+   "id": "math_modpow",
+   "kind": "exact",
+   "pass": true,
+   "reason": "got 4",
+   "latency_s": 6.15,
+   "completion_tokens": 1218,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "13}$\n2. $7^2 \\equiv 49 \\equiv 10 \\equiv -3 \\pmod{13}$\n3. $7^3 = 7^2 \\cdot 7 \\equiv -3 \\cdot 7 = -21 \\equiv -8 \\equiv 5 \\pmod{13}$\n4. $7^4 = 7^3 \\cdot 7 \\equiv 5 \\cdot 7 = 35 \\equiv 9 \\equiv -4 \\pmod{13}$\n5. $7^5 = 7^4 \\cdot 7 \\equiv -4 \\cdot 7 = -28 \\equiv -2 \\equiv 11 \\pmod{13}$\n\nWe need $7^{10} = (7^5)^2$.\n$$ 7^{10} \\equiv (-2)^2 \\pmod{13} $$\n$$ 7^{10} \\equiv 4 \\pmod{13} $$\n\nBoth methods yield the same result.\n\n### Conclusion\n\nThe remainder when $7^{2026}$ is divided by $13$ is $4$.\n\nANSWER: 4"
+  },
+  {
+   "id": "math_strings",
+   "kind": "exact",
+   "pass": true,
+   "reason": "got 448",
+   "latency_s": 8.72,
+   "completion_tokens": 1640,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "k-1}$), we can substitute $b_{n-1}$ into the first equation:\n$T_n = 2T_{n-2} + 2T_{n-1}$\nLet's check this recurrence: $T_n = 2T_{n-1} + 2T_{n-2}$.\n\n-   $T_1 = 3$\n-   $T_2 = 8$\n-   $T_3 = 2(8) + 2(3) = 16 + 6 = 22$ (Matches)\n-   $T_4 = 2(22) + 2(8) = 44 + 16 = 60$ (Matches)\n-   $T_5 = 2(60) + 2(22) = 120 + 44 = 164$ (Matches)\n-   $T_6 = 2(164) + 2(60) = 328 + 120 = 448$ (Matches)\n\n### Conclusion\n\nThe number of strings of length 6 over $\\{A, B, C\\}$ with no two consecutive A's is 448.\n\nANSWER: 448"
+  },
+  {
+   "id": "logic_train",
+   "kind": "exact",
+   "pass": true,
+   "reason": "got 18:05",
+   "latency_s": 2.89,
+   "completion_tokens": 568,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "Add the hours first:\n$$ 14:35 + 3 \\text{ hours} = 17:35 $$\n\nAdd the minutes:\n$$ 17:35 + 30 \\text{ minutes} $$\n\n$$ 35 \\text{ minutes} + 30 \\text{ minutes} = 65 \\text{ minutes} $$\n\nSince 60 minutes make an hour, we convert 65 minutes to 1 hour and 5 minutes.\nAdd this 1 hour to the current hour (17):\n$$ 17 + 1 = 18 $$\n\nThe remaining minutes are 05.\n\nSo, the arrival time is 18:05.\n\n**Verification:**\n*   Departure: 14:35\n*   + 30 mins: 15:05\n*   + 3 hours: 18:05\n\nThe calculation holds.\n\nANSWER: 18:05"
+  },
+  {
+   "id": "logic_siblings",
+   "kind": "exact",
+   "pass": true,
+   "reason": "got 7",
+   "latency_s": 3.1,
+   "completion_tokens": 512,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "find $B$:\n$$B = 4 - 1$$\n$$B = 3$$\n\nSo, there are 3 boys and 4 girls in the family.\n\n**Step 4: Verify the solution.**\n- Total children = $3 + 4 = 7$.\n- **Boy's perspective**: He has 2 brothers ($3-1$) and 4 sisters. Is 4 twice as many as 2? Yes ($4 = 2 \\times 2$).\n- **Girl's perspective**: She has 3 brothers and 3 sisters ($4-1$). Are the numbers equal? Yes ($3 = 3$).\n\nThe solution is consistent.\n\n**Step 5: Calculate the total number of children.**\nTotal children = $B + G = 3 + 4 = 7$.\n\nANSWER: 7"
+  },
+  {
+   "id": "prob_dice",
+   "kind": "exact",
+   "pass": true,
+   "reason": "got 3/4",
+   "latency_s": 4.59,
+   "completion_tokens": 687,
+   "finish": "stop",
+   "reasoning_chars": 0,
+   "content_tail": "e can count the number of even product outcomes directly:\n$$ \\text{Number of Even Product Outcomes} = \\text{Total Outcomes} - \\text{Number of Odd Product Outcomes} $$\n$$ \\text{Number of Even Product Outcomes} = 36 - 9 = 27 $$\n$$ P(\\text{Product is Even}) = \\frac{27}{36} $$\nDividing numerator and denominator by their greatest common divisor, 9:\n$$ \\frac{27 \\div 9}{36 \\div 9} = \\frac{3}{4} $$\n\n### Conclusion\nThe probability that the product of the two numbers is even is $\\frac{3}{4}$.\n\nANSWER: 3/4"
+  },
+  {
+   "id": "tool_weather",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 0.41,
+   "completion_tokens": 55,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "get_weather",
+     "args": {
+      "city": "Lyon",
+      "unit": "celsius"
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "The current weather in Lyon is 17\u00b0C with light rain.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_currency",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 0.53,
+   "completion_tokens": 77,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "convert_currency",
+     "args": {
+      "amount": 250,
+      "from_currency": "EUR",
+      "to_currency": "JPY"
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "250 euros is equal to 41,250.00 Japanese yen.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_calendar",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 0.92,
+   "completion_tokens": 155,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "create_calendar_event",
+     "args": {
+      "title": "Spike review",
+      "date": "2026-10-06",
+      "start_time": "14:30",
+      "duration_minutes": 45,
+      "attendees": [
+       "alice@example.com",
+       "bob@example.com"
+      ]
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "The meeting \"Spike review\" has been successfully scheduled for October 6, 2026, at 14:30 for 45 minutes with alice@example.com and bob@example.com. The event ID is evt_8812.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_parallel_weather",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 0.71,
+   "completion_tokens": 103,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "get_weather",
+     "args": {
+      "city": "Paris",
+      "unit": "celsius"
+     }
+    },
+    {
+     "name": "get_weather",
+     "args": {
+      "city": "Berlin",
+      "unit": "celsius"
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "Paris is warmer. The current temperature in Paris is 14\u00b0C, while in Berlin it is 9\u00b0C.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_search",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 1.2,
+   "completion_tokens": 123,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "search_files",
+     "args": {
+      "query": "TODO",
+      "path": "src/",
+      "file_glob": "*.ts"
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "Here are the TODO comments found in the TypeScript files under `src/`:\n\n1. **src/main/index.ts** (line 42)\n   ```\n   // TODO: handle reconnect\n   ```\n\n2. **src/main/store.ts** (line 7)\n   ```\n   // TODO: migrate v1 settings\n   ```",
+   "malformed": 0
+  },
+  {
+   "id": "tool_read_then_answer",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 0.39,
+   "completion_tokens": 39,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "read_file",
+     "args": {
+      "path": "config/settings.json"
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "The server listens on port **8443**.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_light",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 0.56,
+   "completion_tokens": 50,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "set_light",
+     "args": {
+      "room": "kitchen",
+      "on": false
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "The lights in the kitchen have been turned off.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_no_call",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 0.17,
+   "completion_tokens": 8,
+   "finish": "stop",
+   "calls": [],
+   "steps": 0,
+   "final_tail": "The capital of Australia is Canberra.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_email",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 0.8,
+   "completion_tokens": 87,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "send_email",
+     "args": {
+      "to": "dana@example.com",
+      "subject": "Weekly report",
+      "body": "The benchmark spike has finished."
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "The email has been sent successfully to dana@example.com with the subject \"Weekly report\" and the message \"The benchmark spike has finished.\"",
+   "malformed": 0
+  },
+  {
+   "id": "tool_chain_stock",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 0.98,
+   "completion_tokens": 112,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "get_stock_price",
+     "args": {
+      "ticker": "NVDA"
+     }
+    },
+    {
+     "name": "convert_currency",
+     "args": {
+      "amount": 200,
+      "from_currency": "USD",
+      "to_currency": "EUR"
+     }
+    }
+   ],
+   "steps": 2,
+   "final_tail": "NVDA's current share price is $200.00 USD, which is approximately \u20ac172.40 EUR.",
+   "malformed": 0
+  },
+  {
+   "id": "tool_write_file",
+   "kind": "tool",
+   "pass": true,
+   "reason": "ok",
+   "latency_s": 0.51,
+   "completion_tokens": 65,
+   "finish": "stop",
+   "calls": [
+    {
+     "name": "write_file",
+     "args": {
+      "content": "print('Hello, \"LAN\"!')",
+      "path": "hello.py"
+     }
+    }
+   ],
+   "steps": 1,
+   "final_tail": "I've created the file `hello.py` that prints `Hello, \"LAN\"!`.",
+   "malformed": 0
+  }
+ ],
+ "finished": "2026-11-24T04:44:57.306468"
+}

@@ -1,6 +1,7 @@
 # QWEN36_FP16_STATE_PLAN: Qwen3.6's recurrent state in 16 bits: 64 people at 64k instead of 48, 28 at 128k instead of 24
 
-**Status: proposed, 2026-11-24 (night n° 15), for the owner.** Size **S**. Farm only.
+**Status: proposed, 2026-11-24 (night n° 15), for the owner; not recommended (a trade: more people, a measurable
+accuracy cost, below).** Size **S**. Farm only.
 
 ## Why
 
@@ -33,6 +34,11 @@ The trial root `~/lol-vllm-033` (vLLM 0.33.0), `QWEN36_ARGS` + `--mamba-ssm-cach
 
 In that replaced shape the flag did not hurt Qwen3.6 without drafting: its 2026-11-19 failure needed drafting too.
 
+**But the quality gate loses a little** (`spike_bench quality`, thinking off, 4 at a time, the same night, the same
+server settings, 10 runs each side): **without the flag 279/280, with it 272/280** (Fisher p ≈ 0.04). The misses with it:
+`code_parse_duration` 6 of 10 runs (1 of 10 without; 2 in 11 earlier runs without), `tool_currency` 1, `math_digits` 1.
+A coding item, where LOL Vibe works. The long-text check (20/20) did not see it. Files: `results/q1d-n15-q36-{fp16,base}-64k*`.
+
 ## The steps
 
 1. `QWEN36_ARGS` gains `--mamba-ssm-cache-dtype float16` (`farm/src/config.js`); `facts()` already halves the state
@@ -47,5 +53,6 @@ there is none (as for Qwen3.8). A person's own long chats on the next Farm app a
 
 ## The question
 
-**Build it?** *Recommended:* yes, with the next Farm app (16 more people at 64k and 4 more at 128k on the PRO 6000,
-accuracy unchanged on the check). *Default if no answer:* not built; Qwen3.6 stays at 32 bits and 24 people at 128k.
+**Trade accuracy for people?** 16 more people at 64k and 4 more at 128k on the PRO 6000, for about one more miss in 28
+on the quality gate (one coding item missed 6 runs in 10 instead of 1). *Recommended:* no: 48 at 64k already holds a
+class, and the coding agent is what students use. *Default if no answer:* not built; Qwen3.6 stays at 32 bits.
