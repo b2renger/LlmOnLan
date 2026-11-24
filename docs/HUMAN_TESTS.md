@@ -1835,7 +1835,12 @@ and 30 missed the 5 s by 0.4 and 0.9 s). 64k (48 people, Automatic) is step 5's.
 *Proves:* the multi-user plan's acceptance through the real seat gate (its §12, docs/archive/plans/multiuser_implementation_plan.md),
 at the new default; that Open WebUI reads an attached document once per chat (`RAG_SYSTEM_CONTEXT`, the plan's step 3);
 and its decision 4's class-size check, which must pass before web search can be on by default again (DEVLOG
-2026-10-06 10:51). *Needs:* the next Farm app (after farm-v0.0.54) and the next client (after v0.2.19; for step 6
+2026-10-06 10:51). **A build is ready (2026-11-24):** `farm-app\dist\LlmOnLan-Farm-Setup-0.0.54+n15.exe` in the owner's checkout
+(103 MB, built 05:18 from `main` at `baa23f8`, local and unsigned; it carries 128k by default, Qwen3.8's drafting and 16-bit
+state, the panel's start bar and its words; checked inside: no config, password or venv). Quit the Farm app (tray ▸
+Quit), run it: it installs over farm-v0.0.54 and keeps the settings (K1). Its version reads 0.0.54 to the update check,
+so the next release (farm-v0.0.55) installs over it; do not go back to an older installer. The client: v0.2.20.
+*Needs:* the next Farm app (after farm-v0.0.54) and the next client (after v0.2.19; for step 6
 the local build named in G14 will do); J14 done
 (vLLM 0.33.0); a quiet hour with nobody on the farm, and no client open on the farm box itself (it would hold a seat
 from 127.0.0.1); `$PY` = `farm\.venv\Scripts\python.exe` and `docs\spike` from a checkout (as in J12, Part 3); for step 6
@@ -1914,8 +1919,10 @@ Vibe (the coding agent too) on Qwen3.8 drafting with its MTP layer. Measured wit
 **Since 2026-11-21 its recurrent state is kept in 16 bits** ([QWEN38_FP16_STATE_PLAN](plans/QWEN38_FP16_STATE_PLAN.md)):
 measured without a person on 2026-11-20, 124 tok/s each for 30 at once, and 30 people ~28k deep pass where they failed;
 Automatic now seats **32** at 32k, not 16.
-*Needs:* the PRO 6000 with nobody on it, this checkout, a laptop with the client, 20 minutes. The installed Farm app
-does not have it yet: a **test farm from this checkout** stands in for it, and the Farm app, its settings and
+*Needs:* the PRO 6000 with nobody on it, this checkout, a laptop with the client, 20 minutes. **Since 2026-11-24 the
+Farm app build named in J16 has it:** installed, panel ▸ vLLM ▸ **Use this** on Qwen3.8 27B, *Context per person* 32768,
+Apply, then steps 2 to 4 with the Farm app's own card. Without that build, the installed Farm app
+does not have it: a **test farm from this checkout** stands in for it, and the Farm app, its settings and
 production's vLLM stay untouched. Like every farm it starts an Ollama beside its engine: the `ollama` on PATH (the
 Ollama app's) on port 11500, with the Ollama app's models folder, where it needs `gemma4:12b`; night n° 10 pulled it
 there (8 GB): `ollama rm gemma4:12b` after the test if you do not want it. Its LiteLLM is the checkout's
