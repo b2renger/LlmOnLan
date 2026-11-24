@@ -9,6 +9,17 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-24 (05:00) — The 16-bit recurrent state, Qwen3.6 and Qwen3.8, through the quality gate 10 runs each (night n° 15)
+
+The review's question 1, answered by measurement on `~/lol-vllm-033` (vLLM 0.33.0), as the farm serves each model:
+- **Qwen3.6 + `--mamba-ssm-cache-dtype float16`:** 28 people ~120k deep pass at 128k (24 without), 64 ~62k deep at 64k in
+  the 64k label's own shape (48 without), the long-text check 20/20; **but the quality gate** (thinking off, 10 runs each,
+  the same night) 272/280 against 279/280, `code_parse_duration` missed 6 times in 10 with the flag, once without
+  (Fisher p ≈ 0.04): [QWEN36_FP16_STATE_PLAN](plans/QWEN36_FP16_STATE_PLAN.md), proposed as a trade, not recommended.
+- **Qwen3.8 (drafting, 32k), the flag already on `main`:** 279/280 with it, 270/280 without (`code_topo_sort` 8 of 10
+  without): no cost seen; its runs repeat their token counts (the gate seeds its sampling), weaker evidence.
+- Files `results/q1b-n15-*`, `q1c-n15-*`, `q1d-n15-*`, `q1e-n15-*`; RESULTS (the 2026-11-20 section).
+
 ## 2026-11-24 (03:41) — Q1 settled (Qwen3.8 holds Automatic's seats at 64k and 128k in a chat's shape: review L5), and J15's measured parts on vLLM 0.34 (night n° 15)
 
 - **Q1 → L5:** Qwen3.8 as the farm serves it, a 53 GiB pool as Automatic gives, `spike_bench` followup `--append`: 11

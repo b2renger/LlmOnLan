@@ -47,8 +47,10 @@ file stays the whole list.
 - **A farm that is ready sooner** ([FARM_START_PLAN](FARM_START_PLAN.md), approved by the owner 2026-11-23 12:11, "yes on
   all those"): measured, ~2 min 30 s from the Farm app's launch, ~5 min 30 s when FlashInfer rebuilds; the trial-root
   rebuilds fixed the same day. Steps: vLLM alongside the other services (−29 s), the panel's elapsed time and the
-  truth, precompiled kernels (`flashinfer-jit-cache-sm120f`, 194 MB: measured first, night n° 15), the weights' load
-  strategy (measured first, night n° 15). **S + S + M + S**. Farm only.
+  truth (built 2026-11-23), precompiled kernels (**measured night n° 15: a cold start 331 → 125 s**, the shim and the
+  `sm120f` provider `--no-deps`, from FlashInfer's GitHub release only), the weights' load strategy (**measured: `prefetch`
+  31 → 15 s cold, nothing warm**). **S + S + M + S**. Farm only. **Next: steps 1, 3, 4 built, then a local Farm app for
+  J16 and J19 (session n° 16).**
 - **Start a new chat with a plan** ([PLAN_FIRST_NEW_CHAT_PLAN](PLAN_FIRST_NEW_CHAT_PLAN.md), approved by the owner
   2026-11-23 12:11): (a) a new chat from a project's chat stays in it; (b) every new chat offers *Plan first*. **S + S**.
   **Ready:** v0.2.20 is tagged (2026-11-23 17:41; the owner's re-check passed). One question: on by default in a new
