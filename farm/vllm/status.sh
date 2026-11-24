@@ -46,7 +46,15 @@ for r in "$ROOT" "${MORE[@]}"; do
 done
 for m in "$ROOT"/hf/*/; do
   [ -d "$m" ] || continue
-  c="$m/config.json"; inc=$(find "$m" -name '*.incomplete' 2>/dev/null | head -1); g=
+  # An unfinished file: an .incomplete (<hash>.<ETag>[.<random>].incomplete) whose ETag has no .metadata beside it yet.
+  # huggingface_hub names each attempt's temp file uniquely and keeps a stopped one (a Stop is a TERM: no cleanup), and
+  # the next download finishes the file under another name: counted, it kept a whole model "partly downloaded" for good
+  # (review 2026-11-24, reproduced: Stop, then Download again).
+  c="$m/config.json"; inc=; g=
+  while IFS= read -r f; do
+    e=$(basename "$f" | cut -d. -f2)
+    grep -qsx -- "$e" "$(dirname "$f")"/*.metadata || { inc=$f; break; }
+  done < <(find "$m" -name '*.incomplete' 2>/dev/null)
   # A model published as one GGUF file (Flint's NVFP4): its config is the other repo's, in config/ (install.sh).
   [ -f "$c" ] || { ls "$m"*.gguf >/dev/null 2>&1 && g=1 && c="$m/config/config.json"; }
   [ -f "$c" ] || [ -n "$g" ] || [ -n "$inc" ] || continue   # a folder that is not a model

@@ -8,9 +8,9 @@ beside its code, the document read once per chat, the Computer's lost wake-up). 
 the farm: **the client shell and Open WebUI's contract**. Beside it, while the card was free: J19's measured parts and
 FARM_START steps 3 and 4 measured (the owner's yes, 2026-11-23 12:11). The Farm app was off at 02:00 and stayed off.*
 
-**In numbers:** 8 findings (1 medium, 7 low); 5 fixed tonight (M1, L1, L4, L5, L6), 3 filed (L2 needs the owner: a
-folder to delete; L3 and L7 for Later); 2 questions (1 answered by measurement, which became QWEN36_FP16_STATE_PLAN and
-showed its accuracy cost; 2 open). **The next review's area** (the rotation): LOL Vibe and the IDE.
+**In numbers:** 9 findings (2 medium, 7 low); 6 fixed tonight (M1, M2, L1, L4, L5, L6), 3 filed (L2 needs the owner: a
+folder to delete; L3 and L7 for Later); 2 questions, both answered the same night (1 by measurement, which became
+QWEN36_FP16_STATE_PLAN and showed its accuracy cost; 2 proved and fixed as M2). **The next review's area** (the rotation): LOL Vibe and the IDE.
 
 **How it ran:** reading each change in scope as someone who wants it to fail, with tonight's real runs as evidence: J19's
 test farm from the checkout (Qwen3.8 drafting, its start from an empty kernel folder, a restart, 30 people through the
@@ -45,6 +45,21 @@ Qwen3.6's `_8`; the module names in `scratchpad/step3/*.modules`, from `~/lol-vl
 first): the phase says *seconds; several minutes the first time with a model, or after vLLM is installed or updated*, no
 number; *Use this* says *about 2 minutes, longer the first time with a model*; the test fails on a bound under 8 minutes
 and on either sentence missing; farm.md and FARM_START_PLAN say so. Not released (the next Farm app), so no person met it.
+
+**M2 · `farm/vllm/status.sh` (released since farm-v0.0.44, `f4fe62c` 2026-10-07) · a Stop of a model Download leaves
+the model "only partly downloaded" for good.** The rule counted any `*.incomplete` under a model folder. huggingface_hub
+(2.4.0 in the trial roots; `install.sh` takes the latest) downloads each file to a uniquely named temp file
+(`<hash>.<ETag>.<8 random hex>.incomplete`, PR #4228) and removes it in a `finally:` that a TERM never reaches; a Stop
+is `stop.sh install`, a TERM to the download's group. The next Download finishes the file under a new temp name and
+leaves the old one, so the farm keeps serving Ollama and saying *press Download to finish it*, which cannot. *Proof:* in
+the scratch folder, `hf download openai-community/gpt2 model.safetensors --local-dir …`, a TERM to its group after 6 s,
+then the same download to its end (548,105,171 bytes): the 0-byte `….956aec2f.incomplete` stays, and the rule says
+`partial=1`; seen for real on `~/lol-vllm-034`'s Gemma 4 26B (two such files, J15). *Fixed tonight (test first):* an
+`.incomplete` whose ETag already has its `.metadata` beside it does not count (`status.sh`; `test_scripts.sh`
+*status*: a whole model with a stale temp file → `partial=0`, a file still downloading → `partial=1`; it failed on the
+old rule; 133/133; the real gpt2 folder now reads `partial=0`). HUMAN_TESTS K6 step 3 (*Stop it half-way, Download
+again*) covers it for a person. Not released: until the next Farm app, a stopped Download's stale file can be deleted by
+hand.
 
 ### Low
 
@@ -118,15 +133,7 @@ seats is then the old flags' number. *Proof:* `vllm.measuredFor` and `seatsAuto`
    measurement:* the farm serves Qwen3.6 without drafting, and so served, with the flag, 28 people ~120k deep pass at
    128k where 24 did (32 fail, 5.31 s), the long-text check 20/20 at ~120k: a plan for the owner,
    [QWEN36_FP16_STATE_PLAN](../plans/QWEN36_FP16_STATE_PLAN.md).
-2. **A complete model the farm calls partial.** `farm/vllm/status.sh:48-55` marks a model `partial=1` if any
-   `*.incomplete` file is anywhere under its folder; the farm then serves with Ollama and says *press Download to
-   finish it*. Tonight `~/lol-vllm-034/hf/Gemma-4-26B-A4B-NVFP4` (filled by a session's script on 2026-11-21) had two in
-   Hugging Face's `.cache/huggingface/download/` (0 bytes and 22 MB) whose names carry the two shards' SHA-256, while
-   both shards' `.metadata` (written when a file completes) were there with the same SHA-256: stale temp files of a
-   retried download. Moved aside (`~/lol-vllm-034/aside-n15/`, nothing deleted), the farm served it. Not proved: that
-   the farm's own Download (`install.sh`, `hf download`) can leave such files, nor that a second Download would clear
-   them. To prove: interrupt a farm Download of a small model mid-file, Download again, run `status.sh`. If it can, the
-   fix is that an `.incomplete` whose SHA-256 has a matching `.metadata` does not count.
+2. ~~**A complete model the farm calls partial.**~~ *Proved the same night and fixed: M2.*
 
 ## Checked and found sound
 

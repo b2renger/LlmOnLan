@@ -230,6 +230,13 @@ t_status() {
   mkdir -p "$ROOT/hf/M1" "$ROOT/hf/M2/.cache/huggingface/download" "$ROOT/hf/notes"
   printf '{"vision_config": {}, "text_config": {"max_position_embeddings": 262144}}' > "$ROOT/hf/M1/config.json"
   printf '{"max_position_embeddings":32768}' > "$ROOT/hf/M2/config.json"; : > "$ROOT/hf/M2/.cache/huggingface/download/x.incomplete"
+  # A Stop (stop.sh install: TERM) leaves huggingface_hub's uniquely named temp file for good; the next download finishes
+  # the file under another name and writes its .metadata with the same ETag (review 2026-11-24, reproduced with gpt2).
+  local DL3="$ROOT/hf/M3/.cache/huggingface/download" DL4="$ROOT/hf/M4/.cache/huggingface/download"
+  mkdir -p "$DL3" "$DL4"
+  printf '{"max_position_embeddings":8192}' > "$ROOT/hf/M3/config.json"; printf '{"max_position_embeddings":8192}' > "$ROOT/hf/M4/config.json"
+  printf 'c0ffee\n248dfc39aa\n1795000000.0\n' > "$DL3/model.safetensors.metadata"; : > "$DL3/xGOKK=.248dfc39aa.956aec2f.incomplete"
+  printf 'c0ffee\naaaa1111\n1795000000.0\n' > "$DL4/config.json.metadata"; : > "$DL4/Qz9=.bbbb2222.1234abcd.incomplete"
   : > "$ROOT/.venv/lib/python3.12/site-packages/soundfile.py"   # vllm[audio]'s; ROOT2 has none
   daemon &
   local P=$!
@@ -247,6 +254,8 @@ t_status() {
   check "audio= the roots with vLLM's sound extras only (ROOT, and LINK, whose venv is ROOT's)" [ "$(grep '^audio=' "$ST" | tr '\n' ' ')" = "audio=$ROOT audio=$LINK " ]
   check "model= a whole one: vision, its window" grep -qE '^model=M1 [0-9]+ vision=1 native=262144 partial=0$' "$ST"
   check "model= a partial one" grep -qE '^model=M2 [0-9]+ vision=0 native=32768 partial=1$' "$ST"
+  check "model= a whole one a stopped download left a temp file in (its ETag has its .metadata): not partial" grep -qE '^model=M3 [0-9]+ vision=0 native=8192 partial=0$' "$ST"
+  check "model= a file still downloading (no .metadata for its ETag): partial" grep -qE '^model=M4 [0-9]+ vision=0 native=8192 partial=1$' "$ST"
   check "no model= for a folder that is no model; no guard=, installing= or managed=" lacks '^model=notes|^guard=|^installing=|^managed=' "$ST"
   # A model published as one GGUF file (Flint's NVFP4): its config is the other repo's, in config/; without it, partial.
   mkdir -p "$ROOT/hf/G1/config" "$ROOT/hf/G2"; : > "$ROOT/hf/G1/m.gguf"; : > "$ROOT/hf/G2/m.gguf"

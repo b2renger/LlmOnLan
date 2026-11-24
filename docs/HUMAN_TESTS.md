@@ -2059,7 +2059,8 @@ install WSL.
    Automatic gives.
 
 *Expect:* WSL steps, then a C compiler, then nothing ✗; the client chats normally during the install; a stopped
-download reads partly downloaded and a second Download finishes it; on a French Windows the WSL sentences read
+download reads partly downloaded and a second Download finishes it (until `main`'s fix of 2026-11-24, review M2, it
+stayed *partly downloaded* after the second Download: a stale Hugging Face temp file); on a French Windows the WSL sentences read
 right; an older card gets a warning (write down whether it starts).
 - [ ] Done · Found:
 

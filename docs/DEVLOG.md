@@ -9,6 +9,16 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-24 (05:27) — A stopped model Download stayed "partly downloaded" for good: status.sh fixed (review M2, night n° 15)
+
+`status.sh` marked a model partial if any `*.incomplete` was under its folder. huggingface_hub names each download
+attempt's temp file uniquely and cleans it in a `finally:` that a TERM (the farm's Stop, `stop.sh install`) skips; the
+next Download finishes the file under a new name. Reproduced in the scratch folder with gpt2's 548 MB file: TERM after
+6 s, download again to the end, the 0-byte temp file stays, `partial=1`. Seen for real tonight on `~/lol-vllm-034`'s
+Gemma 4 26B (J15). Fix: an `.incomplete` whose ETag has its `.metadata` beside it does not count. Test first
+(`test_scripts.sh` *status*: M3 a whole model with a stale temp file, M4 a file still downloading; M3 failed on the old
+rule), 133/133, farm 293/293; the real gpt2 folder reads `partial=0`. No live root holds such a file now.
+
 ## 2026-11-24 (05:00) — The 16-bit recurrent state, Qwen3.6 and Qwen3.8, through the quality gate 10 runs each (night n° 15)
 
 The review's question 1, answered by measurement on `~/lol-vllm-033` (vLLM 0.33.0), as the farm serves each model:

@@ -41,7 +41,8 @@ current flags; the panel's seat text; a finished job's bar that leaves the panel
 stays); every vLLM root but production's builds FlashInfer's kernels in its own folder (`serve.sh`); a vLLM start's
 bar says the farm stops a stuck one by itself, and its kernel phase says *several minutes the first time with a model, or
 after vLLM is installed or updated*, as *Use this* does (FARM_START step 2, review 2026-11-24 M1); Qwen3.8's note says
-what passed everyone deep (32 at 32k, 21 at 64k, 11 at 128k; review L5). **Open WebUI stays at 0.13.3:** 0.13.4 would drop the Blender tools
+what passed everyone deep (32 at 32k, 21 at 64k, 11 at 128k; review L5); a model Download that was stopped and
+downloaded again is whole, not *partly downloaded* for good (`status.sh`, review M2). **Open WebUI stays at 0.13.3:** 0.13.4 would drop the Blender tools
 ([BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md), for the owner).
 
 The full plan is built, released and in multi-user testing. Where to look: the map of the docs,
