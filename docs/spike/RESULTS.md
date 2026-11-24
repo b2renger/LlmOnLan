@@ -1393,6 +1393,15 @@ directly and through the farm's gate and LiteLLM); `spike_bench`'s default follo
 appended) through a gate got 0 prefix-cache hits at ~40k and failed (p95 40 s) where `--append`, the shape of a real
 chat, hit 46 % and passed: the README's "prefer `--append` for hybrid models", now with its cost.
 
+**J19's measured parts, the farm's own entry from the checkout** (night n° 15, 2026-11-24 02:01–02:19; the GPU free, the
+Farm app off, no client; a test farm through its gate and LiteLLM at 32k, Automatic 32 seats, vLLM 0.33.0 from
+`~/lol-vllm-033`): one person **167 tok/s** (`lol bench`, 3 × 1000 tokens, first token 0.1 s); 30 people from 30
+addresses **124.6 tok/s each** (60/60, first token p95 0.4 s), level with night n° 10's 123.8 above; LOL Vibe's agent,
+the five tasks once, **4/5 in 101 s** (`t1-median` failed its test; night n° 10: 5/5 in 158 s). The start: **605 s** the
+first time in a root with an empty kernel folder (torch.compile 31.8 s, the kernel builds and autotune 7 min 34 s, graphs
+32 s), **107 s** the next (compile 0.65 s, warmup 17 s, graphs 22 s). Files: `results/j19-n15-{one,people30}.json`,
+`results/ide/j19-n15-20261124-qwen38-draft-32k.jsonl`.
+
 # The slowness with ten and twenty (RTX PRO 6000, 2026-11-19)
 
 CLASS_REHEARSAL_PLAN step 3, 04:08–04:23: 10 and 20 windowless clients (the client's compiled code, the released Open

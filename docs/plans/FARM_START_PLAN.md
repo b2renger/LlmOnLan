@@ -42,7 +42,8 @@ which step 3 is for.
    in `farm/test/run.js`, and a scratch farm timed before and after.
 2. **The panel says what it does and for how long (S).** The phase gets its time beside it (*loading the model weights
    · 0:42*); the kernel phase stops saying *the first start takes a few minutes longer* (false on a rebuild) and says
-   *building GPU kernels for this vLLM: up to 5 minutes, once after an install or an update*; under the bar, one line:
+   *building GPU kernels for this vLLM: up to 5 minutes, once after an install or an update* (built as *several minutes*:
+   Qwen3.8's first build took 7 min 34 s, review 2026-11-24); under the bar, one line:
    *a start takes about 2 minutes; the farm stops it by itself if it shows no progress for 10 minutes*. No time
    saved, but a start is no longer stopped a minute from ready. **Built 2026-11-23 by day** (the bar already showed
    *running for …* on a job that moves no bytes; what was missing was the truth): the kernel phase's words, and a job's

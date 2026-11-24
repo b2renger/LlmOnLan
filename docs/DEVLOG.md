@@ -9,6 +9,24 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-24 (02:21) — J19's measured parts on a test farm; the kernel phase's "up to 5 minutes" was false for Qwen3.8 (night n° 15, review M1)
+
+The Farm app was off at 02:00 (`/lol/self` silent, no `LlmOnLan Farm.exe`): it stays off tonight. The GPU held 2872 MiB.
+- **J19** (`draft_test_farm.mjs start` with `LOL_TEST_FARM_SCRATCH=1` and a folder in the scratch: its own ports, no
+  beacon, so no laptop on Automatic moved to it at night): ready **605 s** after Start, the first start in
+  `~/lol-vllm-033` since `serve.sh` gives it its own FlashInfer folder (`~/lol-vllm-033/.cache/flashinfer` filled, as
+  meant; production's untouched); a restart **107 s**. Through the gate: one person 167 tok/s, 30 people 124.6 tok/s each
+  (60/60), thinking in `reasoning_content` only, the agent's five tasks 4/5 in 101 s, the panel's *32 people at once*.
+  HUMAN_TESTS J19 (*Done by an agent*), RESULTS (the drafting section). Nothing pulled into the Ollama app's folder
+  (`gemma4:12b` there is the one of 2026-11-18). Stopped 02:18; the GPU back to 2913 MiB.
+- **The panel's bar during that start, in a real panel** (headless Edge over CDP on the test farm's panel,
+  `docs/reviews/shots-2026-11-24/panel-vllm-start.png`): *running for 43s · If vLLM writes nothing for 10 minutes, the
+  farm stops it by itself.* FARM_START step 2 seen.
+- **M1, fixed (test first):** the kernel phase said *up to 5 minutes once after vLLM is installed or updated* (step 2,
+  yesterday, from Qwen3.6's 168–250 s); tonight's log has Qwen3.8 on that phase 7 min 34 s (02:03:14 first JIT build →
+  02:10:48 graph capture). Now *several minutes*, no number; the test refuses a bound under 8 minutes (failed on the old
+  text, then farm **293/293**). *About 2 minutes* elsewhere in the panel holds for Qwen3.8 (the 107 s restart).
+
 ## 2026-11-23 (18:21) — Release client v0.2.20 (by day, on the owner's go after G14's re-check)
 
 The owner, 17:41: *"re-check passed on +n14, release v0.2.20"*; the go of 12:11 held on that re-check (DECISIONS).

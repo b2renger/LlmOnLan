@@ -288,7 +288,8 @@ whole GPU ([RESULTS.md](../docs/spike/RESULTS.md#qwen38-drafting-ahead-rtx-pro-6
 person, 51 → 94 each for 30, the same quality gate; it costs memory: the MTP layer is one more full-attention layer,
 each draft token holds 3 more pages of recurrent state, and its buffers take ~5.5 GiB beside the weights, so a 50 GiB pool
 holds about 22 whole 32k conversations instead of 31 (vLLM's own admission count). `facts()` counts all three, so the
-fit and the Automatic pool follow; the Automatic seats stay on Qwen3.8's measured label (16 at 32k). A Qwen3.8 folder an
+fit and the Automatic pool follow; the Automatic seats stay on Qwen3.8's measured label (≥ 32 at 32k since its state is kept in 16 bits, the row above;
+16 before). A Qwen3.8 folder an
 operator adds gets the flags **without** drafting (another checkpoint may have no MTP layer), and `/lol/self` says
 `backend.mtp: true` while it drafts. Not tested on a DGX Spark.
 

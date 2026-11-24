@@ -4744,6 +4744,10 @@ test('a vLLM start says what it does and that it stops by itself: its note under
     assert.equal(k.key, 'kernels');
     assert.ok(!/first start/.test(k.text), `no "first start" on what may be a rebuild: ${k.text}`);
     assert.ok(/after vLLM is installed or updated/.test(k.text), `it says when it takes long: ${k.text}`);
+    // 2026-11-24 (review n° 15): Qwen3.8's first start sat 7 min 34 s on this phase (Qwen3.6's rebuilds: 168-250 s), so
+    // "up to 5 minutes" was false where it matters most. A bound it gives must hold for the slowest one measured.
+    const bound = /up to (\d+) minutes/.exec(k.text);
+    assert.ok(!bound || Number(bound[1]) >= 8, `no bound shorter than a measured build (7 min 34 s): ${k.text}`);
 });
 
 test('the download slot: outside serialize and busy(), a restart and a switch run during it, one download at a time, Stop cancels (§11.1-16, D7)', async () => {

@@ -1933,6 +1933,19 @@ once. **The way
 back:** `node docs/spike/runs/draft_test_farm.mjs stop` in the same terminal folder, then start the Farm app (it brings
 back Qwen3.6 as it was). In the test farm's panel, **do not Download or Remove a model**: its vLLM folder links to
 production's models. Write on *Found* how fast it felt, and any answer that came out wrong or cut.
+- [x] Done by an agent, 2026-11-24 02:01–02:19 (night n° 15), the parts no person is needed for · Found: the test farm
+  in its dry-run mode (`LOL_TEST_FARM_SCRATCH=1`: its own ports, `127.0.0.1:4290`, no beacon, so no laptop saw it), the
+  Farm app off. **The start:** 605 s from Start to ready, the first in `~/lol-vllm-033` since its kernels have their own
+  folder (the kernel phase alone 7 min 34 s: the panel's *up to 5 minutes* was false, fixed, review 2026-11-24 M1); a
+  restart after it **107 s**. **Speed through the gate:** one person **167 tok/s** (3 rounds, first token 0.1 s); 30
+  people at once from 30 addresses **124.6 tok/s each**, 60/60 answered, first token p95 0.4 s
+  (`docs/spike/results/j19-n15-{one,people30}.json`). **Thinking** stays in `reasoning_content`, streamed and not, no
+  `<think>` in an answer, the answers right. **The agent's five tasks** (`ide/run.js`, 32k, maxTokens 8192, one run):
+  **4/5 in 101 s** (night n° 10: 5/5 in 158 s); `t1-median` failed its own test after the agent said *all 9 assertions
+  check out* (it has no shell and checked by hand). **The panel:** *32 people at once · 32k of context each*, *Automatic —
+  32, measured on this card*, *Measured on this card with this model: ≥ 32 at 32k when everyone writes at once*. Still
+  the person's (below): a laptop, Open WebUI and LOL Vibe on it, how fast it feels. Since 2026-11-24 `~/lol-vllm-033` may
+  also hold FlashInfer's precompiled kernels (FARM_START step 3's measurement): its next start is not this one's.
 - [ ] Done · Found:
 
 ## K. A Windows test box with an RTX card (not production)

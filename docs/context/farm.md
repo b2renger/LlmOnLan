@@ -84,7 +84,7 @@
     (`--mamba-ssm-cache-dtype float16`; vLLM counted 31.95 conversations of 32k on 50 GiB instead of 24.69, 30 people
     ~28k deep pass where they failed, the long-text check unchanged): `facts()` halves the state charge when the flag
     says `float16` or `bfloat16`, and Qwen3.8's 32k label is ≥ 32 (vLLM 0.33.0, `measured-extra.json`), so Automatic
-    seats 32 at 32k. Qwen3.6 keeps 32 bits (it failed 30 people ~50k deep with the flag). Qwen3.8 belongs at 32k: at
+    seats 32 at 32k. Qwen3.6 keeps 32 bits (with the flag and drafting it failed 30 people ~50k deep). Qwen3.8 belongs at 32k: at
     64k, 20 people 50k deep failed with and without the flag. A list saved before
     a version added models gets them at the next start, except the ids in `vllm.removed` (a Remove of a built-in), and
     its built-ins run with this version's flags (`config.js`, 2026-11-21: their measured seats were measured with them);
@@ -172,9 +172,9 @@
     the plugin switches and the Blender fleet recommendation; and the clients with their seats. Long operations run as one
     job whose progress the panel polls. vLLM's install and model downloads run beside it in a second slot, the download slot, with their own bar and Stop. A bar that
     finished well leaves the top 5 minutes after its end; a failed one stays until the next job (`shownBar`, 2026-11-23). A running
-    bar shows how long it has run, and its job's `note` (a vLLM start: *If vLLM writes nothing for 10 minutes, the farm stops it
-    by itself*, `waitReady`'s stall rule); the kernel phase says *seconds; up to 5 minutes once after vLLM is installed or
-    updated* (FARM_START_PLAN step 2, 2026-11-23). A Stop of vLLM is not kept: the
+    bar with no bytes to count (a vLLM start, an install's libraries) shows how long it has run, as every download does, and its job's `note` (a vLLM start: *If vLLM writes nothing for 10 minutes, the farm stops it
+    by itself*, `waitReady`'s stall rule); the kernel phase says *seconds; several minutes once after vLLM is installed or
+    updated* (FARM_START_PLAN step 2, 2026-11-23; Qwen3.8's first build took 7 min 34 s, so no number, 2026-11-24). A Stop of vLLM is not kept: the
     next farm start starts vLLM again. Everything persists to
     `lol.config.json` (`configFile.js` raw patch — never the schema-parsed config) **except** the Blender
     recommendation (the plugin switches persist since 2026-10-27, `<plugin>.enabled`, written once the plugin came up or
