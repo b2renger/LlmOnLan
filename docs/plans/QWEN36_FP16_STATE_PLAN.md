@@ -1,4 +1,4 @@
-# QWEN36_FP16_STATE_PLAN: Qwen3.6's recurrent state in 16 bits, 28 people at 128k instead of 24
+# QWEN36_FP16_STATE_PLAN: Qwen3.6's recurrent state in 16 bits: 64 people at 64k instead of 48, 28 at 128k instead of 24
 
 **Status: proposed, 2026-11-24 (night n° 15), for the owner.** Size **S**. Farm only.
 
@@ -22,12 +22,24 @@ The trial root `~/lol-vllm-033` (vLLM 0.33.0), `QWEN36_ARGS` + `--mamba-ssm-cach
 | 32 people | 6.1 s / 17.0: fails | 5.31 s / 19.9: fails |
 | Long-text check, ~120k | 20/20 | **20/20** |
 
+**And at 64k, the live farm's setting** (the 2026-11-14 label run's shape: 61 GiB, the question replaced each turn,
+~62k deep, 3 rounds; RESULTS ▸ *The five models on 0.33.0*):
+
+| ~62k deep | Without the flag (2026-11-14) | With it (2026-11-24) |
+|---|---|---|
+| vLLM's count, 64k on 61 GiB | 73.9 | 83.97 |
+| 48 people | 3.60 s / 23.0: pass | 3.56 s / 21.4: pass |
+| 64 people | 5.06 s / 18.6: fails | **4.67 s / 17.8: passes** |
+
+In that replaced shape the flag did not hurt Qwen3.6 without drafting: its 2026-11-19 failure needed drafting too.
+
 ## The steps
 
 1. `QWEN36_ARGS` gains `--mamba-ssm-cache-dtype float16` (`farm/src/config.js`); `facts()` already halves the state
    charge for it. A test that the built-in carries the flag (as Qwen3.8's does).
-2. The 128k label 24 → 28 in `docs/spike/explorer/measured-extra.json` (merged by `build_page.js`), so Automatic seats 28
-   at 128k; the Balanced preset's text follows. 64k (48 today) measured again the same way before its label changes.
+2. The labels in `docs/spike/explorer/measured-extra.json` (merged by `build_page.js`): 128k 24 → 28, 64k 48 → 64, so
+   Automatic seats them; the presets' texts follow (Balanced, Documents, LOL Vibe). 64 at 64k is the bench's ceiling
+   tonight (it ran 48 and 64): more may pass; a label stays what was measured.
 3. Docs: farm.md, the README's table, the library note, HUMAN_TESTS J16 (24 → 28 at 128k).
 
 **Not proved:** the long-text check finds facts by looking them up; it found no drift at ~120k, which is not proof that
@@ -35,5 +47,5 @@ there is none (as for Qwen3.8). A person's own long chats on the next Farm app a
 
 ## The question
 
-**Build it?** *Recommended:* yes, with the next Farm app (four more people at 128k on the PRO 6000, accuracy unchanged on
-the check). *Default if no answer:* not built; Qwen3.6 stays at 32 bits and 24 people at 128k.
+**Build it?** *Recommended:* yes, with the next Farm app (16 more people at 64k and 4 more at 128k on the PRO 6000,
+accuracy unchanged on the check). *Default if no answer:* not built; Qwen3.6 stays at 32 bits and 24 people at 128k.
