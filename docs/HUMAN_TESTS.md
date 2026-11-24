@@ -1856,7 +1856,7 @@ run them once the owner closes the farm (Part 3).
    then once `node farm\bin\lol.js bench --url http://127.0.0.1:4000 --people --users 26 --rounds 1 --max-tokens 1000`.
 4. The 128k load through the gate (from one address: one seat), from `docs\spike` (a farm with a password: add
    `--api-key <the farm password>`; the PRO 6000 has none, and the gate lets any key through then, `seats.js` `keyOk`):
-   `$PY spike_bench.py bench --base-url http://127.0.0.1:4000/v1 --label pro6000-gate-qwen36-128k --profile followup --prompt-tokens 120000 --rounds 3 --append --levels 16,24 --extend ""`,
+   `$PY spike_bench.py bench --base-url http://127.0.0.1:4000/v1 --label pro6000-gate-qwen36-128k --profile followup --prompt-tokens 120000 --rounds 3 --append --levels 16,24 --extend=`,
    then `$PY spike_bench.py summarize results/pro6000-gate-qwen36-128k*`.
 5. Optional, 64k: vLLM section ▸ *Context per person* 65536 ▸ Apply; `lol bench --people --users 48 --rounds 3
    --max-tokens 1000`, and step 4's line with `--prompt-tokens 62000 --levels 16,32,48` (label `…-64k`). Apply
