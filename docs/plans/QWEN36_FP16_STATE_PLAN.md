@@ -1,7 +1,7 @@
 # QWEN36_FP16_STATE_PLAN: Qwen3.6's recurrent state in 16 bits: 64 people at 64k instead of 48, 28 at 128k instead of 24
 
-**Status: proposed, 2026-11-24 (night n° 15), for the owner; not recommended (a trade: more people, a measurable
-accuracy cost, below).** Size **S**. Farm only.
+**Status: declined by the owner, 2026-11-24 ("no", [DECISIONS](../sessions/DECISIONS.md)); not built.** Proposed the
+same night (n° 15), not recommended: a trade, more people for a measurable accuracy cost (below). Size **S**. Farm only.
 
 ## Why
 

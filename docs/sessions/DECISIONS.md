@@ -27,6 +27,12 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## The farms and the room
 
+- **2026-11-24, the chat (08:45).** n° 15's question 1, Qwen3.6's recurrent state in 16 bits: **"no"**.
+  [QWEN36_FP16_STATE_PLAN](../plans/QWEN36_FP16_STATE_PLAN.md) is not built; Qwen3.6 stays at 32 bits (48 people at 64k,
+  24 at 128k).
+- **2026-11-24, the chat (08:45).** n° 15's question 3, the leftovers: **"yes"**. A session deletes
+  `~/lol-vllm-033/.cache/flashinfer.{j19,before,after-q36}-n15`, `~/lol-vllm-034/aside-n15/` and the four old client
+  test builds in `shell\dist` (`0.2.19+n12`, `+n13`, `+n14`, `0.2.20-n12`); the FlashInfer wheels in 033 stay.
 - **Default taken, 2026-11-24** (n° 14's question 1, no answer by 02:00): `~/lol-vllm-nightly` in WSL (23 GB, vLLM's
   nightly and part of Inkling 2 Mini) is **kept**.
 - **Default taken, 2026-11-24** (n° 14's question 3, no answer by 02:00): **J16 waits for the next Farm app**; no
@@ -139,6 +145,9 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## Open WebUI, privacy, cloud
 
+- **2026-11-24, the chat (08:45).** n° 15's question 2, the dev environment's Open WebUI (`sidecar/.venv`, 0.10.1,
+  three versions behind the pin): **"yes"**. A session deletes the folder and makes it again at the pin
+  (`sidecar/README.md` step 3).
 - **Default taken, 2026-11-22** (n° 12's question 1, no answer by 02:00): Open WebUI **stays at 0.13.3**;
   [BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md) not built.
 - **Default taken, 2026-11-22** (n° 12's question 4, no answer by 02:00): **nothing is released**; G14 and A29 wait on

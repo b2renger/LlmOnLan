@@ -1878,16 +1878,18 @@ note which search engines answered; the owner decides from them whether web sear
 ### J17 ★ Stop, Update and Use this from the panel, in any order
 *Proves:* the two farm bugs found by session n° 4 are fixed in the Farm app after farm-v0.0.53: Update vLLM after Stop
 without pressing Check, and a model chosen while vLLM is stopped serves after Start. *Needs:* the next Farm app
-installed, a laptop, a quiet 20 minutes (Qwen3.8 27B downloaded, or any second model of the vLLM list). *Was:* new
+installed (the build named in J16 will do: farm-v0.0.54 and after carry both fixes), a laptop, a quiet 20 minutes (Qwen3.8 27B downloaded, or any second model of the vLLM list). *Was:* new
 (2026-11-14; automated in `farm/test/vllm-lifecycle.js` step 12 with a fake vLLM).
 
 1. vLLM section: **Stop vLLM**. Without pressing Check, press **Update vLLM**.
 2. Still stopped: **Use this** on another model (Qwen3.8 27B), then **Start vLLM**. When it says ready, chat from the laptop.
-3. Stop vLLM, Use this on **Qwen3.6 35B-A3B** with 64k and People at once Automatic, Start vLLM; chat again.
+3. Stop vLLM, Use this on **Qwen3.6 35B-A3B** with People at once Automatic, Start vLLM; chat again.
 
 *Expect:* step 1: Update starts (or says *vLLM 0.33.0 is already installed*), never *vLLM is running from this folder*.
 Step 2: the laptop gets an answer from Qwen3.8 (with farm-v0.0.53 it got *The model … does not exist*). Step 3: the same
-with Qwen3.6, and the panel shows 48 people at once. Leave the farm on step 3's setting (the class's).
+with Qwen3.6, and the panel shows 48 people at once at 64k, or 24 at 128k (128k is the default from the build named
+in J16, but a farm that saved 64k, as the PRO 6000's `lol.config.json` does, stays at 64k until Balanced is applied: J16
+step 1). Leave the farm on the class's setting.
 - [ ] Done · Found:
 
 ### J18 ★ The Farm app update brings LiteLLM 1.106.9, with or without a farm password

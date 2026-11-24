@@ -365,7 +365,10 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     unless the owner says otherwise. *Then:* people per card at 128k and 64k against Qwen3.6's 24 and 48 (estimated
     ~8 and ~13), the gate, a French classroom probe (`docs/spike/runs/fr_probe.py`; the vendor says it is weaker
     outside English), the coding agent's tasks, and the think-off switch (it reads `reasoning_effort`, not
-    `enable_thinking`). **S**, the measurement; the adoption is the owner's.
+    `enable_thinking`). **S**, the measurement; the adoption is the owner's. **2026-11-24 (by 08:48, `gh`):** vLLM's
+    **v0.34.1rc0** (tagged 2026-11-24 06:01 UTC) carries #69028 and the SM12x work (#69021, #69168), so the release
+    that unblocks this is likely 0.34.1, not 0.35; it is not on PyPI yet (0.34.0 is). Ollama 0.40.18-rc0 still runs
+    Inkling on Metal only; llama.cpp #32187 and #32695 are still open. `~/lol-vllm-nightly` holds part of the checkpoint.
 
 ## 3. Later
 
@@ -404,11 +407,6 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 - ~~**Split DEVLOG.md** at 2026-10-01 into the archive.~~ *Done 2026-11-13: [archive/DEVLOG_2026-06_to_09.md](../archive/DEVLOG_2026-06_to_09.md).*
 
 ## 4. Waiting on the owner
-
-- **Qwen3.6's recurrent state in 16 bits** ([QWEN36_FP16_STATE_PLAN](QWEN36_FP16_STATE_PLAN.md), proposed 2026-11-24):
-  measured as the farm serves it, 64 people ~62k deep pass at 64k where 48 did, 28 ~120k deep at 128k where 24 did, the
-  long-text check 20/20; **but** the quality gate 272/280 against 279/280 (a coding item 6 misses in 10 runs): a trade,
-  not recommended. **S**.
 
 **The ones that unblock the most:**
 - **[BLENDER_TOOLS_ENV_PLAN](BLENDER_TOOLS_ENV_PLAN.md)** (night n° 12, proposed): the Blender tools through
@@ -538,6 +536,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
 ## 5. Parked or dropped
 
+- **Qwen3.6's recurrent state in 16 bits** ([QWEN36_FP16_STATE_PLAN](QWEN36_FP16_STATE_PLAN.md)): declined by the owner
+  2026-11-24. It held 64 people at 64k and 28 at 128k, for a quality gate of 272/280 against 279/280 (a coding item);
+  Qwen3.6 stays at 32 bits.
 - **Online documents** ([CLOUD_SOURCES_PLAN](CLOUD_SOURCES_PLAN.md)): the folder way, then the Microsoft 365 steps, all on
   hold until the school's administrators and IT give the green light (owner 2026-11-06). The plan keeps its decisions
   and its open questions, among them which formats `docs_save` may write and who administers Microsoft 365 (IT).
