@@ -399,8 +399,8 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 - ~~**Qwen3.8 above 32k** (review 2026-11-24 Q1)~~ *measured the same night: Automatic's 21 at 64k and 11 at 128k pass
   everyone deep, appended turns (review L5); nothing to build.*
 - **Test hygiene:**
-  - `sidecar/.venv` made again at the pin (review 2026-11-24 L2: it is 0.10.1, three pins behind; the owner's, it deletes a
-    folder; `sidecar/README.md` step 3);
+  - ~~`sidecar/.venv` made again at the pin (review 2026-11-24 L2)~~ *done 2026-11-25 at the owner's yes (night n° 16):
+    deleted and made again with `sidecar/README.md`'s two commands, `open-webui 0.13.3` read back from the venv;*
   - retire the old chat-scope gate;
   - `npm test` runs the chat suites;
   - vllm-lifecycle's stopped-503 assertions follow the new code (needs WSL);

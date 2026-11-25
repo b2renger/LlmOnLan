@@ -75,7 +75,8 @@ without a word says one of three things (`projects/agent.mjs` `resultOf` :148–
 read-only fact check of client.md against the code (an explorer, each line re-read here): none of the three is in it;
 status.md lists them as released in v0.2.20. *Fixed tonight:* client.md says all three.
 
-**L2 · `sidecar/.venv` (the dev environment) runs Open WebUI 0.10.1, three pins behind.** `sidecar/README.md`'s pin
+**L2 · `sidecar/.venv` (the dev environment) runs Open WebUI 0.10.1, three pins behind.** *Fixed 2026-11-25 (night n° 16,
+the owner's yes): made again at 0.13.3.* `sidecar/README.md`'s pin
 bump step 3 (*Recreate `sidecar/.venv` at the new pin … a dev client, and so the smoke test, runs the venv*) was not
 done at the 0.11.4 bump (2026-09-27) nor at 0.13.3 (2026-11-14). A dev client (`npm run dev`) and the smoke test run
 0.10.1 while About and `keepDbBeforeEngine` read 0.13.3 from `OPENWEBUI_VERSION` (`sidecarManager.ts:234`,
