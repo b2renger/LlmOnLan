@@ -17,8 +17,10 @@
 
 ## Electron packaging & auto‑update (adopt ComfyQ's recipe verbatim)
 
-Stack: **electron‑builder** (^26) + **electron‑updater** (^6) + Electron ^45 (the client, since v0.2.21: macOS 13
-Ventura and later; the Farm app still ^42), Node ≥20 (CI: Node 22). Self‑updating on
+Stack: **electron‑builder** (^26) + **electron‑updater** (^6) + Electron ^45 (the client since v0.2.21, the Farm app
+on `main` since 2026-11-26, unreleased: macOS 13 Ventura and later; the Farm app runs the farm on its Electron's Node,
+24.22 on 45.5.0), Node ≥20 (CI: Node 22). At each Electron bump of the client, keep the older binary aside and run
+`node test/safe-storage.js <older binary>` in `shell/`: the tokens the client keeps must read both ways. Self‑updating on
 mac/win/linux from **GitHub Releases**, no paid certificates (ad‑hoc mac signing).
 
 Release flow (in `shell/`):

@@ -55,6 +55,10 @@ shorter (FARM_START step 3); the built-ins read their weights with `prefetch`, ~
 start begins before LiteLLM and the other plugins, ~10 s sooner (step 1). **Open WebUI stays at 0.13.3:** 0.13.4 would drop the Blender tools
 ([BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md), for the owner).
 
+**On `main`, not released yet (2026-11-26, night n° 17):** the Farm app on Electron 45.5.0 (it runs the farm on Node
+24.22; HUMAN_TESTS J20 on the local build `0.0.55+n17`); the client's kept tokens (the Home Assistant link, the IDE's
+git tokens) on `safeStorage`'s async API, which Electron 46 keeps (A30 step 4).
+
 The full plan is built, released and in multi-user testing. Where to look: the map of the docs,
 [docs/README.md](../../docs/README.md); the dated build log with how each piece was tested, [docs/DEVLOG.md](../../docs/DEVLOG.md);
 what a person must still check, [docs/HUMAN_TESTS.md](../../docs/HUMAN_TESTS.md) (★ = before the next release; its Part 4

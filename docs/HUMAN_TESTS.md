@@ -72,7 +72,7 @@ been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the 
 | G. LOL Vibe's IDE | 1 laptop, a password farm, a GitHub account, a second drive or USB stick (G11) | 13 | G11, G13 | 3 h (+3 h of waiting for G13) |
 | H. Home Assistant on a real home | the office's Home Assistant Green | 4 | — | 2.5 h |
 | I. Document search on the farm | the farm, 2 laptops (one with old documents) | 6 | I1–I4 | 2 h |
-| J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client; J16: 10 laptops | 13 | J14 | about 8 h in several quiet moments (J16 2 h; +45 min if J1's install still runs here) |
+| J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client; J16: 10 laptops | 14 | J14, J20 | about 8 h in several quiet moments (J16 2 h; +45 min if J1's install still runs here) |
 | K. A Windows test box with an RTX card | a non-production RTX PC, the 4070/4080, a PC with no NVIDIA GPU | 13 | K1–K5, K11, K12 | 5 h (+45 min K6) |
 | L. The DGX Spark | a Spark with a screen; L4: a second disk | 4 | — | 4 h (+45 min) |
 | M. Reboot tests | the PRO 6000, the Spark | 2 | — | 1 h each |
@@ -80,7 +80,7 @@ been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the 
 | O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 3 | — | 1 h 15 |
 | P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
 | Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q5) | 6 | Q1, Q6 | 2 h 30 |
-| **Total** | | **139** | **25** | about 60–66 h |
+| **Total** | | **140** | **26** | about 60–66 h |
 
 Part 3's measurements (Q4, Q5 step 3, J12–J13 on llama.cpp) are not in these counts: an agent runs them. J16 is
 counted in J, though an agent can run its steps 1–4.
@@ -433,6 +433,10 @@ in G14 (`0.2.20+n16`, Electron 45.5.0), a farm. *Was:* new (2026-11-25). Do it w
 
 **Released 2026-11-25 as client v0.2.21** (the same `shell/` code as `0.2.20+n16`): the release's installer, or the
 update arriving on v0.2.20, serves as well; on it, About reads 0.2.21.
+**Again on the local build `0.2.21+n17`** (`shell\dist\LlmOnLan-Setup-0.2.21+n17-windows-x64.exe`, 2026-11-26 00:31,
+`6aabfa0`): the kept tokens moved to `safeStorage`'s async API (the sync one goes in Electron 46). Install it over
+v0.2.21 and do **step 4** (and 5): a GitHub token or Home Assistant link saved on v0.2.21 still connects without typing it
+again; About reads 0.2.21+n17. Measured without a person on Windows, both ways (DEVLOG 2026-11-26 00:21); not on a Mac.
 *Expect:* About reads 0.2.20+n16 on the local build (the build's own stamp, `app.getVersion()`; the updater reads 0.2.20), 0.2.21 on the release; everything as on v0.2.20: the old chats, an answer,
 the Preview and its window, the saved tokens read; the second start as quick as before. Note anything that differs.
 - [ ] Done · Found:
@@ -2018,6 +2022,30 @@ production's models. Write on *Found* how fast it felt, and any answer that came
   32, measured on this card*, *Measured on this card with this model: ≥ 32 at 32k when everyone writes at once*. Still
   the person's (below): a laptop, Open WebUI and LOL Vibe on it, how fast it feels. Since 2026-11-24 `~/lol-vllm-033` may
   also hold FlashInfer's precompiled kernels (FARM_START step 3's measurement): its next start is not this one's.
+- [ ] Done · Found:
+
+### J20 ★ The Farm app on Electron 45: its window, its panel, Check for updates, Quit
+*Proves:* the Farm app's move from Electron 42.6.0 to 45.5.0 (2026-11-26, night n° 17; plans ▸ Next 14) where it runs,
+on the PRO 6000: its window, the panel inside it (a `<webview>`), the drawer's Copy, Check for updates and Launch at
+login, and closing the window stopping the farm. A session never runs the Farm app on this computer; what was run
+without you: its own tests on 45 (12 + 3), the farm's unit suite (293/293) and the vLLM lifecycle suite run by the
+packaged app's Electron 45 as Node (DEVLOG 2026-11-26), and the installer checked inside (it runs as Node on 45.5.0,
+Node 24.22.3; no config, `.venv` or runtime file in its farm copy). *Needs:* `farm-app\dist\LlmOnLan-Farm-Setup-0.0.55+n17.exe`,
+the PRO 6000 at a quiet moment, a laptop, 10 minutes. *Was:* new (2026-11-26).
+1. Quit the Farm app if it runs, then install the build over farm-v0.0.55 (it keeps the farm's config, models and data).
+2. It opens and starts the farm as farm-v0.0.55 does: the start bar, then the panel inside the window.
+3. The drawer (the gear): *App version* reads **0.0.55+n17**; **Copy** beside the panel token says *Token copied.* and
+   the token pastes into Notepad; **Check for updates** says it is up to date (0.0.55 is the latest farm release: the
+   `+n17` does not count); turn *Launch at login* off, then on again.
+4. From a laptop: one chat.
+5. Close the window: the farm stops (the window stays until it has), then the app quits. Open it again: the farm starts
+   as in step 2.
+
+*Expect:* everything as on farm-v0.0.55; after step 5's close, no `LlmOnLan Farm.exe` in Task Manager and the card's
+memory back to what ComfyUI or nothing holds. **One thing that is not Electron 45:** if the panel stays blank and
+`%APPDATA%\LlmOnLan Farm\farm.log` has `HTTP server error on :41997 — listen EADDRINUSE`, WSL took the panel's port
+(summary n° 17, question 1): write it on *Found*, with whether WSL was already running before you opened the Farm app.
+**The way back:** install farm-v0.0.55 again.
 - [ ] Done · Found:
 
 ## K. A Windows test box with an RTX card (not production)

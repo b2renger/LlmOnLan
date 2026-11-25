@@ -217,7 +217,11 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     (n° 10 is a review. The cron ends on 2026-11-19: n° 9 onwards needs it started again.)
 
 14. ~~**Electron 45**~~ *The client bumped to 45.5.0 on 2026-11-25 (night n° 16; released in v0.2.21 the same day): the full harness 424/424 on
-    45.5.0 and on 42.5.1, the same code (`57de2c6`), the same night. Left: **the Farm app** (still 42.6.0; it runs the farm
+    45.5.0 and on 42.5.1, the same code (`57de2c6`), the same night. **The rest built night n° 17 (2026-11-26),
+    unreleased:** the Farm app on 45.5.0 (its tests 12 + 3, the farm's suite 293/293 and the vLLM lifecycle suite run by
+    its Electron as Node, the installer `0.0.55+n17` checked inside; HUMAN_TESTS J20 for the owner) and the client's
+    `safeStorage` calls on the async API (`6aabfa0`; 42's tokens read with 45's async API and back, `test/safe-storage.js`).
+    What was left before that night: **the Farm app** (still 42.6.0; it runs the farm
     on Electron's Node, 24.18 → 24.22: the farm suite 293/293 and a scratch farm's boot under 45's Node, 2026-11-25; its Electron
     calls read against 43–46's changes the same night: nothing to change (`<webview>` with `webviewTag: true`,
     `index.ts:106`; the clipboard only in main, `:261`; `openAtLogin` only; no `safeStorage`; the preload loads only

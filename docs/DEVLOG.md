@@ -9,6 +9,33 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-26 (00:41) — The Farm app on Electron 45.5.0 (night n° 17's objective, plans ▸ Next 14)
+
+- **The bump:** `farm-app` `electron` ^42.5.0 → ^45.5.0 (45.5.0 is still npm's `latest`, 2026-11-24); the lock at
+  45.5.0; npm's install-script policy fetched Electron's binary this time (`dist/version` 45.5.0). The Farm app's own
+  Electron calls were read against 43–46 on 2026-11-25 (nothing to change) and 45.x has not moved since.
+- **Tests on 45:** `npm test` 12 + 3 (copyTree reports *Electron 45.5.0 (Node 24.22.3)*); the farm's unit suite run by
+  the Farm app's `electron.exe` as Node **293/293** (00:07); **the vLLM lifecycle suite with `lol up`/`lol down` run by
+  it (`LOL_UP_ELECTRON`) 182/182** (00:24:57–00:40:20).
+- **The first lifecycle run failed every step, and not because of Electron:** *timed out waiting for the panel*, the
+  farm's log `[self] HTTP server error on :41897 — listen EADDRINUSE`. Step 1 alone on plain Node failed the same way.
+  Nothing listened on 41897 (`netstat`, `Get-NetTCPConnection`, WSL's `ss`), no Windows exclusion covered it, yet no
+  program could bind any port from about 40600 to 44998. That was WSL's ephemeral range, `40525 44620` in
+  `ip_local_port_range`: in **mirrored networking** (this computer's `.wslconfig`, set for another project) Windows
+  reserves the Linux ephemeral block, TCP and UDP, while WSL's VM runs (it freed at once when `vmmemWSL` stopped, 00:23).
+  A VM booted while a Windows program already held 41997 took `37795 41890` instead: the block avoids ports in use when
+  the VM boots. The test's own first WSL call booted the VM before its panel bound. With a WSL session held open on the
+  `37795 41890` block, the rerun passed. The farm's real ports (41997 panel and unicast discovery, 41998 beacon, the
+  client's 41995) were inside tonight's first block: a finding for the owner (summary n° 17), measured below.
+- **The installer:** `npx electron-builder --win --publish never -c.extraMetadata.version=0.0.55+n17` →
+  `farm-app\dist\LlmOnLan-Farm-Setup-0.0.55+n17.exe` (114 MB; 103 MB on 42). Checked inside: the packaged
+  `LlmOnLan Farm.exe` run as Node prints *electron 45.5.0, node 24.22.3, chrome 156.0.8078.109* (the Farm app runs the
+  farm that way); `Electron/45.5.0` in the binary; `app.asar`'s version `0.0.55+n17`; `resources/farm` has no
+  `lol.config.json`, `.venv`, `.lol-runtime.json`, `.models` or `.llamacpp`. Not run: the Farm app itself (a session
+  never runs one on this computer): HUMAN_TESTS J20 (window, panel, Copy, Check for updates, Quit), 10 minutes.
+- **Also:** a local client `0.2.21+n17` (`shell\dist\LlmOnLan-Setup-0.2.21+n17-windows-x64.exe`, 00:31) for A30 step 4
+  (the tokens on the async API): `app.asar` holds `decryptStringAsync` and no sync `decryptString(`; Electron 45.5.0.
+
 ## 2026-11-26 (00:21) — The client's sealed tokens on safeStorage's async API (night n° 17's side task, plans ▸ Next 14)
 
 - **Why:** Electron 45 deprecates `safeStorage`'s sync calls and 46 removes them; the client used them for the Home
