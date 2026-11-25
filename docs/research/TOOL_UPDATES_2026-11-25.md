@@ -1,7 +1,7 @@
 # The tools we pin, against their releases since 2026-11-22 (2026-11-25, night n° 16)
 
 The owner's standing ask (2026-11-14). The previous pass: [TOOL_UPDATES_2026-11-22](TOOL_UPDATES_2026-11-22.md). Read
-with `gh release list` / `gh release view` and PyPI's JSON on 2026-11-25 between 05:14 and 05:17; the pins read in the
+with `gh release list` / `gh release view` and PyPI's JSON on 2026-11-25 at about 05:11; the pins read in the
 repo the same minutes.
 
 | Tool | Our pin | Newer since 2026-11-22 | For us |
