@@ -98,6 +98,12 @@ which step 3 is for.
    each built-in's flags, session n° 16). `eager` is three times slower here. Windows may still cache the WSL disk
    image under Linux, so a true first start after a reboot may differ. With step 3's wheels and every cache warm,
    Qwen3.6 was ready 80 s after its start (`trial_serve.sh`, no farm around it).
+   **Built (night n° 16, 2026-11-25):** `PREFETCH` in the flags of Qwen3.6, Nemotron, Qwen3.8 and both Gemma 4
+   (`config.js`); not Qwen3-Omni (70 GB, unmeasured, near a smaller box's memory) nor Flint (one GGUF file).
+   `prefetch` is in every vLLM the farm ever installed (0.30.0, 0.33.0; checked in vLLM's `config/load.py` back to
+   0.20.0), and it is not part of vLLM's compile-cache key (`LoadConfig.compute_hash`: no factors), so no recompile.
+   `flagMap` leaves the flag out of the comparisons: a vLLM running without it (a take-over, one left across the
+   update) is kept, not restarted (the golden adoption test failed until it did). Test first, farm 293/293.
 
 **Not proposed:** fewer CUDA graphs (~15 s, but slower answers with 48 people); keeping vLLM running when the Farm
 app quits (the card stays taken; the farm already takes over a vLLM it finds running).

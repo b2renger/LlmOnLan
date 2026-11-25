@@ -90,6 +90,9 @@
     empties its prefix cache (as a Regenerate would). A list saved before
     a version added models gets them at the next start, except the ids in `vllm.removed` (a Remove of a built-in), and
     its built-ins run with this version's flags (`config.js`, 2026-11-21: their measured seats were measured with them);
+    the safetensors built-ins under 25 GB read their weights with `--safetensors-load-strategy prefetch` (FARM_START step 4:
+    Qwen3.6's 31 s → 15 s from a cold disk; not Qwen3-Omni, 70 GB, nor Flint's GGUF), a flag `flagMap` leaves out of
+    every comparison, so a vLLM started without it is kept, not restarted;
     a Qwen3.8 the operator adds gets neither drafting nor the 16-bit state (`familyArgs`);
     and sets people at once, context per person and GPU memory for conversations
     (Automatic: measured seats capped by what the pool holds; the pool from free memory less the model, ~4 GB,

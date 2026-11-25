@@ -488,9 +488,10 @@ function planFor(config, st, mem = memOf(st), { ocrEnabled = !!(config.ocr && co
     };
 }
 
-// `vllm serve` flags as a map, so two launches compare whatever their order: --uds dropped (serve.sh adds it), a
-// repeated flag keeps its last value (as vLLM does), a flag with no value is true, and the generation override is
-// compared as JSON.
+// `vllm serve` flags as a map, so two launches compare whatever their order: --uds dropped (serve.sh adds it), and
+// --safetensors-load-strategy (how the weights were read: a running server serves the same either way, so a vLLM
+// started without the built-ins' `prefetch` is kept, not restarted; FARM_START step 4), a repeated flag keeps its
+// last value (as vLLM does), a flag with no value is true, and the generation override is compared as JSON.
 function flagMap(argv) {
     const out = {};
     for (let i = 0; i < argv.length; i++) {
@@ -501,7 +502,7 @@ function flagMap(argv) {
         if (eq > 0) { val = a.slice(eq + 1); a = a.slice(0, eq); }
         else if (i + 1 < argv.length && !String(argv[i + 1]).startsWith('--')) val = String(argv[++i]);
         else val = true;
-        if (a === '--uds') continue;
+        if (a === '--uds' || a === '--safetensors-load-strategy') continue;
         if (a === '--override-generation-config' && typeof val === 'string') { try { val = JSON.parse(val); } catch { /* compared as text */ } }
         out[a] = val;
     }

@@ -4070,7 +4070,12 @@ test('vLLM config: its defaults, the three measured models, and what it refuses 
         ['flint', 'RecursiveSI/flint-nvfp4-gguf', false, null, null],
         ['gemma-4-26b', 'nvidia/Gemma-4-26B-A4B-NVFP4', true, null, 'gemma426'],
     ]);
-    assert.equal(v.library[0].args.join(' '), '--kv-cache-dtype fp8 --enable-prefix-caching --mamba-cache-mode align --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_xml', 'the spike\'s flags, as serve.sh runs them');
+    assert.equal(v.library[0].args.join(' '), '--kv-cache-dtype fp8 --enable-prefix-caching --mamba-cache-mode align --reasoning-parser qwen3 --enable-auto-tool-choice --tool-call-parser qwen3_xml --safetensors-load-strategy prefetch', 'the spike\'s flags, as serve.sh runs them');
+    // FARM_START_PLAN step 4 (measured 2026-11-24: Qwen3.6's weights 31 → 15 s from a cold disk, nothing lost warm): every
+    // built-in read from safetensors and under 25 GB prefetches its files; not Flint (one GGUF file, which the safetensors
+    // strategy does not read) nor Qwen3-Omni (70 GB, unmeasured, near a smaller box's memory).
+    const prefetches = (e) => / --safetensors-load-strategy prefetch( |$)/.test(` ${e.args.join(' ')}`);
+    assert.deepEqual(v.library.filter(prefetches).map((e) => e.id), ['qwen3.6-35b-a3b', 'nemotron-3.5-lightning', 'qwen3.8-27b-nvfp4', 'gemma-4-12b', 'gemma-4-26b']);
     assert.ok(defaultConfig().vllm.library[0].args !== v.library[0].args, 'each config gets its own copy of the library');
     const ok = (vllm) => ConfigSchema.safeParse({ vllm }).success;
     assert.ok(!ok({ bogus: 1 }), 'strict: an unknown key in the block');
@@ -5024,7 +5029,7 @@ test('vLLM list, Gemma 4 and Qwen3-Omni (owner 2026-10-09): their flags, their f
     const gemma = lib.find((e) => e.id === 'gemma-4-12b');
     const omni = lib.find((e) => e.id === 'qwen3-omni-30b-a3b');
     // vLLM's Gemma 4 recipe: its parsers; a message may carry 4 pictures and 1 sound, no video.
-    assert.equal(gemma.args.join(' '), '--kv-cache-dtype fp8 --enable-prefix-caching --reasoning-parser gemma4 --enable-auto-tool-choice --tool-call-parser gemma4 --limit-mm-per-prompt {"image":4,"audio":1,"video":0}');
+    assert.equal(gemma.args.join(' '), '--kv-cache-dtype fp8 --enable-prefix-caching --reasoning-parser gemma4 --enable-auto-tool-choice --tool-call-parser gemma4 --safetensors-load-strategy prefetch --limit-mm-per-prompt {"image":4,"audio":1,"video":0}');
     assert.equal(omni.args.join(' '), '--quantization fp8 --kv-cache-dtype fp8 --enable-prefix-caching --enable-auto-tool-choice --tool-call-parser hermes --override-generation-config {"temperature":0.6,"top_p":0.95,"top_k":20} --limit-mm-per-prompt {"image":4,"audio":1,"video":0}');
     assert.deepEqual([gemma.repo, gemma.vision, gemma.audio, omni.repo, omni.vision, omni.audio], ['unsloth/gemma-4-12b-it-NVFP4', true, true, 'Qwen/Qwen3-Omni-30B-A3B-Instruct', true, true]);
     assert.ok(!lib.find((e) => e.id === 'qwen3.6-35b-a3b').audio, 'the others hear nothing');

@@ -399,10 +399,15 @@ const VllmModelSchema = z.object({
 
 // The library: the three checkpoints the spike measured (docs/spike/RESULTS.md, "Exact install and launch
 // commands"), with the flags it ran them with.
+// The weights read ahead into memory by threads beside the loader (FARM_START_PLAN step 4, measured 2026-11-24 on
+// Qwen3.6, vLLM 0.33.0: 31 → 15 s from a cold disk, the same 12 s warm; in every vLLM the farm ever installed, 0.30.0
+// and 0.33.0). ponytail: on the safetensors built-ins under 25 GB only; Qwen3-Omni (70 GB, near a smaller box's memory)
+// and Flint (one GGUF file) keep the default until measured.
+const PREFETCH = ['--safetensors-load-strategy', 'prefetch'];
 const QWEN36_ARGS = ['--kv-cache-dtype', 'fp8', '--enable-prefix-caching', '--mamba-cache-mode', 'align',
-    '--reasoning-parser', 'qwen3', '--enable-auto-tool-choice', '--tool-call-parser', 'qwen3_xml'];
+    '--reasoning-parser', 'qwen3', '--enable-auto-tool-choice', '--tool-call-parser', 'qwen3_xml', ...PREFETCH];
 const NEMOTRON_ARGS = ['--kv-cache-dtype', 'fp8', '--enable-prefix-caching', '--mamba-cache-mode', 'align',
-    '--mamba-backend', 'flashinfer', '--reasoning-parser', 'nemotron_v3', '--enable-auto-tool-choice', '--tool-call-parser', 'qwen3_coder'];
+    '--mamba-backend', 'flashinfer', '--reasoning-parser', 'nemotron_v3', '--enable-auto-tool-choice', '--tool-call-parser', 'qwen3_coder', ...PREFETCH];
 // Qwen3.8 drafts 3 tokens ahead with the checkpoint's own MTP layer (VLLM_DRAFT_PLAN, owner 2026-11-18): twice the speed
 // alone and for 30 people at once, the same answers, a fifth to a third fewer people in the pool (vllm.js facts()).
 // Probabilistic drafts: HyperQwen's issue #73 measured greedy, vLLM's default, as the wrong one for sampled answers.
@@ -413,11 +418,11 @@ const NEMOTRON_ARGS = ['--kv-cache-dtype', 'fp8', '--enable-prefix-caching', '--
 const QWEN38_ARGS = ['--kv-cache-dtype', 'fp8_e4m3', '--enable-prefix-caching', '--mamba-cache-mode', 'align',
     '--mamba-ssm-cache-dtype', 'float16',
     '--reasoning-parser', 'qwen3', '--enable-auto-tool-choice', '--tool-call-parser', 'qwen3_coder',
-    '--speculative-config', '{"method":"mtp","num_speculative_tokens":3,"draft_sample_method":"probabilistic"}'];
+    '--speculative-config', '{"method":"mtp","num_speculative_tokens":3,"draft_sample_method":"probabilistic"}', ...PREFETCH];
 // Gemma 4 (vLLM's own recipe, docs.vllm.ai Google/Gemma4): its thinking and tool-call parsers. The checkpoint's
 // chat template handles tools, so no --chat-template (the recipe's is an older copy of the same).
 const GEMMA4_ARGS = ['--kv-cache-dtype', 'fp8', '--enable-prefix-caching',
-    '--reasoning-parser', 'gemma4', '--enable-auto-tool-choice', '--tool-call-parser', 'gemma4'];
+    '--reasoning-parser', 'gemma4', '--enable-auto-tool-choice', '--tool-call-parser', 'gemma4', ...PREFETCH];
 // Qwen3-Omni: vLLM serves its thinker (text out; the talker that speaks is not served). Qwen publishes it only in
 // BF16 (70 GB), so vLLM quantizes the weights to FP8 as it loads them. Its tools are Hermes-style <tool_call> tags.
 // Sampling: Qwen's own vLLM example (temperature 0.6, top_p 0.95, top_k 20); the checkpoint sets none for the thinker.
