@@ -36,7 +36,8 @@ says so (it said the Changes tab showed what it did).
 
 **Unreleased on `main`** (since v0.2.20 and farm-v0.0.54; by 2026-11-25 02:30), each behind its human test and the
 owner's go. **Client:** a new chat opened from a project's chat stays in that project, and *Plan first* is offered in a
-chat with no project too, asking for one (PLAN_FIRST_NEW_CHAT, G14 steps 6 and 7; the local build `0.2.20+n16`). **Farm:** Qwen3.8 drafting ahead and keeping its state in 16 bits (J19); 128k of
+chat with no project too, asking for one (PLAN_FIRST_NEW_CHAT, G14 steps 6 and 7); Electron 45.5.0 (42 is past its end of
+life; the full harness 424/424 on both); the local build `0.2.20+n16`. **Farm:** Qwen3.8 drafting ahead and keeping its state in 16 bits (J19); 128k of
 context per person by default, Automatic 24 on the PRO 6000 (J16); a saved vLLM list running its built-ins with the
 current flags; the panel's seat text; a finished job's bar that leaves the panel's top after 5 minutes (a failed one
 stays); every vLLM root but production's builds FlashInfer's kernels in its own folder (`serve.sh`); a vLLM start's

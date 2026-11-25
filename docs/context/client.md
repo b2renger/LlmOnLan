@@ -42,7 +42,8 @@
   (docs/archive/plans/LOLCHAT_STUDIO_PLAN.md §6: Open WebUI does documents and search); and
   since 2026-09-28 the **IDE** (P5 v1, [docs/plans/IDE_PLAN.md](../../docs/plans/IDE_PLAN.md)): the workbench's **Project** panel binds a
   thread to a folder in `DATA_DIR/LOL Studio Projects/`, and that thread's replies come from **DeepSeek Harness**
-  (dsh 0.1.7-rc.2) run by main (`src/main/studio.ts`) over its SDK on its OWN Node (its addon refuses Electron 42),
+  (dsh 0.1.7-rc.2) run by main (`src/main/studio.ts`) over its SDK on its OWN Node (its addon refuses Electron's own Node: seen on 42; the client runs Electron 45.5.0 since
+  2026-11-25),
   with a profile patch written from the current farm: 9 file tools, no shell/web/subagents, no DeepSeek cloud row,
   telemetry off, skills only from `DATA_DIR/skills`, dsh's own plan mode off (`plan-mode`: its `exit_plan_mode` only
   came back refused, 2026-11-21; *Plan first* below is LOL's); its session logs (`DATA_DIR/lol-studio/dsh/sessions`)

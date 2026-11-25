@@ -9,6 +9,23 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-25 (03:44) — The client on Electron 45.5.0 (plans ▸ Next 14, night n° 16)
+
+- **Measured first, the same code both ways** (`57de2c6`): the full client harness on 42.5.1 (the checkout, slot 1,
+  03:03–03:20) **424/424**; on 45.5.0 (a scratch worktree, `npm ci` + `electron@45.5.0 --no-save`, slot 2, 03:22–03:39)
+  **424/424**. So Next 14's "order-dependent defect" is not 45's (night n° 10 traced 45's 57/73 to the drive letter,
+  H1, fixed 2026-11-15).
+- **The bump:** `shell/package.json` `^45.5.0` and its lock. npm's install-script policy skips Electron's own download
+  (`node_modules/electron/dist` missing after `npm i`, in the worktree and the checkout alike): `node install.js` in
+  `node_modules/electron` fetches it. electron-builder downloads Electron by version for an installer, so CI's builds do
+  not depend on it. On the checkout: `k24-plan-first-*` and `c3-sandbox-isolation` 3/3 on 45.
+- **What 43–45 change that we use** (the `docs` explorer on Electron's breaking-changes page and release notes, checked
+  in the code): the sync `safeStorage` calls (`src/main/index.ts` 71–80, 833–844) are deprecated in 45 and removed in 46:
+  they still work here, to move to the async API before 46; the compiled preload loads only `electron` and no `Buffer`
+  (45 removes Node shims from sandboxed preloads); `display-capture` (45) is in no allow-list of ours and nothing of ours
+  captures the screen. **The Farm app stays on 42.6.0** tonight: it runs the farm on Electron's Node (24.18 → 24.22 with
+  45), so its bump wants a scratch farm under it first (plans ▸ Next 14).
+
 ## 2026-11-25 (02:59) — PLAN_FIRST_NEW_CHAT (a) and (b) built (night n° 16, the queue's first item)
 
 - (a) `ui/workbench.mjs`: a new chat opened from a project's chat stays in it, its panel open (AP.1's one exception; a
