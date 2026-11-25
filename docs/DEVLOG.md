@@ -25,6 +25,9 @@ commit so the history records that a feature was tested + documented before it w
   (45 removes Node shims from sandboxed preloads); `display-capture` (45) is in no allow-list of ours and nothing of ours
   captures the screen. **The Farm app stays on 42.6.0** tonight: it runs the farm on Electron's Node (24.18 → 24.22 with
   45), so its bump wants a scratch farm under it first (plans ▸ Next 14).
+- **The local client `0.2.20+n16` rebuilt** (03:41, from `2005458`): Electron 45.5.0 inside (`LlmOnLan.exe` says
+  `Electron/45.5.0`, no 42.5.1), the stored-studio fix inside, `NotSigned`, 115 MB. HUMAN_TESTS A30 (new, ★): ten minutes
+  of an ordinary day on it, with the owner's real data, beside G14 steps 6 and 7.
 
 ## 2026-11-25 (02:59) — PLAN_FIRST_NEW_CHAT (a) and (b) built (night n° 16, the queue's first item)
 

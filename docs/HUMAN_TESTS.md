@@ -419,6 +419,22 @@ change there runs as you type, and when you close the window the page comes back
 Step 8: the model's code is back, *edited* is gone.
 - [x] Done by the owner, 2026-11-23, on `0.2.19+n13` · Found: "On A29 we are good to go": passes.
 
+### A30 ★ The client on Electron 45: ten minutes of an ordinary day, on the owner's own data
+*Proves:* the Electron bump of 2026-11-25 (42.5.1 → 45.5.0, plans ▸ Next 14) on an installed client with real data,
+which the harness (424/424 on both, a scratch profile) cannot: the saved tokens (Electron 45 deprecates the sync
+`safeStorage` calls we use; they still work until 46), the Open WebUI webview, the page pop-out. *Needs:* the build named
+in G14 (`0.2.20+n16`, Electron 45.5.0), a farm. *Was:* new (2026-11-25). Do it with G14 steps 6 and 7, same sitting.
+1. Install the build over v0.2.20 (it keeps the data folder). Open it; Settings ▸ About.
+2. Open WebUI: a chat with an earlier conversation still there; one new question.
+3. LOL Vibe: an answer with a page, **Preview**, then the page's pop-out window (A29's step).
+4. If a GitHub (or Gitea) token or a Home Assistant link was saved before: the IDE's **Push** or the Home box still
+   connected without typing it again.
+5. Quit, open again.
+
+*Expect:* About reads 0.2.20 (the build's metadata is not shown); everything as on v0.2.20: the old chats, an answer,
+the Preview and its window, the saved tokens read; the second start as quick as before. Note anything that differs.
+- [ ] Done · Found:
+
 ### A10 Code, pictures and files
 *Proves:* the sandbox and the File box on a real disk. *Was:* 3.1, 3.5, 3.6, 3.9; LOLCHAT_RIG §15, §15b, §18 (a paused
 sandbox); COMPUTER_STATUS "What only you can check" 3 and 8.
@@ -1441,7 +1457,7 @@ min and one at about +180 min (*1 sent*, then *2 sent*), each with its reply; lo
 ### G14 Plan first: the agent proposes, the student approves (five minutes, a student's laptop)
 *Proves:* with **Plan first** on, the coding agent reads the project and answers with a plan, and changes nothing until
 **Go ahead** (STUDENT_PLAN_MODE_PLAN; the fence that refuses its writes is tested on the real agent runtime and in the
-harness, the plan's wording on a real model is not). **A build is ready (2026-11-25), for steps 6 and 7:** `shell/dist/LlmOnLan-Setup-0.2.20+n16-windows-x64.exe` in the owner's checkout (built 02:49 from `main` at `40057e5`, local and unsigned, version `0.2.20+n16`: the updater reads it as 0.2.20, so the next release installs over it). It installs over v0.2.20 and keeps its data. Steps 1 to 5 passed on `0.2.19+n13` and `+n14` (below; those builds were deleted 2026-11-25, the owner's yes). *Needs:* a client build with Plan first (after v0.2.19); a farm
+harness, the plan's wording on a real model is not). **A build is ready (2026-11-25), for steps 6 and 7 and A30:** `shell/dist/LlmOnLan-Setup-0.2.20+n16-windows-x64.exe` in the owner's checkout (built 03:41 from `main` at `2005458`, local and unsigned, version `0.2.20+n16`, **Electron 45.5.0**: the updater reads it as 0.2.20, so the next release installs over it). It installs over v0.2.20 and keeps its data. Steps 1 to 5 passed on `0.2.19+n13` and `+n14` (below; those builds were deleted 2026-11-25, the owner's yes). *Needs:* a client build with Plan first (after v0.2.19); a farm
 with Qwen3.6 or qwen3.8; a project with an index.html (any page the agent made). *Was:* new (2026-11-20); the switch
 moved from the Project panel's bar to beside the message box, one per chat, on 2026-11-21 (as the plan was approved).
 1. In the project's chat, **Plan first** beside the message box (it turns to *Plan first: on*, and a line above the
