@@ -9,7 +9,7 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-11-25 (03:44) — The client on Electron 45.5.0 (plans ▸ Next 14, night n° 16)
+## 2026-11-25 (03:41) — The client on Electron 45.5.0 (plans ▸ Next 14, night n° 16)
 
 - **Measured first, the same code both ways** (`57de2c6`): the full client harness on 42.5.1 (the checkout, slot 1,
   03:03–03:20) **424/424**; on 45.5.0 (a scratch worktree, `npm ci` + `electron@45.5.0 --no-save`, slot 2, 03:22–03:39)
