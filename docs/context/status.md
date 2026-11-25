@@ -3,12 +3,13 @@
 > Moved verbatim from CLAUDE.md on 2026-11-12 (the split into context modules). It describes `main` unless a line
 > names a release or says *not released yet*. Keep it true: a change to the code it describes changes this file in the same commit.
 
-## Build status (2026-11-23) — released: client `v0.2.20` (OWUI `0.13.3`) · Farm app `farm-v0.0.54`
+## Build status (2026-11-25) — released: client `v0.2.21` (OWUI `0.13.3`, Electron 45) · Farm app `farm-v0.0.55`
 
 > What each release brought, from v0.2.0 on: the DEVLOG's release entries ([docs/DEVLOG.md](../../docs/DEVLOG.md), headed
 > "Release …"; v0.2.5 is in its 2026-09-29 afternoon entry, farm-v0.0.47 and 0.0.48 in its 2026-10-13 ones).
-> `origin/main` = the last release (client v0.2.20, 2026-11-23, cut by day on the owner's go; before it v0.2.19,
-> 2026-11-18, v0.2.18 and Farm app farm-v0.0.54, 2026-11-16, and v0.2.17 and farm-v0.0.53, 2026-11-12). Since that day the work is
+> `origin/main` = the last release (client v0.2.21 and Farm app farm-v0.0.55, 2026-11-25, cut by day on the owner's go;
+> before them v0.2.20, 2026-11-23, v0.2.19, 2026-11-18, v0.2.18 and Farm app farm-v0.0.54, 2026-11-16, and v0.2.17 and
+> farm-v0.0.53, 2026-11-12). Since 2026-11-12 the work is
 > committed on `main` in the owner's checkout, backed up to the `night` branch, and pushed to `main` only at a release
 > (CLAUDE.md, *How we work*). The modules
 > describe the code; a change from 2026-11-05 on names the release that brought it.
@@ -34,10 +35,13 @@ restart (the Preview's port); the coding agent's session logs kept 30 days; dsh'
 project says the coding agent answers it (not *press Project*); a coding-agent turn that did nothing, or only read,
 says so (it said the Changes tab showed what it did).
 
-**Unreleased on `main`** (since v0.2.20 and farm-v0.0.54; by 2026-11-25 02:30), each behind its human test and the
-owner's go. **Client:** a new chat opened from a project's chat stays in that project, and *Plan first* is offered in a
-chat with no project too, asking for one (PLAN_FIRST_NEW_CHAT, G14 steps 6 and 7); Electron 45.5.0 (42 is past its end of
-life; the full harness 424/424 on both); the local build `0.2.20+n16`. **Farm:** Qwen3.8 drafting ahead and keeping its state in 16 bits (J19); 128k of
+**Client v0.2.21 and Farm app farm-v0.0.55** (2026-11-25, by day, on the owner's go of 08:51, *"cut a release for
+testing"*: the owner tests on the released installers, HUMAN_TESTS J16's 10-minute check, J17, J19, J16 steps 1 and 6,
+G14 steps 6 and 7, A30; the same code as the local builds `0.2.20+n16` and `0.0.54+n16`, since them only tests and one
+comment in `install.sh`). **Client:** a new chat opened from a project's chat stays in that project, and *Plan first*
+is offered in a chat with no project too, asking for one (PLAN_FIRST_NEW_CHAT, G14 steps 6 and 7); Electron 45.5.0 (42
+is past its end of life; the full harness 424/424 on both; macOS 13 Ventura and later, the owner: no Macs on Monterey,
+A30); Open WebUI unchanged (0.13.3, bundle rev 2), so an update downloads no Open WebUI. **Farm:** Qwen3.8 drafting ahead and keeping its state in 16 bits (J19); 128k of
 context per person by default, Automatic 24 on the PRO 6000 (J16); a saved vLLM list running its built-ins with the
 current flags; the panel's seat text; a finished job's bar that leaves the panel's top after 5 minutes (a failed one
 stays); every vLLM root but production's builds FlashInfer's kernels in its own folder (`serve.sh`); a vLLM start's
@@ -47,7 +51,7 @@ what passed everyone deep (32 at 32k, 21 at 64k, 11 at 128k; review L5); a model
 download temp file no longer reads *partly downloaded* (`status.sh`, review M2, low: the panel's Download already
 cleaned it); Install and Update vLLM put in FlashInfer's precompiled kernels on a 12.x card, a first start ~3½ minutes
 shorter (FARM_START step 3); the built-ins read their weights with `prefetch`, ~16 s off a cold start (step 4); vLLM's
-start begins before LiteLLM and the other plugins, ~10 s sooner (step 1); the local build `0.0.54+n16`. **Open WebUI stays at 0.13.3:** 0.13.4 would drop the Blender tools
+start begins before LiteLLM and the other plugins, ~10 s sooner (step 1). **Open WebUI stays at 0.13.3:** 0.13.4 would drop the Blender tools
 ([BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md), for the owner).
 
 The full plan is built, released and in multi-user testing. Where to look: the map of the docs,

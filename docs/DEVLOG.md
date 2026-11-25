@@ -24,7 +24,7 @@ commit so the history records that a feature was tested + documented before it w
   clean, nothing left. Not yet: the Farm app's own window, tray and updater on 45 (plans ▸ Next 14).
 - **The lifecycle suite under the Farm app's own Node** (05:21–05:36): `vllm-lifecycle.js` gains `LOL_UP_ELECTRON`, an
   Electron binary that runs `lol up` and `lol down` as Node, as the Farm app does (test-only). With `farm-app`'s
-  Electron 42.6.0 (Node 24.18; the process checked: `electron.exe …armin\lol.js up`): **182/182**, FARM_START's
+  Electron 42.6.0 (Node 24.18; the process checked: `electron.exe …\farm\bin\lol.js up`): **182/182**, FARM_START's
   steps 25 and 26 included. So tonight's farm changes hold on the runtime the shipped Farm app gives them.
 
 ## 2026-11-25 (05:04) — Ripple-65B Preview measured: 3 people at 64k (7 in FP8), 25 tok/s, the agent 3/5 (plans ▸ Next 12, night n° 16)

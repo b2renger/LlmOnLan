@@ -51,11 +51,17 @@ file stays the whole list.
   `sm120f` provider `--no-deps`, from FlashInfer's GitHub release only), the weights' load strategy (**measured: `prefetch`
   31 → 15 s cold, nothing warm**). **S + S + M + S**. Farm only. **All four built by night n° 16 (2026-11-25),
   unreleased:** step 1 ~10 s off a start (the boot's 29 s were not all movable), step 3 a first start 331 → 122 s, step 4
-  ~16 s off a cold disk; the local Farm app `0.0.54+n16` for J16, J19 and the 10-minute check.
+  ~16 s off a cold disk; the local Farm app `0.0.54+n16` for J16, J19 and the 10-minute check. **Released in Farm app
+  farm-v0.0.55** (2026-11-25, the owner's go before the tests).
 - **Start a new chat with a plan** ([PLAN_FIRST_NEW_CHAT_PLAN](PLAN_FIRST_NEW_CHAT_PLAN.md), approved by the owner
   2026-11-23 12:11): (a) a new chat from a project's chat stays in it; (b) every new chat offers *Plan first*. **S + S**.
   **Built night n° 16 (2026-11-25), unreleased:** (a) and (b), off by default (the default taken 2026-11-24); the
-  harness's two `k24-plan-first-*` scenarios; HUMAN_TESTS G14 steps 6 and 7 for the owner.
+  harness's two `k24-plan-first-*` scenarios; HUMAN_TESTS G14 steps 6 and 7 for the owner. **Released in client v0.2.21**
+  (2026-11-25).
+- **The bundled runtimes updated on an installed farm** ([RUNTIME_UPDATE_PLAN](RUNTIME_UPDATE_PLAN.md), approved by the
+  owner 2026-11-25 08:51): expat 2.11.0's security fixes (python-build-standalone 20261124) reach new installs only
+  today; the plan swaps a newer build of the same CPython while the farm is stopped. **S–M**. Farm app only, after
+  farm-v0.0.55 and the Farm app's own Electron 45 (summary n° 16's next objective).
 - **128k of context per person by default** ([CONTEXT_128K_PLAN](CONTEXT_128K_PLAN.md), approved by the owner
   2026-11-19 18:15, for a night session after the tests of 2026-11-20): the vLLM default and the Balanced preset at
   128k, Qwen3.6's 128k label measured on 0.33.0 (24; the owner, 2026-11-20 12:46: "24, 128k can be the default").
@@ -178,7 +184,7 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     E4. **M**.
 12. ~~**Measure Ripple-65B Preview**~~ *Measured 2026-11-25 (night n° 16, RESULTS ▸ Ripple-65B Preview): 3 people at 64k
     (7 with FP8 KV), 25 tok/s alone, the gate 27/28, the agent 3/5: no clear win, not proposed for the list. DFlash2 not
-    measured.* A dense model tuned for coding: about 4–13 people at 64k on the PRO 6000 by
+    measured. Its files deleted 2026-11-25 (the owner's "yes", 08:51).* A dense model tuned for coding: about 4–13 people at 64k on the PRO 6000 by
     estimate, so a small group's model at best. It needs a vLLM nightly in a root of its own, after Now 3
     ([the study](../research/RIPPLE_65B_STUDY.md)). *2026-11-22: no nightly any more: vLLM 0.34.0 (2026-11-16) lists
     "Ricursive Ripple-65B Preview … `ripple` reasoning and tool parsers | #65745", and night n° 12's trial root
@@ -210,14 +216,15 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
     (n° 10 is a review. The cron ends on 2026-11-19: n° 9 onwards needs it started again.)
 
-14. ~~**Electron 45**~~ *The client bumped to 45.5.0 on 2026-11-25 (night n° 16, unreleased): the full harness 424/424 on
+14. ~~**Electron 45**~~ *The client bumped to 45.5.0 on 2026-11-25 (night n° 16; released in v0.2.21 the same day): the full harness 424/424 on
     45.5.0 and on 42.5.1, the same code (`57de2c6`), the same night. Left: **the Farm app** (still 42.6.0; it runs the farm
     on Electron's Node, 24.18 → 24.22: the farm suite 293/293 and a scratch farm's boot under 45's Node, 2026-11-25; its Electron
     calls read against 43–46's changes the same night: nothing to change (`<webview>` with `webviewTag: true`,
     `index.ts:106`; the clipboard only in main, `:261`; `openAtLogin` only; no `safeStorage`; the preload loads only
     `electron`; no `defaultPath`); its own window, tray and updater not yet seen on 45), and the sync `safeStorage` calls (deprecated in 45,
     removed in 46: `src/main/index.ts` 71–80, 833–844). **45 needs macOS 13 Ventura** (42: 12 Monterey; Electron's
-    README at each tag) and builds no 32-bit Windows: a Monterey Mac is the owner's question (summary n° 16).* (42 is past its end of life, 2026-10-20): tried 2026-11-14 and dropped for the class. On 45 the
+    README at each tag) and builds no 32-bit Windows: the owner, 2026-11-25 08:51, "no Macs on Monterey", so the client
+    releases on 45 (v0.2.21).* (42 is past its end of life, 2026-10-20): tried 2026-11-14 and dropped for the class. On 45 the
     harness's sandbox stops booting once a long-running window has run earlier scenarios (`--phase c` 57/73 twice,
     k 174/217; on 42.6.0 the same tree gives 73/73), though each scenario passes alone: an order-dependent defect, maybe
     the same one 42 showed rarely on 2026-11-12 (k 175/217). First find what earlier scenario leaves the state, then
@@ -419,11 +426,6 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 - ~~**Split DEVLOG.md** at 2026-10-01 into the archive.~~ *Done 2026-11-13: [archive/DEVLOG_2026-06_to_09.md](../archive/DEVLOG_2026-06_to_09.md).*
 
 ## 4. Waiting on the owner
-
-- **The bundled runtimes updated on an installed farm** ([RUNTIME_UPDATE_PLAN](RUNTIME_UPDATE_PLAN.md), proposed
-  2026-11-25): expat 2.11.0's security fixes (python-build-standalone 20261124) would reach new installs only; the plan
-  swaps a newer build of the same CPython while the farm is stopped. **S–M**.
-- **Electron 45 and macOS 12** (summary n° 16, question 3): 45 needs macOS 13 Ventura; the client on `main` is on 45.
 
 **The ones that unblock the most:**
 - **[BLENDER_TOOLS_ENV_PLAN](BLENDER_TOOLS_ENV_PLAN.md)** (night n° 12, proposed): the Blender tools through

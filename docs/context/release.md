@@ -17,7 +17,8 @@
 
 ## Electron packaging & auto‑update (adopt ComfyQ's recipe verbatim)
 
-Stack: **electron‑builder** (^26) + **electron‑updater** (^6) + Electron ^42, Node ≥20 (CI: Node 22). Self‑updating on
+Stack: **electron‑builder** (^26) + **electron‑updater** (^6) + Electron ^45 (the client, since v0.2.21: macOS 13
+Ventura and later; the Farm app still ^42), Node ≥20 (CI: Node 22). Self‑updating on
 mac/win/linux from **GitHub Releases**, no paid certificates (ad‑hoc mac signing).
 
 Release flow (in `shell/`):

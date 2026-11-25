@@ -431,7 +431,9 @@ in G14 (`0.2.20+n16`, Electron 45.5.0), a farm. *Was:* new (2026-11-25). Do it w
    connected without typing it again.
 5. Quit, open again.
 
-*Expect:* About reads 0.2.20+n16 (the build's own stamp, `app.getVersion()`; the updater reads 0.2.20); everything as on v0.2.20: the old chats, an answer,
+**Released 2026-11-25 as client v0.2.21** (the same `shell/` code as `0.2.20+n16`): the release's installer, or the
+update arriving on v0.2.20, serves as well; on it, About reads 0.2.21.
+*Expect:* About reads 0.2.20+n16 on the local build (the build's own stamp, `app.getVersion()`; the updater reads 0.2.20), 0.2.21 on the release; everything as on v0.2.20: the old chats, an answer,
 the Preview and its window, the saved tokens read; the second start as quick as before. Note anything that differs.
 - [ ] Done · Found:
 
@@ -1871,6 +1873,9 @@ inside: no config, password, venv or LiteLLM file; `+n15` of 2026-11-24 is the s
 serves J16, J17 and J19, and what is run on one stands for the other). Quit the Farm app (tray ▸
 Quit), run it: it installs over farm-v0.0.54 and keeps the settings (K1). Its version reads 0.0.54 to the update check,
 so the next release (farm-v0.0.55) installs over it; do not go back to an older installer. The client: v0.2.20.
+**Released 2026-11-25 as farm-v0.0.55** (the same farm code as `+n16`: since `04030e5` only tests and one comment in
+`install.sh`): the Windows installer of the GitHub release `farm-v0.0.55` (a prerelease, as every Farm app release)
+serves J16, J17 and J19 as well, and its version reads 0.0.55.
 **What `+n16` adds, checked in 10 minutes** (FARM_START steps 1, 3 and 4; the PRO 6000, nobody on it): first, note the
 time you start the Farm app after installing and the time the panel says vLLM is *ready* (step 1: about 10 s sooner on a
 scratch farm; speech output is off on this farm, so it applies); in Settings ▸ logs ▸ `farm.log`, *vLLM: starting now,
