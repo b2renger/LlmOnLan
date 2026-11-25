@@ -2030,7 +2030,8 @@ on the PRO 6000: its window, the panel inside it (a `<webview>`), the drawer's C
 login, and closing the window stopping the farm. A session never runs the Farm app on this computer; what was run
 without you: its own tests on 45 (12 + 3), the farm's unit suite (293/293) and the vLLM lifecycle suite run by the
 packaged app's Electron 45 as Node (DEVLOG 2026-11-26), and the installer checked inside (it runs as Node on 45.5.0,
-Node 24.22.3; no config, `.venv` or runtime file in its farm copy). *Needs:* `farm-app\dist\LlmOnLan-Farm-Setup-0.0.55+n17.exe`,
+Node 24.22.3; no config, `.venv` or runtime file in its farm copy). *Needs:* `farm-app\dist\LlmOnLan-Farm-Setup-0.0.55+n17.exe`
+(built 00:59 from `66a82c3`: Electron 45 and RUNTIME_UPDATE_PLAN),
 the PRO 6000 at a quiet moment, a laptop, 10 minutes. *Was:* new (2026-11-26).
 1. Quit the Farm app if it runs, then install the build over farm-v0.0.55 (it keeps the farm's config, models and data).
 2. It opens and starts the farm as farm-v0.0.55 does: the start bar, then the panel inside the window.
@@ -2040,6 +2041,11 @@ the PRO 6000 at a quiet moment, a laptop, 10 minutes. *Was:* new (2026-11-26).
 4. From a laptop: one chat.
 5. Close the window: the farm stops (the window stays until it has), then the app quits. Open it again: the farm starts
    as in step 2.
+6. **The bundled Python after the update** (RUNTIME_UPDATE_PLAN, in the same build): the drawer ▸ *Open data & logs
+   folder* ▸ `farm.log`. On the PRO 6000 its last start's lines include *The bundled Python is CPython 3.12.14, not
+   3.12.16: python-build-standalone 20261124's security fixes are not applied to it (its venvs would need rebuilding).*
+   (it was installed under an older pin: summary n° 17, question 2). On a farm first installed with farm-v0.0.54 or later (3.12.16),
+   the line reads *The bundled Python is now python-build-standalone 20261124 …* instead.
 
 *Expect:* everything as on farm-v0.0.55; after step 5's close, no `LlmOnLan Farm.exe` in Task Manager and the card's
 memory back to what ComfyUI or nothing holds. **One thing that is not Electron 45:** if the panel stays blank and
