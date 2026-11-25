@@ -14,5 +14,14 @@ repo the same minutes.
 | Electron | client **^45.5.0 since tonight** (was ^42.5.0); Farm app 42.6.0 | none since 45.5.0 | The client's bump: DEVLOG 03:41; the Farm app's: the next objective |
 | python-build-standalone | 20261110 (CPython 3.12.16) | 20261123, 20261124: CPython still 3.12.16 | Library updates only: libffi 3.8.0 → 3.8.1, zstd 1.5.7 → 1.6.0, **expat 2.10.0 → 2.11.0**. expat's own changelog not read tonight: if 2.11.0 fixes a security issue, SearXNG's parsing of fetched pages goes through it, and a bump of `RUNTIME_PINS` is worth a Farm app release |
 
-**Nothing changed tonight** for these pins but Electron in the client. To read next: expat 2.11.0's changelog (a
-security fix or not), and vLLM 0.34.1 when it reaches PyPI.
+**expat 2.11.0, read the same night** (`expat/Changes` at `R_2_11_0`, released 2026-11-23): three security fixes.
+CVE-2026-124317, "overread in unknown encoding decoder", "needs use of `XML_SetUnknownEncodingHandler`": Python's
+`pyexpat` sets that handler, so a farm service parsing XML fetched from the web (SearXNG's engines) can reach it.
+CVE-2026-128241 is the `xmlwf` command line (never run here). CVE-2026-134703, malformed UTF-16 with isolated
+surrogates passed to handlers. **python-build-standalone 20261124 is worth having, but a pin bump alone reaches new
+installs only:** `ensureRuntime` installs the bundled Python only when none is there (`farm-app/src/main/
+runtimeManager.ts:275`), so an installed farm keeps its first Python, and its expat, for good. Reaching running farms
+needs an update path for the bundled runtimes (as LiteLLM got one after an app update, J18): a plan, the question in
+summary n° 16.
+
+**Nothing changed tonight** for these pins but Electron in the client. To read next: vLLM 0.34.1 when it reaches PyPI.
