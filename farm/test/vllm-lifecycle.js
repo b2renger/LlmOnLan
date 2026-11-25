@@ -58,6 +58,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const http = require('http');
+const net = require('net');
 const { spawn, execFileSync } = require('child_process');
 const V = require('../src/vllm');
 const { killTree, readRuntime, RUNTIME_FILE, venvLitellmPath } = require('../src/proc');
@@ -952,6 +953,20 @@ async function main() {
     // What runs elsewhere on this computer is read before and after, never touched.
     const foundBefore = ((await V.status(target)).st || { found: [] }).found.filter(notOurs);
     console.log(`left alone: ${foundBefore.map((f) => `${f.root} :${f.port} pgid ${f.pgid}`).join(', ') || 'no other vLLM'}`);
+    // WSL in mirrored networking reserves Linux's ephemeral block on Windows while its VM runs, and nothing lists it
+    // (2026-11-26: every step failed on the panel's 41897; docs/plans/WSL_PORTS_PLAN.md). The VM is up now (the status
+    // call above booted it if it was not): a port this test cannot bind fails here, by name, before any step.
+    for (const [name, port] of Object.entries(PORTS)) {
+        const err = await new Promise((r) => {
+            const s = net.createServer();
+            s.once('error', (e) => r(e.code));
+            s.listen(port, '127.0.0.1', () => s.close(() => r(null)));
+        });
+        if (err) {
+            const range = WIN ? sh('cat /proc/sys/net/ipv4/ip_local_port_range').out.trim().replace(/\s+/, '–') : '';
+            throw new Error(`port ${port} (${name}) cannot be bound (${err})${WIN ? `: WSL's VM holds ${range} (mirrored networking, docs/plans/WSL_PORTS_PLAN.md). Once WSL has stopped (no vmmemWSL), boot it while a Windows program listens on ${port}, keep a WSL session open, and run again: the new block lies elsewhere` : ''}`);
+        }
+    }
     // The take-over writes a marker that makes a root's old launchers do nothing: never in another root than the fake's.
     const markers = () => ['~/lol-vllm', '~/lol-spike', ...foundBefore.map((f) => f.root)].map((r) => `${r}:${sh(`test -e ${r.replace(/^~/, home)}/run/managed-by-farm && echo 1 || echo 0`).out.trim()}`).join(' ');
     const markersBefore = markers();
