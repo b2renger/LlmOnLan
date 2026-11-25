@@ -2,6 +2,7 @@
 // minutes, no GPU used:
 //
 //   LOL_VLLM_FAKE=1 [LOL_LITELLM=<path to litellm(.exe)>] node test/vllm-lifecycle.js [step numbers...]
+//   LOL_UP_ELECTRON=<electron binary>: `lol up` and `lol down` run by that Electron as Node, as the Farm app runs them.
 //
 // A real `lol up` from this worktree (cwd = a temp folder with its own lol.config.json), farm/vllm's real scripts,
 // test/fake-vllm in place of vLLM (inside WSL on Windows, as the farm runs it), test/fake-ollama.js in place of
@@ -140,20 +141,27 @@ function writeConfig(vllm = {}, top = {}) {
 }
 const readConfig = () => JSON.parse(fs.readFileSync(path.join(scratch, 'lol.config.json'), 'utf8'));
 
+// The Node that runs `lol up` and `lol down`: this one, or LOL_UP_ELECTRON, an Electron binary run as Node, as the Farm
+// app runs the farm (2026-11-25: its Node is Electron's 24.x, not the one the suites run on).
+const lolNode = () => {
+    const env = { ...process.env };
+    delete env.ELECTRON_RUN_AS_NODE;
+    if (process.env.LOL_UP_ELECTRON) env.ELECTRON_RUN_AS_NODE = '1';
+    return { bin: process.env.LOL_UP_ELECTRON || process.execPath, env };
+};
 let farm = null; let out = '';
 function up() {
     out = '';
-    const env = { ...process.env };
-    delete env.ELECTRON_RUN_AS_NODE;
-    const child = spawn(process.execPath, [LOL(), 'up', '--no-pick'], { cwd: scratch, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    const { bin, env } = lolNode();
+    const child = spawn(bin, [LOL(), 'up', '--no-pick'], { cwd: scratch, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     const tap = (d) => { const s = d.toString(); out += s; fs.appendFileSync(farmLog, s); };
     child.stdout.on('data', tap); child.stderr.on('data', tap);
     farm = child;
     return child;
 }
 function lolDown() {
-    const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
-    try { return execFileSync(process.execPath, [LOL(), 'down'], { cwd: scratch, env, encoding: 'utf8', timeout: 240000, windowsHide: true }); }
+    const { bin, env } = lolNode();
+    try { return execFileSync(bin, [LOL(), 'down'], { cwd: scratch, env, encoding: 'utf8', timeout: 240000, windowsHide: true }); }
     catch (e) { return `${e.stdout || ''}${e.stderr || ''}`; }
 }
 // `lol down`, then the farm must be gone: its process ended and its ports closed. One that lives on is a failure
