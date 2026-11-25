@@ -103,7 +103,12 @@
     and sets people at once, context per person and GPU memory for conversations
     (Automatic: measured seats capped by what the pool holds; the pool from free memory less the model, ~4 GB,
     9 GB for OCR, document search's 1.5 GB while it is not running yet and an 8 % margin, never `--gpu-memory-utilization`) under the one Apply, which dry-runs and
-    confirms only a restart. The boot never waits for it: a PLANNED start keeps the farm healthy + `busy`
+    confirms only a restart. The boot never waits for it, and starts it **before** LiteLLM, the other plugins and the
+    panel (FARM_START step 1, 2026-11-25: `up.js` `vllmEarly`, once Ollama, document search and speech to text are up,
+    so the GPU holds what it will; on 2026-11-23's boot that is 30.5 s from the launch instead of 44.5 s): the job's
+    every outcome waits for the farm to be public (`bootPublic`: the fallback, the proxy and the supervision exist
+    then), a boot that gives up stops it (`stopServices`), and a farm with speech output on (Kokoro, on the GPU, not
+    reserved) starts it where it always did, once the farm is public. A PLANNED start keeps the farm healthy + `busy`
     "Starting vLLM" and the gate answers 503 `lol_engine_starting` (503 `lol_engine_stopped` while it is stopped:
     2026-11-05, farm-v0.0.52); an unplanned death, Stop and the memory guard
     make it unhealthy. Three missed answers → look; one restart; a second stop in 5 min → Ollama with the reason.

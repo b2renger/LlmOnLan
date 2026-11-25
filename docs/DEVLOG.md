@@ -9,6 +9,35 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-25 (02:59) — PLAN_FIRST_NEW_CHAT (a) and (b) built (night n° 16, the queue's first item)
+
+- (a) `ui/workbench.mjs`: a new chat opened from a project's chat stays in it, its panel open (AP.1's one exception; a
+  temporary chat and a new chat from a plain one stay plain). (b) `ui/project-panel.mjs`: *Plan first* shows wherever
+  the coding agent is; in a chat with no project it opens the Project panel, which asks for one, and the chat plans first
+  once bound. Off by default (DECISIONS 2026-11-24). Not run on the old code first: the old scenario asserted the
+  opposite of both (no switch in a plain chat; a new chat from a project's chat is plain), and was rewritten.
+- Harness (slot 1: slot 0's CDP port 9333 was held by a headless Edge of another session's scratch folder, left alone):
+  `k24-plan-first-changes-nothing-until-go-ahead` and the new `k24-plan-first-in-a-plain-chat` 2/2; `test:chat` 1989
+  (1 skipped), lint 0. Screenshots read: the panel's note under the project list; a new chat in the project with the
+  switch, off. A local client `0.2.20+n16` (02:49, `40057e5`) for HUMAN_TESTS G14 steps 6 and 7.
+
+## 2026-11-25 (02:41) — FARM_START step 1 built: vLLM's start queued before LiteLLM, its outcome held until the farm is public (night n° 16)
+
+- **Where the boot's time goes** (the live farm's `farm.log`, 2026-11-23 11:06, read only): the vLLM check 6.3 s, Ollama
+  5.6 s, document search 2.6 s, LiteLLM 7.1 s, SearXNG 4.7 s, OCR 2.1 s, then the job checked again 6 s. Ollama and
+  document search must come first (vLLM sizes its memory around what is on the GPU), so the plan's 29 s became ~14 s.
+- **The change** (`up.js`): `vllmEarly` queues the start just before LiteLLM's routing for a start or a restart, unless
+  speech output is on (Kokoro, in the late plugin loop, is not reserved); `bootPublic` holds every outcome of that job
+  until the farm is public; `stopping` and `runJob`… are declared before it (they were read in their TDZ otherwise);
+  `stopServices` stops it when the boot gives up. A line says when it began: *vLLM: starting now, beside the farm's other
+  services …*.
+- **Tests:** lifecycle steps 1 (+1 check), 25 and 26 (new): 1 and 25 passed first time; 26's first version squatted
+  `0.0.0.0:4300` and Windows let the gate bind `127.0.0.1:4300` beside it, so the farm came up: the test was wrong, not
+  the code; on `127.0.0.1` it passes (5/5). Farm 293/293. **The whole lifecycle suite: 182/182** (26 steps, 02:59).
+- **Timed** on a scratch farm (own ports, no beacon, the trial root `~/lol-vllm-033`, Qwen3.6 64k, document search and
+  web search on): old order 21.9 → 115.5 s (cold), 13.7 → 98.1 s (warm); new 5.9 → 87.5 s (warm); the sizing the same
+  each time (48 people, 58 GB). About 10 s here.
+
 ## 2026-11-25 (02:23) — FARM_START steps 4 and 3 built: the weights prefetched, FlashInfer's precompiled kernels installed with vLLM (night n° 16)
 
 - **Step 4** (`a48b347`): `--safetensors-load-strategy prefetch` in the flags of Qwen3.6, Nemotron, Qwen3.8 and both Gemma

@@ -683,6 +683,9 @@ async function run(args) {
     // The job and download slots (makeJobs). They exist from the start; the beacon's kick is wired once it does.
     const kickBox = { fn: () => {} };
     const jobs = makeJobs({ kick: () => kickBox.fn() });
+    // Here, not where the snapshot learns of them (`jobBox.view`, below): a vLLM start may run before the farm is public
+    // (FARM_START step 1, `vllmEarly`).
+    const { runJob, runDownload, busy, busyErr, jobView, downloadView } = jobs;
     const { serialize } = jobs;
 
     log.info(`Bringing up ${log.paint.bold(config.name)} …`);
@@ -761,6 +764,15 @@ async function run(args) {
     let vllmBootError = null;
     let vllmBootErrorRan = false;  // that reason came from vLLM running (a start, a crash): its log says more
     let vllmBootJob = null;        // 'start' | 'restart' | 'wait', run once the farm is public
+    // FARM_START step 1: a start or a restart goes as soon as the GPU holds what it will at boot (Ollama, Document
+    // search and speech to text up), before LiteLLM, the other plugins and the panel: ~14 s sooner (2026-11-23's boot
+    // queued it at 44.5 s; that point is 30.5 s). Its job holds every outcome until the farm is public (`bootPublic`),
+    // where the fallback, the proxy and the supervision exist; a boot that gives up stops it (`stopServices`).
+    let vllmEarly = false;
+    let bootAborted = false;
+    let releaseBoot = () => {};
+    const bootPublic = new Promise((r) => { releaseBoot = r; });
+    let stopping = false;          // the farm stops (shutdown, below); here because a start that began early reads it
     let vllmChild = null;          // the serve.sh the farm spawned (wsl.exe on Windows), null when adopted or stopped
     let takeOverOffer = null;      // "Let the farm run vLLM" (§9): what the panel offers (vllm.takeOverPlan), or null
     let takeOverDone = null;       // what the take-over replaced: the panel's Undo, until a setting changes or a restart
@@ -889,7 +901,11 @@ async function run(args) {
     const sttReserveGib = () => (!svcById.stt.up ? sttMod.reserveGib(config) : 0);
     const pluginReserves = () => ({ embedReserveGib: embedReserveGib(), sttReserveGib: sttReserveGib() });
     // Plugins started before the farm is public go down with a boot that gives up.
-    const stopServices = async () => { for (const svc of services) { if (svc.pid) await killTree(svc.pid); } };
+    // And a vLLM the boot started early (FARM_START step 1): stopped, its job let go (it returns, nothing else).
+    const stopServices = async () => {
+        for (const svc of services) { if (svc.pid) await killTree(svc.pid); }
+        if (vllmEarly) { bootAborted = true; jobs.cancel('job'); await stopVllmProcess(); releaseBoot(); }
+    };
 
     let llamacppChild = null;
     // Crash supervision is LATE-BOUND: the exit handler can fire during boot
@@ -1370,7 +1386,7 @@ async function run(args) {
     // Start vLLM with the current settings (§5.2), each step refusing with its reason before anything is stopped
     // where it can. `waitOnly`: a start found in progress at boot, waited for without spawning. → {ok, message,
     // code, cancelled}.
-    async function startVllm(progress = () => {}, { isCancelled = () => false, phase = 'starting', waitOnly = false } = {}) {
+    async function startVllm(progress = () => {}, { isCancelled = () => false, phase = 'starting', waitOnly = false, gate = null } = {}) {
         // Never while the farm stops (a `lol down` met in the middle of an Apply): a vLLM spawned now would outlive it.
         const quitting = () => (stopping ? { ok: false, message: 'The farm is stopping.' } : null);
         if (quitting()) return quitting();
@@ -1447,6 +1463,7 @@ async function run(args) {
             },
             onLine: log.childPrefix('vllm'),
         });
+        if (gate) await gate;   // a start that began before the farm was public: what follows needs the farm whole
         if (!r.ok) {
             if (r.cancelled || isCancelled()) {   // a Stop whose stop ended the child before waitReady looked again
                 // A stop in the first second can come before serve.sh wrote its group: stop until the child is gone.
@@ -1536,10 +1553,12 @@ async function run(args) {
         writeLitellmConfig(config, yamlPath, peers);
         return read() !== before;
     }
-    function startVllmJob(label, { phase = 'starting', waitOnly = false } = {}) {
+    function startVllmJob(label, { phase = 'starting', waitOnly = false, gate = null } = {}) {
         if (phase === 'starting') setVllmPhase('starting', 'starting vLLM');
         return runJob('engine', label, async (progress, ctl) => {
-            const r = await startVllm(progress, { isCancelled: ctl.cancelled, phase, waitOnly });
+            const r = await startVllm(progress, { isCancelled: ctl.cancelled, phase, waitOnly, gate });
+            if (gate) await gate;   // FARM_START step 1: the fallback and the proxy exist once the farm is public
+            if (bootAborted) return { ok: false, error: 'The farm did not start, so vLLM was stopped.' };
             if (r.ok) {
                 // A model or alias chosen while vLLM was stopped was only saved ("Saved, for the next start of vLLM"):
                 // LiteLLM still routed to the old name, and every chat got a 404 (2026-11-14, Stop → Use this → Start).
@@ -1689,6 +1708,14 @@ async function run(args) {
     if (coordinator) {
         if (peers.length) log.ok(`Coordinator: aggregating ${peers.length} peer farm(s) — ${peers.map((p) => p.name || p.host).join(', ')}`);
         else log.warn('Coordinator: no peer farms found — serving local only. Start the peers first, then re-run to include them.');
+    }
+    // FARM_START step 1 (`vllmEarly`): vLLM's start from here, beside LiteLLM, the plugins and the panel. Not with speech
+    // output on: Kokoro loads on the GPU after this point and nothing reserves it, so that farm starts vLLM where it always
+    // did. ponytail: a reserve for Kokoro, as speech to text has, would let it start early too.
+    if ((vllmBootJob === 'start' || vllmBootJob === 'restart') && !(config.tts && config.tts.enabled)) {
+        vllmEarly = true;
+        log.step('vLLM: starting now, beside the farm\'s other services …');
+        startVllmJob('Starting vLLM', { gate: bootPublic });
     }
     const yamlPath = writeLitellmConfig(config, undefined, peers);
     const backends = config.ollama.hosts.length + peers.length;
@@ -2143,8 +2170,7 @@ async function run(args) {
     log.plain(`     Stop with       : Ctrl-C   (or \`lol down\` from another shell)`);
     log.plain('');
 
-    // 7. Supervise in the foreground.
-    let stopping = false;
+    // 7. Supervise in the foreground (`stopping` is declared with vLLM's boot state, above).
     const shutdown = async (sig) => {
         if (stopping) return;
         stopping = true;
@@ -2767,7 +2793,6 @@ async function run(args) {
     // route that downloads weights STARTS a job and returns at once, and the panel —
     // already polling /lol/admin/state every 5 s — renders the progress. The job slot
     // and the download slot are makeJobs' (module level, tested on their own).
-    const { runJob, runDownload, busy, busyErr, jobView, downloadView } = jobs;
     jobBox.view = jobView;   // from here on, the snapshot can report `busy`
     // A control's job, or, with `inJob` (the progress of a job already running: a preset's Apply), its body run inside
     // that job and awaited: one job and one restart chain, never a job inside a job.
@@ -4363,7 +4388,8 @@ async function run(args) {
     engineDownBox.fn = onEngineDown;   // serialize + liveHealth exist now — arm supervision
     // vLLM: watched from now on, and the start the boot queued runs as the job everyone sees (D5).
     watchVllm();
-    if (vllmBootJob) startVllmJob('Starting vLLM', { waitOnly: vllmBootJob === 'wait' });
+    if (vllmEarly) releaseBoot();   // the start already runs (FARM_START step 1): its outcome is handled from now
+    else if (vllmBootJob) startVllmJob('Starting vLLM', { waitOnly: vllmBootJob === 'wait' });
     // A vLLM on this computer that the farm routes to as an external server: the panel offers to run it (§9).
     void detectTakeOver().catch((e) => log.warn(`Looking for a vLLM the farm could run: ${e.message}`));
     // If llama-server died DURING the boot window (between its health-OK and

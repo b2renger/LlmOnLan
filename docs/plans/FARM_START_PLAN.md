@@ -40,6 +40,20 @@ which step 3 is for.
    so what the other services load does not change its pool. **Saves ~29 s on every start with the farm.** To check:
    the job's supervision (`watchVllm`, the engine-down box), armed at the end today, must hold from the start; a test
    in `farm/test/run.js`, and a scratch farm timed before and after.
+   **Built (night n° 16, 2026-11-25)**, smaller than planned: the 29 s were not all movable. 2026-11-23's boot (the live
+   farm's `farm.log`): the check of this computer 6.3 s, Ollama 5.6 s, document search 2.6 s (both before vLLM must
+   size itself: document search holds GPU memory), then LiteLLM 7.1 s, SearXNG 4.7 s, OCR 2.1 s, and the job's own check
+   6 s. So the start is queued after the early plugins, just before LiteLLM's routing (`up.js` `vllmEarly`), for a start
+   or a restart; a farm with speech output on keeps the old place (Kokoro loads on the GPU later and is not reserved).
+   The job holds every outcome until the farm is public (`bootPublic`: the fallback, `restartProxy` and the
+   supervision exist only then), `stopping` and the job slot's functions are declared before it, and a boot that gives
+   up stops it (`stopServices`). **Tests:** `vllm-lifecycle.js` step 1 (queued before LiteLLM; every old check), new
+   step 25 (vLLM dead 0.5 s after its launch: the farm comes up, Ollama serves with *vLLM could not start*, nothing
+   thrown, nothing left) and step 26 (the gate's port taken: `lol up` exits 1 and the early vLLM is stopped); farm
+   293/293. **Measured** (a scratch farm on the trial root, Qwen3.6 64k, document search and web search on, the same
+   GPU sizing each time: 48 people, 58 GB): the old order launched vLLM at 21.9 s, ready at 115.5 s (cold caches) and at
+   13.7 s / 98.1 s (warm); the new order at **5.9 s / 87.5 s** (warm): about **10 s** off a start here, more on a farm
+   whose LiteLLM, plugins and panel take longer (the live farm's log: 14 s).
 2. **The panel says what it does and for how long (S).** The phase gets its time beside it (*loading the model weights
    · 0:42*); the kernel phase stops saying *the first start takes a few minutes longer* (false on a rebuild) and says
    *building GPU kernels for this vLLM: up to 5 minutes, once after an install or an update* (built as *several minutes the

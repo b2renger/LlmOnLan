@@ -230,6 +230,8 @@ const STEPS = {
         check(`the panel answers before vLLM is ready (after ${tSelf.toFixed(1)} s, LiteLLM's own start included)`, s0.vllm.phase !== 'ready', `phase ${s0.vllm.phase}`);
         check('healthy while it starts, busy says "Starting vLLM"', snap.healthy === true && snap.busy && snap.busy.label === 'Starting vLLM', JSON.stringify({ healthy: snap.healthy, busy: snap.busy }));
         check('the engine is vLLM', snap.backend.engine === 'vllm');
+        const iEarly = out.indexOf('vLLM: starting now, beside'); const iProxy = out.indexOf('Starting LiteLLM proxy');
+        check('vLLM\'s start is queued before LiteLLM starts, not once the farm is public (FARM_START step 1)', iEarly >= 0 && iProxy > iEarly, `${iEarly} / ${iProxy}`);
         const r = await chat();
         check('a chat meanwhile gets 503 "starting"', r.status === 503 && r.json && r.json.error.code === 'lol_engine_starting' && /starting/.test(r.json.error.message), `${r.status} ${r.text.slice(0, 200)}`);
         const evicted = await waitFor(() => fakeOllama.requests.includes('POST /api/generate unload fake-ollama:1b'), 20000, 'the eviction').catch(() => false);
@@ -768,6 +770,39 @@ const STEPS = {
             FARM_DIR = FARM;
             if (WIN) execFileSync('cmd', ['/c', 'rmdir', path.join(copy, 'node_modules')], { windowsHide: true });   // the link only, never what it points to
             else fs.unlinkSync(path.join(copy, 'node_modules'));
+        }
+    },
+    // FARM_START step 1 (2026-11-25): vLLM's start begins before the farm is public, so what can go wrong in that window
+    // must not reach a fallback, a proxy or a supervision that do not exist yet.
+    async 25() {
+        if (farm) await stopFarm();
+        fakeEnv(['FAKE_DELAY=0.5', 'FAKE_EXIT=1']);   // vLLM dies half a second after its launch: inside the boot window
+        up();
+        await waitFor(self, 120000, 'the panel');
+        const f = await waitFor(async () => { const x = await state(); return x && x.vllm.phase === 'failed' && x; }, 120000, 'the fallback to Ollama');
+        check('vLLM dead during the boot: the farm comes up and Ollama serves, with why', /^vLLM could not start/.test(f.vllm.bootError || '') && f.backend.engine === 'ollama', `${f.vllm.bootError} · ${f.backend.engine}`);
+        const c = await chat();
+        check('…a chat under vLLM\'s name goes to Ollama', c.status === 200 && replyOf(c) === 'fake ollama reply', `${c.status} ${c.text.slice(0, 200)}`);
+        check('…nothing thrown in the boot', !/ReferenceError|TypeError|Unhandled|before initialization/.test(out), (out.match(/.*(ReferenceError|TypeError|Unhandled|before initialization).*/) || [''])[0]);
+        check('…no vLLM left', !leftInRoot(), leftInRoot());
+        await stopFarm();
+        fakeEnv(['FAKE_DELAY=3']);
+    },
+    async 26() {
+        if (farm) await stopFarm();
+        fakeEnv(['FAKE_DELAY=60']);   // still starting when the boot gives up
+        // On the gate's own address: Windows lets a socket bind 127.0.0.1 beside one on 0.0.0.0 (seen 2026-11-25).
+        const squat = http.createServer((q, s) => s.end('not the gate')); await new Promise((r) => squat.listen(PORTS.gate, '127.0.0.1', r));
+        try {
+            const c = up();
+            const code = await waitFor(() => (c.exitCode !== null ? { code: c.exitCode } : null), 180000, '`lol up` to give up');
+            check('the gate\'s port taken: `lol up` gives up (exit 1)', code.code === 1 && /Seat gate could not bind/.test(out), `exit ${code.code}`);
+            check('…the vLLM it had started early is stopped, nothing left in its folder', !leftInRoot(), leftInRoot());
+            check('…nothing thrown', !/ReferenceError|TypeError|Unhandled|before initialization/.test(out), (out.match(/.*(ReferenceError|TypeError|Unhandled|before initialization).*/) || [''])[0]);
+            farm = null;
+        } finally {
+            await new Promise((r) => squat.close(r));
+            fakeEnv(['FAKE_DELAY=3']);
         }
     },
 };

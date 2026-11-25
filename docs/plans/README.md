@@ -49,8 +49,9 @@ file stays the whole list.
   rebuilds fixed the same day. Steps: vLLM alongside the other services (−29 s), the panel's elapsed time and the
   truth (built 2026-11-23), precompiled kernels (**measured night n° 15: a cold start 331 → 125 s**, the shim and the
   `sm120f` provider `--no-deps`, from FlashInfer's GitHub release only), the weights' load strategy (**measured: `prefetch`
-  31 → 15 s cold, nothing warm**). **S + S + M + S**. Farm only. **Next: steps 1, 3, 4 built, then a local Farm app for
-  J16 and J19 (session n° 16).**
+  31 → 15 s cold, nothing warm**). **S + S + M + S**. Farm only. **All four built by night n° 16 (2026-11-25),
+  unreleased:** step 1 ~10 s off a start (the boot's 29 s were not all movable), step 3 a first start 331 → 122 s, step 4
+  ~16 s off a cold disk; the local Farm app `0.0.54+n16` for J16, J19 and the 10-minute check.
 - **Start a new chat with a plan** ([PLAN_FIRST_NEW_CHAT_PLAN](PLAN_FIRST_NEW_CHAT_PLAN.md), approved by the owner
   2026-11-23 12:11): (a) a new chat from a project's chat stays in it; (b) every new chat offers *Plan first*. **S + S**.
   **Built night n° 16 (2026-11-25), unreleased:** (a) and (b), off by default (the default taken 2026-11-24); the
