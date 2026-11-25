@@ -30,6 +30,9 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## The farms and the room
 
+- **2026-11-25, the chat (19:05).** Measuring Classify on vLLM's decision endpoint against Laya: **"yes, after Bonsai in
+  tonight's queue"** (plans ▸ Next 22). And: "You can start tonights session at midnight to give you more room to work
+  with all the tests needed" (the night of 2026-11-25 → 26 runs 00:00 to 07:00).
 - **2026-11-25, the chat (18:51).** Measuring Ternary Bonsai 2.5 27B against the llama.cpp default (`UD-IQ2_S`):
   **"yes after tonight objective"** (plans ▸ Next 21).
 - **2026-11-25, the chat (08:51).** n° 16's question 1, Ripple-65B's files: **"yes"**. Deleted the same morning:
