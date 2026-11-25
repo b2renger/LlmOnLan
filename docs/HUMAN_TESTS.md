@@ -1835,11 +1835,20 @@ and 30 missed the 5 s by 0.4 and 0.9 s). 64k (48 people, Automatic) is step 5's.
 *Proves:* the multi-user plan's acceptance through the real seat gate (its §12, docs/archive/plans/multiuser_implementation_plan.md),
 at the new default; that Open WebUI reads an attached document once per chat (`RAG_SYSTEM_CONTEXT`, the plan's step 3);
 and its decision 4's class-size check, which must pass before web search can be on by default again (DEVLOG
-2026-10-06 10:51). **A build is ready (2026-11-24):** `farm-app\dist\LlmOnLan-Farm-Setup-0.0.54+n15.exe` in the owner's checkout
-(103 MB, built 05:28 from `main` at `b9e3598`, local and unsigned; it carries 128k by default, Qwen3.8's drafting and 16-bit
-state, the panel's start bar and its words, a stopped Download no longer left *partly downloaded* (review M2); checked inside: no config, password or venv). Quit the Farm app (tray ▸
+2026-10-06 10:51). **A build is ready (2026-11-25):** `farm-app\dist\LlmOnLan-Farm-Setup-0.0.54+n16.exe` in the owner's checkout
+(103 MB, built 02:25 from `main` at `2d6fc11`, local and unsigned; it carries 128k by default, Qwen3.8's drafting and 16-bit
+state, the panel's start bar and its words, and FARM_START steps 3 and 4: Install and Update vLLM put in FlashInfer's
+precompiled kernels, and the built-ins read their weights with `prefetch`; checked inside: no config, password or venv;
+`+n15` of 2026-11-24 is the same without steps 3 and 4: either serves J16, J17 and J19, and what is run on one stands for
+the other). Quit the Farm app (tray ▸
 Quit), run it: it installs over farm-v0.0.54 and keeps the settings (K1). Its version reads 0.0.54 to the update check,
 so the next release (farm-v0.0.55) installs over it; do not go back to an older installer. The client: v0.2.20.
+**What `+n16` adds, checked in 10 minutes** (FARM_START steps 3 and 4; the PRO 6000, nobody on it): vLLM section ▸
+**Stop vLLM**, then **Update vLLM** (J17 step 1 does it): at the same version it is a repair, about a minute, and its bar
+reads *downloading precompiled GPU kernels (about 200 MB), so vLLM's first start takes minutes less* (measured on a trial
+root: 186 MiB in 17 s, 39 s in all). Then **Start vLLM** and note the time from Start to *ready* (production's kernels
+are built already, so expect about 2 minutes as before; the gain is on a first start, measured 331 → 122 s on a trial
+root). In the vLLM log (Settings ▸ logs ▸ `vllm.log`): *Loading weights took* about 15 s or less.
 *Needs:* the next Farm app (after farm-v0.0.54) and the next client (after v0.2.19; for step 6
 the local build named in G14 will do); J14 done
 (vLLM 0.33.0); a quiet hour with nobody on the farm, and no client open on the farm box itself (it would hold a seat
@@ -1888,7 +1897,9 @@ installed (the build named in J16 will do: farm-v0.0.54 and after carry both fix
 2. Still stopped: **Use this** on another model (Qwen3.8 27B), then **Start vLLM**. When it says ready, chat from the laptop.
 3. Stop vLLM, Use this on **Qwen3.6 35B-A3B** with People at once Automatic, Start vLLM; chat again.
 
-*Expect:* step 1: Update starts (or says *vLLM 0.33.0 is already installed*), never *vLLM is running from this folder*.
+*Expect:* step 1: Update starts, never *vLLM is running from this folder*; at the same version it reinstalls in place
+(a repair, a minute or two; with the build named in J16 it also downloads ~200 MB of precompiled GPU kernels). No
+message says *already installed*: that wording, written here before, is in no code (corrected 2026-11-25).
 Step 2: the laptop gets an answer from Qwen3.8 (with farm-v0.0.53 it got *The model … does not exist*). Step 3: the same
 with Qwen3.6, and the panel shows 48 people at once at 64k, or 24 at 128k (128k is the default from the build named
 in J16, but a farm that saved 64k, as the PRO 6000's `lol.config.json` does, stays at 64k until Balanced is applied: J16

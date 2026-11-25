@@ -28,6 +28,11 @@ commit so the history records that a feature was tested + documented before it w
   was partial); a second Download ended, the temp file was gone, and the rule **before** M2 said `partial=0`. M2's
   proof had used `hf download` by hand, which skips `install.sh`; 034's Gemma had been downloaded by hand too. The
   `status.sh` change stays (harmless, tested: a folder filled by hand no longer reads partial).
+- **The local Farm app `0.0.54+n16`** (02:25, from `2d6fc11`, `electron-builder --win --publish never
+  -c.extraMetadata.version=0.0.54+n16`; farm-app 12 + 3 before): `resources/farm` carries `gpu-kernels`, `PREFETCH` and
+  `flagMap`'s exception; no `lol.config.json`, `.venv` or runtime file; `NotSigned` (electron-builder prints its
+  signtool lines even with no certificate). HUMAN_TESTS J16 points at it, with a 10-minute check of what it adds; J17's
+  *already installed* was in no code (Update at the same version is a repair): corrected.
 
 ## 2026-11-24 (05:27) — A stopped model Download stayed "partly downloaded" for good: status.sh fixed (review M2, night n° 15)
 
