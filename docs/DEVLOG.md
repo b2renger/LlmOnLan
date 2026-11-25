@@ -9,6 +9,29 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-25 (09:36) — Release Farm app farm-v0.0.55 and client v0.2.21 (by day, on the owner's go, before the tests)
+
+The owner, 08:51: *"1 yes, 2 yes, 3 no Macs on Monterey / Do the commiting, pushing an cut a release for testing"*
+(DECISIONS): the owner tests on the released installers (summary n° 16's RELEASE READY list).
+- **Before:** Ripple-65B's two folders deleted (08:53, 685 → 624 GB used in WSL). The shipped code is the local builds':
+  since `04030e5` (`0.0.54+n16`) only `farm/test` and one comment in `install.sh`; since `2005458` (`0.2.20+n16`) no
+  `shell/` change. The suites again: farm 292/293 then **293/293** (the docs' control-character check caught a path in
+  the 05:08 entry below whose `\f` and `\b` a tool had eaten; repaired with `chr()` codes), `test:chat` 1989 + lint 0,
+  the Farm app 12 + 3. `origin/main` an ancestor of `main`, neither tag on the remote.
+- **The tags:** `npm run release:patch` in `farm-app/` (`642ec8d`, *farm-v0.0.55*), then in `shell/` (`54dee65`,
+  *v0.2.21*), both at 09:00, each pushing `origin main` with its tag; `night` = `main` after.
+- **CI:** `release-farm` run 45572533923, green 09:00 → 09:04 (Windows, macOS arm64, Linux arm64): a prerelease, 10
+  files as farm-v0.0.54, `LlmOnLan-Farm-Setup-0.0.55.exe` 103 MB. `release` run 45572556562, green on all six jobs
+  09:00 → 09:35 (Windows 6 min 35 s): not a prerelease, 27 files as v0.2.20, `/releases/latest` = v0.2.21, the four
+  `latest*.yml` read 0.2.21, `owui-sidecar-manifest.json` byte for byte v0.2.20's (Open WebUI 0.13.3, bundle rev 2), so
+  an update downloads no Open WebUI. The `main` pushes started no other workflow. *Not checked:* the Electron inside the
+  released installers (CI builds from the lock, 45.5.0 for the client, 42.6.0 for the Farm app).
+- **What they bring:** status.md ▸ *Client v0.2.21 and Farm app farm-v0.0.55*. Every installed client takes v0.2.21 at its
+  next update check (`autoDownload`), Electron 45 with it: macOS 13 and later (the owner: no Macs on Monterey). If A30
+  finds a fault on the owner's data, the way back is a v0.2.22 on Electron 42.
+- **For a person:** HUMAN_TESTS J16's 10-minute check, J17, J19, J16 steps 1 and 6 (farm-v0.0.55); G14 steps 6 and 7 and
+  A30 (v0.2.21).
+
 ## 2026-11-25 (05:08) — The farm suite on the Farm app's own Node: two tests fixed (night n° 16, toward Next 14's Farm app)
 
 - The farm suite runs on plain Node (26.13 here); the Farm app runs the farm on Electron's (42.6.0: Node 24.18; 45.5.0:

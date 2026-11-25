@@ -38,7 +38,8 @@ says so (it said the Changes tab showed what it did).
 **Client v0.2.21 and Farm app farm-v0.0.55** (2026-11-25, by day, on the owner's go of 08:51, *"cut a release for
 testing"*: the owner tests on the released installers, HUMAN_TESTS J16's 10-minute check, J17, J19, J16 steps 1 and 6,
 G14 steps 6 and 7, A30; the same code as the local builds `0.2.20+n16` and `0.0.54+n16`, since them only tests and one
-comment in `install.sh`). **Client:** a new chat opened from a project's chat stays in that project, and *Plan first*
+comment in `install.sh`; tags 09:00, CI green: the client's six jobs by 09:35, 27 files, `/releases/latest` = v0.2.21;
+the Farm app's three by 09:04, a prerelease; DEVLOG 09:36). **Client:** a new chat opened from a project's chat stays in that project, and *Plan first*
 is offered in a chat with no project too, asking for one (PLAN_FIRST_NEW_CHAT, G14 steps 6 and 7); Electron 45.5.0 (42
 is past its end of life; the full harness 424/424 on both; macOS 13 Ventura and later, the owner: no Macs on Monterey,
 A30); Open WebUI unchanged (0.13.3, bundle rev 2), so an update downloads no Open WebUI. **Farm:** Qwen3.8 drafting ahead and keeping its state in 16 bits (J19); 128k of
