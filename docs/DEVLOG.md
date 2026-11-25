@@ -28,6 +28,9 @@ commit so the history records that a feature was tested + documented before it w
 - **The local client `0.2.20+n16` rebuilt** (03:41, from `2005458`): Electron 45.5.0 inside (`LlmOnLan.exe` says
   `Electron/45.5.0`, no 42.5.1), the stored-studio fix inside, `NotSigned`, 115 MB. HUMAN_TESTS A30 (new, ★): ten minutes
   of an ordinary day on it, with the owner's real data, beside G14 steps 6 and 7.
+- **The class rehearsal on Electron 45** (`shell/test/rehearsal/run.js --clients 2 --minutes 3`, Open WebUI 0.13.3 from
+  v0.2.19's sidecar, 03:42–03:50, `results/rehearsal-2026-11-250250-2c.json`): 0 farm moves, no *keeps exiting*,
+  `sealHeard` 0; ready 51.1 / 33.5 s, first chats 38.0 / 34.9 s (night n° 15 on 42: 53.7 / 36.3, 41.3 / 37.0).
 
 ## 2026-11-25 (02:59) — PLAN_FIRST_NEW_CHAT (a) and (b) built (night n° 16, the queue's first item)
 
