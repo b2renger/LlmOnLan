@@ -1492,6 +1492,32 @@ of 10): no cost seen for the flag that ships in the next Farm app; its runs repe
 is seeded), so they are weaker evidence than Qwen3.6's, which varied. Files: `results/q1e-n15-q38-*`. Qwen3.6's files:
 `results/q1b-n15-q36-fp16-*`, `results/q1c-n15-q36-fp16-64k-*`.
 
+# Ripple-65B Preview, NVFP4 (RTX PRO 6000, 2026-11-25)
+
+Night n° 16, plans ▸ Next 12 ([the study](../research/RIPPLE_65B_STUDY.md)). The trial root `~/lol-vllm-034` (vLLM
+0.34.0, which serves it natively: `ricursive.py`, `ricursive_dflash2.py`, the `ripple` parsers; FlashInfer 0.7.3 with its
+precompiled kernels, put in by the farm's own `install.sh` that night), the GPU free (the Farm app off), through
+`docs/spike/runs/trial_serve.sh`: the recipe's flags (`--reasoning-parser ripple --enable-auto-tool-choice
+--tool-call-parser ripple`, vLLM PR #65745) and `--enable-prefix-caching`, 64k, a 30 GiB pool. Downloads:
+`ricursiveAI/Ripple-65B-Preview-NVFP4` (54 GiB) and `-DFlash2` (7.6 GiB), 02:50–04:19.
+
+**The start:** ready in 3 min 40 s, its first; the weights 53.86 GiB in 48.2 s; torch.compile 30.9 s; engine init 145 s.
+Its `generation_config.json` sets temperature 1.0 and top_p 0.95; it decides each turn whether to think (no switch).
+
+| | BF16 KV (30 GiB) | FP8 KV (30 GiB; vLLM warns: scales uncalibrated, 1.0) |
+|---|---|---|
+| vLLM's count | 237,862 tokens (~132 KiB a token): **3.63** of 64k | 475,724 tokens: **7.26** of 64k |
+| One person (4k prompt) | **25.2 tok/s**, first word 0.95 s | — |
+| ~60k deep, appended turns | 2: 21.8 tok/s p10, 0.41 s p95; 3: 20.0, 0.58 s: pass | 5: 21.2, 0.85 s; 7: 18.9, 2.1 s: pass |
+| Quality gate (28, its own thinking) | **27/28** (`code_parse_duration` ran into the 16,384-token cap) | — |
+| The coding agent's five tasks (`ide/run.js`, 64k, maxTokens 8192, once) | — | **3/5** in 16 min: t1, t4, t5 pass; t2 ran out of room (8,323 tokens, 3 steps); t3's tests fail on the real module; no loop |
+
+**What it means:** on this card Ripple holds 3 people at 64k (7 with FP8 KV) at about 20 tok/s each, against Qwen3.6's 48
+at ~250 tok/s alone; its agent did 3/5 (Qwen3.8 4/5 and Gemma 4 26B 3/5 the night before, Flint 13/15 over three
+runs). No clear coding win to pay for 40 seats, so it is not proposed for the list. **Not measured:** DFlash2 (the draft
+might nearly double one person's speed, not the people a pool holds, and not the agent's score), three agent runs (one
+was enough to show no clear win), a Spark. Files: `results/pro6000-ripple65b-*`, `results/ide/ripple65b-fp8-n16.jsonl`.
+
 # A vLLM start: precompiled kernels and the weights' read (RTX PRO 6000, 2026-11-24)
 
 Night n° 15, FARM_START_PLAN steps 3 and 4, the GPU free, the Farm app off. The trial root `~/lol-vllm-033` (vLLM

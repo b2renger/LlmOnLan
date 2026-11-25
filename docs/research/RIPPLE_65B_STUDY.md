@@ -80,6 +80,13 @@ The path is Flint's:
 
 It would never fit the Computer preset (no vision), and document reading stays on gemma4:12b.
 
+## Measured (night n° 16, 2026-11-25)
+
+On vLLM 0.34.0, the PRO 6000 (RESULTS ▸ *Ripple-65B Preview*): **3.63 people at 64k in BF16 KV, 7.26 in FP8**, a 30 GiB
+pool (~132 KiB a token in BF16, twice the estimate above: vLLM costs its five layer groups alike); **25.2 tok/s alone**,
+~20 each at its capacity ~60k deep; the quality gate **27/28**; the coding agent **3/5** (once, FP8 KV). No clear win:
+not proposed for the list. DFlash2 not measured (speed for one person, not people nor the agent's score).
+
 ## The measurement
 
 After J14 (vLLM 0.33.0 on production), at a quiet hour, in a root of its own (never `~/lol-vllm`), with a vLLM nightly.

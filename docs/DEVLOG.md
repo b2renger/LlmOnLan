@@ -9,6 +9,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-25 (05:05) — Ripple-65B Preview measured: 3 people at 64k (7 in FP8), 25 tok/s, the agent 3/5 (plans ▸ Next 12, night n° 16)
+
+- Downloads into `~/lol-vllm-034` through `install.sh` (02:50–04:19, ~12 MB/s; the draft fetched beside it with the root's
+  `hf`). **My mistake, no harm:** at 03:05 I edited a comment in `install.sh` while that download ran it; bash reads a
+  script as it runs, so it stopped with *syntax error* once `hf` ended (its after-steps skipped). Rerun at 04:19: every
+  file verified in 1 s, `partial=0`. The same lesson as n° 15's measuring script, now in the session memory too.
+- `install.sh`'s `gpu-kernels` on that root (vLLM 0.34.0): FlashInfer 0.7.3, so the 0.7.3+cu130 wheels (236 MiB) from
+  its v0.7.3 release: the step follows the installed FlashInfer.
+- Ripple on the recipe's flags, 64k, 30 GiB: BF16 KV 237,862 tokens (3.63 of 64k), FP8 KV 475,724 (7.26; vLLM warns
+  the scales are uncalibrated); one person 25.2 tok/s; ~60k deep 2/3 people (BF16) and 5/7 (FP8) all pass at ~20 tok/s;
+  the gate 27/28 (BF16, its own thinking: 11 minutes, one item to the 16,384 cap); the agent 3/5 (FP8, once, 16 min).
+  No clear win against 48 seats of Qwen3.6: not proposed. RESULTS ▸ *Ripple-65B Preview*; the study's *Measured*.
+  DFlash2, three agent runs and a Spark not measured (the first changes one person's speed only). The card back to
+  2.4 GB at 05:03.
+
 ## 2026-11-25 (03:41) — The client on Electron 45.5.0 (plans ▸ Next 14, night n° 16)
 
 - **Measured first, the same code both ways** (`57de2c6`): the full client harness on 42.5.1 (the checkout, slot 1,

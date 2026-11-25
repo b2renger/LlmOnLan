@@ -176,7 +176,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     The item was: those older than 30 days in `DATA_DIR/lol-studio/dsh` (IDE_PLAN slice 7), after the class. **S**.
 11. **The coding agent's fence check on macOS and Linux** (`sandboxBlocked` checks only on Windows). After HUMAN_TESTS
     E4. **M**.
-12. **Measure Ripple-65B Preview**, a dense model tuned for coding: about 4–13 people at 64k on the PRO 6000 by
+12. ~~**Measure Ripple-65B Preview**~~ *Measured 2026-11-25 (night n° 16, RESULTS ▸ Ripple-65B Preview): 3 people at 64k
+    (7 with FP8 KV), 25 tok/s alone, the gate 27/28, the agent 3/5: no clear win, not proposed for the list. DFlash2 not
+    measured.* A dense model tuned for coding: about 4–13 people at 64k on the PRO 6000 by
     estimate, so a small group's model at best. It needs a vLLM nightly in a root of its own, after Now 3
     ([the study](../research/RIPPLE_65B_STUDY.md)). *2026-11-22: no nightly any more: vLLM 0.34.0 (2026-11-16) lists
     "Ricursive Ripple-65B Preview … `ripple` reasoning and tool parsers | #65745", and night n° 12's trial root
