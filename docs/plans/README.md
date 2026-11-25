@@ -216,7 +216,8 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     calls read against 43–46's changes the same night: nothing to change (`<webview>` with `webviewTag: true`,
     `index.ts:106`; the clipboard only in main, `:261`; `openAtLogin` only; no `safeStorage`; the preload loads only
     `electron`; no `defaultPath`); its own window, tray and updater not yet seen on 45), and the sync `safeStorage` calls (deprecated in 45,
-    removed in 46: `src/main/index.ts` 71–80, 833–844).* (42 is past its end of life, 2026-10-20): tried 2026-11-14 and dropped for the class. On 45 the
+    removed in 46: `src/main/index.ts` 71–80, 833–844). **45 needs macOS 13 Ventura** (42: 12 Monterey; Electron's
+    README at each tag) and builds no 32-bit Windows: a Monterey Mac is the owner's question (summary n° 16).* (42 is past its end of life, 2026-10-20): tried 2026-11-14 and dropped for the class. On 45 the
     harness's sandbox stops booting once a long-running window has run earlier scenarios (`--phase c` 57/73 twice,
     k 174/217; on 42.6.0 the same tree gives 73/73), though each scenario passes alone: an order-dependent defect, maybe
     the same one 42 showed rarely on 2026-11-12 (k 175/217). First find what earlier scenario leaves the state, then
@@ -377,7 +378,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     `enable_thinking`). **S**, the measurement; the adoption is the owner's. **2026-11-24 (by 08:48, `gh`):** vLLM's
     **v0.34.1rc0** (tagged 2026-11-24 06:01 UTC) carries #69028 and the SM12x work (#69021, #69168), so the release
     that unblocks this is likely 0.34.1, not 0.35; it is not on PyPI yet (0.34.0 is). Ollama 0.40.18-rc0 still runs
-    Inkling on Metal only; llama.cpp #32187 and #32695 are still open. `~/lol-vllm-nightly` holds part of the checkpoint.
+    Inkling on Metal only; llama.cpp #32187 and #32695 are still open. `~/lol-vllm-nightly` holds part of the checkpoint. **2026-11-25:** **Raon-1-mini** (KRAFTON, 28.8B / 4.3B active,
+    Apache-2.0, coding claims; [MODELS_2026-11-25](../research/MODELS_2026-11-25.md)) joins this rule: no vLLM release
+    serves its architecture yet (0.34.0 checked); measured the night one does.
 
 ## 3. Later
 
@@ -416,6 +419,11 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 - ~~**Split DEVLOG.md** at 2026-10-01 into the archive.~~ *Done 2026-11-13: [archive/DEVLOG_2026-06_to_09.md](../archive/DEVLOG_2026-06_to_09.md).*
 
 ## 4. Waiting on the owner
+
+- **The bundled runtimes updated on an installed farm** ([RUNTIME_UPDATE_PLAN](RUNTIME_UPDATE_PLAN.md), proposed
+  2026-11-25): expat 2.11.0's security fixes (python-build-standalone 20261124) would reach new installs only; the plan
+  swaps a newer build of the same CPython while the farm is stopped. **S–M**.
+- **Electron 45 and macOS 12** (summary n° 16, question 3): 45 needs macOS 13 Ventura; the client on `main` is on 45.
 
 **The ones that unblock the most:**
 - **[BLENDER_TOOLS_ENV_PLAN](BLENDER_TOOLS_ENV_PLAN.md)** (night n° 12, proposed): the Blender tools through

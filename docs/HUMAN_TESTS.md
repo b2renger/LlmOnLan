@@ -431,7 +431,7 @@ in G14 (`0.2.20+n16`, Electron 45.5.0), a farm. *Was:* new (2026-11-25). Do it w
    connected without typing it again.
 5. Quit, open again.
 
-*Expect:* About reads 0.2.20 (the build's metadata is not shown); everything as on v0.2.20: the old chats, an answer,
+*Expect:* About reads 0.2.20+n16 (the build's own stamp, `app.getVersion()`; the updater reads 0.2.20); everything as on v0.2.20: the old chats, an answer,
 the Preview and its window, the saved tokens read; the second start as quick as before. Note anything that differs.
 - [ ] Done · Found:
 
@@ -1085,7 +1085,9 @@ the update.
 
 ### E1 macOS: install, first run, update
 *Proves:* the ad-hoc signed app installs, runs and updates itself. *Was:* RIG_CHECKLIST "Auto-update cycle" (the mac
-retest after the keep-warm fix was never logged, 2026-09-02), "Intel Mac", 1.1.
+retest after the keep-warm fix was never logged, 2026-09-02), "Intel Mac", 1.1. **From the first client on Electron 45
+(`main` since 2026-11-25): macOS 13 Ventura or later** (Electron 42 ran on 12 Monterey): note each Mac's macOS version, and
+try the update on the oldest one.
 1. Install the previous release (today v0.2.15) from the dmg (right-click ▸ Open the first time). First run: the
    engine download, a chat.
 2. Check for app updates ▸ Restart & install.
