@@ -72,6 +72,17 @@ built with `electron-builder --publish never`, and every artifact uploaded via
 (422 already_exists, dropped assets), so it's deliberately not used for publishing. The sidecar and coding-agent
 tarballs ride the same release (a coding-agent build that fails is skipped, never fatal). Public repo → the updater needs no token.
 
+**A local test build for the owner** (Windows, before a release; the sessions' way since night n° 12): in `shell/` or
+`farm-app/`, with `ELECTRON_RUN_AS_NODE` cleared, `npm run build && npx electron-builder --win --publish never
+-c.extraMetadata.version=<the last release>+n<session>`, e.g. `0.2.20+n16`, `0.0.54+n16`. The `+…` is build metadata:
+the updater reads the last release's version, so the next release installs over it. Never `-n…`: a prerelease suffix
+makes its own update channel, and `0.2.20-n12` would never have updated. The installer lands in `dist/`, unsigned. Check
+it before naming it in HUMAN_TESTS: the change inside (`grep -a` in `win-unpacked/resources/app.asar`, or the Farm app's
+`resources/farm`), no `lol.config.json`, `.venv` or runtime file, and the Electron it carries (the binary says
+`Electron/<version>`). npm's install-script policy may skip Electron's own download into `node_modules/electron`
+(no `dist/` after `npm i`): `node install.js` there fetches it; electron-builder downloads Electron by version for the
+installer, so CI does not depend on it.
+
 `scripts/afterPack.cjs` (macOS only): `codesign --force --deep --sign - <App>.app` so Apple Silicon
 doesn't report the unsigned app as "damaged"; not notarized → first‑launch shows the gentler
 "unidentified developer" prompt (right‑click → Open bypass). Disable electron‑builder's own signing
