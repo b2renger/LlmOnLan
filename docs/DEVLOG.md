@@ -9,7 +9,7 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-11-25 (05:10) — The farm suite on the Farm app's own Node: two tests fixed (night n° 16, toward Next 14's Farm app)
+## 2026-11-25 (05:08) — The farm suite on the Farm app's own Node: two tests fixed (night n° 16, toward Next 14's Farm app)
 
 - The farm suite runs on plain Node (26.13 here); the Farm app runs the farm on Electron's (42.6.0: Node 24.18; 45.5.0:
   24.22). Under either Electron, 291/293: the storage tests' own cleanup removed a junction or a link with
@@ -18,6 +18,10 @@ commit so the history records that a feature was tested + documented before it w
   work folder, its install folders, the canary in Ollama's store), and it removes a link with `unlinkSync`
   (`storage.js:648`). The three cleanups now `unlinkSync`, as the farm does: **293/293 on Node 26.13, on Electron
   42.6.0's Node and on 45.5.0's**.
+- **A scratch farm run by Electron 45.5.0's Node** (`ELECTRON_RUN_AS_NODE=1 electron.exe farm/bin/lol.js up`, as the Farm
+  app runs it; the n° 16 scratch config: own ports, no beacon, the trial root `~/lol-vllm-033`, Qwen3.6 64k): vLLM's start
+  queued at 9.8 s, the farm public at 17.6 s, vLLM ready at 102.5 s, 48 people and 58 GB as on plain Node; `lol down`
+  clean, nothing left. Not yet: the Farm app's own window, tray and updater on 45 (plans ▸ Next 14).
 
 ## 2026-11-25 (05:04) — Ripple-65B Preview measured: 3 people at 64k (7 in FP8), 25 tok/s, the agent 3/5 (plans ▸ Next 12, night n° 16)
 
