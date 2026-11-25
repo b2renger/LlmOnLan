@@ -579,6 +579,7 @@ export function install(app) {
       if (keep && entry('project') && entry('project').available) {
         open('project', { announce: false });
         api.setStudio({ projectId: keep });
+        persistStudio();   // its panel too: open() records nothing when the panel was open already
         return;
       }
       if (openId) { if (live) { suspend(); teardown(); } openId = null; width = DEFAULT_WIDTH; }

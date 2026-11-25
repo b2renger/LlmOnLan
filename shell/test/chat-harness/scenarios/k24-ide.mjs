@@ -473,6 +473,11 @@ export default [
             h.eq(await h.eval(() => window.LolChat.app.work.current()), 'project', '...its Project panel open');
             h.eq(await h.eval(() => (document.querySelector('#lolchat .chat-composer-tools .chat-plan-first') || { getAttribute: () => null }).getAttribute('aria-pressed')), 'false', '...Plan first beside the message box, off');
             await h.screenshot('k24-plan-first-new-chat-in-project');
+            const stored = await h.waitFor(async () => {
+                const th = await window.LolChat.app.repo.getThread(window.LolChat.app.state.threadId);
+                return th && th.studio && th.studio.panel === 'project' ? th.studio : null;
+            }, { timeout: 10000 });
+            h.eq(stored.projectId, secondId, '...and its stored studio keeps the project and the open panel, for when it is opened again');
             // A temporary chat stays plain, whatever was open.
             await h.eval(() => { window.LolChat.app.controller.newThread({ ephemeral: true }); return true; });
             await h.waitFor(() => (/press Project/.test((document.querySelector('#chat-empty') || {}).textContent || '') ? true : null), { timeout: 10000 });
