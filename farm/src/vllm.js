@@ -805,6 +805,7 @@ function installStepText(step, { label = 'the model', version = '', bytes = null
         venv: 'creating the Python environment',
         vllm: `downloading vLLM${version ? ` ${version}` : ''} and its GPU libraries (about 8 GB)`,
         'cuda-pins': 'matching the CUDA compiler to the GPU libraries',
+        'gpu-kernels': 'downloading precompiled GPU kernels (about 200 MB), so vLLM\'s first start takes minutes less',
         check: 'checking the GPU',
         model: `downloading ${label}`,
         done: 'finishing',

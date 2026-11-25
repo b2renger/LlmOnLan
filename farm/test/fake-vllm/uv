@@ -12,6 +12,10 @@ case "$1 $2" in
     py=; prev=; for a in "$@"; do [ "$prev" = --python ] && py=$a; prev=$a; done
     v="$(dirname "$(dirname "$py")")"
     for a in "$@"; do
+      case "$a" in https://*.whl)   # a wheel by its URL (FlashInfer's kernels): recorded; FAKE_UV=fail-wheels fails it
+        [ "${FAKE_UV:-}" = fail-wheels ] && { echo "error: Request failed after 3 retries (HTTP 404)"; exit 1; }
+        echo "$a" >> "$v/wheel-urls";;
+      esac
       case "$a" in vllm*==*)
         [ "${FAKE_UV:-}" = fail-vllm ] && { echo "error: Failed to fetch: https://files.pythonhosted.org/... (network)"; exit 2; }
         rm -rf "$v"/lib/python3.12/site-packages/vllm-*.dist-info

@@ -386,6 +386,23 @@ t_update() {
   check "an update that checks: vLLM 0.33.0 in .venv, nothing left beside it" bash -c "[ $rc = 0 ] && [ '$(ver)' = '$U/.venv/lib/python3.12/site-packages/vllm-0.33.0.dist-info ' ] && [ ! -e '$U/.venv-next' ] && [ ! -e '$U/.venv-prev' ] && grep -q '^vllm 0.33.0' '$OUT'"
   : > "$U/.venv/marker"; ins 0.33.0; rc=$?
   check "the same version again (a repair): in .venv itself, nothing built beside it" bash -c "[ $rc = 0 ] && [ -e '$U/.venv/marker' ] && [ ! -e '$U/.venv-next' ]"
+  # FlashInfer's precompiled kernels (FARM_START step 3): a fake nvidia-smi says the card, the fake python FlashInfer's
+  # version and the CUDA runtime, the fake uv records the wheels' URLs.
+  printf '%s\n' '#!/bin/bash' 'echo "${FAKE_CAP:-12.0}"' > "$FB/nvidia-smi"; chmod +x "$FB/nvidia-smi"
+  local W="https://github.com/flashinfer-ai/flashinfer/releases/download/v0.7.2.post1" M; M=$(uname -m)
+  rm -f "$U/.venv/wheel-urls"; FAKE_RT=13.2 FAKE_FI=0.7.2.post1 ins 0.33.0; rc=$?
+  check "a 12.x card on CUDA 13.2: the shim and sm120f at FlashInfer's version and its cu130 label, from its GitHub release" bash -c "[ $rc = 0 ] && grep -q '^\[lol-step\] gpu-kernels' '$OUT' && [ \"\$(cat '$U/.venv/wheel-urls')\" = '$W/flashinfer_jit_cache-0.7.2.post1+cu130-cp39-abi3-manylinux_2_28_$M.whl
+$W/flashinfer_jit_cache_sm120f-0.7.2.post1+cu130-cp39-abi3-manylinux_2_28_$M.whl' ]"
+  rm -f "$U/.venv/wheel-urls"; FAKE_RT=13.4 FAKE_FI=0.7.2.post1 ins 0.33.0
+  check "CUDA 13.4: the cu134 label" grep -q 'cu134-cp39' "$U/.venv/wheel-urls"
+  rm -f "$U/.venv/wheel-urls"; FAKE_UV=fail-wheels FAKE_RT=13.2 FAKE_FI=0.7.2.post1 ins 0.33.0; rc=$?
+  check "the wheels' download fails: install.sh still ends well, says vLLM builds them itself, vLLM installed" bash -c "[ $rc = 0 ] && grep -q 'builds them at its first start' '$OUT' && grep -q '^\[lol-step\] done' '$OUT' && [ -d '$U/.venv/lib/python3.12/site-packages/vllm-0.33.0.dist-info' ]"
+  rm -f "$U/.venv/wheel-urls"; FAKE_CAP=8.9 FAKE_RT=13.2 FAKE_FI=0.7.2.post1 ins 0.33.0; rc=$?
+  check "a card with no measured provider (8.9): nothing downloaded" bash -c "[ $rc = 0 ] && [ ! -e '$U/.venv/wheel-urls' ]"
+  FAKE_RT=12.8 FAKE_FI=0.7.2.post1 ins 0.33.0; rc=$?
+  check "CUDA 12.8 (below every label of its major): nothing downloaded" bash -c "[ $rc = 0 ] && [ ! -e '$U/.venv/wheel-urls' ]"
+  FAKE_RT=13.2 ins 0.33.0; rc=$?
+  check "no FlashInfer in the venv: nothing downloaded" bash -c "[ $rc = 0 ] && [ ! -e '$U/.venv/wheel-urls' ]"
   rm -rf "$U" "$FB"
 }
 t_timelimit() {

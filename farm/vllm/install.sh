@@ -10,7 +10,7 @@
 # its own Python. Env: LOL_VLLM_ROOT (default ~/lol-vllm), LOL_VLLM_VERSION (default 0.33.0, the version measured
 # in docs/spike/RESULTS.md), LOL_VLLM_STEPS (default "venv,model"; "model" only downloads and never touches the venv).
 #
-# For the farm, which reads this script's output: "[lol-step] uv|venv|vllm|cuda-pins|check|model <repo>|done"
+# For the farm, which reads this script's output: "[lol-step] uv|venv|vllm|cuda-pins|gpu-kernels|check|model <repo>|done"
 # before each step, and "[lol-error] gated|notfound|disk|network|noinstall <text>" when the download fails (noinstall:
 # a download asked of a root with no vLLM, whose `hf` it uses). It runs as its
 # own process group, recorded in $LOL_VLLM_ROOT/run/install.pgid: `stop.sh install` stops it, download included.
@@ -72,6 +72,26 @@ if [[ "$STEPS" == *,venv,* ]]; then
   # emits PTX that a 13.2 ptxas refuses. Pin all three to the runtime torch was built for.
   RT=$("$PY" -c "import importlib.metadata as m; v=m.version('nvidia-cuda-runtime').split('.'); print(v[0]+'.'+v[1])" 2>/dev/null || true)
   [ -n "$RT" ] && "$UV" pip install --python "$PY" "nvidia-cuda-nvcc==$RT.*" "nvidia-cuda-crt==$RT.*" "nvidia-nvvm==$RT.*"
+  echo "[lol-step] gpu-kernels"
+  # FlashInfer's precompiled kernels (FARM_START_PLAN step 3, measured 2026-11-24 on the PRO 6000: a first start from
+  # an empty kernel folder 331 -> 125 s for Qwen3.6, 605 -> 251 s for Qwen3.8): the shim flashinfer-jit-cache and the one
+  # provider for this card, both --no-deps (the shim requires all six providers), from FlashInfer's GitHub release only,
+  # at FlashInfer's own version and with its CUDA label (its __main__.py: the newest of 12.9, 13.0, 13.4 with torch's
+  # CUDA major, at or below it; RT is that CUDA here). Into $PY, so they move with a .venv-next. No provider for the
+  # card, or a download that fails: nothing installed, and vLLM builds its kernels at its first start, as before.
+  # ponytail: only the provider measured, sm120f (compute capability 12.x: the PRO 6000, the DGX Spark's 12.1, an RTX
+  # 50); sm80, sm89, sm90a, sm100a and sm103a are on the same release, for when a farm runs such a card.
+  CAP=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 || true)
+  FV=$("$PY" -c "import importlib.metadata as m; print(m.version('flashinfer-python').split('+')[0])" 2>/dev/null || true)
+  CU=
+  for c in 12.9 13.0 13.4; do
+    if [ -n "$RT" ] && [ "${c%.*}" = "${RT%.*}" ] && [ "${c#*.}" -le "${RT#*.}" ]; then CU="cu${c/./}"; fi
+  done
+  if [[ "$CAP" == 12.* ]] && [ -n "$FV" ] && [ -n "$CU" ]; then
+    W="https://github.com/flashinfer-ai/flashinfer/releases/download/v$FV"; T="cp39-abi3-manylinux_2_28_$(uname -m).whl"
+    "$UV" pip install --python "$PY" --no-deps "$W/flashinfer_jit_cache-$FV+$CU-$T" "$W/flashinfer_jit_cache_sm120f-$FV+$CU-$T" \
+      || echo "FlashInfer's precompiled kernels could not be downloaded: vLLM builds them at its first start (a few minutes more, once)."
+  fi
   echo "[lol-step] check"
   "$PY" - <<'PY'
 import torch, vllm, platform

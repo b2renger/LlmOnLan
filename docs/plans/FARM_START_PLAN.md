@@ -81,6 +81,19 @@ which step 3 is for.
    of their modules), which the wheels mostly cover too. For the build (session n° 16): `install.sh` after vLLM, the
    card's architecture from `nvidia-smi --query-gpu=compute_cap`; Update vLLM the same; no wheel for a card it has none
    for (the farm builds, as today).
+   **Built (night n° 16, 2026-11-25):** `install.sh`'s step `gpu-kernels`, after `cuda-pins` and before the check, into
+   `$PY` (so a `.venv-next` carries them): a compute-capability 12.x card gets the shim and `sm120f` at FlashInfer's
+   version, the CUDA label by FlashInfer's rule from the runtime torch ships with (`RT`), from
+   `github.com/flashinfer-ai/flashinfer/releases/download/v<version>/`; any failure prints one line and the install
+   goes on (vLLM builds, as before). The panel's bar: *downloading precompiled GPU kernels (about 200 MB), so vLLM's first
+   start takes minutes less*. Tests first: `test_scripts.sh` *update* (+6: the two URLs, cu134, a failed download,
+   no provider for 8.9, CUDA 12.8, no FlashInfer; 139/139) and `run.js` (every step `install.sh` announces has its
+   words; 293/293). **Real, on `~/lol-vllm-033`:** the two wheels uninstalled, then `install.sh` as Update vLLM runs it at
+   0.33.0: 39 s in all, the wheels 186 MiB in 17 s from GitHub; then Qwen3.6 64k from an empty kernel folder, with
+   `prefetch`: **122.2 s** Start → ready, 1 module built (`trtllm_utils`), the weights 14.1 s (night n° 15 without:
+   331 s). A farm installed before gets them at its next Update vLLM (same version: a repair into `.venv`).
+   `privacy.md` unchanged: it lists what leaves a person's computer, and the farm's own software downloads (PyPI,
+   GitHub releases, Hugging Face) carry nothing about a person; GitHub releases were already a farm source (llama.cpp).
 4. **The weights from a cold disk (S, research).** 31 s cold against 17 s warm for 20 GB. Measure vLLM's
    `--safetensors-load-strategy` options on a trial root; adopt one only if it saves 10 s or more, in the model's
    flags (the farm owns them).

@@ -56,7 +56,13 @@
     below checked on it, Qwen3.6 48 people at 64k every turn against 0.30.0's 32 the same day; an install of another
     version is offered **Update vLLM**, never run by itself, which builds the new version in `.venv-next` and swaps it in
     only once its check passed, so a stopped or failed update leaves the old one serving; it is refused only while the
-    farm's own vLLM runs, and the probe's "running" is read after a fresh check, 2026-11-14), keeps a list of seven models (Download / Use this / Remove / Add by Hugging Face name; a Use this while
+    farm's own vLLM runs, and the probe's "running" is read after a fresh check, 2026-11-14; Update at the same version
+    reinstalls into `.venv` itself, a repair). Each install and Update also puts in **FlashInfer's precompiled kernels**
+    for a compute-capability 12.x card (`install.sh` step `gpu-kernels`, FARM_START step 3, 2026-11-25): the shim
+    `flashinfer-jit-cache` and the provider `flashinfer-jit-cache-sm120f`, `--no-deps`, at FlashInfer's own version and
+    CUDA label, from FlashInfer's **GitHub release** only (186 MiB, 17 s); a failed download is a line in the log and vLLM
+    builds its kernels at the first start as before; another card gets nothing (only sm120f was measured). A farm
+    installed before gets them at its next Update vLLM. It keeps a list of seven models (Download / Use this / Remove / Add by Hugging Face name; a Use this while
     vLLM is stopped is saved for the next start, and Start vLLM reloads LiteLLM's routing when it changed, 2026-11-14):
     the spike's three NVFP4 models and, since 2026-10-09 (branch `vllm-models`), two that hear sound in a
     chat message (`audio`, the snapshot's `backend.audio`; vLLM's sound extras, `vllm[audio]` in `install.sh`, an

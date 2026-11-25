@@ -9,6 +9,26 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-25 (02:23) — FARM_START steps 4 and 3 built: the weights prefetched, FlashInfer's precompiled kernels installed with vLLM (night n° 16)
+
+- **Step 4** (`a48b347`): `--safetensors-load-strategy prefetch` in the flags of Qwen3.6, Nemotron, Qwen3.8 and both Gemma
+  4; not Qwen3-Omni (70 GB) nor Flint (GGUF). The value exists in every vLLM the farm ever installed (0.30.0, 0.33.0;
+  `config/load.py` read at their tags) and is not part of vLLM's compile-cache key (`LoadConfig.compute_hash`). Test
+  first; the golden adoption test then failed (a vLLM started without the flag no longer matched), so `flagMap` leaves
+  the flag out of comparisons: a running vLLM without it is kept, not restarted. Farm 293/293.
+- **Step 3:** `install.sh`'s new step `gpu-kernels` (FARM_START_PLAN ▸ step 3 ▸ *Built*). Real, on `~/lol-vllm-033`:
+  the wheels night n° 15 had put in by hand uninstalled, then `install.sh` at 0.33.0 (Update vLLM's repair): 39 s,
+  186 MiB from FlashInfer's GitHub release in 17 s, installed; then a cold Qwen3.6 64k start from an empty kernel folder
+  with `prefetch`: **122.2 s**, one module built, weights 14.1 s. vLLM still warns that precompiled kernels are missing:
+  it means `flashinfer-cubin` (1.67 GB, left out on purpose). Scripts 139/139, farm 293/293.
+- **Correction of review M2 (2026-11-24):** it was not a bug a person met. Since `05cf321` (2026-10-08, farm-v0.0.43)
+  `install.sh` deletes every `*.incomplete` once a download ends well, and the panel's Download is `install.sh`
+  (`vllm.js` `install`, steps `model`). Proved tonight on a scratch root through that path (`hf/q05`,
+  Qwen2.5-0.5B-Instruct): a Download stopped by `stop.sh install` after 12 s left a temp file and `partial=1` (true: it
+  was partial); a second Download ended, the temp file was gone, and the rule **before** M2 said `partial=0`. M2's
+  proof had used `hf download` by hand, which skips `install.sh`; 034's Gemma had been downloaded by hand too. The
+  `status.sh` change stays (harmless, tested: a folder filled by hand no longer reads partial).
+
 ## 2026-11-24 (05:27) — A stopped model Download stayed "partly downloaded" for good: status.sh fixed (review M2, night n° 15)
 
 `status.sh` marked a model partial if any `*.incomplete` was under its folder. huggingface_hub names each download

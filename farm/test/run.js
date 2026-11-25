@@ -4925,6 +4925,11 @@ test('vLLM plumbing helpers: the distribution\'s disk folder, install steps and 
     assert.equal(V.installStepText('model', { label: 'Qwen3.6', bytes: 12.34e9, total: 23.4e9 }), 'downloading Qwen3.6 — 12 of 23 GB on disk so far (files are written in large pieces, so this number jumps)');
     assert.equal(V.installStepText('model', { label: 'Qwen3.6', bytes: 1.25e9, total: 2.5e9 }), 'downloading Qwen3.6 — 1.3 of 2.5 GB on disk so far (files are written in large pieces, so this number jumps)');
     assert.equal(V.installStepText('cuda-pins'), 'matching the CUDA compiler to the GPU libraries');
+    // Every step install.sh announces has its own words on the panel's bar (FARM_START step 3 added gpu-kernels).
+    const steps = [...fs.readFileSync(path.join(__dirname, '..', 'vllm', 'install.sh'), 'utf8').matchAll(/echo "\[lol-step\] ([a-z-]+)/g)].map((m) => m[1]);
+    assert.ok(steps.includes('gpu-kernels') && steps.length >= 7, steps.join(' '));
+    for (const st of steps) assert.notEqual(V.installStepText(st), 'working', `install.sh's step ${st} has no words on the panel`);
+    assert.equal(V.installStepText('gpu-kernels'), 'downloading precompiled GPU kernels (about 200 MB), so vLLM\'s first start takes minutes less');
     assert.equal(V.downloadFailure({ kind: 'gated' }, 'a/b'), 'Hugging Face asks for an account to download this model. Pick another model.');
     assert.equal(V.downloadFailure({ kind: 'notfound' }, 'a/b'), 'There is no model named a/b on Hugging Face. Check the name.');
     assert.equal(V.downloadFailure({ kind: 'disk' }, 'a/b'), 'The disk is full. Free some space, then press Download again.');
