@@ -1445,13 +1445,17 @@ harness, the plan's wording on a real model is not). **A build is ready:** `shel
 with Qwen3.6 or qwen3.8; a project with an index.html (any page the agent made). *Was:* new (2026-11-20); the switch
 moved from the Project panel's bar to beside the message box, one per chat, on 2026-11-21 (as the plan was approved).
 1. In the project's chat, **Plan first** beside the message box (it turns to *Plan first: on*, and a line above the
-   message box says what it does). Note the History tab's newest entry. A chat that is not bound to a project has no
-   such switch, and another chat of the same project has its own, off. (A new chat tied to the project, still empty,
-   says *Ask the coding agent.*, not *press Project at the top*: since `0.2.19+n13`.)
+   message box says what it does). Note the History tab's newest entry. Another chat of the same project has its own
+   switch, off. (A new chat tied to the project, still empty, says *Ask the coding agent.*, not *press Project at the
+   top*: since `0.2.19+n13`.) A chat with no project shows the switch too since 2026-11-25: G14's last two steps.
 2. Ask: *"Add a footer with today's date to the page, in a separate footer.css."*
 3. Read the reply; under it, **Change the plan**, then ask: *"Make the footer text grey."*
 4. Under the new plan, **Go ahead**.
 5. **Plan first** again (it goes off), and ask for one more small change.
+6. *(Since 2026-11-25, the build named below.)* Still in that project's chat, **New chat** (top left). Then **Plan first**
+   in the new chat, and ask: *"Add a header with the project's name."*
+7. **New chat** again from a chat with no project (open one from the list, or a temporary chat), and press **Plan
+   first** there. Make a project in the panel that opens (*New project*, any name), then ask for a small page.
 
 *Expect:* after 2, a numbered plan naming index.html and footer.css and how to check it; the Changes tab and History
 unchanged (no new entry); if the agent tried to write, its step log says *planning: nothing is changed until the
@@ -1463,6 +1467,12 @@ while the pointer was over the reply, small and grey (the owner's run below). **
 them without a hover, as buttons, *Go ahead* in the accent colour (the Send button's), *Change the plan* beside it; an
 older plan shows neither; after *Change the plan* the message box's hint reads *Say what to change in the plan, then send
 it: the agent plans again.* until the next reply starts (`k24-plan-first-changes-nothing-until-go-ahead` checks all three).
+After 6 (PLAN_FIRST_NEW_CHAT_PLAN (a), the owner's *"we should be able to start with a plan"*): the new chat says *Ask
+the coding agent.*, the Project panel shows the same project, *Plan first* is beside the message box before anything is
+sent, and the answer is a plan. After 7 ((b)): the Project panel opens and says *Plan first works in a project: pick one
+below, or make a new one. This chat plans first once it is in one.*; once the project is made the switch reads *Plan
+first: on* and the first answer is a plan. A temporary chat, or a new chat from a plain one, starts with no project
+(`k24-plan-first-changes-nothing-until-go-ahead` and `k24-plan-first-in-a-plain-chat` check both).
 - [x] Done by the owner, 2026-11-23, on `0.2.19+n13` · Found: "it works as expected, but yes the buttons are very small
   and not really visible, in terms of UX they should be more visible and it should be more natural to go through this
   chain of thoughts using the buttons"; and "In a new chat it looks like we cannot start with a plan ... we should be

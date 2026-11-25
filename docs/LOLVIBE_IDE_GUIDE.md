@@ -47,7 +47,10 @@ a word); if not, the agent is told the line and the error at once, and fixes it 
 ### Plan first
 
 To see what the agent will do before it does it, press **Plan first** beside the message box (it turns to *Plan first: on*, and
-a line above the message box says what it does). It is there only in a chat bound to a project.
+a line above the message box says what it does). It works in a chat bound to a project. In a chat with no project yet,
+pressing it opens the **Project** panel to pick one or make one, and the chat plans first as soon as it is in it. A
+**New chat** opened from a project's chat stays in that project, so *Plan first* is there before the first message
+(a temporary chat, or a new chat from a plain one, starts plain).
 For each message, the agent then reads the project and answers with a **plan**: the files it would make or change,
 what each change does, and how to check it worked. It changes **nothing** while it plans (LlmOnLan refuses its writes,
 and its steps say so: *planning: nothing is changed until the person approves the plan*). Under the plan:

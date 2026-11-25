@@ -67,6 +67,11 @@
   **Plan first** (2026-11-20, [STUDENT_PLAN_MODE_PLAN](../plans/STUDENT_PLAN_MODE_PLAN.md)): a person's switch per
   chat, beside the message box (the composer's `COMPOSER_ACTIONS`, registered by `ui/project-panel.mjs` `install`, shown
   in a chat bound to a project; since 2026-11-21, before that in the panel's bar per project), off by default,
+  and since 2026-11-25 (PLAN_FIRST_NEW_CHAT_PLAN) in a chat with no project too, wherever the coding agent is: there it
+  opens the Project panel, whose note asks for a project (`project.planFirstNeedsProject`), and keeps the wish for that
+  chat (`planWish`), which becomes *Plan first* once the chat is bound (`takeWish`). A **New chat** opened from a
+  project's chat stays in that project, its panel open (`ui/workbench.mjs` `onThreadSelected`: AP.1's one exception;
+  a temporary chat and a new chat from a plain one start plain),
   forgotten at restart (`projects/agent.mjs` `planFirst(threadId)`), for a class; its note goes above the message box.
   The panel's `load()` tells it of a binding at once (the workbench writes the studio silently); a chat opened is read
   from the store (`THREAD_SELECTED`). A planning turn sends

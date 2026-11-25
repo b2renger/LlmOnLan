@@ -32,6 +32,11 @@ const TAB_TIP = { preview: 'project.tipTabPreview', code: 'project.tipTabCode', 
 
 /** The open chat, bound to a project or not, as the panel's load() sees it (install sets it). @type {(id: string, bound: boolean) => void} */
 let planSeen = () => { };
+// PLAN_FIRST_NEW_CHAT_PLAN (b): *Plan first* pressed in a chat with no project yet. The Project panel opens and asks for
+// one; the chat gets *Plan first* once it is bound. Forgotten at restart, as *Plan first* itself is.
+/** @type {Set<string>} */ const planWish = new Set();
+/** The open panel repaints its empty state with that sentence (createPanel sets it). */
+let paintWish = () => { };
 
 /** @param {any} app */
 export function install(app) {
@@ -105,25 +110,41 @@ export function install(app) {
   app.registry.add(SLOTS.COMPOSER_ACTIONS, {
     id: 'plan-first',
     order: 10,
-    visible: () => !!planThread && !!getDoor(),
+    // (b): in a chat with no project too, where pressing it asks for one (owner 2026-11-23: plan before coding).
+    visible: () => !!getDoor(),
     render: () => {
       const id = planThread;
-      const on = planFirst(id);
+      const tid = String((app.state && app.state.threadId) || '');
+      const on = id ? planFirst(id) : planWish.has(tid);
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'chat-plan-first';
       b.textContent = on ? t('project.planFirstOn') : t('project.planFirst');
-      b.title = on ? t('project.tipPlanFirstOn') : t('project.tipPlanFirst');
+      b.title = !id ? t('project.tipPlanFirstNoProject') : on ? t('project.tipPlanFirstOn') : t('project.tipPlanFirst');
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
-      b.addEventListener('click', () => { setPlanFirst(id, !planFirst(id)); refresh(); });
+      b.addEventListener('click', () => {
+        if (id) setPlanFirst(id, !planFirst(id));
+        else if (planWish.has(tid)) planWish.delete(tid);
+        else {
+          // No chat yet: this makes it, as bind() does for a thread-less LOL Vibe.
+          if (!tid && app.controller) app.controller.newThread();
+          planWish.add(String((app.state && app.state.threadId) || ''));
+          if (app.work) app.work.open('project');
+          paintWish();
+        }
+        refresh();
+      });
       return b;
     },
   });
   // The panel binds a chat to a project without an event (the workbench writes its studio silently, BB-7): its load()
   // says so here at once.
+  // A chat bound at last takes the *Plan first* asked for before (b).
+  const takeWish = (/** @type {string} */ id) => { if (planWish.delete(id)) setPlanFirst(id, true); };
   planSeen = (/** @type {string} */ id, /** @type {boolean} */ bound) => {
     if (!id || id !== (app.state && app.state.threadId)) return;
     planThread = bound ? String(id) : '';
+    if (bound) takeWish(String(id));
     refresh();
   };
   const follow = async () => {
@@ -135,6 +156,7 @@ export function install(app) {
     } catch { /* not bound */ }
     if ((app.state && app.state.threadId) !== id) return;   // another chat opened meanwhile: its own follow paints it
     planThread = bound ? String(id) : '';
+    if (bound && id) takeWish(String(id));
     refresh();
   };
   if (app.bus) {
@@ -772,6 +794,7 @@ function createPanel(host, app) {
     area.setSelectionRange(e.selStart, e.selEnd);
   });
 
+  paintWish = () => { if (!projectId) void paintEmpty(); };
   async function paintEmpty() {
     const mine = epoch;
     const r = app.projects ? await app.projects.list() : null;
@@ -783,6 +806,7 @@ function createPanel(host, app) {
     });
     list.replaceChildren(...rows);
     const notes = [];
+    if (planWish.has(String((app.state && app.state.threadId) || ''))) notes.push(t('project.planFirstNeedsProject'));
     if (app.projects && typeof app.projects.notice === 'function' && app.projects.notice()) notes.push(app.projects.notice());
     if (!door) notes.push(t('project.noApp'));
     status.textContent = notes.join(' ');
@@ -885,7 +909,7 @@ function createPanel(host, app) {
       host.replaceChildren();
     },
     debug: {
-      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), planFirst: !!projectId && !!thread && planFirst(thread.id), keepGoing: !!projectId && keepGoing(projectId), useComputer: !!projectId && computerOk && useComputer(projectId), computerOk, schedule: projectId ? scheduleOf(projectId) : null, history: commits.map((c) => c.message), frame: frame ? frame.getAttribute('src') : null, graph: graphLive ? graphLive.state() : null }),
+      state: () => ({ projectId, projectName, files: files.map((f) => f.path), tab, openFile, serveUrl, lan: lanUrls.slice(), planFirst: !!projectId && planFirst(String((app.state && app.state.threadId) || '')), keepGoing: !!projectId && keepGoing(projectId), useComputer: !!projectId && computerOk && useComputer(projectId), computerOk, schedule: projectId ? scheduleOf(projectId) : null, history: commits.map((c) => c.message), frame: frame ? frame.getAttribute('src') : null, graph: graphLive ? graphLive.state() : null }),
     },
   };
 }

@@ -3,6 +3,18 @@
 **Status: approved by the owner, 2026-11-23** ((a) and (b), the chat 12:11; one question below). Size **S + S**.
 **Built after the v0.2.20 tag** (DECISIONS 2026-11-23): v0.2.20 is tagged (2026-11-23 17:41), so it may be built now.
 
+**Built (night n° 16, 2026-11-25), unreleased:** (a) `ui/workbench.mjs` `onThreadSelected`: a created thread whose
+previous chat was bound to a project, and that is not temporary, opens the Project panel and `setStudio({projectId})`,
+as `bind()` does; (b) `ui/project-panel.mjs`: the switch shows wherever the coding agent is (`getDoor()`); in a chat
+with no project it keeps a wish (`planWish`, forgotten at restart), opens the panel, whose note says
+`project.planFirstNeedsProject`, and the wish becomes *Plan first* once the chat is bound (`takeWish`); with no chat yet,
+pressing it makes one, as `bind()` does. *Plan first* stays off by default in a new chat (the question's default, taken
+2026-11-24). Tests: `k24-plan-first-changes-nothing-until-go-ahead` (its plain chat now shows the switch, off; a new chat
+from the project's chat is in it with the switch; a temporary chat and a new chat from a plain one are plain) and the new
+`k24-plan-first-in-a-plain-chat` (the panel asks, a second press drops the wish, the project made there turns it on, the
+first reply is a plan): 2/2 in the harness; `test:chat` 1989 and lint 0. The panel's debug `planFirst` now reads the open
+chat, not the panel's last `thread`. Docs: client.md, LOLVIBE_IDE_GUIDE, HUMAN_TESTS G14 steps 6 and 7.
+
 The owner, G14 on `0.2.19+n13`: *"In a new chat it looks like we cannot start with a plan ... we should be able to start
 with a plan"*; then, on (b): *"it is good practice to elaborate a plan rather than start coding right away so yes it is
 an important to plan first when start a new chat, new project"*.

@@ -368,8 +368,8 @@ export default [
         async run(/** @type {any} */ h) {
             await h.fresh();
             await h.waitFor(() => (window.LolChat && window.LolChat.ready ? true : null));
-            // A chat bound to no project has no switch: the coding agent does not answer there.
-            h.eq(await h.eval(() => !!document.querySelector('#lolchat .chat-composer-tools .chat-plan-first')), false, 'no switch in a plain chat');
+            // A chat bound to no project offers the switch too, off (PLAN_FIRST_NEW_CHAT_PLAN (b): the scenario below).
+            h.eq(await h.eval(() => (document.querySelector('#lolchat .chat-composer-tools .chat-plan-first') || { getAttribute: () => null }).getAttribute('aria-pressed')), 'false', 'a plain chat offers the switch, off');
             const emptyText = () => h.eval(() => (document.querySelector('#chat-empty') || {}).textContent || '');
             h.assert(/press Project/.test(await emptyText()), 'a plain chat\'s empty state points to Project');
             await h.eval(() => { window.LolChat.app.work.open('project'); return true; });
@@ -460,13 +460,64 @@ export default [
                 /** @type {HTMLFormElement} */ (document.querySelector('#lolchat .chat-proj-new')).requestSubmit();
                 return true;
             });
-            await h.waitFor((was) => { const s = window.LolChat.debug.project.state(); return s.projectId && s.projectId !== was ? true : null; }, { timeout: 15000, args: [firstId] });
+            const secondId = await h.waitFor((was) => { const s = window.LolChat.debug.project.state(); return s.projectId && s.projectId !== was ? s.projectId : null; }, { timeout: 15000, args: [firstId] });
             await h.sleep(500);   // loadRemote's answer for the new project, which fills only an empty field
             h.eq(await h.eval(() => /** @type {HTMLInputElement} */ (document.querySelector('#lolchat .chat-proj-remote-in')).value), '', 'the other project\'s typed address is gone');
 
-            // A new chat is bound to no project: its empty state points to Project again.
+            // PLAN_FIRST_NEW_CHAT_PLAN (a): a new chat opened from a project's chat stays in that project, its panel open,
+            // the switch beside the message box before its first message, off (the default, DECISIONS 2026-11-24).
+            const was = await h.eval(() => window.LolChat.app.state.threadId);
+            await h.click('#chat-new');
+            await h.waitFor((w) => (window.LolChat.app.state.threadId !== w && /coding agent answers it/.test((document.querySelector('#chat-empty') || {}).textContent || '') ? true : null), { timeout: 10000, args: [was] });
+            h.eq((await panel(h)).projectId, secondId, "a new chat from a project's chat is in that project");
+            h.eq(await h.eval(() => window.LolChat.app.work.current()), 'project', '...its Project panel open');
+            h.eq(await h.eval(() => (document.querySelector('#lolchat .chat-composer-tools .chat-plan-first') || { getAttribute: () => null }).getAttribute('aria-pressed')), 'false', '...Plan first beside the message box, off');
+            await h.screenshot('k24-plan-first-new-chat-in-project');
+            // A temporary chat stays plain, whatever was open.
+            await h.eval(() => { window.LolChat.app.controller.newThread({ ephemeral: true }); return true; });
+            await h.waitFor(() => (/press Project/.test((document.querySelector('#chat-empty') || {}).textContent || '') ? true : null), { timeout: 10000 });
+            h.eq(await h.eval(() => window.LolChat.app.work.current()), null, 'a temporary chat: no project, the workbench closed');
+            // A new chat from a plain chat stays plain (AP.1).
             await h.click('#chat-new');
             await h.waitFor(() => (/press Project/.test((document.querySelector('#chat-empty') || {}).textContent || '') ? true : null), { timeout: 10000 });
+            h.eq(await h.eval(() => window.LolChat.app.work.current()), null, 'a new chat from a plain chat: plain');
+        },
+    },
+    {
+        // PLAN_FIRST_NEW_CHAT_PLAN (b), the owner 2026-11-23 ("it is good practice to elaborate a plan rather than start
+        // coding right away"): Plan first pressed in a chat with no project asks for one; the chat plans first once in it.
+        name: 'k24-plan-first-in-a-plain-chat',
+        needsMock: true,
+        timeoutMs: 120000,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            await h.fresh();
+            await h.waitFor(() => (window.LolChat && window.LolChat.ready ? true : null));
+            const pressed = () => h.eval(() => (document.querySelector('#lolchat .chat-composer-tools .chat-plan-first') || { getAttribute: () => null }).getAttribute('aria-pressed'));
+            const press = () => h.eval(() => { /** @type {HTMLButtonElement} */ (document.querySelector('#lolchat .chat-composer-tools .chat-plan-first')).click(); return true; });
+            const above = () => h.eval(() => (document.querySelector('#lolchat .chat-composer-above') || {}).textContent || '');
+            h.eq(await pressed(), 'false', 'a plain chat offers Plan first, off');
+            await press();
+            await h.waitFor(() => { const st = document.querySelector('#lolchat .chat-proj-empty:not([hidden]) .chat-proj-status'); return st && /Plan first works in a project/.test(st.textContent || '') ? true : null; }, { timeout: 10000 });
+            h.eq(await pressed(), 'true', 'the Project panel asks for a project, and the switch keeps the wish');
+            h.eq(await above(), '', 'no note above the message box yet: nothing plans before a project');
+            await h.screenshot('k24-plan-first-asks-for-a-project');
+            await press();
+            h.eq(await pressed(), 'false', 'pressed again: the wish is dropped');
+            await press();
+            h.eq(await pressed(), 'true', 'and asked again');
+            await h.eval(() => {
+                /** @type {HTMLInputElement} */ (document.querySelector('#lolchat .chat-proj-name-in')).value = 'wished';
+                /** @type {HTMLFormElement} */ (document.querySelector('#lolchat .chat-proj-new')).requestSubmit();
+                return true;
+            });
+            await h.waitFor(() => { const s = window.LolChat.debug.project && window.LolChat.debug.project.state(); return s && s.projectId && s.planFirst ? true : null; }, { timeout: 15000 });
+            h.eq(await pressed(), 'true', 'the project made from there: the chat plans first');
+            h.assert(/changes nothing/.test(await above()), 'the note above the message box says what it does');
+            await send(h, 'write wished.txt: yes');
+            const plan = await settled(h, 1);
+            h.assert(/Plan first: in this turn you cannot change any file/.test(plan.text), 'the first reply is a plan (the mock quotes its prompt)');
+            h.assert(!(await panel(h)).files.includes('wished.txt'), 'no file while planning');
         },
     },
     {

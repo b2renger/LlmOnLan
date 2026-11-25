@@ -20,6 +20,7 @@ registerStrings('project', {
   keepGoingNote: 'On: your next messages start a loop — the agent works round after round (at most {max}) until it has checked the job is done. Each round is a whole reply of the model on the farm. Stop ends it; it switches off when LlmOnLan closes.',
   planFirst: 'Plan first',
   planFirstOn: 'Plan first: on',
+  planFirstNeedsProject: 'Plan first works in a project: pick one below, or make a new one. This chat plans first once it is in one.',
   // The chat's empty state in a chat bound to a project (core.emptyTitle / emptyDetail elsewhere).
   chatEmptyTitle: 'Ask the coding agent.',
   chatEmptyDetail: 'This chat is tied to a project: the coding agent answers it, and changes the project’s files on this computer.',
@@ -108,6 +109,7 @@ registerStrings('project', {
   tipKeepGoingOn: 'Back to one reply per message',
   tipPlanFirst: 'The agent proposes a plan first and changes nothing until you approve it',
   tipPlanFirstOn: 'Back to changes straight away',
+  tipPlanFirstNoProject: 'Plan first works in a project: this opens the Project panel, to pick one or make one',
   tipUseComputer: 'Let the agent build and run graphs on the Computer, and reach your home when Home Assistant is linked, not only files',
   tipUseComputerOn: 'Back to files only',
   tipUseComputerOff: 'The Computer is not reachable this session (another LlmOnLan holds its port)',

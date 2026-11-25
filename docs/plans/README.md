@@ -53,8 +53,8 @@ file stays the whole list.
   J16 and J19 (session n° 16).**
 - **Start a new chat with a plan** ([PLAN_FIRST_NEW_CHAT_PLAN](PLAN_FIRST_NEW_CHAT_PLAN.md), approved by the owner
   2026-11-23 12:11): (a) a new chat from a project's chat stays in it; (b) every new chat offers *Plan first*. **S + S**.
-  **Ready:** v0.2.20 is tagged (2026-11-23 17:41; the owner's re-check passed). One question: on by default in a new
-  chat (default if no answer: off, as decided 2026-11-20).
+  **Built night n° 16 (2026-11-25), unreleased:** (a) and (b), off by default (the default taken 2026-11-24); the
+  harness's two `k24-plan-first-*` scenarios; HUMAN_TESTS G14 steps 6 and 7 for the owner.
 - **128k of context per person by default** ([CONTEXT_128K_PLAN](CONTEXT_128K_PLAN.md), approved by the owner
   2026-11-19 18:15, for a night session after the tests of 2026-11-20): the vLLM default and the Balanced preset at
   128k, Qwen3.6's 128k label measured on 0.33.0 (24; the owner, 2026-11-20 12:46: "24, 128k can be the default").

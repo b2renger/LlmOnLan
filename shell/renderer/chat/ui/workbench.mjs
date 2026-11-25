@@ -569,9 +569,18 @@ export function install(app) {
     writer.flush();                                  // the pending value belongs to the old thread
     thread = null;
 
-    // §2.6 AP.1: a brand-new thread nobody has used yet starts closed.
+    // §2.6 AP.1: a brand-new thread nobody has used yet starts closed. One exception (PLAN_FIRST_NEW_CHAT_PLAN (a),
+    // owner 2026-11-23): a new chat opened from a project's chat stays in that project, its panel open, so *Plan first*
+    // is beside the message box before the first message, as the panel's own bind() does. A temporary chat stays plain.
     if (!id || (payload && payload.created)) {
+      const cur = app.controller && typeof app.controller.current === 'function' ? app.controller.current() : null;
+      const keep = id && studio && studio.projectId && !(cur && cur.thread && cur.thread.ephemeral) ? studio.projectId : null;
       studio = emptyStudio(app.now());
+      if (keep && entry('project') && entry('project').available) {
+        open('project', { announce: false });
+        api.setStudio({ projectId: keep });
+        return;
+      }
       if (openId) { if (live) { suspend(); teardown(); } openId = null; width = DEFAULT_WIDTH; }
       syncRail(); applyWidth(); emit();
       return;
