@@ -8,7 +8,7 @@ beside its code, the document read once per chat, the Computer's lost wake-up). 
 the farm: **the client shell and Open WebUI's contract**. Beside it, while the card was free: J19's measured parts and
 FARM_START steps 3 and 4 measured (the owner's yes, 2026-11-23 12:11). The Farm app was off at 02:00 and stayed off.*
 
-**In numbers:** 9 findings (2 medium, 7 low); 6 fixed tonight (M1, M2, L1, L4, L5, L6), 3 filed (L2 needs the owner: a
+**In numbers:** 9 findings (2 medium, 7 low; M2 corrected to low on 2026-11-25, below); 6 fixed tonight (M1, M2, L1, L4, L5, L6), 3 filed (L2 needs the owner: a
 folder to delete; L3 and L7 for Later); 2 questions, both answered the same night (1 by measurement, which became
 QWEN36_FP16_STATE_PLAN and showed its accuracy cost; 2 proved and fixed as M2). **The next review's area** (the rotation): LOL Vibe and the IDE.
 
@@ -60,6 +60,11 @@ then the same download to its end (548,105,171 bytes): the 0-byte `….956aec2f.
 old rule; 133/133; the real gpt2 folder now reads `partial=0`). HUMAN_TESTS K6 step 3 (*Stop it half-way, Download
 again*) covers it for a person. Not released: until the next Farm app, a stopped Download's stale file can be deleted by
 hand.
+**Corrected 2026-11-25 (night n° 16): low, not a bug a person met.** The panel's Download is `install.sh` (steps
+`model`), which has deleted every `*.incomplete` once a download ends well since `05cf321` (2026-10-08, farm-v0.0.43).
+The proof above ran `hf download` by hand, which skips that, and 034's Gemma had been downloaded by hand too. Proved
+through the farm's path (DEVLOG 2026-11-25 02:23): stopped by `stop.sh install`, downloaded again, the temp file gone,
+and the rule before this fix says `partial=0`. The `status.sh` change stays: it only spares a folder filled by hand.
 
 ### Low
 
