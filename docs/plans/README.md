@@ -435,6 +435,10 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
 ## 4. Waiting on the owner
 
+- **Classify answered by the farm's own model through vLLM's decision endpoint**
+  ([VLLM_DECISIONS_2026-11-25](../research/VLLM_DECISIONS_2026-11-25.md), the owner's question of 2026-11-25): vLLM
+  0.33/0.34 answer `choice` questions with Qwen3.6, Qwen3.8 or Gemma 4 on `/v1/systemone`; Laya stays the CPU fallback.
+  First a measurement against Laya 0.3.20 and 0.5.4, English and French (**S**, no farm code); then a plan.
 **The ones that unblock the most:**
 - **[BLENDER_TOOLS_ENV_PLAN](BLENDER_TOOLS_ENV_PLAN.md)** (night n° 12, proposed): the Blender tools through
   `TOOL_SERVER_CONNECTIONS` (env, as the Computer's), so Open WebUI 0.13.4 and later can come without losing them.
