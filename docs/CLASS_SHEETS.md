@@ -1,8 +1,10 @@
-# Class sheets: Tuesday 17 November
+# Class sheets
 
 Two sheets: one to hand to the students, one for the person running the class. Fill the `<…>` before printing. Written
-from the night measurements of 2026-11-14 (RESULTS ▸ *30 people for the class*) and the real app driven that night;
-updated the same day for the owner's answers (Qwen3.6 at 64k, the Sparks behind a password, feedback by talking).
+for the class of Tuesday 17 November from the night measurements of 2026-11-14 (RESULTS ▸ *30 people for the class*) and
+the real app driven that night. **Updated 2026-11-26 (night n° 17) for client v0.2.21 and Farm app farm-v0.0.55:** 128k
+of context per person, Automatic 24 people at once on the PRO 6000 ([CONTEXT_128K_PLAN](plans/CONTEXT_128K_PLAN.md)),
+macOS 13 or later for the client.
 
 ---
 
@@ -15,7 +17,7 @@ and that computer, and your chats are kept only on your laptop.
 
 Download from **github.com/b2renger/LlmOnLan/releases/latest**:
 - **Windows:** `LlmOnLan-Setup-…-windows-x64.exe`. If Windows warns you: **More info ▸ Run anyway**.
-- **Mac with Apple chip (M1 to M4):** `…-mac-arm64.dmg`. **Intel Mac:** `…-mac-x64.dmg` (needs macOS 14 or later).
+- **Mac with Apple chip (M1 to M4):** `…-mac-arm64.dmg` (needs macOS 13 or later). **Intel Mac:** `…-mac-x64.dmg` (needs macOS 14 or later).
   Drag LlmOnLan to Applications, then open it. If the Mac refuses: **right-click ▸ Open ▸ Open**. On recent macOS that
   may not be offered: try to open it once, then **System Settings ▸ Privacy & Security ▸ Open Anyway** (your password).
 - A Chromebook cannot run it.
@@ -32,7 +34,7 @@ address*, then **Add**.
 
 - **Open WebUI** (the chat): the first time, a *What's New* window opens: close it with **Okay, Let's Go!**. The model
   menu is in the message box, at the bottom right: it should say **assistant** (if it says *Select a model*, click it and
-  choose **assistant**). Ask a question. Attach a PDF to your message and ask about it (up to about 80 pages of text).
+  choose **assistant**). Ask a question. Attach a PDF to your message and ask about it (up to about 160 pages of text).
 - **LOL Vibe:** ask something. Ask for something long, then press **Stop**. Ask for *"a small website: a page with a
   button that changes the background colour"*: on the answer's `html` block press **Preview** and click the button
   (the page runs here, without the internet).
@@ -51,19 +53,21 @@ We talk about it together at the end: what worked, what confused you, what you w
 
 ## For the person running the class
 
-**The farm:** the PRO 6000, on vLLM 0.33.0 with Qwen3.6 35B-A3B, 64k of context per person, people at once **Automatic
-(48)** (measured for 30 on 14 November: first word within 2.5 s for 95 % of them even in long conversations; with the
-LiteLLM the Farm app of 16 November brings, about 88 tokens a second each for 30 people and 67 for 48, fewer in long
-conversations, faster than anyone reads; three coding agents beside 27 chatting slowed nobody). Before the class: BEFORE_TUESDAY test 7.
+**The farm:** the PRO 6000, on vLLM 0.33.0 with Qwen3.6 35B-A3B (farm-v0.0.55), 128k of context per person, people at
+once **Automatic (24)**: measured on 20 November with everyone 120k deep at once, the worst case, 24 pass (first word
+within 4.6 s for 95 %, the slowest 21.6 tokens a second); 30 at once then still had a median first word of 1.3 s and 17
+tokens a second for the slowest. **With more than 24 students active at once,** the 25th waits for a seat: before the
+class, in the Farm app panel, set *People served at once* to the class size (30) and Apply. Before the class: HUMAN_TESTS
+J16's *10-minute check*.
 
 | If you see | What it means | What to do |
 |---|---|---|
-| *The farm is full* | All 48 seats taken. A seat frees 15 min after its holder's last question; a laptop that slept and came back with a new address keeps its old seat until then. | Wait, or in the Farm app panel ▸ Access ▸ *Free an idle seat after* 1 min ▸ Apply (put 15 back after the class). |
-| Students on a farm with **2 seats** (a Spark) | The Sparks have a password for the day, so "Automatic" never picks them; a laptop gets there only if someone typed that password. | Step 2 of their sheet: one click on the class farm pins it. |
+| *The farm is full* | All the seats taken (24 on Automatic). A seat frees 15 min after its holder's last question; a laptop that slept and came back with a new address keeps its old seat until then. | Wait, or in the Farm app panel ▸ Access ▸ *Free an idle seat after* 1 min ▸ Apply (put 15 back after the class). |
+| Students on a farm with **2 seats** (a Spark) | The laptop chose another farm it heard in the room. | Step 2 of their sheet: one click on the class farm pins it. |
 | `<farm> · not responding…` on the button | The laptop has not heard the farm for 12 s: Wi-Fi, or the farm restarting. | Check the Farm app shows the farm running; otherwise wait a minute. Do not restart the farm during the class unless nothing answers. |
 | *The sandbox could not start* (Computer) | The Computer's drawing sandbox did not start in time on that laptop. | Close and reopen the Computer; if it stays, restart the app. (The real app's Preview passed this the night of 14 November; Live mode was not checked yet.) |
 | Open WebUI says *Select a model* | The laptop first landed on another farm, then moved to the class farm: Open WebUI kept that farm's model, which the class farm does not have. | Click the model menu in the message box (bottom right), choose **assistant** (once). |
-| A PDF fails, or the answer ignores its end | One chat holds about 64k tokens: roughly 80 pages of text. | Split the PDF, or ask about one part. |
+| A PDF fails, or the answer ignores its end | One chat holds about 128k tokens: roughly 160 pages of text. | Split the PDF, or ask about one part. |
 | Creative coding or a Computer template is slow | *Think all* is ticked in the Computer's toolbar: the model thinks before writing (on Qwen3.6, alone on the farm: 24 s ticked, 11 s unticked; longer when the class shares it). | Untick it, or let it run and explore something else meanwhile. |
 | The first start is slow on many laptops | Each laptop downloads about 1 GB (the chat engine) from the internet at the same time. | Start the install first, while you present. |
 | Voice: *one recording at a time from this computer* | Speech allows one recording at a time per network address. Only matters if your Wi-Fi hides the laptops behind one address. | One student speaks at a time. |
