@@ -212,7 +212,8 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
 14. ~~**Electron 45**~~ *The client bumped to 45.5.0 on 2026-11-25 (night n° 16, unreleased): the full harness 424/424 on
     45.5.0 and on 42.5.1, the same code (`57de2c6`), the same night. Left: **the Farm app** (still 42.6.0; it runs the farm
-    on Electron's Node, 24.18 → 24.22: a scratch farm under it first), and the sync `safeStorage` calls (deprecated in 45,
+    on Electron's Node, 24.18 → 24.22: the farm suite 293/293 and a scratch farm's boot under 45's Node, 2026-11-25; its own
+    window, tray and updater not yet), and the sync `safeStorage` calls (deprecated in 45,
     removed in 46: `src/main/index.ts` 71–80, 833–844).* (42 is past its end of life, 2026-10-20): tried 2026-11-14 and dropped for the class. On 45 the
     harness's sandbox stops booting once a long-running window has run earlier scenarios (`--phase c` 57/73 twice,
     k 174/217; on 42.6.0 the same tree gives 73/73), though each scenario passes alone: an order-dependent defect, maybe
