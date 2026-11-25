@@ -11,6 +11,9 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## How the sessions work
 
+- **2026-11-25, the chat (08:51).** "Do the commiting, pushing an cut a release for testing": the go for **Farm app
+  farm-v0.0.55 and client v0.2.21**, both RELEASE READY in summary n° 16, tagged before the owner's tests of n° 16's
+  builds; the owner tests on the released installers.
 - **Default taken, 2026-11-24** (n° 14's question 2, asked again by day 2026-11-23 18:21; no answer by 02:00): **no
   second nightly job** at 04:17 to wake a night that stopped; the memory and the summary guard it instead.
 - **2026-11-18, the chat.** Sessions are approved **in advance** for: fixing a bug a test or a run reproduces, review
@@ -27,6 +30,13 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## The farms and the room
 
+- **2026-11-25, the chat (08:51).** n° 16's question 1, Ripple-65B's files: **"yes"**. Deleted the same morning:
+  `~/lol-vllm-034/hf/Ripple-65B-Preview-NVFP4` (54 GB) and `Ripple-65B-Preview-DFlash2` (7.6 GB); Gemma-4-26B-A4B-NVFP4
+  stays.
+- **2026-11-25, the chat (08:51).** n° 16's question 2, [RUNTIME_UPDATE_PLAN](../plans/RUNTIME_UPDATE_PLAN.md): **"yes"**,
+  with the python-build-standalone bump to 20261124, built in the Farm app after farm-v0.0.55.
+- **2026-11-25, the chat (08:51).** n° 16's question 3, Macs on macOS 12 Monterey: **"no Macs on Monterey"**. The client
+  releases on Electron 45 (macOS 13 Ventura and later; Intel Macs already needed macOS 14).
 - **Default taken, 2026-11-25** (asked by day 2026-11-24 ~08:55, no answer by 02:00): **J16 steps 2–4 wait for the
   owner**; no session runs them on the Farm app itself.
 - **Default taken, 2026-11-25** (asked by day 2026-11-24 ~08:55, no answer by 02:00): a vLLM **release candidate** does

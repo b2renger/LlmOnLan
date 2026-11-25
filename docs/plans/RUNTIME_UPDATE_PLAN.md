@@ -1,6 +1,7 @@
 # RUNTIME_UPDATE_PLAN: an installed farm gets its bundled Python's security fixes
 
-**Status: proposed, for the owner** (night n° 16, 2026-11-25; summary n° 16, question 2). Size **S–M**. Farm app only.
+**Status: approved by the owner, 2026-11-25** (the chat, 08:51: "2 yes"; proposed night n° 16, summary n° 16's question
+2), with the pin bump to 20261124, in the Farm app after farm-v0.0.55. Size **S–M**. Farm app only.
 
 ## Why
 
@@ -39,4 +40,4 @@ Rebuilding the venvs at each update (minutes, and a network the school may cut);
 ## The question
 
 **Approve this plan?** *Recommended:* yes, with the pin bump to 20261124, in the Farm app after farm-v0.0.55. *Default if
-no answer:* not built; the finding stays in the research note.
+no answer:* not built; the finding stays in the research note. → **The owner, 2026-11-25 08:51: "yes".**
