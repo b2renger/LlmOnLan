@@ -139,7 +139,8 @@ app quits (the card stays taken; the farm already takes over a vLLM it finds run
 
 An ordinary start: ~2 min 30 s from the Farm app's launch → **~2 min** (step 1), a little less with step 4. A first
 start or the first after a vLLM update: ~5 min 30 s → **~2 min** (step 3). And a person who knows what the bar is
-doing (step 2).
+doing (step 2). **As built (2026-11-25):** step 1 gives ~10 s, not ~30 (Ollama and document search must be up before vLLM
+sizes itself), step 3 takes a first start from 331 to 122 s, step 4 ~16 s from a cold disk.
 
 ## Answered
 

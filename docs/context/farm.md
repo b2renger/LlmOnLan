@@ -61,7 +61,8 @@
     for a compute-capability 12.x card (`install.sh` step `gpu-kernels`, FARM_START step 3, 2026-11-25): the shim
     `flashinfer-jit-cache` and the provider `flashinfer-jit-cache-sm120f`, `--no-deps`, at FlashInfer's own version and
     CUDA label, from FlashInfer's **GitHub release** only (186 MiB, 17 s); a failed download is a line in the log and vLLM
-    builds its kernels at the first start as before; another card gets nothing (only sm120f was measured). A farm
+    builds its kernels at the first start as before; another card gets nothing (only sm120f was measured, on the PRO
+    6000; FlashInfer says it covers a Spark's 12.1 too, not measured there). A farm
     installed before gets them at its next Update vLLM. It keeps a list of seven models (Download / Use this / Remove / Add by Hugging Face name; a Use this while
     vLLM is stopped is saved for the next start, and Start vLLM reloads LiteLLM's routing when it changed, 2026-11-14):
     the spike's three NVFP4 models and, since 2026-10-09 (branch `vllm-models`), two that hear sound in a

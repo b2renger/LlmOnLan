@@ -37,6 +37,9 @@ commit so the history records that a feature was tested + documented before it w
 - **Timed** on a scratch farm (own ports, no beacon, the trial root `~/lol-vllm-033`, Qwen3.6 64k, document search and
   web search on): old order 21.9 → 115.5 s (cold), 13.7 → 98.1 s (warm); new 5.9 → 87.5 s (warm); the sizing the same
   each time (48 people, 58 GB). About 10 s here.
+- **The local Farm app `0.0.54+n16` rebuilt** (03:03, from `04030e5`, so with steps 1, 3 and 4; it replaces the 02:25
+  build of the same name): `vllmEarly`, `gpu-kernels` and `PREFETCH` inside; no `lol.config.json`, `.venv`, `litellm/` or
+  runtime file; `NotSigned`. The PRO 6000's config resolves `tts.enabled` to false, so the early start applies there.
 
 ## 2026-11-25 (02:23) — FARM_START steps 4 and 3 built: the weights prefetched, FlashInfer's precompiled kernels installed with vLLM (night n° 16)
 

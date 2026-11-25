@@ -79,8 +79,9 @@ if [[ "$STEPS" == *,venv,* ]]; then
   # at FlashInfer's own version and with its CUDA label (its __main__.py: the newest of 12.9, 13.0, 13.4 with torch's
   # CUDA major, at or below it; RT is that CUDA here). Into $PY, so they move with a .venv-next. No provider for the
   # card, or a download that fails: nothing installed, and vLLM builds its kernels at its first start, as before.
-  # ponytail: only the provider measured, sm120f (compute capability 12.x: the PRO 6000, the DGX Spark's 12.1, an RTX
-  # 50); sm80, sm89, sm90a, sm100a and sm103a are on the same release, for when a farm runs such a card.
+  # ponytail: only the provider measured, sm120f (compute capability 12.x: the PRO 6000; FlashInfer says it covers the
+  # DGX Spark's 12.1 and an RTX 50 too, not measured on them); sm80, sm89, sm90a, sm100a and sm103a are on the same
+  # release, for when a farm runs such a card.
   CAP=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 || true)
   FV=$("$PY" -c "import importlib.metadata as m; print(m.version('flashinfer-python').split('+')[0])" 2>/dev/null || true)
   CU=

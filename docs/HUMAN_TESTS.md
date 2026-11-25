@@ -1846,14 +1846,17 @@ and 30 missed the 5 s by 0.4 and 0.9 s). 64k (48 people, Automatic) is step 5's.
 at the new default; that Open WebUI reads an attached document once per chat (`RAG_SYSTEM_CONTEXT`, the plan's step 3);
 and its decision 4's class-size check, which must pass before web search can be on by default again (DEVLOG
 2026-10-06 10:51). **A build is ready (2026-11-25):** `farm-app\dist\LlmOnLan-Farm-Setup-0.0.54+n16.exe` in the owner's checkout
-(103 MB, built 02:25 from `main` at `2d6fc11`, local and unsigned; it carries 128k by default, Qwen3.8's drafting and 16-bit
-state, the panel's start bar and its words, and FARM_START steps 3 and 4: Install and Update vLLM put in FlashInfer's
-precompiled kernels, and the built-ins read their weights with `prefetch`; checked inside: no config, password or venv;
-`+n15` of 2026-11-24 is the same without steps 3 and 4: either serves J16, J17 and J19, and what is run on one stands for
-the other). Quit the Farm app (tray ▸
+(103 MB, built 03:03 from `main` at `04030e5`, local and unsigned; it carries 128k by default, Qwen3.8's drafting and 16-bit
+state, the panel's start bar and its words, and FARM_START steps 1, 3 and 4: vLLM's start begins before LiteLLM, Install
+and Update vLLM put in FlashInfer's precompiled kernels, and the built-ins read their weights with `prefetch`; checked
+inside: no config, password, venv or LiteLLM file; `+n15` of 2026-11-24 is the same without steps 1, 3 and 4: either
+serves J16, J17 and J19, and what is run on one stands for the other). Quit the Farm app (tray ▸
 Quit), run it: it installs over farm-v0.0.54 and keeps the settings (K1). Its version reads 0.0.54 to the update check,
 so the next release (farm-v0.0.55) installs over it; do not go back to an older installer. The client: v0.2.20.
-**What `+n16` adds, checked in 10 minutes** (FARM_START steps 3 and 4; the PRO 6000, nobody on it): vLLM section ▸
+**What `+n16` adds, checked in 10 minutes** (FARM_START steps 1, 3 and 4; the PRO 6000, nobody on it): first, note the
+time you start the Farm app after installing and the time the panel says vLLM is *ready* (step 1: about 10 s sooner on a
+scratch farm; speech output is off on this farm, so it applies); in Settings ▸ logs ▸ `farm.log`, *vLLM: starting now,
+beside the farm's other services* comes before *Starting LiteLLM proxy*. Then vLLM section ▸
 **Stop vLLM**, then **Update vLLM** (J17 step 1 does it): at the same version it is a repair, about a minute, and its bar
 reads *downloading precompiled GPU kernels (about 200 MB), so vLLM's first start takes minutes less* (measured on a trial
 root: 186 MiB in 17 s, 39 s in all). Then **Start vLLM** and note the time from Start to *ready* (production's kernels

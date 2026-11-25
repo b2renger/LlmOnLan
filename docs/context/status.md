@@ -35,7 +35,8 @@ project says the coding agent answers it (not *press Project*); a coding-agent t
 says so (it said the Changes tab showed what it did).
 
 **Unreleased on `main`** (since v0.2.20 and farm-v0.0.54; by 2026-11-25 02:30), each behind its human test and the
-owner's go. **Client:** nothing yet. **Farm:** Qwen3.8 drafting ahead and keeping its state in 16 bits (J19); 128k of
+owner's go. **Client:** a new chat opened from a project's chat stays in that project, and *Plan first* is offered in a
+chat with no project too, asking for one (PLAN_FIRST_NEW_CHAT, G14 steps 6 and 7; the local build `0.2.20+n16`). **Farm:** Qwen3.8 drafting ahead and keeping its state in 16 bits (J19); 128k of
 context per person by default, Automatic 24 on the PRO 6000 (J16); a saved vLLM list running its built-ins with the
 current flags; the panel's seat text; a finished job's bar that leaves the panel's top after 5 minutes (a failed one
 stays); every vLLM root but production's builds FlashInfer's kernels in its own folder (`serve.sh`); a vLLM start's
@@ -44,7 +45,8 @@ after vLLM is installed or updated*, as *Use this* does (FARM_START step 2, revi
 what passed everyone deep (32 at 32k, 21 at 64k, 11 at 128k; review L5); a model folder filled by hand with a stale
 download temp file no longer reads *partly downloaded* (`status.sh`, review M2, low: the panel's Download already
 cleaned it); Install and Update vLLM put in FlashInfer's precompiled kernels on a 12.x card, a first start ~3½ minutes
-shorter (FARM_START step 3); the built-ins read their weights with `prefetch`, ~16 s off a cold start (step 4). **Open WebUI stays at 0.13.3:** 0.13.4 would drop the Blender tools
+shorter (FARM_START step 3); the built-ins read their weights with `prefetch`, ~16 s off a cold start (step 4); vLLM's
+start begins before LiteLLM and the other plugins, ~10 s sooner (step 1); the local build `0.0.54+n16`. **Open WebUI stays at 0.13.3:** 0.13.4 would drop the Blender tools
 ([BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md), for the owner).
 
 The full plan is built, released and in multi-user testing. Where to look: the map of the docs,
