@@ -60,24 +60,32 @@ let win: BrowserWindow | null = null;
 let studioApi: Studio | null = null;
 /** The Computer's MCP server when this session holds its port — the coding agent's "Use the Computer". */
 let computerConn: { url: string; token: string } | null = null;
-// Home Assistant (homeAssistant.ts): the link a person made in Preferences, its token encrypted by the OS in
-// <userData>/home-assistant.json (none is kept where the OS cannot encrypt). Read on first use, after 'ready'.
+// Tokens sealed by the OS with safeStorage's async API (Electron 45 deprecates the sync one, 46 removes it). On Windows
+// each reads what the other wrote, both ways, Electron 42 ↔ 45 in one data folder (2026-11-26, DEVLOG): a token kept
+// before still reads, and one kept now still reads after a way back to 42. Only after app 'ready'.
+// ponytail: `shouldReEncrypt` is not acted on (false on Windows); if a rotated key ever sets it, write the token again here.
+const seal = async (s: string): Promise<string | null> =>
+    (await safeStorage.isAsyncEncryptionAvailable()) ? (await safeStorage.encryptStringAsync(s)).toString('base64') : null;
+const unseal = async (b64: string): Promise<string> => (await safeStorage.decryptStringAsync(Buffer.from(b64, 'base64'))).result;
+// Home Assistant (homeAssistant.ts): the link a person made in Preferences, its token sealed in
+// <userData>/home-assistant.json (none is kept where the OS cannot encrypt). Read once, after 'ready'.
 const homeFile = () => path.join(app.getPath('userData'), 'home-assistant.json');
 const home = createHome({
     store: {
-        load: () => {
+        load: async () => {
             try {
                 const j = JSON.parse(fs.readFileSync(homeFile(), 'utf8'));
-                if (typeof j.url !== 'string' || typeof j.token !== 'string' || !safeStorage.isEncryptionAvailable()) return null;
-                return { url: j.url, token: safeStorage.decryptString(Buffer.from(j.token, 'base64')) };
+                if (typeof j.url !== 'string' || typeof j.token !== 'string') return null;
+                return { url: j.url, token: await unseal(j.token) };
             } catch { return null; }
         },
         // false when it could not: no OS encryption, an unwritable settings folder, a file that cannot be deleted.
-        save: (l) => {
+        save: async (l) => {
             try {
                 if (!l) { fs.rmSync(homeFile(), { force: true }); return true; }
-                if (!safeStorage.isEncryptionAvailable()) return false;
-                fs.writeFileSync(homeFile(), JSON.stringify({ url: l.url, token: safeStorage.encryptString(l.token).toString('base64') }));
+                const token = await seal(l.token);
+                if (!token) return false;
+                fs.writeFileSync(homeFile(), JSON.stringify({ url: l.url, token }));
                 return true;
             } catch { return false; }
         },
@@ -597,7 +605,7 @@ function createWindow(): void {
     win.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
     win.removeMenu();
     win.loadFile(path.join(app.getAppPath(), 'renderer', 'index.html'));
-    win.webContents.on('did-finish-load', () => { pushSidecarState(); pushHome(); });
+    win.webContents.on('did-finish-load', () => { pushSidecarState(); void home.ready().then(pushHome); });
     // Ecosystem plan v2 §3.5: nothing stays armed across a (re)load — outputs start as a dry run, and so do home commands.
     // Disarm on a real reload of the window only: `did-start-loading` also fires for every iframe
     // (the sandbox, a Live guest), which disarmed a graph mid-run while the bar still said LIVE
@@ -827,21 +835,22 @@ function registerIpc(): void {
                 seedSkills: path.join(app.getAppPath(), 'assets', 'skills'),
                 computer: () => computerConn,
                 agentLib: path.join(app.getAppPath(), 'assets', 'agent-page', 'lol-agent.mjs'),
-                // Git tokens per host, encrypted by the OS (safeStorage) in <userData>/git-tokens.json; none is kept
+                // Git tokens per host, sealed by the OS (`seal`, above) in <userData>/git-tokens.json; none is kept
                 // where the OS cannot encrypt. Read only here, for a push or a pull.
                 tokens: {
-                    safe: () => safeStorage.isEncryptionAvailable(),
-                    get: (host) => {
+                    safe: () => safeStorage.isAsyncEncryptionAvailable(),
+                    get: async (host) => {
                         try {
                             const all = JSON.parse(fs.readFileSync(gitTokensFile(), 'utf8'));
-                            return typeof all[host] === 'string' ? safeStorage.decryptString(Buffer.from(all[host], 'base64')) : null;
+                            return typeof all[host] === 'string' ? await unseal(all[host]) : null;
                         } catch { return null; }
                     },
-                    set: (host, token) => {
-                        if (token && !safeStorage.isEncryptionAvailable()) return false;
+                    set: async (host, token) => {
+                        const sealed = token ? await seal(token) : null;
+                        if (token && !sealed) return false;
                         let all: Record<string, string> = {};
                         try { all = JSON.parse(fs.readFileSync(gitTokensFile(), 'utf8')) || {}; } catch { /* first token */ }
-                        if (token) all[host] = safeStorage.encryptString(token).toString('base64'); else delete all[host];
+                        if (sealed) all[host] = sealed; else delete all[host];
                         fs.writeFileSync(gitTokensFile(), JSON.stringify(all));
                         return true;
                     },
@@ -937,7 +946,7 @@ function registerIpc(): void {
 
     // Home Assistant (homeAssistant.ts): the page links, checks and asks to allow commands; the token never comes back
     // to it, and allowing is a NATIVE dialog here, which no page script and no model can click.
-    ipcMain.handle('lol:home:status', () => home.status());
+    ipcMain.handle('lol:home:status', async () => { await home.ready(); return home.status(); });
     ipcMain.handle('lol:home:check', async () => ({ ...(await home.check()), ...home.status() }));
     ipcMain.handle('lol:home:link', async (_e, url: unknown, token: unknown) => {
         if (typeof url !== 'string' || typeof token !== 'string' || url.length > 2048 || token.length > 8192) return { ok: false, message: 'bad arguments' };
@@ -1337,6 +1346,7 @@ app.on('second-instance', () => {
 
 app.whenReady().then(async () => {
     if (!gotSingleInstanceLock) return; // quitting: the running instance owns the data folder
+    void home.ready(); // the kept Home Assistant link, read now so linked() (the MCP tool list) knows it
     const settings = loadSettings();
     applyTheme(settings.theme);
     registerIpc();

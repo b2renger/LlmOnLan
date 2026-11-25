@@ -30,8 +30,9 @@
 import type { McpTool } from './mcp';
 
 export interface HomeLink { url: string; token: string }
-/** Where the link is kept (index.ts: `<userData>/home-assistant.json`, the token encrypted by the OS). */
-export interface HomeStore { load(): HomeLink | null; save(link: HomeLink | null): boolean }
+/** Where the link is kept (index.ts: `<userData>/home-assistant.json`, the token encrypted by the OS with safeStorage's
+ * async API; the tests' stores answer at once). */
+export interface HomeStore { load(): Promise<HomeLink | null> | HomeLink | null; save(link: HomeLink | null): Promise<boolean> | boolean }
 export interface HomeDevice { id: string; name: string }
 type Out = { text: string; isError?: boolean };
 type State = { entity_id: string; state: string; attributes?: Record<string, any>; last_changed?: string };
@@ -233,7 +234,19 @@ export function createHome(deps: { store: HomeStore; fetch?: typeof fetch; now?:
     let services: { at: number; url: string; byDomain: Map<string, Record<string, any>> } | null = null;
     let historyAt = -Infinity;
 
-    const current = () => { if (link === undefined) link = deps.store.load(); return link; };
+    // The kept link is read once (the store decrypts it asynchronously). Every async door below waits for that read;
+    // status() and linked() say "not linked" until it is done, and main pushes the status again once it is (index.ts).
+    let loading: Promise<void> | undefined;
+    const ready = () => loading ??= (async () => {
+        let l: HomeLink | null = null;
+        try { l = await deps.store.load(); } catch { /* unreadable: not linked */ }
+        if (link === undefined) link = l;
+    })();
+    const current = () => link ?? null;
+    // Once read, a door runs at once, not a tick later: setLink bumps `generation` in the same turn as its call, so an
+    // allow from before a relink is refused at once (the test "an allow that raced a relink").
+    const after = <A extends unknown[], R>(fn: (...a: A) => Promise<R>) => (...a: A): Promise<R> =>
+        link !== undefined ? fn(...a) : ready().then(() => fn(...a));
 
     async function api(path: string, init: RequestInit = {}, l = current(), ms = TIMEOUT_MS, maxBytes = 0): Promise<any> {
         if (!l) throw new Error(`No Home Assistant is linked: a person links one in ${WHERE}.`);
@@ -307,7 +320,7 @@ export function createHome(deps: { store: HomeStore; fetch?: typeof fetch; now?:
     async function setLink(url: string, token: string): Promise<{ ok: boolean; message?: string }> {
         if (!url && !token) {
             generation++; armed = null; services = null; link = null; info = null;
-            return deps.store.save(null) ? { ok: true } : { ok: false, message: 'Forgotten for this session, but the kept link could not be deleted: it comes back at the next start.' };
+            return (await deps.store.save(null)) ? { ok: true } : { ok: false, message: 'Forgotten for this session, but the kept link could not be deleted: it comes back at the next start.' };
         }
         const u = normaliseUrl(url);
         if (!u) return { ok: false, message: 'That is not a Home Assistant address: http(s)://host:port, e.g. http://homeassistant.local:8123.' };
@@ -317,7 +330,7 @@ export function createHome(deps: { store: HomeStore; fetch?: typeof fetch; now?:
         const c = await check({ url: u, token: t });
         if (mine !== generation) return { ok: false, message: 'Another link was made meanwhile.' };
         if (!c.ok) return { ok: false, message: c.message };
-        if (!deps.store.save({ url: u, token: t })) return { ok: false, message: 'The token could not be kept: this computer cannot encrypt it, or cannot write the settings folder.' };
+        if (!(await deps.store.save({ url: u, token: t }))) return { ok: false, message: 'The token could not be kept: this computer cannot encrypt it, or cannot write the settings folder.' };
         link = { url: u, token: t };
         info = { name: c.name || '', version: c.version || '' };
         armed = null; services = null; generation++;
@@ -556,5 +569,8 @@ export function createHome(deps: { store: HomeStore; fetch?: typeof fetch; now?:
         } catch (e) { return { text: (e as Error).message, isError: true }; }
     }
 
-    return { status, check, setLink, armable, arm, call, read, entities, actionsOf, command, linked: () => !!current() };
+    return {
+        ready, status, check: after(check), setLink: after(setLink), armable: after(armable), arm, call: after(call), read: after(read),
+        entities: after(entities), actionsOf: after(actionsOf), command: after(command), linked: () => !!current(),
+    };
 }

@@ -368,6 +368,29 @@ export default (test) => {
     } finally { await ha.close(); }
   });
 
+  test('home: the kept link is read asynchronously (safeStorage\'s async API) — every door waits for it; an unreadable one is no link', async () => {
+    const ha = await fakeHa();
+    try {
+      /** @type {(l: any) => void} */ let open = () => {};
+      const slow = H.createHome({ store: { load: () => new Promise((r) => { open = r; }), save: async () => true } });
+      assert.equal(slow.linked(), false, 'not read yet: not linked');
+      const pending = slow.check();
+      open({ url: ha.url, token: TOKEN });
+      const c = await pending;
+      assert.deepEqual([c.ok, c.entities], [true, 15], 'check waited for the kept link');
+      assert.equal(slow.status().linked, true);
+      const broken = H.createHome({ store: { load: async () => { throw new Error('cannot decrypt'); }, save: async () => true } });
+      await broken.ready();
+      assert.equal(broken.linked(), false);
+      assert.match((await broken.call('home_devices', {})).text, /No Home Assistant is linked/);
+      const unkept = H.createHome({ store: { load: async () => null, save: async () => false } });
+      const r = await unkept.setLink(ha.url, TOKEN);
+      assert.equal(r.ok, false);
+      assert.match(r.message, /could not be kept/);
+      assert.equal(unkept.linked(), false);
+    } finally { await ha.close(); }
+  });
+
   test('home: through the MCP server — the home tools are listed only while linked and answered in main, never by the page', async () => {
     const M = require(MCP);
     const ha = await fakeHa();

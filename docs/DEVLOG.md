@@ -9,6 +9,26 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-26 (00:21) — The client's sealed tokens on safeStorage's async API (night n° 17's side task, plans ▸ Next 14)
+
+- **Why:** Electron 45 deprecates `safeStorage`'s sync calls and 46 removes them; the client used them for the Home
+  Assistant link (`home-assistant.json`) and the IDE's git tokens (`git-tokens.json`).
+- **Measured first, on this computer (Windows 11, DPAPI):** a token sealed by Electron 42.6.0's `encryptString`
+  reads with 45.5.0's `decryptStringAsync` (`shouldReEncrypt` false); one sealed by 45's `encryptStringAsync` reads with
+  42's `decryptString`, so a way back to 42 keeps them; both `v10`, one key in the data folder's `Local State`. A first
+  probe that ended with `app.exit()` failed every way: Chromium writes that key on a normal quit (or its delayed
+  preference save), so the probe now quits normally. Mac and Linux not checked.
+- **The change** (`src/main/index.ts`): `seal`/`unseal` on the async API for both files; `studio.ts`'s `tokens`
+  interface returns promises (every caller awaits; `tsc` lists none left). `homeAssistant.ts`: the kept link is read once
+  by `ready()`; every async door waits for it, and once read it runs at once, as before: the first version deferred
+  every call a tick and the unit test *an allow that raced a relink* caught it (an allow from before a relink was
+  accepted, 10 ≠ −1), now fixed. `status()` and `linked()` say "not linked" until read; main starts the read at
+  `whenReady`, the page's status waits for it, and the window's first status is pushed once it is read.
+- **Checks:** `npm run test:chat` **1990 passed** (a new test: a slow store, a store that throws, a store that cannot
+  keep), lint 0. `node test/safe-storage.js <Electron 42 binary>`: **2 passed** (both directions above, a temp data
+  folder); with a missing binary it fails (exit 1). Not run: `e2e.js` (cannot run here); the client harness does not load
+  `index.ts`. For a person: HUMAN_TESTS A30 step 4 (a token saved before still reads).
+
 ## 2026-11-25 (09:36) — Release Farm app farm-v0.0.55 and client v0.2.21 (by day, on the owner's go, before the tests)
 
 The owner, 08:51: *"1 yes, 2 yes, 3 no Macs on Monterey / Do the commiting, pushing an cut a release for testing"*

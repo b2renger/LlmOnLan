@@ -386,7 +386,7 @@ export interface StudioDeps {
      *  addresses it answers to (default: this machine's non-internal IPv4 addresses). */
     lan?: { host?: string; addresses?: () => string[] };
     /** Tokens for git remotes, per host, kept by main (safeStorage) — never handed to the page. */
-    tokens?: { get(host: string): string | null; set(host: string, token: string | null): boolean; safe(): boolean };
+    tokens?: { get(host: string): Promise<string | null>; set(host: string, token: string | null): Promise<boolean>; safe(): Promise<boolean> };
     /** The bundled skills folder, copied into <DATA_DIR>/skills and refreshed while a copy is unedited (seedSkills). */
     seedSkills?: string;
     env?: NodeJS.ProcessEnv;
@@ -449,7 +449,7 @@ export function createStudio(deps: StudioDeps) {
         const now = await getRemote(d.dir);
         if (!now) return err('E_ARGS', 'Save the repository address first.');
         const host = new URL(now).host;
-        const token = deps.tokens ? deps.tokens.get(host) : null;
+        const token = deps.tokens ? await deps.tokens.get(host) : null;
         try {
             await (how === 'push' ? push(d.dir, token) : pull(d.dir, token));
             return { ok: true };
@@ -765,7 +765,7 @@ export function createStudio(deps: StudioDeps) {
             }
             const now = await getRemote(d.dir);
             const host = now ? new URL(now).host : '';
-            return { ok: true, url: now, token: { saved: !!(host && deps.tokens && deps.tokens.get(host)), safe: !!(deps.tokens && deps.tokens.safe()) } };
+            return { ok: true, url: now, token: { saved: !!(host && deps.tokens && await deps.tokens.get(host)), safe: !!(deps.tokens && await deps.tokens.safe()) } };
         },
         /** Keep (or forget, with null) the token for this project's remote host. It never comes back to the page. */
         async token(projectId: string, token: string | null): Promise<{ ok: true } | StudioErr> {
@@ -773,9 +773,9 @@ export function createStudio(deps: StudioDeps) {
             if ('ok' in d) return d;
             const now = await getRemote(d.dir);
             if (!now) return err('E_ARGS', 'Save the repository address first.');
-            if (!deps.tokens || (token && !deps.tokens.safe())) return err('E_RUNTIME', 'This computer cannot keep a token encrypted, so it keeps none.');
+            if (!deps.tokens || (token && !(await deps.tokens.safe()))) return err('E_RUNTIME', 'This computer cannot keep a token encrypted, so it keeps none.');
             if (token !== null && (token.length < 8 || token.length > 400 || /\s/.test(token))) return err('E_ARGS', 'That does not look like a token.');
-            deps.tokens.set(new URL(now).host, token);
+            await deps.tokens.set(new URL(now).host, token);
             return { ok: true };
         },
         async push(projectId: string): Promise<{ ok: true } | StudioErr> { return sync(projectId, 'push'); },
