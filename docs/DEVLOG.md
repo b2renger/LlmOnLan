@@ -9,6 +9,19 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-26 (00:55) — CLASS_SHEETS for the released builds (n° 16's queue 1); docs checked against tonight's code
+
+- **CLASS_SHEETS** (`cda5224`): the operator's farm paragraph now reads farm-v0.0.55's defaults, **128k a person,
+  Automatic 24** (CONTEXT_128K_PLAN's measurement: 24 pass with everyone 120k deep, first word p95 4.6 s, the slowest
+  21.6 tok/s; 30 then still had a median first word of 1.3 s), and says what a class of more than 24 does (*People served
+  at once* set by hand); *The farm is full* says 24; a PDF holds about 160 pages; Apple-chip Macs need macOS 13 (Electron
+  45; Intel Macs' macOS 14 comes from the Open WebUI bundle, unchanged); the Sparks' row no longer says they have a
+  password (the owner keeps them open, DECISIONS 2026-11-18); the pre-class check is J16's 10-minute one.
+- **Docs against tonight's code:** `overview.md`'s app-update paragraph names the Python swap before LiteLLM's pip;
+  `release.md`, `status.md`, plans ▸ Next 14, `farm-app/README.md` updated in their commits. Still true and left:
+  `computer.md`/`privacy.md` (*`safeStorage`-encrypted*: the async API encrypts the same way), `overview.md`'s Electron
+  42 `cpSync` line (history), `client.md`'s *Electron 45.5.0*.
+
 ## 2026-11-26 (00:45) — RUNTIME_UPDATE_PLAN built: the bundled Python swapped after an app update; it cannot help the PRO 6000
 
 - **Built** (approved 2026-11-25): `RUNTIME_PINS` python-build-standalone 20261110 → **20261124**;

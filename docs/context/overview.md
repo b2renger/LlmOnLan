@@ -39,6 +39,8 @@
    `serve.sh` "delete pending" and skipped every later file (farm-v0.0.43 on the PRO 6000). A failed refresh is
    written to `farm.log` and retried at the next launch; a missing `farm/vllm` script is said as such on the panel
    (`vllm.js` `spawnScript`), never as "WSL did not answer". `farm-app/test/copytree.test.js` runs under Electron.
+   After the copy, still before the farm starts: the bundled Python swapped for a newer pin's build of the same CPython
+   (`updateBundledPython`, RUNTIME_UPDATE_PLAN, unreleased), then LiteLLM's pins by pip (J18).
    Released on `farm-v*` tags as GitHub prereleases (Windows x64, macOS arm64, Linux arm64 AppImage). No
    electron-updater: the app looks for a newer `farm-v*` release (at launch when enabled, or on demand) and
    opens its download page; **installing is manual**. **No GitHub API in the hot paths** (2026-11-10, v0.2.17 and farm-v0.0.53):
