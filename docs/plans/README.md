@@ -388,6 +388,14 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     Inkling on Metal only; llama.cpp #32187 and #32695 are still open. `~/lol-vllm-nightly` holds part of the checkpoint. **2026-11-25:** **Raon-1-mini** (KRAFTON, 28.8B / 4.3B active,
     Apache-2.0, coding claims; [MODELS_2026-11-25](../research/MODELS_2026-11-25.md)) joins this rule: no vLLM release
     serves its architecture yet (0.34.0 checked); measured the night one does.
+21. **Measure Ternary Bonsai 2.5 27B against the llama.cpp default** (the owner, 2026-11-25 18:51: "yes after tonight
+    objective"; [MODELS_2026-11-25](../research/MODELS_2026-11-25.md) ▸ *Ternary Bonsai 2.5*). PrismML's Qwen3.8 27B in
+    ternary weights; its `Q2_0` file (7.67 GB, `-mtp` 7.91 GB with the draft head) runs on stock llama.cpp since b11556
+    (#29600, 2026-10-11), so on our pinned b12377. Against `UD-IQ2_S` (the llama.cpp default, 7.8 GB, its MTP head
+    stripped), on a scratch llama.cpp farm beside the live one: the 28-item quality check, the coding agent's 5 tasks,
+    one person's speed with and without `mtp`, and 4 people at once. Not for the class farm (dense: ~9× Qwen3.6-A3B's
+    compute per word; vLLM cannot serve it). **S**, the measurement; if it wins, a plan to make it the llama.cpp
+    default, for the owner. After the Farm app's Electron 45 (summary n° 16's objective).
 
 ## 3. Later
 

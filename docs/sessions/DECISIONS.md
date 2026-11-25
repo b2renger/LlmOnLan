@@ -30,6 +30,8 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## The farms and the room
 
+- **2026-11-25, the chat (18:51).** Measuring Ternary Bonsai 2.5 27B against the llama.cpp default (`UD-IQ2_S`):
+  **"yes after tonight objective"** (plans ▸ Next 21).
 - **2026-11-25, the chat (08:51).** n° 16's question 1, Ripple-65B's files: **"yes"**. Deleted the same morning:
   `~/lol-vllm-034/hf/Ripple-65B-Preview-NVFP4` (54 GB) and `Ripple-65B-Preview-DFlash2` (7.6 GB); Gemma-4-26B-A4B-NVFP4
   stays.
