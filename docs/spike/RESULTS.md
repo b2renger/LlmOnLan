@@ -1515,6 +1515,22 @@ or a model's first start: each model builds kernels of its own, Qwen3.6 6 and Qw
 off a cold disk at no cost warm. Both for the farm's installer and flags (FARM_START_PLAN, session n° 16). Logs:
 `~/lol-vllm-033/logs/vllm.log`, 02:01–02:56.
 
+**As built (night n° 16, 2026-11-25), the same root:** the two wheels uninstalled, then the farm's own `install.sh` at
+0.33.0 (Update vLLM's repair) put them back by its new step `gpu-kernels`: 186 MiB from FlashInfer's GitHub release in
+17 s, 39 s in all. Then Qwen3.6 64k from an empty kernel folder with the farm's new `prefetch`: **122.2 s** to ready, 1
+module built, the weights 14.1 s, profiling 23 s. **FARM_START step 1**, a scratch farm on that root (own ports, no
+beacon; document search and web search on; Qwen3.6 64k; the same sizing every time, 48 people and 58 GB), timed from
+`lol up` with `farm/src/commands/up.js` before and after:
+
+| Boot order | vLLM launched at | Ready at |
+|---|---|---|
+| Before (cold caches) | 21.9 s | 115.5 s |
+| Before (warm) | 13.7 s | 98.1 s |
+| **After, queued before LiteLLM (warm)** | **5.9 s** | **87.5 s** |
+
+About 10 s here; on the live farm's boot of 2026-11-23 (OCR on, Ollama started by the farm) the point moves from 44.5 s
+to 30.5 s.
+
 # vLLM 0.34.0 against 0.33.0, and pages from a picture (RTX PRO 6000, 2026-11-21)
 
 The whole card (the Farm app off since 2026-11-20), vLLM **0.34.0** in its own root (`~/lol-vllm-034`, production's
