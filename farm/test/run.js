@@ -1810,6 +1810,9 @@ const GATE_REFUSED = [
     ['GET', '/health', 404], ['GET', '/health/readiness', 404], ['POST', '/v1/embeddings', 404], ['POST', '/v1/messages/count_tokens', 404],
     ['POST', '/key/generate', 404], ['GET', '/model/info', 404], ['GET', '/ui', 404], ['GET', '/', 404], ['POST', '/v1/models', 404],
     ['GET', '/v1/chat/completions', 404], ['OPTIONS', '/vllm/chat/completions', 404], ['POST', '/tokenize', 404], ['POST', '/invocations', 404],
+    // LiteLLM's advisories after the pinned 1.106.9 (TOOL_UPDATES_2026-11-26): their routes never pass the gate.
+    ['GET', '/spend/tags', 404], ['GET', '/global/activity/cache_hits', 404], ['GET', '/key/info', 404],
+    ['POST', '/team/update', 404], ['GET', '/sso/key/generate', 404],
 ];
 
 test('seat gate: forwards only the routes the farm serves; LiteLLM\'s pass-through routes and re-aimed paths never reach it, nor a seat (review 2026-10-07)', async () => {
