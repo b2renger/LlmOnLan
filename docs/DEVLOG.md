@@ -20,6 +20,11 @@ commit so the history records that a feature was tested + documented before it w
   `k24-plan-first-changes-nothing-until-go-ahead` and the new `k24-plan-first-in-a-plain-chat` 2/2; `test:chat` 1989
   (1 skipped), lint 0. Screenshots read: the panel's note under the project list; a new chat in the project with the
   switch, off. A local client `0.2.20+n16` (02:49, `40057e5`) for HUMAN_TESTS G14 steps 6 and 7.
+- **The full client harness on Electron 42.5.1 (slot 1): 424/424** (03:03–03:20), the new scenario included: (a) and (b)
+  change nothing else. **One gap found reading my own change, fixed test first (`98d6e7a`):** when the Project panel was
+  open already, `open()` returned early and the new chat's stored studio kept `panel: null`, so the chat would come back
+  with its panel closed; `persistStudio()` after `setStudio`; the check of the stored studio failed (waitFor timed out,
+  `last value: null`), then 2/2; `test:chat` 1989.
 
 ## 2026-11-25 (02:41) — FARM_START step 1 built: vLLM's start queued before LiteLLM, its outcome held until the farm is public (night n° 16)
 
