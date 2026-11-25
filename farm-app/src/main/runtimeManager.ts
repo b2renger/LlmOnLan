@@ -18,7 +18,7 @@ import * as path from 'path';
 import * as https from 'https';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { runtimeRoot, bundledPython, bundledOllamaBin, runtimeInstalled } from './paths';
+import { runtimeRoot, bundledPython, bundledOllamaBin, runtimeInstalled, readRuntimeManifest } from './paths';
 import { DownloadProgress } from './types';
 
 const execFileP = promisify(execFile);
@@ -74,15 +74,18 @@ function httpGet(url: string, redirects = 0): Promise<{ status: number; body: st
 
 // Runtime pins — fleet installs must be REPRODUCIBLE. 'Latest' meant an upstream
 // release day could break every new farm install at once (and did make installs
-// unpredictable across the fleet). A bump reaches NEW installs only: ensureRuntime
-// fetches a piece only when it is missing and runtime.json records no version, so an
-// installed farm keeps the runtime it first downloaded (a box set up before these pins,
-// 2026-08-26, keeps the 'latest' of its day).
+// unpredictable across the fleet). ensureRuntime fetches a piece only when it is missing,
+// so an installed farm keeps the Ollama it first downloaded (a box set up before these
+// pins, 2026-08-26, keeps the 'latest' of its day). The Python is the exception: a newer
+// pbs pin of the same CPython reaches installed farms after an app update
+// (updateBundledPython, below: its security fixes, RUNTIME_UPDATE_PLAN).
 // If a pinned release disappears (repos do prune), we fall back to latest with a
 // loud log rather than dead-ending the installer.
 const RUNTIME_PINS: Record<string, string> = {
     'ollama/ollama': 'v0.40.16',
-    'astral-sh/python-build-standalone': '20261110',
+    // 20261124: expat 2.11.0's three security fixes on Linux and macOS (TOOL_UPDATES_2026-11-25), still CPython 3.12.16;
+    // on Windows CPython builds its own expat (2.9.0 in 20261110 and 20261124 alike, measured 2026-11-26).
+    'astral-sh/python-build-standalone': '20261124',
 };
 
 async function ghLatestAssets(repo: string): Promise<{ tag: string; assets: { name: string; url: string }[] }> {
@@ -208,7 +211,7 @@ function findBinary(dir: string, names: string[], depth = 3): string | null {
 
 // Record the resolved runtime binary paths so paths.ts prefers them over the
 // computed default layout.
-function writeManifest(patch: { python?: string; ollama?: string }): void {
+function writeManifest(patch: { python?: string; ollama?: string; pbs?: string }): void {
     const file = path.join(runtimeRoot(), 'runtime.json');
     let cur: any = {};
     try { cur = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* none yet */ }
@@ -280,7 +283,7 @@ export async function ensureRuntime(onProgress?: (p: DownloadProgress) => void):
             const pyBin = findBinary(path.join(runtimeRoot(), 'python'), process.platform === 'win32' ? ['python.exe'] : ['python3', 'python'], 2);
             if (!pyBin) throw new Error('extracted Python interpreter not found');
             if (process.platform !== 'win32') { try { fs.chmodSync(pyBin, 0o755); } catch { /* best-effort */ } }
-            writeManifest({ python: pyBin });
+            writeManifest({ python: pyBin, pbs: RUNTIME_PINS[pbs] });
         }
 
         // 2. Ollama.
@@ -297,5 +300,84 @@ export async function ensureRuntime(onProgress?: (p: DownloadProgress) => void):
     } catch (e: any) {
         onProgress?.({ phase: 'error', message: e.message });
         return { ok: false, error: e.message };
+    }
+}
+
+// --- the bundled Python's security fixes on an installed farm (RUNTIME_UPDATE_PLAN, owner 2026-11-25) -----------------
+
+const PBS = 'astral-sh/python-build-standalone';
+
+/** Swap the bundled Python for the pinned release's build? Only a build of the SAME CPython: the farm's venvs take their
+ * standard library and native modules (pyexpat) from it, and another CPython would need them rebuilt. A runtime with no
+ * `pbs` record was installed before the record existed, so from an older pin. Pins are release dates (YYYYMMDD). */
+export function pythonSwap(recorded: string | undefined, pin: string, installed: string | null, pinned: string): 'current' | 'swap' | 'other-cpython' {
+    if (recorded && recorded >= pin) return 'current';
+    return installed === pinned ? 'swap' : 'other-cpython';
+}
+
+/** The interpreter's CPython version ("3.12.16"), once it has imported pyexpat (the module the update is for), or null. */
+async function cpythonOf(py: string): Promise<string | null> {
+    try {
+        const r = await execFileP(py, ['-c', 'import sys, pyexpat; print("%d.%d.%d" % sys.version_info[:3])'], { windowsHide: true, timeout: 60000 });
+        return r.stdout.trim();
+    } catch { return null; }
+}
+
+/** A venv's python (`<venv>/Scripts/python.exe`, `<venv>/bin/python`) built on the interpreter in `baseDir`: its
+ * pyvenv.cfg's `home`. A venv made with another Python is none of the swap's business, and must not stop it. */
+export const builtOn = (baseDir: string) => (venvPython: string): boolean => {
+    try {
+        const cfg = fs.readFileSync(path.join(path.dirname(path.dirname(venvPython)), 'pyvenv.cfg'), 'utf8');
+        const home = /^home\s*=\s*(.+)$/m.exec(cfg)?.[1].trim();
+        const same = (a: string, b: string) => process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+        return !!home && same(path.resolve(home), path.resolve(baseDir));
+    } catch { return false; }
+};
+
+async function expatOf(py: string): Promise<string> {
+    try { return (await execFileP(py, ['-c', 'import pyexpat; print(pyexpat.EXPAT_VERSION.split("_")[-1])'], { windowsHide: true, timeout: 60000 })).stdout.trim(); }
+    catch { return '?'; }
+}
+
+/** After an app update, with the farm stopped (installer.ts refreshFarmCodeIfUpdated): the pinned release's Python is
+ * unpacked beside the old one, checked, and renamed into its place; then every farm venv must run on it, or the old one
+ * goes back. `ok: false` = try again at the next start; `message` = a line for farm.log. */
+export async function updateBundledPython(venvPythons: string[]): Promise<{ ok: boolean; message?: string }> {
+    const py = bundledPython();
+    const root = runtimeRoot();
+    const cur = path.join(root, 'python'), next = path.join(root, 'python.next'), prev = path.join(root, 'python.prev');
+    const rel = path.relative(cur, py);                    // python.exe, or bin/python3
+    if (!fs.existsSync(py) || rel.startsWith('..') || path.isAbsolute(rel)) return { ok: true };   // none, or not ours
+    const pin = RUNTIME_PINS[PBS];
+    const installed = await cpythonOf(py);
+    const d = pythonSwap(readRuntimeManifest().pbs, pin, installed, PY_PINNED);
+    if (d === 'current') return { ok: true };
+    if (d === 'other-cpython') {
+        return { ok: true, message: `The bundled Python is CPython ${installed || '(it did not answer)'}, not ${PY_PINNED}: python-build-standalone ${pin}'s security fixes are not applied to it (its venvs would need rebuilding).` };
+    }
+    fs.rmSync(next, { recursive: true, force: true });
+    fs.rmSync(prev, { recursive: true, force: true });
+    try {
+        const file = `cpython-${PY_PINNED}+${pin}-${PY_TRIPLES[key()]}.tar.gz`;
+        await fetchAndExtract(PBS, file, exactly(file), 'python', next);
+        if (await cpythonOf(path.join(next, rel)) !== PY_PINNED) throw new Error(`the new build did not run as CPython ${PY_PINNED}`);
+        fs.renameSync(cur, prev);
+        fs.renameSync(next, cur);
+        const broken: string[] = [];
+        for (const v of venvPythons.filter(builtOn(path.dirname(py)))) if (await cpythonOf(v) !== PY_PINNED) broken.push(v);
+        if (broken.length) {
+            fs.renameSync(cur, next);
+            fs.renameSync(prev, cur);
+            throw new Error(`a venv did not run on it: ${broken.join(', ')}`);
+        }
+        fs.rmSync(prev, { recursive: true, force: true });
+        writeManifest({ pbs: pin });
+        // Linux and macOS take their expat from pbs (20261124: 2.11.0); Windows' CPython builds its own (2.9.0 in both
+        // pins, measured 2026-11-26), so there only a newer CPython changes it.
+        return { ok: true, message: `The bundled Python is now python-build-standalone ${pin} (CPython ${PY_PINNED}, expat ${await expatOf(py)}).` };
+    } catch (e: any) {
+        if (!fs.existsSync(cur) && fs.existsSync(prev)) fs.renameSync(prev, cur);
+        fs.rmSync(next, { recursive: true, force: true });
+        return { ok: false, message: `The bundled Python could not be updated to python-build-standalone ${pin} (${e?.message || e}); the farm keeps the one it has.` };
     }
 }

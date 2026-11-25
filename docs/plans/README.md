@@ -61,7 +61,7 @@ file stays the whole list.
 - **The bundled runtimes updated on an installed farm** ([RUNTIME_UPDATE_PLAN](RUNTIME_UPDATE_PLAN.md), approved by the
   owner 2026-11-25 08:51): expat 2.11.0's security fixes (python-build-standalone 20261124) reach new installs only
   today; the plan swaps a newer build of the same CPython while the farm is stopped. **S–M**. Farm app only, after
-  farm-v0.0.55 and the Farm app's own Electron 45 (summary n° 16's next objective).
+  farm-v0.0.55 and the Farm app's own Electron 45 (summary n° 16's next objective). **Built night n° 17 (2026-11-26), unreleased** (the plan's *Built*): it reaches Linux farms; on Windows CPython's own expat is 2.9.0 in both pins, and the PRO 6000 runs CPython 3.12.14, which it leaves alone.
 - **128k of context per person by default** ([CONTEXT_128K_PLAN](CONTEXT_128K_PLAN.md), approved by the owner
   2026-11-19 18:15, for a night session after the tests of 2026-11-20): the vLLM default and the Balanced preset at
   128k, Qwen3.6's 128k label measured on 0.33.0 (24; the owner, 2026-11-20 12:46: "24, 128k can be the default").

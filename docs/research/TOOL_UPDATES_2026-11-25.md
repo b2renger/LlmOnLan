@@ -22,6 +22,6 @@ surrogates passed to handlers. **python-build-standalone 20261124 is worth havin
 installs only:** `ensureRuntime` installs the bundled Python only when none is there (`farm-app/src/main/
 runtimeManager.ts:275`), so an installed farm keeps its first Python, and its expat, for good. Reaching running farms
 needs an update path for the bundled runtimes (as LiteLLM got one after an app update, J18): a plan, the question in
-summary n° 16.
+summary n° 16. *Measured 2026-11-26 (night n° 17), what this paragraph missed:* on **Windows** CPython builds its own expat, **2.9.0 in 20261110 and 20261124 alike**; only the Linux (and likely macOS) builds take it from pbs (Linux x64 2.10.0 → 2.11.0). And the PRO 6000's bundled Python is **CPython 3.12.14**, not 3.12.16. So the update path built that night ([RUNTIME_UPDATE_PLAN](../plans/RUNTIME_UPDATE_PLAN.md) ▸ *Built*) reaches Linux farms; the PRO 6000 needs a CPython bump.
 
 **Nothing changed tonight** for these pins but Electron in the client. To read next: vLLM 0.34.1 when it reaches PyPI.

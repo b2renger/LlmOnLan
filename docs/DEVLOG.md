@@ -9,6 +9,23 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-26 (00:45) — RUNTIME_UPDATE_PLAN built: the bundled Python swapped after an app update; it cannot help the PRO 6000
+
+- **Built** (approved 2026-11-25): `RUNTIME_PINS` python-build-standalone 20261110 → **20261124**;
+  `updateBundledPython` (runtimeManager.ts) in `refreshFarmCodeIfUpdated`, before LiteLLM's pip: same CPython only
+  (`pythonSwap`), the new build unpacked as `python.next` and run, renamed in, every venv **built on it** (its
+  `pyvenv.cfg`'s `home`, `builtOn`; a venv made with another Python never blocks it) run with `import pyexpat`, else the
+  old folder back; `runtime.json` records `pbs`, a fresh install records its pin. `npm test` **13 + 3**.
+- **The scratch run** (`pyswap-run.js`, the compiled code, `electron` stubbed to a scratch userData; a 20261110 runtime
+  and a venv on it): swapped in **6.2 s**, `pbs: 20261124`, nothing left over, a second start a no-op; a broken venv built
+  on it → the old folder back (`pyexpat.pyd`'s hash = 20261110's `f9632aeb…`), `pbs` not recorded.
+- **Two facts the plan had wrong**, measured: `pyexpat.EXPAT_VERSION` is **2.9.0 in both Windows archives** (CPython's
+  Windows build compiles its own expat), **2.10.0 → 2.11.0 in the Linux x64 ones** (run in WSL); the PRO 6000's bundled
+  Python is **3.12.14** (`--version`; its four venvs' `pyvenv.cfg` say the same), so the swap leaves it alone and logs
+  why. The expat fixes reach Linux farms (the Spark's Farm app) only; the PRO 6000 needs a CPython bump with its venvs
+  rebuilt: a plan of its own, the owner's question. The farm.log line names the expat a swap brought, so it never
+  claims a fix on Windows.
+
 ## 2026-11-26 (00:41) — The Farm app on Electron 45.5.0 (night n° 17's objective, plans ▸ Next 14)
 
 - **The bump:** `farm-app` `electron` ^42.5.0 → ^45.5.0 (45.5.0 is still npm's `latest`, 2026-11-24); the lock at

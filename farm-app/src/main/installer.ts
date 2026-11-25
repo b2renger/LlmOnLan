@@ -24,7 +24,7 @@ import {
     bundledPython, bundledOllamaBin, pythonDir, ollamaDir,
 } from './paths';
 import { loadSettings, updateSettings } from './store';
-import { ensureRuntime } from './runtimeManager';
+import { ensureRuntime, updateBundledPython } from './runtimeManager';
 import { killTree, findFreePort } from './util';
 import { appendFarmLog } from './farmLog';
 import { copyTree } from './copyTree';
@@ -146,9 +146,15 @@ export async function refreshFarmCodeIfUpdated(appVersion: string, onWork?: (mes
     if (!fs.existsSync(lolEntry())) return; // not installed yet — setup will copy it
     if (loadSettings().farmCodeVersion === appVersion) return;
     // The window says what the wait is (index.ts: the supervisor's announce), only when there is one.
-    if (onWork) onWork('Updating the farm after the app update (LiteLLM): a minute or two…');
+    if (onWork) onWork('Updating the farm after the app update (LiteLLM, Python): a minute or two…');
     try {
         copyFarm();
+        // The bundled Python's security fixes (RUNTIME_UPDATE_PLAN): a newer build of the same CPython, swapped in while
+        // the farm is stopped, before pip below runs on it. A failed one leaves farmCodeVersion as it was (tried again).
+        const py = await updateBundledPython(farmVenvPythons());
+        if (!py.ok) throw new Error(py.message);
+        if (py.message) appendFarmLog(`[farm] ${py.message}
+`);
         // farm-side pip fixes (the LiteLLM and fastapi pins) reach an installed venv here. A failed one leaves
         // farmCodeVersion as it was, so the next start tries again (the farm starts on the LiteLLM it has).
         const err = await repairLitellmVenv();
@@ -163,6 +169,25 @@ export async function refreshFarmCodeIfUpdated(appVersion: string, onWork?: (mes
         console.warn('[farm]', msg);
         appendFarmLog(`${msg}\n`);
     }
+}
+
+// Every venv in the farm's folder (`.venv`, `.searxng/venv`, …: a `pyvenv.cfg` one or two levels down), as its python:
+// each must still run once the bundled Python is swapped (updateBundledPython).
+export function farmVenvPythons(root = farmRoot()): string[] {
+    const isWin = process.platform === 'win32';
+    const out: string[] = [];
+    const walk = (dir: string, depth: number): void => {
+        let entries: fs.Dirent[];
+        try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+        for (const e of entries) {
+            if (!e.isDirectory() || e.name === 'node_modules') continue;
+            const d = path.join(dir, e.name);
+            if (fs.existsSync(path.join(d, 'pyvenv.cfg'))) out.push(path.join(d, isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python'));
+            else if (depth > 0) walk(d, depth - 1);
+        }
+    };
+    walk(root, 1);
+    return out;
 }
 
 // The farm's LiteLLM venv is built ONCE at setup and never touched by a code refresh, so a

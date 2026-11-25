@@ -32,6 +32,26 @@ included, keeps the first Python it got, and every library inside it, for good.
    over the last Farm app keeps everything, and `farm.log` says the Python was updated).
 4. **Docs:** `docs/context/farm.md` (the Farm app section), `docs/context/release.md`, the research note.
 
+## Built (night n° 17, 2026-11-26), and two facts the plan had wrong
+
+- **Built** (`farm-app/src/main/runtimeManager.ts` `updateBundledPython`, `pythonSwap`, `builtOn`; `installer.ts`
+  `farmVenvPythons`; the pin `20261124`): after an app update, before the farm starts and before LiteLLM's pip runs, a
+  runtime with no `pbs` record or an older one, whose interpreter is CPython 3.12.16, gets the pinned build unpacked as
+  `python.next`, checked, renamed into place (`python.prev` kept until every venv built on it, by its `pyvenv.cfg`'s
+  `home`, has run `import pyexpat`), then the record `pbs: 20261124`. Anything that fails puts the old folder back and
+  leaves `farmCodeVersion` as it was (tried again at the next start). A fresh install records its pin.
+- **Tested:** `npm test` 13 + 3 (the decision, which venvs are checked, the order before pip); a scratch run of the
+  compiled code on a 20261110 runtime with a venv: swapped in 6.2 s, `pbs` recorded, nothing left over, a second start
+  does nothing; with a broken venv built on it, the old folder came back (its `pyexpat.pyd` hash = 20261110's).
+- **Wrong 1: Windows.** CPython's Windows build compiles its own expat: **2.9.0 in 20261110 and in 20261124 alike**
+  (`pyexpat.EXPAT_VERSION`, both archives, 2026-11-26). Only the Linux (and likely macOS) builds take expat from pbs:
+  Linux x64 **2.10.0 → 2.11.0**. So the swap brings expat 2.11.0 to Linux farms (the Spark's Farm app) only; on Windows
+  only a newer CPython changes it.
+- **Wrong 2: the PRO 6000 is CPython 3.12.14**, not 3.12.16 (its `python.exe --version`, its four venvs' `pyvenv.cfg`):
+  it was installed under an older pin. The swap leaves another CPython alone (its venvs would need rebuilding), and says
+  so once in `farm.log`. So on the PRO 6000 this plan changes nothing; a CPython bump there (3.12.14 → a 3.12 with a newer
+  vendored expat, every venv rebuilt) would be a plan of its own: summary n° 17's question.
+
 ## Not proposed
 
 Rebuilding the venvs at each update (minutes, and a network the school may cut); following Python's latest release

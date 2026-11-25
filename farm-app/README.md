@@ -16,7 +16,7 @@ A setup wizard runs once (needs internet), with a phase checklist + progress + a
 
 | Phase | What happens | Where it lands |
 |---|---|---|
-| **Runtime** | Downloads a relocatable standalone **CPython 3.12** ([python-build-standalone](https://github.com/astral-sh/python-build-standalone) 20261110) + the **Ollama** binary (v0.40.16) for this OS/arch: the pins in `src/main/runtimeManager.ts`. An installed farm keeps the ones it first downloaded. | `userData/farm-runtime/{python,ollama}` |
+| **Runtime** | Downloads a relocatable standalone **CPython 3.12** ([python-build-standalone](https://github.com/astral-sh/python-build-standalone) 20261124) + the **Ollama** binary (v0.40.16) for this OS/arch: the pins in `src/main/runtimeManager.ts`. An installed farm keeps the Ollama it first downloaded; its Python is swapped after an app update for a newer pin's build of the **same** CPython, while the farm is stopped, every farm venv checked on it or the old one put back (`updateBundledPython`, [RUNTIME_UPDATE_PLAN](../docs/plans/RUNTIME_UPDATE_PLAN.md)). A farm on another CPython (the PRO 6000's 3.12.14) keeps its own. On Windows CPython builds its own expat (2.9.0), so the swap brings expat 2.11.0 to Linux and macOS farms only. | `userData/farm-runtime/{python,ollama}` |
 | **Farm code** | Copies the bundled farm CLI to a **writable** location + writes `lol.config.json` (gemma4:26b default, a pinned admin token). | `userData/farm/` |
 | **Model** | `ollama pull gemma4:26b` (~19 GB) with a real % bar (an app-owned Ollama) — the model people use, for GPUs of 24 GB and above, and the OCR vision model on Ollama (since 2026-11-10; gemma4:12b before). | Ollama's model store |
 | **Services** | `lol install` builds the LiteLLM / SearXNG / OCR venvs and, on an NVIDIA GPU (Windows x64, DGX Spark), sets up **document search**: the llama.cpp build with its CUDA runtime (~0.6 GB) and EmbeddingGemma 2 (~0.6 GB). The llama.cpp engine's own model comes only if `llamacpp.enabled` (off by default). | `userData/farm/.venv` · `.searxng` · `.extract` · `.llamacpp` + `.models` (document search on an NVIDIA GPU; the engine's model when enabled) |
@@ -153,7 +153,7 @@ to `userData/farm` (writable) rather than run from the read-only app resources.
 cd farm-app
 npm install
 npm run dev        # tsc → build/, then electron .
-npm test           # tsc, then test/supervisor.test.js (lol down before the kill, keepEngine, the reap, the Linux autostart entry, what the farm copy and the installer leave out) and test/copytree.test.js (the update's copy over a held file, under Electron)
+npm test           # tsc, then test/supervisor.test.js (lol down before the kill, keepEngine, the reap, the Linux autostart entry, what the farm copy and the installer leave out, the bundled Python's swap decision and which venvs it checks) and test/copytree.test.js (the update's copy over a held file, under Electron)
 ```
 
 In dev the app copies the sibling `../farm` into its `userData/farm` at setup (so `farm/node_modules` must exist:

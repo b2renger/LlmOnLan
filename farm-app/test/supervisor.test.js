@@ -285,6 +285,33 @@ test('the LiteLLM update after an app update shows as a start (Starting…, a sp
         .includes('await refreshFarmCodeIfUpdated(app.getVersion(), (message) => supervisor.announce(message));'), 'the start announces it');
 });
 
+test('after an app update the bundled Python is swapped only for a newer pin of the same CPython, and every farm venv is checked (RUNTIME_UPDATE_PLAN)', () => {
+    const { pythonSwap } = fresh('runtimeManager');
+    assert.equal(pythonSwap(undefined, '20261124', '3.12.16', '3.12.16'), 'swap', 'no record: installed before the record, so older');
+    assert.equal(pythonSwap('20261110', '20261124', '3.12.16', '3.12.16'), 'swap');
+    assert.equal(pythonSwap('20261124', '20261124', '3.12.16', '3.12.16'), 'current');
+    assert.equal(pythonSwap('20261201', '20261124', '3.12.16', '3.12.16'), 'current', 'never back to an older pin');
+    assert.equal(pythonSwap('20261110', '20261124', '3.12.15', '3.12.16'), 'other-cpython', 'another CPython: its venvs would need rebuilding');
+    assert.equal(pythonSwap(undefined, '20261124', null, '3.12.16'), 'other-cpython', 'a Python that does not answer is left alone');
+    const { farmVenvPythons } = fresh('installer');
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lol-venvs-'));
+    for (const v of ['.venv', '.searxng/venv', 'node_modules/x/venv', 'src']) fs.mkdirSync(path.join(root, v), { recursive: true });
+    for (const v of ['.venv', '.searxng/venv', 'node_modules/x/venv']) fs.writeFileSync(path.join(root, v, 'pyvenv.cfg'), 'home = x\n');
+    const bin = process.platform === 'win32' ? ['Scripts', 'python.exe'] : ['bin', 'python'];
+    assert.deepEqual(farmVenvPythons(root).sort(), [path.join(root, '.searxng', 'venv', ...bin), path.join(root, '.venv', ...bin)].sort(),
+        'the LiteLLM and SearXNG venvs, never one inside node_modules');
+    const { builtOn } = fresh('runtimeManager');
+    const base = path.join(root, 'farm-runtime', 'python');
+    fs.writeFileSync(path.join(root, '.venv', 'pyvenv.cfg'), `home = ${base.toUpperCase()}\nversion = 3.12.14\n`);
+    fs.writeFileSync(path.join(root, '.searxng', 'venv', 'pyvenv.cfg'), 'home = C:\\Python312\n');
+    assert.deepEqual(farmVenvPythons(root).filter(builtOn(process.platform === 'win32' ? base : base.toUpperCase())), [path.join(root, '.venv', ...bin)],
+        'only a venv built on the bundled Python is checked: one made with another Python never blocks the swap');
+    fs.rmSync(root, { recursive: true, force: true });
+    assert.ok(fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'installer.ts'), 'utf8')
+        .indexOf('await updateBundledPython(') < fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'installer.ts'), 'utf8').indexOf('await repairLitellmVenv()'),
+        'the Python is swapped before pip runs on it');
+});
+
 (async () => {
     try {
         for (const { name, fn } of tests) {

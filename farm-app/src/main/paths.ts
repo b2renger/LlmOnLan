@@ -50,7 +50,8 @@ export function bundledFarmSource(): string {
 // paths in farm-runtime/runtime.json — the per-platform archive layouts differ
 // (esp. Ollama), so we prefer the recorded truth over a computed guess and only
 // fall back to the default layout before the first install has run.
-interface RuntimeManifest { python?: string; ollama?: string }
+// `pbs`: the python-build-standalone release the bundled Python came from (none: an install before 2026-11-26, older).
+interface RuntimeManifest { python?: string; ollama?: string; pbs?: string }
 export function readRuntimeManifest(): RuntimeManifest {
     try { return JSON.parse(fs.readFileSync(path.join(runtimeRoot(), 'runtime.json'), 'utf8')); }
     catch { return {}; }
