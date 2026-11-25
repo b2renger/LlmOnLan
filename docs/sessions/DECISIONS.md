@@ -27,6 +27,10 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## The farms and the room
 
+- **Default taken, 2026-11-25** (asked by day 2026-11-24 ~08:55, no answer by 02:00): **J16 steps 2–4 wait for the
+  owner**; no session runs them on the Farm app itself.
+- **Default taken, 2026-11-25** (asked by day 2026-11-24 ~08:55, no answer by 02:00): a vLLM **release candidate** does
+  not count as the official support Inkling 2 waits for; plans ▸ Next 20 runs when **vLLM 0.34.1 is on PyPI**.
 - **2026-11-24, the chat (08:45).** n° 15's question 1, Qwen3.6's recurrent state in 16 bits: **"no"**.
   [QWEN36_FP16_STATE_PLAN](../plans/QWEN36_FP16_STATE_PLAN.md) is not built; Qwen3.6 stays at 32 bits (48 people at 64k,
   24 at 128k).
