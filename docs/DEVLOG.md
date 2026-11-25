@@ -9,7 +9,17 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
-## 2026-11-25 (05:05) — Ripple-65B Preview measured: 3 people at 64k (7 in FP8), 25 tok/s, the agent 3/5 (plans ▸ Next 12, night n° 16)
+## 2026-11-25 (05:10) — The farm suite on the Farm app's own Node: two tests fixed (night n° 16, toward Next 14's Farm app)
+
+- The farm suite runs on plain Node (26.13 here); the Farm app runs the farm on Electron's (42.6.0: Node 24.18; 45.5.0:
+  24.22). Under either Electron, 291/293: the storage tests' own cleanup removed a junction or a link with
+  `fs.rmSync(…, { recursive: true })`, which on Node 24 goes through it and empties the folder it points to (Node 26's
+  removes the link only). **The farm's own code never does that:** its recursive removals are folders it made (OCR's
+  work folder, its install folders, the canary in Ollama's store), and it removes a link with `unlinkSync`
+  (`storage.js:648`). The three cleanups now `unlinkSync`, as the farm does: **293/293 on Node 26.13, on Electron
+  42.6.0's Node and on 45.5.0's**.
+
+## 2026-11-25 (05:04) — Ripple-65B Preview measured: 3 people at 64k (7 in FP8), 25 tok/s, the agent 3/5 (plans ▸ Next 12, night n° 16)
 
 - Downloads into `~/lol-vllm-034` through `install.sh` (02:50–04:19, ~12 MB/s; the draft fetched beside it with the root's
   `hf`). **My mistake, no harm:** at 03:05 I edited a comment in `install.sh` while that download ran it; bash reads a

@@ -6152,7 +6152,9 @@ test('storage: a checksum the farm knows is checked (Ollama\'s blobs, document s
         const d = await ST.deleteMoved(from, link);
         assert.equal(d.deleted, 0, 'nothing deleted when the "copy" is the file itself');
         assert.ok(fs.existsSync(path.join(from, 'blobs', `sha256-${sha(blob)}`)));
-        fs.rmSync(link, { recursive: true, force: true });
+        // The link itself, as storage.js removes one (`unlinkSync`): Node 24's `rmSync(…, { recursive })`, the Farm app's Node
+        // (Electron 42 and 45), goes through a junction and empties its target; Node 26's does not (2026-11-25).
+        fs.unlinkSync(link);
         assert.ok(fs.existsSync(path.join(from, 'blobs')), 'removing the junction left the folder');
     } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
@@ -6169,8 +6171,9 @@ test('storage: vLLM\'s weights on Linux — <root>/hf becomes a link to the farm
         assert.equal(fs.realpathSync(path.join(vroot, 'hf', 'Qwen')), fs.realpathSync(path.join(to, 'Qwen')), 'the same paths lead to the new folder');
         assert.ok(fs.existsSync(path.join(vroot, 'hf.lolmove-old', 'Qwen', 'config.json')), 'the old copy is set aside, not deleted');
         assert.deepEqual(ST.linkHf(vroot, to), { ok: true, error: null, oldDir: path.join(vroot, 'hf.lolmove-old') }, 'again: nothing changes');
-        // A move cut between the rename and the link: the link is made, the old copy found.
-        fs.rmSync(path.join(vroot, 'hf'), { recursive: true, force: true });
+        // A move cut between the rename and the link: the link is made, the old copy found. (The link alone goes, as
+        // above: on the Farm app's Node a recursive rm would empty the folder it points to.)
+        fs.unlinkSync(path.join(vroot, 'hf'));
         assert.ok(!fs.existsSync(path.join(vroot, 'hf')) && fs.existsSync(path.join(vroot, 'hf.lolmove-old')));
         assert.equal(ST.linkHf(vroot, to).oldDir, path.join(vroot, 'hf.lolmove-old'));
         assert.ok(fs.existsSync(path.join(vroot, 'hf', 'Qwen', 'config.json')));
@@ -6179,7 +6182,7 @@ test('storage: vLLM\'s weights on Linux — <root>/hf becomes a link to the farm
         assert.equal(ST.linkHf(vroot, to2).ok, true);
         assert.equal(fs.realpathSync(path.join(vroot, 'hf')), fs.realpathSync(to2));
         // A real hf beside a set-aside one from before: refused, nothing touched.
-        fs.rmSync(path.join(vroot, 'hf'), { recursive: true, force: true }); writeFile(path.join(vroot, 'hf', 'x'), 'x');
+        fs.unlinkSync(path.join(vroot, 'hf')); writeFile(path.join(vroot, 'hf', 'x'), 'x');
         const no = ST.linkHf(vroot, to);
         assert.equal(no.ok, false);
         assert.match(no.error, /hf\.lolmove-old is already there/);
