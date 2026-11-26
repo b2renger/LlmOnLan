@@ -226,7 +226,7 @@ function renderV1(el, app) {
     status = await migrate.v1Status({ repo, storage });
     if (!status || !status.present) { row.remove(); return; }
     const pending = Number(status.pending) || 0;
-    btn.textContent = pending > 0 ? t('library.removeV1Pending', { n: pending }) : t('library.removeV1');
+    btn.textContent = pending > 0 ? t('library.removeV1Pending', { count: pending }) : t('library.removeV1');
     btn.setAttribute('data-state', pending > 0 ? 'pending' : 'ready');
     /** @type {any} */ (btn).disabled = false;
   };
