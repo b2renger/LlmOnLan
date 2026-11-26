@@ -4387,7 +4387,10 @@ test('vLLM sizing: the pool, people per pool, Automatic seats and vLLM\'s own ca
     assert.deepEqual([32768, 65536, 131072].map((x) => seats(lib[0], 'NVIDIA GB10', x).seats), [8, 8, 4], 'DGX Spark + Qwen3.6');
     assert.deepEqual(seats(lib[1], PRO, 65536), { seats: 16, source: 'measured', label: '16' }, 'Nemotron at 64k');
     assert.deepEqual(seats(lib[1], 'NVIDIA GB10', 65536), { seats: 4, source: 'measured', label: '< 8' }, '"< 8": half of it');
-    assert.deepEqual(seats(lib[2], PRO, 65536), { seats: 24, source: 'measured', label: '≥ 24' }, '"≥ 24": 24');
+    // Qwen3.8 drafting with its state in 16 bits, everyone deep (2026-11-24, review L5/L7): 21 at 64k and 11 at 128k, in
+    // place of vLLM 0.30.0's ≥ 24 and ≥ 12 measured without drafting; "≥ 21" counts as 21.
+    assert.deepEqual(seats(lib[2], PRO, 65536), { seats: 21, source: 'measured', label: '≥ 21' }, '"≥ 21": 21');
+    assert.deepEqual(seats(lib[2], PRO, 131072), { seats: 11, source: 'measured', label: '≥ 11' }, 'Qwen3.8 at 128k: 11');
     assert.deepEqual(seats(lib[2], PRO, 32768, 35), { seats: 32, source: 'measured', label: '≥ 32' }, 'Qwen3.8 at 32k with its state in 16 bits (vLLM 0.33.0, 2026-11-20), in place of 0.30\'s 16');
     assert.equal(seats(lib[0], PRO, 8192).seats, 96, 'a smaller context counts on the nearest measured one above');
     assert.deepEqual(seats(lib[0], PRO, 65536, 10), { seats: 10, source: 'memory', label: '48' }, 'never more than the pool holds (8 GB → 10)');

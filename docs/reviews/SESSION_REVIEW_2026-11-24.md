@@ -132,7 +132,7 @@ state Automatic seats 21 and 11 from the memory (`seatsAuto` takes the lower, so
 11 passed everyone deep (L5). The panel's sentence *Measured on this card with this model: ≥ 24 at 64k …* beside 21
 seats is then the old flags' number. *Proof:* `vllm.measuredFor` and `seatsAuto` for `qwen3.8-27b-nvfp4` (node, 02:44).
 *Fix (filed, plans ▸ Later):* the 64k and 128k labels from tonight's runs (21, 11) in `measured-extra.json`, with
-`build_page.js`.
+`build_page.js`. *Fixed 2026-11-26 (night n° 17): `measuredFor` now reads ≥ 32 / ≥ 21 / ≥ 11; the sizing test follows (farm 293/293).*
 
 ## Questions (suspicions not proved)
 

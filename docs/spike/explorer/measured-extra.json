@@ -740,6 +740,44 @@
      ]
     },
     "profile": "followup_32k_append"
+   },
+   "followup_64k": {
+    "every": {
+     "pass": 21,
+     "fail": null,
+     "label": "≥ 21",
+     "tested": [
+      21
+     ]
+    },
+    "steady": {
+     "pass": 21,
+     "fail": null,
+     "label": "≥ 21",
+     "tested": [
+      21
+     ]
+    },
+    "profile": "followup_64k_append"
+   },
+   "followup_128k": {
+    "every": {
+     "pass": 11,
+     "fail": null,
+     "label": "≥ 11",
+     "tested": [
+      11
+     ]
+    },
+    "steady": {
+     "pass": 11,
+     "fail": null,
+     "label": "≥ 11",
+     "tested": [
+      11
+     ]
+    },
+    "profile": "followup_128k_append"
    }
   },
   "profiles": {
@@ -800,6 +838,6 @@
     "source": "docs/spike/results/lc1120-G32-label30k__bench__followup-append__think-default__20261120-093705.json"
    }
   },
-  "note": "vLLM 0.33.0 (2026-11-20, a trial root beside the farm's): nvidia/Qwen3.8-27B-NVFP4 with the farm's flags (QWEN38_ARGS: MTP drafting, 3 tokens) and --mamba-ssm-cache-dtype float16 (QWEN38_FP16_STATE_PLAN step 1.3), --max-model-len 32768, a 50 GiB pool (vLLM's count 31.95 conversations of 32k), --append ~30k deep. 16, 24 and 32 all passed; without the flag 32 failed (24). Replaces vLLM 0.30.0's 16 of 2026-10-04 (no drafting)."
+  "note": "vLLM 0.33.0 (2026-11-20, a trial root beside the farm's): nvidia/Qwen3.8-27B-NVFP4 with the farm's flags (QWEN38_ARGS: MTP drafting, 3 tokens) and --mamba-ssm-cache-dtype float16 (QWEN38_FP16_STATE_PLAN step 1.3), --max-model-len 32768, a 50 GiB pool (vLLM's count 31.95 conversations of 32k), --append ~30k deep. 16, 24 and 32 all passed; without the flag 32 failed (24). Replaces vLLM 0.30.0's 16 of 2026-10-04 (no drafting). 64k and 128k (2026-11-24, night n° 15, review 2026-11-24 L5/L7): the farm's flags as Automatic runs them (a 53 GiB pool), appended turns: 21 people ~50k deep at 64k pass (first word p95 4.16 s, p10 44.7 tok/s) and 11 people ~100k deep at 128k pass (3.56 s, 47.5 tok/s), each the one level tried: results/q1-n15-q38-{64k-follow50k-21,128k-follow100k-11}__bench__followup-append__*.json. They replace vLLM 0.30.0's 24 and 12, measured without drafting."
  }
 ]

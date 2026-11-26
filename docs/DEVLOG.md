@@ -9,6 +9,17 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-26 (01:48) — Review 2026-11-24 L7 fixed: Qwen3.8's measured labels at 64k and 128k follow its drafting
+
+- `docs/spike/explorer/measured-extra.json`'s `pro6000/vllm/qwen38` gains `followup_64k` (≥ 21) and `followup_128k`
+  (≥ 11) from night n° 15's runs (`results/q1-n15-q38-{64k-follow50k-21,128k-follow100k-11}…`: drafting, the 16-bit
+  state, a 53 GiB pool, appended turns; both pass on every turn and steady); `node build_page.js` rewrote
+  `farm/src/capacity/measured.json` (the explorer page went to scratch). `vllm.measuredFor` for `qwen3.8-27b-nvfp4` on
+  the PRO 6000 now reads ≥ 32 / ≥ 21 / ≥ 11 (was ≥ 24 and ≥ 12 at 64k and 128k, vLLM 0.30, no drafting).
+- Automatic's seats do not move (they already took the memory's 21 and 11, the lower); the panel's *Measured on this
+  card …* sentence now agrees with them. The sizing test's 64k assertion follows the new label (24 → 21) and gains the
+  128k one; farm **293/293**.
+
 ## 2026-11-26 (01:40) — Classify: vLLM's decision endpoint against Laya, measured (plans ▸ Next 22)
 
 - **The set** (00:26): `runs/classify_headlines.py` read 14 public RSS feeds (BBC News and Le Monde, seven sections each),
