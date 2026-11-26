@@ -1725,3 +1725,54 @@ failing with the same error), t4 385 s / 109 steps, t5 514 s / 126 steps and 1,1
 On 2026-11-06 (vLLM 0.33.0) one run of 15 went past 300 s; on Ollama tonight the longest was 145 s. Nothing caps a
 reply's steps (LlmOnLan's studio sets none; dsh's `repeat-tool-reminder` only advises), and the reply holds the
 student's seat: [AGENT_LOOP_PLAN](../plans/AGENT_LOOP_PLAN.md). Rows: `results/ide/n13-vllm034-gemma426__65536.jsonl`.
+
+# Ternary Bonsai 2.5 27B against the llama.cpp default (RTX PRO 6000, 2026-11-26)
+
+Plans ▸ Next 21 (the owner, 2026-11-25 18:51). A scratch farm on the farm's own llama.cpp (b12377, its argv: `-fa`, q4_0
+KV, `--kv-unified`, 4 slots × 65,536, `--jinja`), through the seat gate on 127.0.0.1:4290, a scratch Ollama beside it, the
+card otherwise empty (the Farm app off). Thinking off (`enable_thinking: false`, checked: 4 tokens and no reasoning on
+both models, against 69–91 tokens with it on). Each: the 28-item quality check (concurrency 4), one person and four at
+once (chat profile, ~3.2k-token prompts, two rounds), the coding agent's five tasks three times (dsh 0.1.7-rc.2 as the
+repo builds it, 8,192 reply tokens, LOL Vibe's default for a model it does not know). Files: Unsloth's
+`Qwen3.8-27B-UD-IQ2_S.gguf` (8.37 GB, the default, its MTP head stripped) and PrismML's
+`Ternary-Bonsai-2.5-27B-Q2_0-mtp.gguf` (7.91 GB, sha256 `b0f83de8…` as published, its MTP head kept).
+
+| | UD-IQ2_S (the default) | Bonsai Q2_0, draft off | Bonsai Q2_0, draft on (`mtp`) |
+|---|---|---|---|
+| quality (28), per pass | **24, 23** (code 8 and 7 of 10, exact 5/7, tools 11/11) | **28, 28** | **28** |
+| one person: tok/s (first word) | 109.7 (1.06 s) | 119.5 (0.98 s) | **183.2** (1.03 s): ×1.53, 72 % of drafts accepted, 2.45 tokens a step |
+| four at once: median / slowest tok/s (first word p95), all together | 58.9 / 51.1 (3.3 s), 211 | 63.5 / 56.4 (3.3 s), 232 | 74.7 / 60.4 (3.5 s), 261 |
+| the coding agent, 3 × 5 tasks | **8/15**, 1,079 s; 6 of the 7 misses filled the 8,192-token reply in 2–3 steps | **11/15**, 641 s (5, 3, 3) | 5/5, 132 s (one pass) |
+| on the card (4 × 64k) | 11.9 GB | 11.1 GB | 13.0 GB (the draft's context) |
+
+**Reading.** On the same base model and size, Bonsai's ternary weights answer the quality check whole three times out of
+three where Unsloth's 2-bit misses four or five; on the agent's tasks it fails less and stays shorter (UD-IQ2_S writes one
+long reply until the room is full); and its kept MTP head drafts a third of the time away for one person. The cost:
+1.9 GB more with the draft on, which matters on the 12 GB cards UD-IQ2_S was chosen for (not measured here: the 96 GB card
+says nothing about a 4070). **Verdict: worth proposing as the llama.cpp default** ([BONSAI_DEFAULT_PLAN](../plans/BONSAI_DEFAULT_PLAN.md)),
+a 12 GB card first. Not for the class farm (vLLM cannot load it). One night, one card, temperature 0.6; the vendor's own
+benchmarks not rerun. Results: `results/n17-lcpp-b12377-*` and `results/ide/n17-lcpp-b12377-*.jsonl`.
+
+# Classify: vLLM's decision endpoint against Laya (RTX PRO 6000, 2026-11-26)
+
+Plans ▸ Next 22 (the owner, 2026-11-25 19:05), [research note](../research/VLLM_DECISIONS_2026-11-25.md). **The set:** 194
+headlines from public RSS feeds read at 00:26, 97 English (BBC News) and 97 French (Le Monde), seven sections each
+(politics, business, technology, science, health, culture, world; about 15 a section, BBC technology 7, Le Monde business 10
+and world 12 once a title published in two sections was dropped). **Each headline's label is the section that published it,
+not a judge's**: noisy (BBC files a storm under *science_and_environment*), the same noise for every system. The texts stay
+in the session's scratch folder (they name real people); the script, the feeds and the scores are below. **One `choice`
+question** for every system: *"Which section of a newspaper published this headline?"*, the seven options.
+
+**Laya, as the farm runs it** (`classify_server.py`'s call: `Router().predict`, one item at a time, torch on 4 CPU
+threads, criteria `{option: option}`), each in its own scratch venv (CPU torch 2.15.0), weights in a scratch cache. The
+vLLM lifecycle suite ran beside it (light), so the times are a little high:
+
+| System | right (en / fr / all) | conf ≥ 0.6: right (covers) | conf ≥ 0.8: right (covers) | per item |
+|---|---|---|---|---|
+| Laya 0.3.20 (the farm's pin) | 60 % / 59 % / **59 %** (115/194) | 66 % (81 %) | 71 % (60 %) | 166 ms |
+| Laya 0.5.4 (2026-11-25, *calibrated* per its page) | 59 % / 59 % / **59 %** (114/194) | 66 % (80 %) | 70 % (60 %) | 78 ms |
+
+Both make the same mistakes (science → world 9–10, science → technology 7, health → technology 7, culture → technology
+6). 0.5.4's `Router()` defaults to its multilingual checkpoint; at confidence ≥ 0.8 it is right 70 % of the time, not
+≥ 80 %: not calibrated on this set. 59 % is below September's 74 % on 104 Hacker News titles: general news sections are a
+harder, noisier question than eight tech topics, so tonight's numbers compare systems, not nights.

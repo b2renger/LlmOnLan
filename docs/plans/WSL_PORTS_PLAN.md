@@ -36,8 +36,8 @@ Size **S**. Farm only (`farm/src/commands/up.js`).
    WSL's block and the cure (quit WSL's other users, `wsl --shutdown`, start the farm again), instead of running blind.
 2. A test: the order (the hold before the first `vllmMod` call, in the source, as the Farm app's tests check orders),
    and a scratch run with WSL's VM stopped first: the panel answers on its port.
-3. The vLLM lifecycle suite checks its five ports first and names WSL's block when one is taken (a test fix, approved in
-   advance; tonight cost half an hour).
+3. ~~The vLLM lifecycle suite checks its five ports first and names WSL's block when one is taken~~ **done the same
+   night** (`66a82c3`, a test fix approved in advance): checked failing on 41897 with WSL on 40525–44620.
 
 ## Not proposed
 

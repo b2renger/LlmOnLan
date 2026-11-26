@@ -9,6 +9,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-26 (01:34) — Ternary Bonsai 2.5 27B measured against the llama.cpp default: better on every count (plans ▸ Next 21)
+
+- **How** (00:46–01:32): a scratch farm on the farm's llama.cpp b12377 (its argv, 4 × 64k, q4_0 KV) through the seat gate on
+  127.0.0.1:4290 (panel 45990, outside WSL's block), a scratch Ollama on 11500 with an empty models folder (`lol up` pulls its
+  placeholder `qwen3:0.6b` there), the card otherwise empty. `bonsai-measure*.sh` (scratch): the quality check, the chat
+  bench at 1 and 4 (the first run also started the default `--extend 48,64` levels, pointless on 4 slots: stopped, and the
+  later runs pass `--extend ''`), the agent's five tasks three times each (`LOL_DSH_DIR` at the repo's dsh build,
+  0.1.7-rc.2, the pinned version). Thinking off checked on both models (`think-check.py`: 4 tokens, no reasoning).
+- **Numbers** (RESULTS ▸ *Ternary Bonsai 2.5 27B*): quality UD-IQ2_S 24, 23 · Bonsai 28, 28, 28; one person 109.7 · 119.5
+  · **183.2 tok/s with its draft head** (72 % accepted); four at once 58.9/51.1 · 63.5/56.4 · 74.7/60.4; the agent 8/15 in
+  1,079 s · 11/15 in 641 s (and 5/5 in 132 s with the draft, one pass); memory 11.9 · 11.1 · 13.0 GB. The farm's unit
+  suite ran ~30 s beside UD-IQ2_S's first agent pass (`375432f`).
+- **Next:** [BONSAI_DEFAULT_PLAN](plans/BONSAI_DEFAULT_PLAN.md) for the owner (the default for new farms, a 12 GB card
+  first). Results in `docs/spike/results/n17-lcpp-b12377-*` and `results/ide/n17-lcpp-b12377-*.jsonl`.
+
 ## 2026-11-26 (00:55) — CLASS_SHEETS for the released builds (n° 16's queue 1); docs checked against tonight's code
 
 - **CLASS_SHEETS** (`cda5224`): the operator's farm paragraph now reads farm-v0.0.55's defaults, **128k a person,
