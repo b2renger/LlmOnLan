@@ -55,9 +55,14 @@ shorter (FARM_START step 3); the built-ins read their weights with `prefetch`, ~
 start begins before LiteLLM and the other plugins, ~10 s sooner (step 1). **Open WebUI stays at 0.13.3:** 0.13.4 would drop the Blender tools
 ([BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md), for the owner).
 
-**On `main`, not released yet (2026-11-26, night n° 17):** the Farm app on Electron 45.5.0 (it runs the farm on Node
-24.22; HUMAN_TESTS J20 on the local build `0.0.55+n17`); the client's kept tokens (the Home Assistant link, the IDE's
-git tokens) on `safeStorage`'s async API, which Electron 46 keeps (A30 step 4).
+**On `main`, not released yet (2026-11-26, night n° 17):** **Farm app:** Electron 45.5.0 (it runs the farm on Node
+24.22); after an app update the bundled Python swapped for pbs 20261124's build of the same CPython (RUNTIME_UPDATE_PLAN:
+expat 2.11.0 on Linux farms; the PRO 6000's 3.12.14 is left alone and `farm.log` says so); HUMAN_TESTS J20 on the local
+build `0.0.55+n17`. **Farm** (in that build's farm copy): Qwen3.8's measured labels at 64k and 128k follow its drafting
+(≥ 21, ≥ 11; review 2026-11-24 L7); an Ollama model's vision from Ollama's own `/api/show` (D-F4: `gemma3` and its
+kind no longer refused pictures by LOL Vibe and the Computer). **Client:** the kept tokens (the Home Assistant link, the
+IDE's git tokens) on `safeStorage`'s async API, which Electron 46 keeps (A30 step 4); Preferences' *Bring over 1
+remaining chat first* (D-U2).
 
 The full plan is built, released and in multi-user testing. Where to look: the map of the docs,
 [docs/README.md](../../docs/README.md); the dated build log with how each piece was tested, [docs/DEVLOG.md](../../docs/DEVLOG.md);
