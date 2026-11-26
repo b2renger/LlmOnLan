@@ -44,6 +44,7 @@ file stays the whole list.
 
 ## 1. Now
 
+- **The farm keeps its panel and beacon ports when its own boot starts WSL** ([WSL_PORTS_PLAN](WSL_PORTS_PLAN.md), night n° 17, 2026-11-26): on the PRO 6000 (WSL in mirrored networking) a cold WSL boot reserves 40525–44620, which holds the farm's 41997 and 41998, and `lol up` starts WSL before it binds them; reproduced by the lifecycle suite and two cold boots, not seen in production's three boots. **A reproduced bug, approved in advance: the next session builds it unless the owner says no** (summary n° 17, question 1). **S**.
 - **A farm that is ready sooner** ([FARM_START_PLAN](FARM_START_PLAN.md), approved by the owner 2026-11-23 12:11, "yes on
   all those"): measured, ~2 min 30 s from the Farm app's launch, ~5 min 30 s when FlashInfer rebuilds; the trial-root
   rebuilds fixed the same day. Steps: vLLM alongside the other services (−29 s), the panel's elapsed time and the
@@ -446,7 +447,6 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
 ## 4. Waiting on the owner
 
-- **The farm keeps its panel and beacon ports when its own boot starts WSL** ([WSL_PORTS_PLAN](WSL_PORTS_PLAN.md), night n° 17, 2026-11-26): on the PRO 6000 (WSL in mirrored networking) a cold WSL boot reserves 40525–44620, which holds the farm's 41997 and 41998, and `lol up` starts WSL before it binds them; reproduced by the lifecycle suite and two cold boots, not seen in production's three boots. **S**. Summary n° 17's question 1.
 - **Ternary Bonsai 2.5 27B as the llama.cpp default** ([BONSAI_DEFAULT_PLAN](BONSAI_DEFAULT_PLAN.md), night n° 17): measured against UD-IQ2_S on the farm's llama.cpp: the quality check 28 (three passes) against 24, one person 183 tok/s with its draft head against 110, the same size; a 12 GB card (the 4070) first. **S**. Summary n° 17's question.
 - **The Classify box answered by the farm's vLLM** ([CLASSIFY_VLLM_PLAN](CLASSIFY_VLLM_PLAN.md), night n° 17): 73 % right against Laya's 59 % on 194 English and French headlines, 31 ms an item on the GPU, Laya kept for Ollama and llama.cpp. **S–M**. Summary n° 17's question.
 - **llama.cpp b12377 → b12751** ([TOOL_UPDATES_2026-11-26](../research/TOOL_UPDATES_2026-11-26.md), night n° 17): two llama-server faults one request can reach (a malformed grammar hangs it, #32551; a bad `grammar_triggers` aborted it, #31478), Qwen3.8's recurrent state ~10× smaller (#31669); the same asset names. The pin and the Spark's CI build together, with the farm's suites. **Tried in scratch the same night:** UD-IQ2_S the same speed and quality, the cancel test passing on every path. **S**. A llama.cpp farm only (the class farm runs vLLM).

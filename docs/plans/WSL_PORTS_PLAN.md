@@ -1,6 +1,8 @@
 # WSL_PORTS_PLAN: the farm keeps its panel and beacon ports when its own boot starts WSL
 
-**Status: waiting on the owner** (night n° 17, 2026-11-26: found, measured, not built; summary n° 17's question 1).
+**Status: a bug a run reproduces, so approved in advance** (CLAUDE.md ▸ *Build only what the owner approved*; night
+n° 17, 2026-11-26: found and measured, not built). The next session builds it **unless the owner says no** (summary
+n° 17, question 1).
 Size **S**. Farm only (`farm/src/commands/up.js`).
 
 ## What happens (measured on the PRO 6000, 2026-11-26, DEVLOG 00:41 and the summary)

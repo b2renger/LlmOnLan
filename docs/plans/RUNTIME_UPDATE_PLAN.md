@@ -56,7 +56,9 @@ included, keeps the first Python it got, and every library inside it, for good.
 - **Wrong 2: the PRO 6000 is CPython 3.12.14**, not 3.12.16 (its `python.exe --version`, its four venvs' `pyvenv.cfg`):
   it was installed under an older pin. The swap leaves another CPython alone (its venvs would need rebuilding), and says
   so once in `farm.log`. So on the PRO 6000 this plan changes nothing; a CPython bump there (3.12.14 → a 3.12 with a newer
-  vendored expat, every venv rebuilt) would be a plan of its own: summary n° 17's question.
+  vendored expat, every venv rebuilt) would be a plan of its own: summary n° 17's queue. **Read 03:08:** the PRO 6000's
+  expat is **2.8.3** (`pyexpat.EXPAT_VERSION`); no CPython release carries expat 2.10 or 2.11 yet (all 3.12/3.13/3.14 tags
+  2.9.0; python/cpython#162493 for the 3.12 backport), so that plan waits for a 3.12.x with 2.11.0.
 
 ## Not proposed
 
