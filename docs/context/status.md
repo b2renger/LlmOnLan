@@ -53,7 +53,7 @@ download temp file no longer reads *partly downloaded* (`status.sh`, review M2, 
 cleaned it); Install and Update vLLM put in FlashInfer's precompiled kernels on a 12.x card, a first start ~3½ minutes
 shorter (FARM_START step 3); the built-ins read their weights with `prefetch`, ~16 s off a cold start (step 4); vLLM's
 start begins before LiteLLM and the other plugins, ~10 s sooner (step 1). **Open WebUI stays at 0.13.3:** 0.13.4 would drop the Blender tools
-([BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md), for the owner).
+([BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md), approved by the owner 2026-11-26, not built yet).
 
 **On `main`, not released yet (2026-11-26, night n° 17):** **Farm app:** Electron 45.5.0 (it runs the farm on Node
 24.22); after an app update the bundled Python swapped for pbs 20261124's build of the same CPython (RUNTIME_UPDATE_PLAN:

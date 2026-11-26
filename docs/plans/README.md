@@ -44,7 +44,11 @@ file stays the whole list.
 
 ## 1. Now
 
-- **The farm keeps its panel and beacon ports when its own boot starts WSL** ([WSL_PORTS_PLAN](WSL_PORTS_PLAN.md), night n° 17, 2026-11-26): on the PRO 6000 (WSL in mirrored networking) a cold WSL boot reserves 40525–44620, which holds the farm's 41997 and 41998, and `lol up` starts WSL before it binds them; reproduced by the lifecycle suite and two cold boots, not seen in production's three boots. **A reproduced bug, approved in advance: the next session builds it unless the owner says no** (summary n° 17, question 1). **S**.
+- **The farm keeps its panel and beacon ports when its own boot starts WSL** ([WSL_PORTS_PLAN](WSL_PORTS_PLAN.md), night n° 17, 2026-11-26): on the PRO 6000 (WSL in mirrored networking) a cold WSL boot reserves 40525–44620, which holds the farm's 41997 and 41998, and `lol up` starts WSL before it binds them; reproduced by the lifecycle suite and two cold boots, not seen in production's three boots. **Approved by the owner 2026-11-26** (summary n° 17, question 1: "yes"): the next session's objective. **S**.
+- **The Blender tools through Open WebUI's env** ([BLENDER_TOOLS_ENV_PLAN](BLENDER_TOOLS_ENV_PLAN.md), **approved by the owner 2026-11-26**, summary n° 17 question 2): `TOOL_SERVER_CONNECTIONS` (env, as the Computer's), so Open WebUI can move to 0.13.5 without losing them; then the bump (the Open WebUI entry below). **S**. Client.
+- **Ternary Bonsai 2.5 27B as the llama.cpp default** ([BONSAI_DEFAULT_PLAN](BONSAI_DEFAULT_PLAN.md), night n° 17, **approved by the owner 2026-11-26**, question 3): measured against UD-IQ2_S on the farm's llama.cpp: the quality check 28 (three passes) against 24, one person 183 tok/s with its draft head against 110, the same size; a 12 GB card (the 4070) first. **S**. Farm only.
+- **The Classify box answered by the farm's vLLM** ([CLASSIFY_VLLM_PLAN](CLASSIFY_VLLM_PLAN.md), night n° 17, **approved by the owner 2026-11-26**, question 4): 73 % right against Laya's 59 % on 194 English and French headlines, 31 ms an item on the GPU, Laya kept for Ollama and llama.cpp. **S–M**.
+- **llama.cpp b12377 → b12751** ([TOOL_UPDATES_2026-11-26](../research/TOOL_UPDATES_2026-11-26.md), night n° 17, **approved by the owner 2026-11-26**, question 5, in the Farm app after farm-v0.0.56): two llama-server faults one request can reach (a malformed grammar hangs it, #32551; a bad `grammar_triggers` aborted it, #31478), Qwen3.8's recurrent state ~10× smaller (#31669); the same asset names. The pin and the Spark's CI build together, with the farm's suites. **Tried in scratch the same night:** UD-IQ2_S the same speed and quality, the cancel test passing on every path. **S**. A llama.cpp farm only (the class farm runs vLLM).
 - **A farm that is ready sooner** ([FARM_START_PLAN](FARM_START_PLAN.md), approved by the owner 2026-11-23 12:11, "yes on
   all those"): measured, ~2 min 30 s from the Farm app's launch, ~5 min 30 s when FlashInfer rebuilds; the trial-root
   rebuilds fixed the same day. Steps: vLLM alongside the other services (−29 s), the panel's elapsed time and the
@@ -80,13 +84,15 @@ file stays the whole list.
   2026-11-20 12:46, as written): a *Plan first* switch, the fence refusing writes while the agent plans, *Go ahead*
   and *Change the plan*. **M**. **Built by day, 2026-11-20**, **released in client v0.2.20** (2026-11-23; the plan's *Built* says the four
   choices made, for the owner to overturn); HUMAN_TESTS G14 passed (the owner, 2026-11-23).
-- **Open WebUI 0.13.4** (plans ▸ Next 19; approved 2026-11-20 12:46: "yes we can bump"): the pin bump and its smoke
+- **Open WebUI 0.13.4 → 0.13.5** (plans ▸ Next 19; approved 2026-11-20 12:46: "yes we can bump"): the pin bump and its smoke
   tests, after the 128k build. **Done when** the smoke tests pass and `docs/spike/runs/owui_doc_check.sh` gives PASS on
   0.13.4 (an attached document stays the same in the system message from turn to turn: CONTEXT_128K_PLAN step 3's
   gain). **S**. **Blocked, night n° 12 (2026-11-21):** `owui_doc_check.sh` PASS on 0.13.4, but 0.13.4 removes a
   person's own tool servers (moved to its Tether app; `ENABLE_DIRECT_INTEGRATIONS` gone), which is how the Blender
   tools reach chats: they would vanish (TOOL_UPDATES_2026-11-20, corrected). The pin stays 0.13.3; the owner's
-  question in n° 12's summary.
+  question in n° 12's summary. **Unblocked 2026-11-26:** the owner approved BLENDER_TOOLS_ENV_PLAN and the move to
+  **0.13.5** (summary n° 17, question 2: "yes"): that plan first, then the bump to 0.13.5, its smoke tests and
+  `owui_doc_check.sh` run again on it.
 - **LOL Vibe's page preview, code beside it** ([VIBE_PAGE_PLAN](VIBE_PAGE_PLAN.md), the owner's request of 2026-11-18,
   approved with its three choices): step 1 the side column (errors with block and line, the shared editor, live
   reload, edits kept with the thread), step 2 the pop-out window. **M**. Built by day, 2026-11-18; **released in client
@@ -374,7 +380,8 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
       either, for a hybrid model, as shipped.
     - **Open WebUI 0.13.4:** the pin bump and its smoke tests (invariant 5). Its "fewer repeated context lists" stops
       a 128k chat from filling with repeated skill and knowledge lists. **Approved 2026-11-20 12:46** (now in *1. Now*);
-      **blocked 2026-11-21** (the Blender tools; BLENDER_TOOLS_ENV_PLAN).
+      **blocked 2026-11-21** (the Blender tools; BLENDER_TOOLS_ENV_PLAN); **unblocked 2026-11-26** (that plan approved;
+      the bump goes to 0.13.5).
     - vLLM: the owner says go for the bump, after the trial. **S** each.
 20. **Evaluate Inkling 2 as a replacement of Qwen3.6 or Qwen3.8** (the owner, 2026-11-23 09:06: "lets wait for
     official support in either of the backend we have. Put that into to the todo list (evaluate inkling 2 small for a
@@ -400,13 +407,13 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     stripped), on a scratch llama.cpp farm beside the live one: the 28-item quality check, the coding agent's 5 tasks,
     one person's speed with and without `mtp`, and 4 people at once. Not for the class farm (dense: ~9× Qwen3.6-A3B's
     compute per word; vLLM cannot serve it). **S**, the measurement; if it wins, a plan to make it the llama.cpp
-    default, for the owner. After the Farm app's Electron 45 (summary n° 16's objective). **Measured night n° 17 (2026-11-26):** better answers and speed (quality 28 ×3 against 24/23, 183 tok/s with its draft head against 110), the coding agent a tie (8/15 each at what LOL Vibe sends each); [BONSAI_DEFAULT_PLAN](BONSAI_DEFAULT_PLAN.md), for the owner.
+    default, for the owner. After the Farm app's Electron 45 (summary n° 16's objective). **Measured night n° 17 (2026-11-26):** better answers and speed (quality 28 ×3 against 24/23, 183 tok/s with its draft head against 110), the coding agent a tie (8/15 each at what LOL Vibe sends each); [BONSAI_DEFAULT_PLAN](BONSAI_DEFAULT_PLAN.md), approved by the owner 2026-11-26 (now in *1. Now*).
 22. **Measure Classify on vLLM's decision endpoint against Laya** (the owner, 2026-11-25 19:05: "yes, after Bonsai in
     tonight's queue"; [VLLM_DECISIONS_2026-11-25](../research/VLLM_DECISIONS_2026-11-25.md)): vLLM 0.33/0.34 answer
     `choice` questions with Qwen3.6, Qwen3.8 or Gemma 4 on `/v1/systemone`. A scratch vLLM 0.34.0 with Qwen3.6 beside
     the live farm; a new labelled set of public headlines, English and French; accuracy and confidence against Laya
     0.3.20 and 0.5.4 on the same items; the time per item alone and beside 10 chats; thinking off for the read. **S**,
-    no farm code; if it wins, a plan for the owner (Laya stays the CPU fallback; the Classify box's contract unchanged). **Measured night n° 17 (2026-11-26):** vLLM 73 % right against Laya's 59 % (French included), 31 ms an item against 78–166; [CLASSIFY_VLLM_PLAN](CLASSIFY_VLLM_PLAN.md), for the owner.
+    no farm code; if it wins, a plan for the owner (Laya stays the CPU fallback; the Classify box's contract unchanged). **Measured night n° 17 (2026-11-26):** vLLM 73 % right against Laya's 59 % (French included), 31 ms an item against 78–166; [CLASSIFY_VLLM_PLAN](CLASSIFY_VLLM_PLAN.md), approved by the owner 2026-11-26 (now in *1. Now*).
 
 ## 3. Later
 
@@ -445,16 +452,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
   - the CRLF fixture.
 - ~~**Split DEVLOG.md** at 2026-10-01 into the archive.~~ *Done 2026-11-13: [archive/DEVLOG_2026-06_to_09.md](../archive/DEVLOG_2026-06_to_09.md).*
 
-## 4. Waiting on the owner
-
-- **Ternary Bonsai 2.5 27B as the llama.cpp default** ([BONSAI_DEFAULT_PLAN](BONSAI_DEFAULT_PLAN.md), night n° 17): measured against UD-IQ2_S on the farm's llama.cpp: the quality check 28 (three passes) against 24, one person 183 tok/s with its draft head against 110, the same size; a 12 GB card (the 4070) first. **S**. Summary n° 17's question.
-- **The Classify box answered by the farm's vLLM** ([CLASSIFY_VLLM_PLAN](CLASSIFY_VLLM_PLAN.md), night n° 17): 73 % right against Laya's 59 % on 194 English and French headlines, 31 ms an item on the GPU, Laya kept for Ollama and llama.cpp. **S–M**. Summary n° 17's question.
-- **llama.cpp b12377 → b12751** ([TOOL_UPDATES_2026-11-26](../research/TOOL_UPDATES_2026-11-26.md), night n° 17): two llama-server faults one request can reach (a malformed grammar hangs it, #32551; a bad `grammar_triggers` aborted it, #31478), Qwen3.8's recurrent state ~10× smaller (#31669); the same asset names. The pin and the Spark's CI build together, with the farm's suites. **Tried in scratch the same night:** UD-IQ2_S the same speed and quality, the cancel test passing on every path. **S**. A llama.cpp farm only (the class farm runs vLLM).
+## 4. Waiting on the owner
 
 **The ones that unblock the most:**
-- **[BLENDER_TOOLS_ENV_PLAN](BLENDER_TOOLS_ENV_PLAN.md)** (night n° 12, proposed): the Blender tools through
-  `TOOL_SERVER_CONNECTIONS` (env, as the Computer's), so Open WebUI 0.13.4 and later can come without losing them.
-  **S**. Until the owner says yes, Open WebUI stays at 0.13.3 (plans ▸ Now, the bump: blocked).
 - **[AGENT_FIRST_STEP_PLAN](AGENT_FIRST_STEP_PLAN.md)** (night n° 13, proposed): Gemma 4 26B on Ollama ends 1 coding
   task in 30 with a thought and nothing else (3 of 90, both Ollama versions); LlmOnLan would ask it once, in the same
   reply, to go on. **S**. Until then the reply says nothing was done (built tonight as a reproduced bug).

@@ -30,6 +30,13 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## The farms and the room
 
+- **2026-11-26, the chat (08:52).** n° 17's questions 1, 3, 4 and 5 ("1 yes, 2 yes, 3 yes, 4 yes, 5 yes"; 2 is
+  under *Open WebUI*): **yes**.
+  [WSL_PORTS_PLAN](../plans/WSL_PORTS_PLAN.md) is built (the farm holds its panel and beacon ports before any WSL call);
+  [BONSAI_DEFAULT_PLAN](../plans/BONSAI_DEFAULT_PLAN.md) is built, the 4070 first (Ternary Bonsai 2.5 27B the llama.cpp
+  engine's default for new farms); [CLASSIFY_VLLM_PLAN](../plans/CLASSIFY_VLLM_PLAN.md) is built (the Classify box
+  answered by the farm's vLLM serving Qwen3.6 or Qwen3.8, Laya kept for Ollama and llama.cpp farms); llama.cpp moves
+  from b12377 to b12751 with the Spark's CI build, in the Farm app after farm-v0.0.56 (the recommendation).
 - **2026-11-25, the chat (19:05).** Measuring Classify on vLLM's decision endpoint against Laya: **"yes, after Bonsai in
   tonight's queue"** (plans ▸ Next 22). And: "You can start tonights session at midnight to give you more room to work
   with all the tests needed" (the night of 2026-11-25 → 26 runs 00:00 to 07:00).
@@ -164,6 +171,10 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## Open WebUI, privacy, cloud
 
+- **2026-11-26, the chat (08:52).** n° 17's question 2: **"2 yes"**.
+  [BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md) is built, then Open WebUI moves from 0.13.3 to
+  **0.13.5** with its smoke tests; this overturns the default taken 2026-11-22. The plan's own question 2 takes its
+  recommendation: Open WebUI restarts when the Blender toggle changes.
 - **2026-11-24, the chat (08:45).** n° 15's question 2, the dev environment's Open WebUI (`sidecar/.venv`, 0.10.1,
   three versions behind the pin): **"yes"**. A session deletes the folder and makes it again at the pin
   (`sidecar/README.md` step 3).

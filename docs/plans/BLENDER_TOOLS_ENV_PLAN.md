@@ -1,6 +1,7 @@
 # BLENDER_TOOLS_ENV_PLAN: the Blender tools through Open WebUI's env, so Open WebUI 0.13.4 can come
 
-**Status: proposed, for the owner** (night n° 12, 2026-11-21). Not approved: no code before the owner's yes. Size **S**.
+**Status: approved by the owner, 2026-11-26** (summary n° 17, question 2: "yes", the chat 08:52; proposed night n° 12,
+2026-11-21). The bump it unblocks goes to **0.13.5** (2026-11-25, security fixes), not 0.13.4. Size **S**.
 
 ## Why
 
@@ -34,7 +35,8 @@ Blender's server on the road that holds across versions, as the Computer's does.
    removes the old `ui.toolServers` entry once (the user-settings write it already makes; no new Open WebUI call).
    **To check first, on 0.13.4:** that a new chat preselects a `server:` id from `ui.tools` as it did a
    `direct_server:` one; if it does not, the person picks *Blender* in the chat's tool menu, as for the Computer.
-4. Then the 0.13.4 pin bump (plans ▸ Now), with its smoke tests and `owui_doc_check.sh` (PASS on 0.13.4 already).
+4. Then the pin bump, to 0.13.5 (the owner, 2026-11-26; plans ▸ Now), with its smoke tests and `owui_doc_check.sh`
+   (PASS on 0.13.4 already; run again on 0.13.5).
 5. Tests: `buildSidecarEnv` with the toggle on and off; HUMAN_TESTS A27 (the Blender tools end to end) run again.
 
 ## Questions for the owner
@@ -46,3 +48,5 @@ Blender's server on the road that holds across versions, as the Computer's does.
    nothing is built.
 2. **A restart of Open WebUI when the Blender toggle changes** (step 2): acceptable? *Recommended:* yes, it is a
    setting a person changes rarely.
+
+**Answered 2026-11-26** (the chat, 08:52, summary n° 17's question 2): yes to 1; 2 takes its recommendation.

@@ -1,6 +1,6 @@
 # CLASSIFY_VLLM_PLAN: the Classify box answered by the vLLM the farm already runs
 
-**Status: proposed, for the owner** (night n° 17, 2026-11-26, from the measurement the owner asked for on 2026-11-25 19:05,
+**Status: approved by the owner, 2026-11-26** (summary n° 17, question 4: "yes", the chat 08:52; proposed night n° 17, from the measurement the owner asked for on 2026-11-25 19:05,
 plans ▸ Next 22). Size **S–M**. The farm (`farm/src/classify.js`, `farm/src/pysvc/classify_server.py`), and one small client change
 for the words (step 3); the Classify box's contract stays; no new dependency.
 
@@ -49,3 +49,5 @@ memory, as for chats). The seat gate and people's seats: a decision read takes n
 
 **Build this plan?** *Recommended:* yes (14 points more right, French included, 5× faster, no extra model on a vLLM farm).
 *Default if no answer:* not built; Laya stays the Classify box's only answer.
+
+**Answered 2026-11-26** (the chat, 08:52): yes.

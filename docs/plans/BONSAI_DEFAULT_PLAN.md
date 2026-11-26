@@ -1,6 +1,6 @@
 # BONSAI_DEFAULT_PLAN: Ternary Bonsai 2.5 27B as the llama.cpp engine's default
 
-**Status: proposed, for the owner** (night n° 17, 2026-11-26, from the measurement the owner asked for on 2026-11-25
+**Status: approved by the owner, 2026-11-26** (summary n° 17, question 3: "yes", the chat 08:52; proposed night n° 17, from the measurement the owner asked for on 2026-11-25
 18:51, plans ▸ Next 21). Size **S**. Farm only (`farm/src/config.js`, the llama.cpp library and default). Nothing for
 the class farm: the PRO 6000 serves vLLM; llama.cpp is the engine of small cards and of an operator's choice.
 
@@ -55,3 +55,5 @@ same Qwen3.8 27B, Unsloth's 2-bit, 8.37 GB, its draft head stripped):
 
 **Build this plan (step 3, the 4070, first)?** *Recommended:* yes. *Default if no answer:* not built; Bonsai stays a
 measured option, an operator can add it by its link in the panel's library.
+
+**Answered 2026-11-26** (the chat, 08:52): yes.
