@@ -2031,7 +2031,8 @@ login, and closing the window stopping the farm. A session never runs the Farm a
 without you: its own tests on 45 (12 + 3), the farm's unit suite (293/293) and the vLLM lifecycle suite run by the
 packaged app's Electron 45 as Node (DEVLOG 2026-11-26), and the installer checked inside (it runs as Node on 45.5.0,
 Node 24.22.3; no config, `.venv` or runtime file in its farm copy). *Needs:* `farm-app\dist\LlmOnLan-Farm-Setup-0.0.55+n17.exe`
-(built 02:18 from `4aca681`: Electron 45, RUNTIME_UPDATE_PLAN, and Qwen3.8's measured labels, review 2026-11-24 L7),
+(built 02:51 from `d6caff7`: Electron 45, RUNTIME_UPDATE_PLAN, Qwen3.8's measured labels (review 2026-11-24 L7) and
+an Ollama model's vision from Ollama's own word (D-F4)),
 the PRO 6000 at a quiet moment, a laptop, 10 minutes. *Was:* new (2026-11-26).
 1. Quit the Farm app if it runs, then install the build over farm-v0.0.55 (it keeps the farm's config, models and data).
 2. It opens and starts the farm as farm-v0.0.55 does: the start bar, then the panel inside the window.
