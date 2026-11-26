@@ -57,7 +57,8 @@ load-time warning), a 904 MB venv plus 808 MB of weights.
 Laya 0.5.4 59 %, 78 ms** (CPU, 4 threads). At confidence ≥ 0.8: vLLM 83 % right on 71 % of the items, Laya 70–71 % on
 60 % (0.5.4's *calibrated* is not borne out here). The read forces thinking off (`strategies.py:128`, `:344`); 16 at once
 took 2.1 s for all 194; beside 10 chats an item took 48 ms. The farm's gate does not pass the route: a farm would ask vLLM
-on loopback. [RESULTS](../spike/RESULTS.md) ▸ *Classify*; the plan: [CLASSIFY_VLLM_PLAN](../plans/CLASSIFY_VLLM_PLAN.md).
+on loopback. Qwen3.8 70 %, Gemma 4 26B 66 % with a confidence that says little (≥ 0.8 on 93 % of the items, right on
+69 %). [RESULTS](../spike/RESULTS.md) ▸ *Classify*; the plan: [CLASSIFY_VLLM_PLAN](../plans/CLASSIFY_VLLM_PLAN.md).
 
 Sources: https://github.com/vllm-project/vllm/pull/59299 · https://github.com/vllm-project/vllm/pull/60465 ·
 https://github.com/vllm-project/vllm/pull/58429 · https://github.com/vllm-project/vllm/issues/58951 ·

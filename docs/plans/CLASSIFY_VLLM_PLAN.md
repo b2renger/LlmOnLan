@@ -14,6 +14,8 @@ options:
 | Laya 0.3.20, the farm's plugin today (CPU, 4 threads) | 59 % (en 60, fr 59) | 71 % right, on 60 % | 166 ms | ~32 s |
 | Laya 0.5.4 (the newest) | 59 % | 70 %, on 60 % | 78 ms | ~15 s |
 | **vLLM 0.33.0's `/v1/systemone`, Qwen3.6 on the GPU** | **73 %** (en 71, fr 75) | **83 %, on 71 %** | **31 ms** (48 beside 10 chats) | 5.7 s; **2.1 s 16 at once** |
+| vLLM 0.33.0, Qwen3.8 27B | 70 % (en 69, fr 71) | 82 %, on 68 % | 47 ms | 2.3 s 16 at once |
+| vLLM 0.34.0, Gemma 4 26B | 66 % (en 67, fr 66) | 69 %, on 93 %: its confidence says little | 31 ms | 0.7 s 16 at once |
 
 The model the farm already serves reads French, needs no second model or venv (Laya: a 904 MB venv, 808 MB of weights, a
 CPU core per thread), and its confidence is closer to what it claims. The read is one step, thinking always off.
@@ -21,8 +23,8 @@ CPU core per thread), and its confidence is closer to what it claims. The read i
 ## The change
 
 1. **The farm's classify service asks vLLM when vLLM serves** (`classify_server.py`, or the farm's Node side before it):
-   when the farm's engine is vLLM and its model is one vLLM reads decisions for (Qwen3.6, Qwen3.8, Gemma 4: the read
-   strategies in vLLM 0.33; not Nemotron), each item is one `POST http://127.0.0.1:<vllm port>/v1/systemone` (state = the
+   when the farm's engine is vLLM and its model is one measured for it (Qwen3.6 and Qwen3.8; **not Gemma 4**: right 66 %
+   but sure of nearly everything, so the box's *Sure above* would stop working; not Nemotron, which vLLM does not read), each item is one `POST http://127.0.0.1:<vllm port>/v1/systemone` (state = the
    item, the box's question and options), on loopback, not through the seat gate (its allowlist has no such route, and a
    decision is not a person's chat). Up to 8 at once per request (tonight: 16 at once took 2.1 s for 194).
 2. **Laya stays for the other engines** (Ollama, llama.cpp) and as the fallback when vLLM does not answer; the plugin's

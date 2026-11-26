@@ -1802,6 +1802,12 @@ and refuses a read with it on, `strategies.py:128`, `:344`), so nothing to choos
 | 16 at once | 68 % / 76 % / 72 % (140) | 79 % (81 %) | 83 % (70 %) | 133 ms, 716 ms | **2.1 s** |
 | one at a time beside 10 chats | 71 % / 75 % / 73 % (142) | 79 % (82 %) | 83 % (71 %) | 48 ms, 124 ms | 10.2 s |
 
+**The other models the route reads** (02:07–02:09, the same way, one at a time and 16 at once): **Qwen3.8 27B** (vLLM
+0.33.0, no drafting) **70 %** (en 69, fr 71), 47 ms an item, 2.3 s for 194 at 16; at ≥ 0.8 right 82 % on 68 %. **Gemma 4
+26B A4B** (vLLM 0.34.0, the trial root `~/lol-vllm-034`) **66 %** (en 67, fr 66), 31 ms, 0.7 s for 194 at 16, **but its
+confidence says little**: ≥ 0.8 on 93 % of the items, right on 69 % of them (the labels take all of its probability, 0.998),
+so the Classify box's *Sure above 0.6* would pass almost nothing on to be checked.
+
 The 10 chats meanwhile: 123 tok/s median and 106 for the slowest (127 / 121 with nothing beside them, the run just
 before). Batching changes 4 of 194 answers (vLLM's docs say probabilities vary with the batch; `VLLM_BATCH_INVARIANT=1`
 not tried). The probability the model put on the seven labels averaged 0.90.
