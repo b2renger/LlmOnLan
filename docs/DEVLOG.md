@@ -9,6 +9,17 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-26 (03:21) — The final farm code under the Farm app's Electron 45; the PRO 6000's expat read
+
+- The advisor's last check: L7 and D-F4 changed `farm/` after the objective's 182/182 under Electron 45, and the Farm app
+  runs `farm/` on that Node. Again with `farm-app`'s `electron.exe` as Node: the unit suite **294/294** (03:04, Node
+  24.22.3) and the vLLM lifecycle suite (`LOL_UP_ELECTRON`) **182/182** (03:05–03:21; WSL booted while 41897 was held,
+  its block 37795–41890, a session kept open, then ended).
+- The PRO 6000's bundled Python (`python.exe -I -c "import pyexpat"`, read only): **CPython 3.12.14, expat 2.8.3**. The
+  `docs` explorer: 3.12.15 vendors 2.8.5, 3.12.16 2.9.0; no CPython tag carries 2.10 or 2.11 (2.11.0 only on the 3.14
+  branch, untagged; the 3.12 and 3.13 backports pending, python/cpython#162493); pyexpat sets the unknown-encoding
+  handler for every parser. A CPython-bump plan is queued for when a 3.12.x ships 2.11.0.
+
 ## 2026-11-26 (03:02) — RUNTIME_UPDATE's swap run on Linux; the files it asks for exist everywhere; the builds match `main`
 
 - The advisor asked for the platforms the swap actually helps. pbs 20261124's `install_only` files: HEAD 200 for
