@@ -36,7 +36,7 @@ commit so the history records that a feature was tested + documented before it w
 - RESULTS ▸ *Classify*; [CLASSIFY_VLLM_PLAN](plans/CLASSIFY_VLLM_PLAN.md) for the owner (found writing it: the Classify box's
   words name Laya, `by: 'laya'` and its status line: a small client change goes with it).
 
-## 2026-11-26 (01:34) — Ternary Bonsai 2.5 27B measured against the llama.cpp default: better on every count (plans ▸ Next 21)
+## 2026-11-26 (01:34) — Ternary Bonsai 2.5 27B measured against the llama.cpp default: better answers and speed, the agent a tie (plans ▸ Next 21)
 
 - **How** (00:46–01:32): a scratch farm on the farm's llama.cpp b12377 (its argv, 4 × 64k, q4_0 KV) through the seat gate on
   127.0.0.1:4290 (panel 45990, outside WSL's block), a scratch Ollama on 11500 with an empty models folder (`lol up` pulls its
@@ -48,6 +48,10 @@ commit so the history records that a feature was tested + documented before it w
   · **183.2 tok/s with its draft head** (72 % accepted); four at once 58.9/51.1 · 63.5/56.4 · 74.7/60.4; the agent 8/15 in
   1,079 s · 11/15 in 641 s (and 5/5 in 132 s with the draft, one pass); memory 11.9 · 11.1 · 13.0 GB. The farm's unit
   suite ran ~30 s beside UD-IQ2_S's first agent pass (`375432f`).
+- **Corrected at 01:58** (the advisor asked what LOL Vibe really sends): UD-IQ2_S's 8,192 reply tokens are its real
+  setting (its file name matches LOL Vibe's `qwen3.8` profile, `models.mjs:11`); Bonsai would get the farm's 32,768
+  (`:55`). Bonsai with its draft head, three passes at 32,768: **8/15 in 897 s**, against UD-IQ2_S's 8/15 in 1,079 s: the
+  agent is a tie; the 01:34 headline (*11/15 against 8/15*) held only at 8,192 for both.
 - **Next:** [BONSAI_DEFAULT_PLAN](plans/BONSAI_DEFAULT_PLAN.md) for the owner (the default for new farms, a 12 GB card
   first). Results in `docs/spike/results/n17-lcpp-b12377-*` and `results/ide/n17-lcpp-b12377-*.jsonl`.
 

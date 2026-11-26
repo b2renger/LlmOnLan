@@ -10,7 +10,8 @@ On the farm's own llama.cpp (b12377, the farm's argv, q4_0 KV, 4 people at 64k),
 same Qwen3.8 27B, Unsloth's 2-bit, 8.37 GB, its draft head stripped):
 
 - **Answers:** the 28-item quality check **28, 28 and 28** (three passes, two with its draft head off, one on) against
-  **24** (and the second pass's, below). The coding agent's five tasks: see the table (three passes each).
+  **24 and 23**. The coding agent's five tasks, three passes each: **a tie** (8 of 15 for both at what LOL Vibe sends
+  each; 11 against 8 when both get 8,192 reply tokens).
 - **Speed:** one person 119.5 tok/s against 109.7 with its draft head off; **183 tok/s with it on** (×1.53: llama.cpp's
   `draft-mtp` on the file's own MTP layers, 72 % of the drafts accepted); four at once 74.7 / 60.4 tok/s (median / slowest)
   against 58.9 / 51.1.
@@ -38,10 +39,9 @@ same Qwen3.8 27B, Unsloth's 2-bit, 8.37 GB, its draft head stripped):
 ## What was not measured
 
 - Vision (the `mmproj-Q8_0`): not one image asked. The plan's step 1 ships it; a picture question goes with step 4.
-- The coding agent at the reply room LOL Vibe would give Bonsai: tonight's three-against-three ran both at 8,192, which
-  is UD-IQ2_S's real setting (its file name matches LOL Vibe's `qwen3.8` profile, `renderer/chat/projects/models.mjs:11`)
-  but less than Bonsai's (no profile: the farm's 32,768, `models.mjs:55`, `farm/src/config.js:93`); its draft-on runs at
-  32,768 are in RESULTS. A `ternary-bonsai` profile entry may belong with step 1.
+- Which reply room suits Bonsai's agent: LOL Vibe would give it the farm's 32,768 (no profile matches its file name,
+  `renderer/chat/projects/models.mjs:55`) and it passed 8 of 15 there, 11 of 15 at 8,192 with its draft off; three passes
+  each do not settle it. A `ternary-bonsai` profile entry (its `maxTokens`) may belong with step 1, after more passes.
 - A 12 GB card itself; the vendor's own benchmarks.
 
 ## Not proposed

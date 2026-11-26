@@ -399,7 +399,7 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     stripped), on a scratch llama.cpp farm beside the live one: the 28-item quality check, the coding agent's 5 tasks,
     one person's speed with and without `mtp`, and 4 people at once. Not for the class farm (dense: ~9× Qwen3.6-A3B's
     compute per word; vLLM cannot serve it). **S**, the measurement; if it wins, a plan to make it the llama.cpp
-    default, for the owner. After the Farm app's Electron 45 (summary n° 16's objective). **Measured night n° 17 (2026-11-26):** better on every count (quality 28 ×3 against 24/23, the agent 11/15 against 8/15, 183 tok/s with its draft head against 110); [BONSAI_DEFAULT_PLAN](BONSAI_DEFAULT_PLAN.md), for the owner.
+    default, for the owner. After the Farm app's Electron 45 (summary n° 16's objective). **Measured night n° 17 (2026-11-26):** better answers and speed (quality 28 ×3 against 24/23, 183 tok/s with its draft head against 110), the coding agent a tie (8/15 each at what LOL Vibe sends each); [BONSAI_DEFAULT_PLAN](BONSAI_DEFAULT_PLAN.md), for the owner.
 22. **Measure Classify on vLLM's decision endpoint against Laya** (the owner, 2026-11-25 19:05: "yes, after Bonsai in
     tonight's queue"; [VLLM_DECISIONS_2026-11-25](../research/VLLM_DECISIONS_2026-11-25.md)): vLLM 0.33/0.34 answer
     `choice` questions with Qwen3.6, Qwen3.8 or Gemma 4 on `/v1/systemone`. A scratch vLLM 0.34.0 with Qwen3.6 beside

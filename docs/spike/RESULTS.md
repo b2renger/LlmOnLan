@@ -1742,12 +1742,16 @@ repo builds it, 8,192 reply tokens, LOL Vibe's default for a model it does not k
 | quality (28), per pass | **24, 23** (code 8 and 7 of 10, exact 5/7, tools 11/11) | **28, 28** | **28** |
 | one person: tok/s (first word) | 109.7 (1.06 s) | 119.5 (0.98 s) | **183.2** (1.03 s): ×1.53, 72 % of drafts accepted, 2.45 tokens a step |
 | four at once: median / slowest tok/s (first word p95), all together | 58.9 / 51.1 (3.3 s), 211 | 63.5 / 56.4 (3.3 s), 232 | 74.7 / 60.4 (3.5 s), 261 |
-| the coding agent, 3 × 5 tasks | **8/15**, 1,079 s; 6 of the 7 misses filled the 8,192-token reply in 2–3 steps | **11/15**, 641 s (5, 3, 3) | 5/5, 132 s (one pass) |
+| the coding agent, 3 × 5 tasks, at 8,192 reply tokens | **8/15**, 1,079 s; 6 of the 7 misses filled the 8,192-token reply in 2–3 steps | **11/15**, 641 s (5, 3, 3) | 5/5, 132 s (one pass) |
+| the coding agent, 3 × 5, at what LOL Vibe sends each | 8/15 (8,192: its file name matches LOL Vibe's `qwen3.8` profile) | — | **8/15**, 897 s at 32,768 (no profile: the farm's reply limit); misses t2 ×3, t5 ×3 (code errors, not the room), t3 ×1 |
 | on the card (4 × 64k) | 11.9 GB | 11.1 GB | 13.0 GB (the draft's context) |
 
 **Reading.** On the same base model and size, Bonsai's ternary weights answer the quality check whole three times out of
-three where Unsloth's 2-bit misses four or five; on the agent's tasks it fails less and stays shorter (UD-IQ2_S writes one
-long reply until the room is full); and its kept MTP head drafts a third of the time away for one person. The cost:
+three where Unsloth's 2-bit misses four or five, and its kept MTP head drafts a third of the time away for one person.
+**The coding agent is a tie:** at 8,192 tokens each it passed 11 of 15 against 8 (UD-IQ2_S filling its reply room), but
+at what LOL Vibe would really send each (UD-IQ2_S 8,192 by its `qwen3.8` profile, `renderer/chat/projects/models.mjs:11`;
+Bonsai 32,768, the farm's limit, `:55`) both pass 8 of 15, Bonsai in 897 s against 1,079; three passes each cannot tell
+them apart. The cost:
 1.9 GB more with the draft on, which matters on the 12 GB cards UD-IQ2_S was chosen for (not measured here: the 96 GB card
 says nothing about a 4070). **Verdict: worth proposing as the llama.cpp default** ([BONSAI_DEFAULT_PLAN](../plans/BONSAI_DEFAULT_PLAN.md)),
 a 12 GB card first. Not for the class farm (vLLM cannot load it). One night, one card, temperature 0.6; the vendor's own
