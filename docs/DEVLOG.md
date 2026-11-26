@@ -9,6 +9,16 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-26 (02:50) — The class rehearsal (CLASS_REHEARSAL_PLAN step 4), night n° 17
+
+- `REH_SIDECAR=<v0.2.21's sidecar> node test/rehearsal/run.js --clients 2 --minutes 3` from `shell/` (built 02:46,
+  Electron 45.5.0, tonight's client code), the scratch Ollama on 11500, WSL held on the 37795–41890 block (booted while a
+  program listened on 41897, so the rehearsal's 41981–41993 and 42101+ were free): **0 farm moves, no *keeps exiting*,
+  `sealHeard` 0**; ready **30.5 / 15.7 s**, first chats **19.8 / 16.6 s** (night n° 16 on 45: 51.1 / 33.5 and 38.0 /
+  34.9). Client 0 started Open WebUI before it heard a farm, chose farm A 0.3 s later and restarted it there once the
+  first start ended (49.5 s): by design (OWUI_START_PLAN), as night n° 10 saw. Report:
+  `docs/spike/results/rehearsal-2026-11-260150-2c.json`.
+
 ## 2026-11-26 (02:30) — D-F4: a model's vision from Ollama's own word, not only its name
 
 - **Why** (plans ▸ Later, D-F4): the farm flags `supports_vision` for an Ollama model by its name
