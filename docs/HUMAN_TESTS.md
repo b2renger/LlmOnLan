@@ -433,8 +433,8 @@ in G14 (`0.2.20+n16`, Electron 45.5.0), a farm. *Was:* new (2026-11-25). Do it w
 
 **Released 2026-11-25 as client v0.2.21** (the same `shell/` code as `0.2.20+n16`): the release's installer, or the
 update arriving on v0.2.20, serves as well; on it, About reads 0.2.21.
-**Again on the local build `0.2.21+n17`** (`shell\dist\LlmOnLan-Setup-0.2.21+n17-windows-x64.exe`, 2026-11-26 00:31,
-`6aabfa0`): the kept tokens moved to `safeStorage`'s async API (the sync one goes in Electron 46). Install it over
+**Again on the local build `0.2.21+n17`** (`shell\dist\LlmOnLan-Setup-0.2.21+n17-windows-x64.exe`, 2026-11-26 02:19,
+`4aca681`; it also carries Preferences' *Bring over 1 remaining chat first*, D-U2): the kept tokens moved to `safeStorage`'s async API (the sync one goes in Electron 46). Install it over
 v0.2.21 and do **step 4** (and 5): a GitHub token or Home Assistant link saved on v0.2.21 still connects without typing it
 again; About reads 0.2.21+n17. Measured without a person on Windows, both ways (DEVLOG 2026-11-26 00:21); not on a Mac.
 *Expect:* About reads 0.2.20+n16 on the local build (the build's own stamp, `app.getVersion()`; the updater reads 0.2.20), 0.2.21 on the release; everything as on v0.2.20: the old chats, an answer,
@@ -2031,7 +2031,7 @@ login, and closing the window stopping the farm. A session never runs the Farm a
 without you: its own tests on 45 (12 + 3), the farm's unit suite (293/293) and the vLLM lifecycle suite run by the
 packaged app's Electron 45 as Node (DEVLOG 2026-11-26), and the installer checked inside (it runs as Node on 45.5.0,
 Node 24.22.3; no config, `.venv` or runtime file in its farm copy). *Needs:* `farm-app\dist\LlmOnLan-Farm-Setup-0.0.55+n17.exe`
-(built 00:59 from `66a82c3`: Electron 45 and RUNTIME_UPDATE_PLAN),
+(built 02:18 from `4aca681`: Electron 45, RUNTIME_UPDATE_PLAN, and Qwen3.8's measured labels, review 2026-11-24 L7),
 the PRO 6000 at a quiet moment, a laptop, 10 minutes. *Was:* new (2026-11-26).
 1. Quit the Farm app if it runs, then install the build over farm-v0.0.55 (it keeps the farm's config, models and data).
 2. It opens and starts the farm as farm-v0.0.55 does: the start bar, then the panel inside the window.
