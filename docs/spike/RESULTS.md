@@ -1753,7 +1753,15 @@ at what LOL Vibe would really send each (UD-IQ2_S 8,192 by its `qwen3.8` profile
 Bonsai 32,768, the farm's limit, `:55`) both pass 8 of 15, Bonsai in 897 s against 1,079; three passes each cannot tell
 them apart. The cost:
 1.9 GB more with the draft on, which matters on the 12 GB cards UD-IQ2_S was chosen for (not measured here: the 96 GB card
-says nothing about a 4070). **Verdict: worth proposing as the llama.cpp default** ([BONSAI_DEFAULT_PLAN](../plans/BONSAI_DEFAULT_PLAN.md)),
+says nothing about a 4070). **A 12 GB card, previewed** (02:00): the same farm with `contextLength: 'auto'`, one person (the default) and
+`gpuReserveGb: 84`, so the farm budgets about 9 GB of the card as on a 12 GB one with a desktop, each model with its
+vision projector: **Bonsai with its draft head and `mmproj-Q8_0`: context 4,096, 10.9 GB on the card in all; UD-IQ2_S
+with `mmproj-F16`, no draft: context 4,096, 11.1 GB.** So Bonsai fits at least as well, and at a small card's context its
+draft (uncounted by the farm's fit, `perf.js` `fitBudget`) costs little; a 4070's speed and its own free memory are not
+shown by this. **Vision** (Bonsai, `mmproj-Q8_0`, one picture, `docs/spike/ide/pictures/scene.png`): *Red cube, Yellow cone,
+Blue sphere* in 1.0 s, right objects and colours (the green ground not named).
+
+**Verdict: worth proposing as the llama.cpp default** ([BONSAI_DEFAULT_PLAN](../plans/BONSAI_DEFAULT_PLAN.md)),
 a 12 GB card first. Not for the class farm (vLLM cannot load it). One night, one card, temperature 0.6; the vendor's own
 benchmarks not rerun. Results: `results/n17-lcpp-b12377-*` and `results/ide/n17-lcpp-b12377-*.jsonl`.
 

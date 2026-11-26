@@ -38,11 +38,12 @@ same Qwen3.8 27B, Unsloth's 2-bit, 8.37 GB, its draft head stripped):
 
 ## What was not measured
 
-- Vision (the `mmproj-Q8_0`): not one image asked. The plan's step 1 ships it; a picture question goes with step 4.
+- Vision beyond one picture: one question (a three.js scene) named its three objects and colours in 1.0 s (RESULTS).
 - Which reply room suits Bonsai's agent: LOL Vibe would give it the farm's 32,768 (no profile matches its file name,
   `renderer/chat/projects/models.mjs:55`) and it passed 8 of 15 there, 11 of 15 at 8,192 with its draft off; three passes
   each do not settle it. A `ternary-bonsai` profile entry (its `maxTokens`) may belong with step 1, after more passes.
-- A 12 GB card itself; the vendor's own benchmarks.
+- A 12 GB card itself; previewed on the PRO 6000 by reserving 84 GB (the farm budgets ~9 GB): Bonsai with its draft and
+  vision got the same 4,096-token context as UD-IQ2_S and took 10.9 GB against 11.1 (RESULTS). The vendor's benchmarks.
 
 ## Not proposed
 
