@@ -18,7 +18,7 @@ const proxyApi = require('../proxy');
 const { loadConfig, ConfigSchema, VLLM_LIBRARY } = require('../config');
 const {
     writeLitellmConfig, buildLitellmConfig, servedEntries, ollamaServes, defaultModelEntry,
-    carryNameAcross, applyNamePlan, engineFallback, engineOf,
+    carryNameAcross, applyNamePlan, engineFallback, engineOf, noteCapabilities,
 } = require('../litellm');
 const { buildSnapshot, backendInfo, ggufName } = require('../snapshot');
 const { patchSection, patchConfigFile, readRawConfig, takeOverFile, undoTakeOverFile } = require('../configFile');
@@ -1717,6 +1717,19 @@ async function run(args) {
         log.step('vLLM: starting now, beside the farm\'s other services …');
         startVllmJob('Starting vLLM', { gate: bootPublic });
     }
+    // Which catalog models take images, as the farm's Ollama says (D-F4; litellm.js `noteCapabilities`): before every
+    // routing write that restarts LiteLLM, so a model pulled later is learned too. A model with an explicit `vision` in
+    // the file is not asked; one Ollama cannot show (not pulled, or no answer) keeps the name pattern's answer.
+    async function learnVision() {
+        const host = config.ollama.hosts[0];
+        if (!host) return;
+        // In parallel, 3 s at most: an Ollama that does not answer costs the boot 3 s, not 3 s a model.
+        await Promise.all((config.models || []).filter((m) => m && m.id && typeof m.vision !== 'boolean').map(async (m) => {
+            const meta = await ollama.showModel(host, m.id, 3000).catch(() => null);
+            if (meta) noteCapabilities(m.id, meta.capabilities);
+        }));
+    }
+    await learnVision();
     const yamlPath = writeLitellmConfig(config, undefined, peers);
     const backends = config.ollama.hosts.length + peers.length;
     // Name the engine that is actually routed: with llama.cpp or an external
@@ -2241,6 +2254,7 @@ async function run(args) {
         if (stopping) return false;
         restartingProxy = true;
         try {
+            await learnVision();
             writeLitellmConfig(config, yamlPath, peers);
             await killTree(child.pid);
             if (stopping) return false;                    // a signal landed during the kill → don't spawn an orphan

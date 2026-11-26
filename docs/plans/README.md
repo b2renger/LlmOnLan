@@ -415,7 +415,7 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     up while Qwen3.6 served)~~ *built 2026-11-23 (night n° 14, unreleased): a bar that finished well leaves after 5 min, a
     failed one stays until the next job; a farm test;*
   - load signals (busy, queued, perf) for Ollama (D-F2);
-  - vision from Ollama's `/api/show` instead of the name pattern (D-F4);
+  - ~~vision from Ollama's `/api/show` instead of the name pattern (D-F4);~~ **built night n° 17 (2026-11-26)**, unreleased;
   - per-host slots on a multi-host Ollama farm;
   - split `up.js` (5,300 lines);
   - a systemd user service for a Linux farm nobody logs in to (after HUMAN_TESTS M2);

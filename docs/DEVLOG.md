@@ -9,6 +9,24 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-26 (02:30) — D-F4: a model's vision from Ollama's own word, not only its name
+
+- **Why** (plans ▸ Later, D-F4): the farm flags `supports_vision` for an Ollama model by its name
+  (`litellm.js` `VISION_MODEL_RX`), which misses families (`gemma3`, Mistral Small 3.x …) and is wrong for a GGUF imported
+  without its projector. A model flagged blind gets its pictures **refused by LOL Vibe** (`app/ask.mjs:297`,
+  *ask.noVision*) **and the Computer** (`graph/parts/instruction.mjs:531`).
+- **The change:** `ollama.showModel` returns `/api/show`'s `capabilities`; `lol up`'s `learnVision()` asks the farm's
+  Ollama for each catalog model without an explicit `vision` (in parallel, 3 s at most) before the boot's routing write
+  and `restartProxy`'s; `litellm.js` keeps the answers in memory (`noteCapabilities`, never written to the config) and
+  `modelSupportsVision` reads: the file's flag, then Ollama's word, then the name. A farm test (the order, the
+  precedence, `showModel` against the fake Ollama); farm **294/294**. `farm.md` says how vision is decided.
+- **End to end** (02:22–02:29, the scratch Ollama on 11500, its own folder): `gemma3:4b` pulled (3.3 GB): Ollama says
+  `['completion', 'vision']`, the name pattern says false. A scratch farm on the Ollama engine wrote
+  `supports_vision: true` for it and LiteLLM's `/model_group/info` said True; a picture through the gate: *Red cube, Yellow
+  cone, Blue sphere* (2.5 s). **The control, `"vision": false` in the file:** `/model_group/info` False, and the picture
+  still reached the model (same 300-token prompt, the same answer): **LiteLLM 1.106.9 does not strip it** on
+  `ollama_chat/`, contrary to `litellm.js`'s old comment (corrected: the flag matters because the client refuses).
+
 ## 2026-11-26 (02:10) — Classify on vLLM with Qwen3.8 and Gemma 4; D-U2's plural string
 
 - **Classify, the other two models vLLM reads decisions for** (02:05–02:09, the same scripts, port 8190): Qwen3.8 27B

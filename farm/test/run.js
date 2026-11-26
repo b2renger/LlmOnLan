@@ -147,6 +147,29 @@ test('explicit vision flag overrides tag inference', () => {
     assert.equal(modelSupportsVision({ id: 'gemma4:12b', vision: false }), false);
 });
 
+test('what Ollama says a model takes outranks its name; the file\'s own flag outranks both (D-F4)', async () => {
+    const { noteCapabilities } = require('../src/litellm');
+    // Ids no other test uses: the learned answers live in the module for the farm's life.
+    assert.equal(modelSupportsVision({ id: 'gemma3:12b-dF4' }), false, 'the name pattern misses gemma3');
+    noteCapabilities('gemma3:12b-dF4', ['completion', 'vision']);
+    assert.equal(modelSupportsVision({ id: 'gemma3:12b-dF4' }), true, 'Ollama says it sees');
+    noteCapabilities('qwen3.8-27b-iq2xxs-dF4', ['completion', 'tools', 'thinking']);
+    assert.equal(modelSupportsVision({ id: 'qwen3.8-27b-iq2xxs-dF4' }), false, 'a GGUF imported without its projector: the name lied');
+    assert.equal(modelSupportsVision({ id: 'gemma3:12b-dF4', vision: false }), false, 'the file wins');
+    noteCapabilities('mistral:7b-dF4', null);
+    assert.equal(modelSupportsVision({ id: 'mistral:7b-dF4' }), false, 'an Ollama too old to say: the name');
+    // showModel passes the capabilities on (the fake Ollama answers ['completion']).
+    const fake = await require('./fake-ollama').startFakeOllama(0);
+    try {
+        const meta = await require('../src/ollama').showModel(`http://127.0.0.1:${fake.server.address().port}`, 'x');
+        assert.deepEqual(meta && meta.capabilities, ['completion']);
+    } finally { await fake.close(); }
+    // lol up learns before every routing write that starts LiteLLM: the boot's and restartProxy's.
+    const up = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(/await learnVision\(\);\s*const yamlPath = writeLitellmConfig\(/.test(up), 'the boot learns, then writes');
+    assert.ok(/await learnVision\(\);\s*writeLitellmConfig\(config, yamlPath, peers\);\s*await killTree/.test(up), 'restartProxy learns, then writes');
+});
+
 test('litellm flags supports_vision so the proxy keeps images (drop_params)', () => {
     const c = defaultConfig();
     c.llamacpp.enabled = false;   // these exercise the OLLAMA engine's routing

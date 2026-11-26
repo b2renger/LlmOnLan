@@ -22,6 +22,9 @@
     `OLLAMA_CONTEXT_LENGTH` seed). `kvCacheType` q8_0 and `numParallel` 2 only apply to an Ollama the farm
     starts; otherwise the panel flags capacity as unverified. Routed `keep_alive` MUST be a number — the
     string `'-1'` is refused by Ollama (`time: missing unit in duration`), hence `keepAliveValue()`.
+    A model takes images (LiteLLM's `supports_vision`, without which it strips a picture) when its entry says
+    `vision`, else when the farm's Ollama says so (`/api/show` `capabilities`, learned before each routing write that
+    starts LiteLLM: `up.js` `learnVision`, since 2026-11-26, D-F4), else by its name (`litellm.js` `VISION_MODEL_RX`).
   - **llama.cpp — opt-in (`llamacpp.enabled`), the speed pick.** `llama-server` build **b12377** (official
     ggml-org, Windows zips on CUDA 13.5; b12377 since 2026-11-14, b11836 from 2026-10-23: ≥ b11454 for EmbeddingGemma 2, ≥ b11769 for the
     non-streaming cancel fix, ≥ b11803 for Flint, not served by default; it refuses `--mlock`,

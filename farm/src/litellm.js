@@ -14,11 +14,11 @@ const yaml = require('js-yaml');
 const { vllmEntry, baseUrl: vllmBaseUrl } = require('./vllm');
 
 // Model families that accept IMAGE input (Ollama multimodal). We flag these with
-// `model_info.supports_vision` below. Why it matters: with `drop_params: true`,
-// LiteLLM STRIPS the image_url content from a request bound for a model it thinks
-// is text-only (its cost map doesn't know our Ollama tags), so the picture never
-// reaches Ollama and the model "can't see" it — the classic OWUI+LiteLLM "image
-// attached but ignored" bug. Flagging vision keeps the images in the request.
+// `model_info.supports_vision` below. Why it matters: LOL Vibe and the Computer read it from `/model_group/info` and
+// REFUSE to send a picture to a model the farm says is blind (shell `app/ask.mjs` *ask.noVision*,
+// `graph/parts/instruction.mjs` *errNoVision*). It was written for LiteLLM stripping the image_url of such a request
+// under `drop_params`; LiteLLM 1.106.9 on `ollama_chat/` passes the picture either way (measured 2026-11-26: gemma3:4b
+// flagged false still named a scene's objects through the gate).
 // Note gemma4 (all sizes) is natively multimodal, as are llava/*-vl/*-vision/etc.
 // Note qwen3.8 (all sizes) is natively multimodal — text/image/video — but its tag
 // contains no "vl"/"vision" marker, so it needs an explicit pattern here or images
@@ -26,10 +26,19 @@ const { vllmEntry, baseUrl: vllmBaseUrl } = require('./vllm');
 // "qwen3.8-27b-iq2xxs" and HF tags like "hf.co/unsloth/Qwen3.8-27B-GGUF:UD-IQ2_XXS".
 const VISION_MODEL_RX = /(gemma-?4|llava|bakllava|vision|qwen[\w.]*-?vl|qwen-?3\.?8|[-_]vl(?:[:@\-]|$)|minicpm-?v|moondream|pixtral|internvl|cogvlm|smolvlm)/i;
 
-// Does this model take images? An explicit `vision: true|false` in the config
-// wins; otherwise infer from the tag so existing configs "just work".
+// What Ollama says each model takes (its /api/show `capabilities`), learned by `lol up` before it writes the routing
+// (plans ▸ Later, D-F4): the name pattern above misses families (gemma3, Mistral Small 3.x …) and is wrong for a GGUF
+// imported without its vision projector. Kept here, never in the config, so a save never turns it into a setting.
+const visionFromOllama = new Map();
+function noteCapabilities(id, capabilities) {
+    if (Array.isArray(capabilities)) visionFromOllama.set(id, capabilities.includes('vision'));
+}
+
+// Does this model take images? An explicit `vision: true|false` in the config wins; then what Ollama says; otherwise
+// infer from the tag, so a model Ollama does not know yet (not pulled) still gets the old answer.
 function modelSupportsVision(model) {
     if (typeof model.vision === 'boolean') return model.vision;
+    if (visionFromOllama.has(model.id)) return visionFromOllama.get(model.id);
     return VISION_MODEL_RX.test(model.id);
 }
 
@@ -508,6 +517,6 @@ function writeLitellmConfig(config, outPath = generatedConfigPath(), peers = [])
 }
 
 module.exports = {
-    buildLitellmConfig, toYaml, generatedConfigPath, writeLitellmConfig, modelSupportsVision, servedEntries,
+    buildLitellmConfig, toYaml, generatedConfigPath, writeLitellmConfig, modelSupportsVision, noteCapabilities, servedEntries,
     engineOf, ollamaServes, defaultModelEntry, carryNameAcross, fallbackNamePlan, applyNamePlan, engineFallback, serverRoute,
 };

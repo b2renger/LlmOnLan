@@ -124,6 +124,8 @@ async function showModel(baseUrl, id, timeoutMs = 15000) {
         return {
             architecture: arch || null,
             contextLength: typeof ctx === 'number' && ctx > 0 ? ctx : null,
+            // What the model takes, as Ollama knows it ('completion', 'vision', 'tools', …); null from an Ollama too old to say.
+            capabilities: Array.isArray(json.capabilities) ? json.capabilities.map(String) : null,
         };
     } catch { return null; }
 }
