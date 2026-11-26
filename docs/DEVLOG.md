@@ -9,6 +9,20 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-26 (02:58) — llama.cpp b12751 tried in scratch (no farm code): no regression, Stop still reaches the engine
+
+- Why: the `docs` explorer's read of b12377 → b12751 (TOOL_UPDATES_2026-11-26): two llama-server faults one request can
+  reach are fixed (#32551 a malformed grammar hangs it, #31478 a bad `grammar_triggers` aborted it), Qwen3.8's recurrent
+  state much smaller (#31669). Downloaded `llama-b12751-bin-win-cuda-13.5-x64.zip` and the 13.5 cudart into scratch; the
+  scratch farm's `llamacpp.binDir` pointed there (the process path checked); the scratch Ollama again on 11500 (a fresh
+  folder: with none, `lol up` would spawn one on the Ollama app's models).
+- UD-IQ2_S, 4 × 64k, the farm's argv: quality **26/28**, one person **111.1 tok/s**, four at once 56.6 / 49.4, 211 in
+  all, 11.6 GB: b12377's numbers within noise. `LOL_CANCEL_ENGINE=llamacpp node test/litellm-cancel.js` with b12751's
+  `llama-server` and UD-IQ2_S: **PASS** (8 paths, a generation released 16 ms to 1 s after the abort). The bump itself
+  (`PINNED_BUILD` and the Spark workflow together) waits on the owner (plans ▸ 4).
+- Also read (the `docs` explorer, 02:50): no new model from the big labs in the last two days worth a measurement;
+  vLLM 0.34.1 not on PyPI; vLLM issue #69890 (SM120 CUDA graph capture hanging at startup) to watch at the next vLLM bump.
+
 ## 2026-11-26 (02:50) — The class rehearsal (CLASS_REHEARSAL_PLAN step 4), night n° 17
 
 - `REH_SIDECAR=<v0.2.21's sidecar> node test/rehearsal/run.js --clients 2 --minutes 3` from `shell/` (built 02:46,
