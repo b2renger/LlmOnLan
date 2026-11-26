@@ -24,11 +24,25 @@ same Qwen3.8 27B, Unsloth's 2-bit, 8.37 GB, its draft head stripped):
    (7.9 GB) and its `mmproj-Q8_0` (0.63 GB), `mtp: true`. UD-IQ2_S, IQ2_XXS, Q2_K_XL and the NVFP4 stay as they are.
 2. **The default** (`llamacpp.model`, `llamacpp.mmproj`) points at it, with `mtp` on when the default is used: **new farms
    only**. A farm whose file names a model keeps it (the panel's library offers Bonsai with *Download*, then *Use this*).
-3. **A 12 GB card first** (the reason UD-IQ2_S is the default: it leaves headroom on a 12 GB card): the K test box's RTX
-   4070 (12 GB) at the farm's sizing for that card, with the draft on and off; if the draft does not fit there, the entry
-   says *draft on 16 GB and up* and the farm turns it on by the card's memory (an `mtp: 'auto'` reads `computeFit`).
+3. **The draft counted in the farm's sizing, then a 12 GB card** (the reason UD-IQ2_S is the default: it leaves headroom on
+   a 12 GB card). Today `fitBudget` (`farm/src/perf.js:206`, called by `up.js` `computeFit`) counts the weights, the vision
+   projector, a fixed overhead and the KV cache, **not the draft's own context** (13.0 GB against 11.1 GB at 4 × 64k on the
+   PRO 6000, read 2026-11-26): with `mtp` on, `contextLength: 'auto'` would fill a small card and leave the draft no room.
+   (Latent today: the default UD-IQ2_S has no draft head; the library's UD-Q2_K_XL entry, `mtp: true`, already has it.) So:
+   the draft's memory as a term in `fitBudget` (measured per model, as `kvRate` is), with its test; then the K test box's
+   RTX 4070 (12 GB) at the farm's sizing, the draft on and off; if it does not fit, the entry says *draft on 16 GB and up*
+   and the farm turns it on by the card's memory.
 4. **Tests:** the config's default and the library's first entry (the existing config tests); a scratch farm downloads it
    and serves it (tonight's runner, `docs/spike`); HUMAN_TESTS K-row: the 4070, a chat and LOL Vibe's agent.
+
+## What was not measured
+
+- Vision (the `mmproj-Q8_0`): not one image asked. The plan's step 1 ships it; a picture question goes with step 4.
+- The coding agent at the reply room LOL Vibe would give Bonsai: tonight's three-against-three ran both at 8,192, which
+  is UD-IQ2_S's real setting (its file name matches LOL Vibe's `qwen3.8` profile, `renderer/chat/projects/models.mjs:11`)
+  but less than Bonsai's (no profile: the farm's 32,768, `models.mjs:55`, `farm/src/config.js:93`); its draft-on runs at
+  32,768 are in RESULTS. A `ternary-bonsai` profile entry may belong with step 1.
+- A 12 GB card itself; the vendor's own benchmarks.
 
 ## Not proposed
 
