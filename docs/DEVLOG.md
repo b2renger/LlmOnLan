@@ -9,6 +9,17 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-26 (02:10) — Classify on vLLM with Qwen3.8 and Gemma 4; D-U2's plural string
+
+- **Classify, the other two models vLLM reads decisions for** (02:05–02:09, the same scripts, port 8190): Qwen3.8 27B
+  NVFP4 from `~/lol-vllm-033` (no drafting) **70 %**, 47 ms an item; Gemma 4 26B A4B NVFP4 from `~/lol-vllm-034` (vLLM
+  0.34.0) **66 %**, 31 ms, but sure of nearly everything (≥ 0.8 on 93 % of the items, right on 69 %, the labels holding
+  0.998 of its probability). CLASSIFY_VLLM_PLAN now limits the route to the two Qwens. Both stopped with `stop.sh`.
+- **D-U2** (plans ▸ Later): Preferences' v1-removal button read *Bring over 1 remaining chats first*; now the strings'
+  own plural pair (`{one, other}`, `core/i18n.mjs`): *the last remaining chat* / *the N remaining chats*
+  (`strings/library.en.mjs:52`, `ui/settings.mjs:229` passes `count`). Checked through `t()` for 1 and 3; `chat-unit`
+  1990, lint 0 (run without `npm run build`, the client harness running beside it).
+
 ## 2026-11-26 (01:48) — Review 2026-11-24 L7 fixed: Qwen3.8's measured labels at 64k and 128k follow its drafting
 
 - `docs/spike/explorer/measured-extra.json`'s `pro6000/vllm/qwen38` gains `followup_64k` (≥ 21) and `followup_128k`
