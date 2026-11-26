@@ -2046,7 +2046,8 @@ the PRO 6000 at a quiet moment, a laptop, 10 minutes. *Was:* new (2026-11-26).
    folder* ▸ `farm.log`. On the PRO 6000 its last start's lines include *The bundled Python is CPython 3.12.14, not
    3.12.16: python-build-standalone 20261124's security fixes are not applied to it (its venvs would need rebuilding).*
    (it was installed under an older pin: summary n° 17, question 2). On a farm first installed with farm-v0.0.54 or later (3.12.16),
-   the line reads *The bundled Python is now python-build-standalone 20261124 …* instead.
+   the line reads *The bundled Python is now python-build-standalone 20261124 (CPython 3.12.16, expat …)* instead: expat
+   2.11.0 on a Linux farm such as a Spark (measured in WSL), 2.9.0 on Windows.
 
 *Expect:* everything as on farm-v0.0.55; after step 5's close, no `LlmOnLan Farm.exe` in Task Manager and the card's
 memory back to what ComfyUI or nothing holds. **One thing that is not Electron 45:** if the panel stays blank and

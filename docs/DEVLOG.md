@@ -9,6 +9,18 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-26 (03:02) — RUNTIME_UPDATE's swap run on Linux; the files it asks for exist everywhere; the builds match `main`
+
+- The advisor asked for the platforms the swap actually helps. pbs 20261124's `install_only` files: HEAD 200 for
+  aarch64-unknown-linux-gnu (the Spark), x86_64-unknown-linux-gnu, aarch64- and x86_64-apple-darwin, x86_64-pc-windows-msvc.
+- **Run on Linux** (`pyswap-linux.js` in WSL, Node 22.22, the compiled `farm-app/build/main`, a pbs 20261110 x86_64 runtime
+  and a venv on it, `/tmp`): expat **2.10.0 → 2.11.0** in the base and the venv, 6.7 s, `pbs: 20261124`, nothing left, a second
+  start `{ok: true}`. The venv check reads Linux's `home = …/python/bin`.
+- Not checked: the Spark's vLLM venv (`farm/vllm/install.sh`: `uv venv --python 3.12`, which likely finds the bundled Python
+  first on the Farm app's PATH) is outside the farm folder, so the swap does not check it (the same CPython at the same path).
+- `git diff --stat d6caff7 HEAD -- farm farm-app` and `4aca681 HEAD -- shell`: empty, so the installers named in J20 and
+  A30 hold `main`'s code.
+
 ## 2026-11-26 (02:58) — llama.cpp b12751 tried in scratch (no farm code): no regression, Stop still reaches the engine
 
 - Why: the `docs` explorer's read of b12377 → b12751 (TOOL_UPDATES_2026-11-26): two llama-server faults one request can

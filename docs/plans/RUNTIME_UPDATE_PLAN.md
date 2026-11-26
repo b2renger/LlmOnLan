@@ -43,6 +43,12 @@ included, keeps the first Python it got, and every library inside it, for good.
 - **Tested:** `npm test` 13 + 3 (the decision, which venvs are checked, the order before pip); a scratch run of the
   compiled code on a 20261110 runtime with a venv: swapped in 6.2 s, `pbs` recorded, nothing left over, a second start
   does nothing; with a broken venv built on it, the old folder came back (its `pyexpat.pyd` hash = 20261110's).
+- **On Linux, run for real** (03:01, WSL, Node 22, the compiled code on a pbs 20261110 x86_64 runtime with a venv):
+  expat **2.10.0 → 2.11.0** in the base and the venv, 6.7 s, `pbs` recorded, a second start a no-op. The pbs 20261124
+  files the swap asks for exist for linux-arm64 (the Spark), linux-x64 and both macOS (HEAD 200 each). **Not checked:**
+  the Spark's vLLM venv (`~/lol-vllm/.venv`, made by `uv venv --python 3.12`, which on a Farm app likely finds the
+  bundled Python first on PATH) sits outside the farm folder, so the swap does not check it; it keeps the same CPython
+  at the same path, so it should keep running. A Spark's first start after the update says.
 - **Wrong 1: Windows.** CPython's Windows build compiles its own expat: **2.9.0 in 20261110 and in 20261124 alike**
   (`pyexpat.EXPAT_VERSION`, both archives, 2026-11-26). Only the Linux (and likely macOS) builds take expat from pbs:
   Linux x64 **2.10.0 → 2.11.0**. So the swap brings expat 2.11.0 to Linux farms (the Spark's Farm app) only; on Windows
