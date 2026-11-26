@@ -26,6 +26,9 @@ commit so the history records that a feature was tested + documented before it w
   cone, Blue sphere* (2.5 s). **The control, `"vision": false` in the file:** `/model_group/info` False, and the picture
   still reached the model (same 300-token prompt, the same answer): **LiteLLM 1.106.9 does not strip it** on
   `ollama_chat/`, contrary to `litellm.js`'s old comment (corrected: the flag matters because the client refuses).
+- **The vLLM lifecycle suite after it** (02:32–02:46, plain Node, its boots with the fake Ollama): **182/182**. WSL was
+  booted while a program held 41897 (its block then 37795–41890) and a session kept it there: the suite's new port
+  preflight passed its five ports, the passing path the 00:59 check could not show.
 
 ## 2026-11-26 (02:10) — Classify on vLLM with Qwen3.8 and Gemma 4; D-U2's plural string
 
