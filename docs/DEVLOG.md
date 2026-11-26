@@ -52,6 +52,9 @@ commit so the history records that a feature was tested + documented before it w
   setting (its file name matches LOL Vibe's `qwen3.8` profile, `models.mjs:11`); Bonsai would get the farm's 32,768
   (`:55`). Bonsai with its draft head, three passes at 32,768: **8/15 in 897 s**, against UD-IQ2_S's 8/15 in 1,079 s: the
   agent is a tie; the 01:34 headline (*11/15 against 8/15*) held only at 8,192 for both.
+- **A 12 GB card previewed** (01:59–02:00, `gpuReserveGb: 84`, `contextLength: 'auto'`, one person, vision on): Bonsai with
+  its draft 4,096 tokens and 10.9 GB, UD-IQ2_S 4,096 and 11.1 GB; the farm's fit ignores the draft's memory (`perf.js`
+  `fitBudget`), which at that context costs little. Vision: one picture right in 1.0 s.
 - **Next:** [BONSAI_DEFAULT_PLAN](plans/BONSAI_DEFAULT_PLAN.md) for the owner (the default for new farms, a 12 GB card
   first). Results in `docs/spike/results/n17-lcpp-b12377-*` and `results/ide/n17-lcpp-b12377-*.jsonl`.
 
