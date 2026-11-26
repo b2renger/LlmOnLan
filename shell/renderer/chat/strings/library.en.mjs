@@ -49,7 +49,7 @@ registerStrings('library', {
   exportAll: 'Export all chats',
   importChats: 'Import chats…',
   removeV1: 'Remove the old v1 copy',
-  removeV1Pending: { one: 'Bring over the last remaining chat first', other: 'Bring over the {count} remaining chats first' },
+  removeV1Pending: { one: 'Bring over 1 remaining chat first', other: 'Bring over {count} remaining chats first' },
   removeV1Title: 'Remove the old copy?',
   removeV1Body: 'Every chat from the previous version has been brought over. The old copy is only taking up space, and removing it cannot be undone.',
   removeV1Done: 'The old copy was removed.',

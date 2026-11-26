@@ -16,7 +16,12 @@ commit so the history records that a feature was tested + documented before it w
   0.34.0) **66 %**, 31 ms, but sure of nearly everything (≥ 0.8 on 93 % of the items, right on 69 %, the labels holding
   0.998 of its probability). CLASSIFY_VLLM_PLAN now limits the route to the two Qwens. Both stopped with `stop.sh`.
 - **D-U2** (plans ▸ Later): Preferences' v1-removal button read *Bring over 1 remaining chats first*; now the strings'
-  own plural pair (`{one, other}`, `core/i18n.mjs`): *the last remaining chat* / *the N remaining chats*
+  own plural pair (`{one, other}`, `core/i18n.mjs`): *Bring over 1 remaining chat first* / *N remaining chats* (a first
+  wording without the digit failed the harness's `p2-remove-v1`, which wants the count shown: kept).
+- **The client harness, all of it** (01:59–02:16, slot 140, Electron 45.5.0, tonight's client code): **423/424**, the one
+  failure `p2-remove-v1` on that first wording; with the final one it passes alone. `k26-home-against-a-private-home-
+  assistant…` (the Home Assistant link through `createHome`'s new `ready()` doors, in Electron) passed. `chat-unit` 1990,
+  lint 0 again
   (`strings/library.en.mjs:52`, `ui/settings.mjs:229` passes `count`). Checked through `t()` for 1 and 3; `chat-unit`
   1990, lint 0 (run without `npm run build`, the client harness running beside it).
 

@@ -426,8 +426,8 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
   - publish the farm on every change in the Open WebUI build (D-C3);
   - a notification click brings the window forward (D-C7);
   - a cached thread path (D-V1);
-  - ~~the plural string (D-U2)~~ **done night n° 17 (2026-11-26):** *Bring over the last remaining chat first* / *the N
-    remaining chats*, the strings' own `{one, other}` pair.
+  - ~~the plural string (D-U2)~~ **done night n° 17 (2026-11-26):** *Bring over 1 remaining chat first* / *N remaining
+    chats*, the strings' own `{one, other}` pair.
   - ~~Qwen3.8's 64k and 128k labels from 2026-11-24's runs with drafting (21, 11; review 2026-11-24 L7), in
     `measured-extra.json`, so the panel's *Measured …* sentence names today's flags;~~ **done night n° 17 (2026-11-26).**
   - remove what no person reaches (review 2026-11-24 L3): the batch queue and its chip (`app.ask.queue`, `ui/queue.mjs`,
