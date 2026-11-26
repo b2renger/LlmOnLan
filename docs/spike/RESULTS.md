@@ -1776,3 +1776,32 @@ Both make the same mistakes (science → world 9–10, science → technology 7,
 6). 0.5.4's `Router()` defaults to its multilingual checkpoint; at confidence ≥ 0.8 it is right 70 % of the time, not
 ≥ 80 %: not calibrated on this set. 59 % is below September's 74 % on 104 Hacker News titles: general news sections are a
 harder, noisier question than eight tech topics, so tonight's numbers compare systems, not nights.
+
+**vLLM's decision endpoint** (`POST /v1/systemone`, a `choice` question with the seven options, criteria `null`): a scratch
+vLLM **0.33.0** (the version the farm runs, read from its banner; the plan said 0.34.0, which serves the same route) from
+the trial root `~/lol-vllm-033`, Qwen3.6 35B-A3B NVFP4 with the farm's flags, 8k context, a 12 GiB pool, ready in 2 min
+8 s; the card otherwise empty, so "beside 10 chats" is the session's own 10 chats, nobody else's. The read is one step
+over the labels' tokens: about 80 input tokens a headline, **thinking always off** (vLLM merges `enable_thinking: false`
+and refuses a read with it on, `strategies.py:128`, `:344`), so nothing to choose there.
+
+| How | right (en / fr / all) | conf ≥ 0.6: right (covers) | conf ≥ 0.8: right (covers) | per item (median, p95) | 194 items |
+|---|---|---|---|---|---|
+| one at a time, alone | 71 % / 75 % / **73 %** (142) | 79 % (84 %) | **83 % (71 %)** | **31 ms**, 43 ms | 5.7 s |
+| 16 at once | 68 % / 76 % / 72 % (140) | 79 % (81 %) | 83 % (70 %) | 133 ms, 716 ms | **2.1 s** |
+| one at a time beside 10 chats | 71 % / 75 % / 73 % (142) | 79 % (82 %) | 83 % (71 %) | 48 ms, 124 ms | 10.2 s |
+
+The 10 chats meanwhile: 123 tok/s median and 106 for the slowest (127 / 121 with nothing beside them, the run just
+before). Batching changes 4 of 194 answers (vLLM's docs say probabilities vary with the batch; `VLLM_BATCH_INVARIANT=1`
+not tried). The probability the model put on the seven labels averaged 0.90.
+
+**Reading.** On the same 194 headlines, the farm's own chat model through vLLM is right **73 %** of the time against
+Laya's **59 %**, in French (75 %) as well as English (71 %), and its confidence means more: at ≥ 0.8 it is right 83 % of
+the time on 71 % of the items, where Laya at ≥ 0.8 is right 70–71 % on 60 %. It answers in 31 ms on the GPU against
+78–166 ms on 4 CPU threads, and 16 at once take 2.1 s for all 194. The cost to chats beside it is small (a few tok/s).
+Not measured: Laya's English-only `laya` checkpoint against its multilingual one on French alone (0.5.4 picks the
+multilingual by default); a farm on Ollama or llama.cpp (no decision route there: Laya stays the fallback); the farm's
+seat gate does not pass `/v1/systemone` (its allowlist, `seats.js:79`), so the farm's own Classify service would ask vLLM
+on loopback. **Verdict: worth a plan** (the owner's question: Classify answered by the vLLM the farm runs, Laya kept on
+the CPU for the other engines). Files: `results/n17-classify-*.json` (the scores per item, the headline texts left out); the scripts
+`runs/classify_headlines.py` (the set, from the feeds), `classify_laya.py`, `classify_vllm.py`, `classify_score.py`.
+

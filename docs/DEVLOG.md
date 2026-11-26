@@ -9,6 +9,22 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-26 (01:40) — Classify: vLLM's decision endpoint against Laya, measured (plans ▸ Next 22)
+
+- **The set** (00:26): `runs/classify_headlines.py` read 14 public RSS feeds (BBC News and Le Monde, seven sections each),
+  15 titles a section, a title published in two sections dropped: 194 (97 en, 97 fr), each labelled by its section. The
+  texts stay in scratch (they name real people); the results keep the labels, the feeds and the answers.
+- **Laya** (00:28–00:32): 0.3.20 and 0.5.4, each in its own scratch venv (Python 3.12, CPU torch 2.15.0; `vegaml`, 0.5.4's
+  new dependency, says Apache-2.0), weights in a scratch Hugging Face cache, called as `classify_server.py` does. **59 %**
+  both, 166 / 78 ms an item. The lifecycle suite ran beside them.
+- **vLLM** (01:32–01:37): `trial_serve.sh` from `~/lol-vllm-033` (0.33.0, the farm's version, not the plan's 0.34.0:
+  both serve the route), Qwen3.6 NVFP4, the farm's flags, 8k, a 12 GiB pool, port 8190 (outside WSL's block), ready in
+  2 min 8 s. **73 %** (en 71, fr 75), 31 ms an item; 16 at once 2.1 s for 194 (4 answers differ from one at a time);
+  beside 10 chats 48 ms (the first try finished its chats before the items started: redone with 16 rounds). The read
+  forces thinking off (read in `strategies.py`). Stopped with `stop.sh`; the card back to 1.3 GB.
+- RESULTS ▸ *Classify*; [CLASSIFY_VLLM_PLAN](plans/CLASSIFY_VLLM_PLAN.md) for the owner (found writing it: the Classify box's
+  words name Laya, `by: 'laya'` and its status line: a small client change goes with it).
+
 ## 2026-11-26 (01:34) — Ternary Bonsai 2.5 27B measured against the llama.cpp default: better on every count (plans ▸ Next 21)
 
 - **How** (00:46–01:32): a scratch farm on the farm's llama.cpp b12377 (its argv, 4 × 64k, q4_0 KV) through the seat gate on

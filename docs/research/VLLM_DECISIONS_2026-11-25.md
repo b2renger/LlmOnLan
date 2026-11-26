@@ -50,6 +50,15 @@ load-time warning), a 904 MB venv plus 808 MB of weights.
 - **Not checked:** any of it run; whether the farm's gate and LiteLLM would pass `/v1/systemone` (the plan's question);
   Laya 0.5.4's own claims.
 
+## Measured (night n° 17, 2026-11-26)
+
+194 public headlines (BBC News and Le Monde, seven sections, labelled by their section), one `choice` question: **vLLM
+0.33.0's `/v1/systemone` with Qwen3.6 right 73 % (en 71, fr 75), 31 ms an item on the GPU; Laya 0.3.20 59 %, 166 ms;
+Laya 0.5.4 59 %, 78 ms** (CPU, 4 threads). At confidence ≥ 0.8: vLLM 83 % right on 71 % of the items, Laya 70–71 % on
+60 % (0.5.4's *calibrated* is not borne out here). The read forces thinking off (`strategies.py:128`, `:344`); 16 at once
+took 2.1 s for all 194; beside 10 chats an item took 48 ms. The farm's gate does not pass the route: a farm would ask vLLM
+on loopback. [RESULTS](../spike/RESULTS.md) ▸ *Classify*; the plan: [CLASSIFY_VLLM_PLAN](../plans/CLASSIFY_VLLM_PLAN.md).
+
 Sources: https://github.com/vllm-project/vllm/pull/59299 · https://github.com/vllm-project/vllm/pull/60465 ·
 https://github.com/vllm-project/vllm/pull/58429 · https://github.com/vllm-project/vllm/issues/58951 ·
 https://github.com/vllm-project/vllm/releases/tag/v0.32.0 ·

@@ -1,0 +1,3694 @@
+{
+ "system": "vllm systemone qwen3.6 thinking=off c=1",
+ "wall_s": 5.74,
+ "question": "Which section of a newspaper published this headline?",
+ "items": [
+  {
+   "lang": "en",
+   "label": "politics",
+   "source": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+   "choice": "politics",
+   "confidence": 0.6282724657556369,
+   "probabilities": {
+    "politics": 0.9064518414042787,
+    "business": 0.06566315506840471,
+    "technology": 0.0019828554703197735,
+    "science": 0.001362795306142811,
+    "health": 0.00034456845006667437,
+    "culture": 3.8659508668895196e-05,
+    "world": 0.024156124792118486
+   },
+   "label_mass": 0.6931117981759679,
+   "input_tokens": 74,
+   "ms": 37.5
+  },
+  {
+   "lang": "en",
+   "label": "politics",
+   "source": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+   "choice": "business",
+   "confidence": 0.9107224486289835,
+   "probabilities": {
+    "politics": 0.0019229278887216896,
+    "business": 0.9961015150732013,
+    "technology": 0.00037864695186505195,
+    "science": 7.45600056027092e-05,
+    "health": 1.4681735606463562e-05,
+    "culture": 1.009059947636608e-05,
+    "world": 0.001497577745526295
+   },
+   "label_mass": 0.9142867818668627,
+   "input_tokens": 74,
+   "ms": 28.6
+  },
+  {
+   "lang": "en",
+   "label": "politics",
+   "source": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+   "choice": "politics",
+   "confidence": 0.9746469576274649,
+   "probabilities": {
+    "politics": 0.9986360227858525,
+    "business": 0.00012324152275515983,
+    "technology": 2.749890070929517e-05,
+    "science": 1.889969963603603e-05,
+    "health": 2.2572472268812236e-06,
+    "culture": 2.279738940595736e-05,
+    "world": 0.001169282454414069
+   },
+   "label_mass": 0.9759781696123215,
+   "input_tokens": 75,
+   "ms": 29.7
+  },
+  {
+   "lang": "en",
+   "label": "politics",
+   "source": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+   "choice": "culture",
+   "confidence": 0.4760441292883204,
+   "probabilities": {
+    "politics": 0.005848344644226579,
+    "business": 0.009642290213321535,
+    "technology": 0.1936705761037608,
+    "science": 0.0035472003352895938,
+    "health": 0.0008968726990130821,
+    "culture": 0.7659819874626025,
+    "world": 0.02041272854178592
+   },
+   "label_mass": 0.6214821458991061,
+   "input_tokens": 78,
+   "ms": 30.5
+  },
+  {
+   "lang": "en",
+   "label": "politics",
+   "source": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+   "choice": "politics",
+   "confidence": 0.34810873445370066,
+   "probabilities": {
+    "politics": 0.6657239907125969,
+    "business": 0.03314443793748454,
+    "technology": 0.006526526797971524,
+    "science": 0.020103117808026937,
+    "health": 0.24490616967777262,
+    "culture": 0.00034589324840996155,
+    "world": 0.02924986381773747
+   },
+   "label_mass": 0.5229024930903902,
+   "input_tokens": 80,
+   "ms": 31.0
+  },
+  {
+   "lang": "en",
+   "label": "politics",
+   "source": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+   "choice": "business",
+   "confidence": 0.7047261703802454,
+   "probabilities": {
+    "politics": 9.608671394555209e-05,
+    "business": 0.9997405893240494,
+    "technology": 6.603936832903295e-05,
+    "science": 5.14315117681918e-05,
+    "health": 6.538782944451678e-06,
+    "culture": 3.965972333015991e-06,
+    "world": 3.534832663028994e-05
+   },
+   "label_mass": 0.7049090313085409,
+   "input_tokens": 80,
+   "ms": 31.5
+  },
+  {
+   "lang": "en",
+   "label": "politics",
+   "source": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+   "choice": "technology",
+   "confidence": 0.8904534054776845,
+   "probabilities": {
+    "politics": 0.032988043505041496,
+    "business": 0.0006846450006959376,
+    "technology": 0.9640519375963101,
+    "science": 0.00019615398331220403,
+    "health": 2.2007866990808686e-05,
+    "culture": 0.0018610580643370976,
+    "world": 0.00019615398331220403
+   },
+   "label_mass": 0.9236570881210712,
+   "input_tokens": 76,
+   "ms": 29.5
+  },
+  {
+   "lang": "en",
+   "label": "politics",
+   "source": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+   "choice": "culture",
+   "confidence": 0.8877993183439267,
+   "probabilities": {
+    "politics": 0.0006967203773961282,
+    "business": 9.429080465025464e-05,
+    "technology": 0.0018938823413930234,
+    "science": 0.00032910724596442654,
+    "health": 0.01585728269905823,
+    "culture": 0.98105528277904,
+    "world": 7.343375249805118e-05
+   },
+   "label_mass": 0.9049432115884982,
+   "input_tokens": 73,
+   "ms": 29.8
+  },
+  {
+   "lang": "en",
+   "label": "politics",
+   "source": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+   "choice": "politics",
+   "confidence": 0.9692054615608897,
+   "probabilities": {
+    "politics": 0.9963425768026076,
+    "business": 0.0002949619823795075,
+    "technology": 7.457806840260143e-05,
+    "science": 7.457806840260143e-05,
+    "health": 1.2959725041237088e-05,
+    "culture": 2.9205191213145912e-05,
+    "world": 0.0031711401619533065
+   },
+   "label_mass": 0.97276326850469,
+   "input_tokens": 73,
+   "ms": 32.1
+  },
+  {
+   "lang": "en",
+   "label": "politics",
+   "source": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+   "choice": "business",
+   "confidence": 0.287311384681233,
+   "probabilities": {
+    "politics": 0.0020090518135464515,
+    "business": 0.5570543196613165,
+    "technology": 0.0033123664589327032,
+    "science": 0.0033123664589327032,
+    "health": 0.43383434036554197,
+    "culture": 0.00012843438549348172,
+    "world": 0.00034912085623623536
+   },
+   "label_mass": 0.5157690633400267,
+   "input_tokens": 74,
+   "ms": 32.0
+  },
+  {
+   "lang": "en",
+   "label": "politics",
+   "source": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+   "choice": "politics",
+   "confidence": 0.4737150546138012,
+   "probabilities": {
+    "politics": 0.530734877720817,
+    "business": 0.00048396747694425804,
+    "technology": 0.0002935411130704595,
+    "science": 6.152955989657627e-05,
+    "health": 2.1264046910387824e-05,
+    "culture": 3.293440012638619e-05,
+    "world": 0.468371885682235
+   },
+   "label_mass": 0.8925643942002056,
+   "input_tokens": 72,
+   "ms": 32.5
+  },
+  {
+   "lang": "en",
+   "label": "politics",
+   "source": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+   "choice": "business",
+   "confidence": 0.7140148792150044,
+   "probabilities": {
+    "politics": 0.02591864091889885,
+    "business": 0.9725899410965346,
+    "technology": 0.0008868871214404692,
+    "science": 0.00028793022953979233,
+    "health": 1.4335202023272401e-05,
+    "culture": 1.4335202023272401e-05,
+    "world": 0.00028793022953979233
+   },
+   "label_mass": 0.7341376350345522,
+   "input_tokens": 79,
+   "ms": 32.5
+  },
+  {
+   "lang": "en",
+   "label": "politics",
+   "source": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+   "choice": "politics",
+   "confidence": 0.9902564550300172,
+   "probabilities": {
+    "politics": 0.9994767026239305,
+    "business": 3.5338996585742254e-05,
+    "technology": 3.5338996585742254e-05,
+    "science": 1.669295999453356e-05,
+    "health": 2.1222717037101723e-06,
+    "culture": 3.287038716640197e-06,
+    "world": 0.00043051711248312573
+   },
+   "label_mass": 0.9907749249485183,
+   "input_tokens": 78,
+   "ms": 19.0
+  },
+  {
+   "lang": "en",
+   "label": "politics",
+   "source": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+   "choice": "politics",
+   "confidence": 0.8837656404129146,
+   "probabilities": {
+    "politics": 0.9901577539568416,
+    "business": 0.001313722029459491,
+    "technology": 0.0001221951252677806,
+    "science": 0.0007968126892070848,
+    "health": 7.338387666382116e-06,
+    "culture": 4.222950530252997e-05,
+    "world": 0.007559948306255266
+   },
+   "label_mass": 0.8925503404697225,
+   "input_tokens": 72,
+   "ms": 18.5
+  },
+  {
+   "lang": "en",
+   "label": "politics",
+   "source": "https://feeds.bbci.co.uk/news/politics/rss.xml",
+   "choice": "politics",
+   "confidence": 0.7695160961846556,
+   "probabilities": {
+    "politics": 0.9660218697758635,
+    "business": 0.002713356619611126,
+    "technology": 0.0008808979213798633,
+    "science": 0.0008808979213798633,
+    "health": 0.00019655489427190782,
+    "culture": 0.00013509007152697532,
+    "world": 0.02917133279596678
+   },
+   "label_mass": 0.7965824794041141,
+   "input_tokens": 73,
+   "ms": 39.3
+  },
+  {
+   "lang": "en",
+   "label": "business",
+   "source": "https://feeds.bbci.co.uk/news/business/rss.xml",
+   "choice": "business",
+   "confidence": 0.9846735196868183,
+   "probabilities": {
+    "politics": 0.00012339290903876768,
+    "business": 0.9998627087693444,
+    "technology": 5.0930336072832764e-06,
+    "science": 5.421506054035485e-06,
+    "health": 6.892671457752695e-07,
+    "culture": 5.714225340527931e-07,
+    "world": 2.1230922758226258e-06
+   },
+   "label_mass": 0.9848087252886736,
+   "input_tokens": 77,
+   "ms": 32.3
+  },
+  {
+   "lang": "en",
+   "label": "business",
+   "source": "https://feeds.bbci.co.uk/news/business/rss.xml",
+   "choice": "business",
+   "confidence": 0.9982921492361435,
+   "probabilities": {
+    "politics": 9.609914666765774e-05,
+    "business": 0.9998695604230161,
+    "technology": 1.3844394705470007e-05,
+    "science": 1.2217635445735853e-05,
+    "health": 1.3707807065226966e-06,
+    "culture": 1.1364171203472171e-06,
+    "world": 5.771202338148675e-06
+   },
+   "label_mass": 0.9984223830294371,
+   "input_tokens": 70,
+   "ms": 30.0
+  },
+  {
+   "lang": "en",
+   "label": "business",
+   "source": "https://feeds.bbci.co.uk/news/business/rss.xml",
+   "choice": "business",
+   "confidence": 0.9737030998871458,
+   "probabilities": {
+    "politics": 5.828811953993763e-05,
+    "business": 0.9998874135251397,
+    "technology": 1.892338182631919e-05,
+    "science": 1.1477611263111436e-05,
+    "health": 1.1477611263111436e-05,
+    "culture": 9.421397047381475e-07,
+    "world": 1.1477611263111436e-05
+   },
+   "label_mass": 0.9738127380304947,
+   "input_tokens": 77,
+   "ms": 32.3
+  },
+  {
+   "lang": "en",
+   "label": "business",
+   "source": "https://feeds.bbci.co.uk/news/business/rss.xml",
+   "choice": "business",
+   "confidence": 0.9032755458398387,
+   "probabilities": {
+    "politics": 0.00013973879299641653,
+    "business": 0.9992644866890867,
+    "technology": 0.000552677647469144,
+    "science": 3.533149993945709e-05,
+    "health": 1.5523577676553496e-06,
+    "culture": 1.9932668294621123e-06,
+    "world": 4.219745911084785e-06
+   },
+   "label_mass": 0.903940406040754,
+   "input_tokens": 77,
+   "ms": 28.5
+  },
+  {
+   "lang": "en",
+   "label": "business",
+   "source": "https://feeds.bbci.co.uk/news/business/rss.xml",
+   "choice": "business",
+   "confidence": 0.950766815823254,
+   "probabilities": {
+    "politics": 0.0003351588636962568,
+    "business": 0.9990946107645383,
+    "technology": 0.0002303510937102021,
+    "science": 9.60246221591882e-05,
+    "health": 0.00020328412670622722,
+    "culture": 2.5844676442244983e-05,
+    "world": 1.4725852747519088e-05
+   },
+   "label_mass": 0.9516284099417748,
+   "input_tokens": 75,
+   "ms": 31.6
+  },
+  {
+   "lang": "en",
+   "label": "business",
+   "source": "https://feeds.bbci.co.uk/news/business/rss.xml",
+   "choice": "business",
+   "confidence": 0.788796815089977,
+   "probabilities": {
+    "politics": 0.0007027240084430081,
+    "business": 0.9895090832384372,
+    "technology": 0.004043897459479607,
+    "science": 0.002452747793908409,
+    "health": 0.001312861287964217,
+    "culture": 0.0016857472623314584,
+    "world": 0.00029293894943612956
+   },
+   "label_mass": 0.7971597516906315,
+   "input_tokens": 81,
+   "ms": 31.5
+  },
+  {
+   "lang": "en",
+   "label": "business",
+   "source": "https://feeds.bbci.co.uk/news/business/rss.xml",
+   "choice": "business",
+   "confidence": 0.9528884861816054,
+   "probabilities": {
+    "politics": 0.029236968972855756,
+    "business": 0.9681953981566745,
+    "technology": 0.0012845827651099856,
+    "science": 0.0005354937659079516,
+    "health": 0.0006875876059036453,
+    "culture": 2.3527942829446064e-05,
+    "world": 3.644079071877776e-05
+   },
+   "label_mass": 0.9841902657209365,
+   "input_tokens": 73,
+   "ms": 30.0
+  },
+  {
+   "lang": "en",
+   "label": "business",
+   "source": "https://feeds.bbci.co.uk/news/business/rss.xml",
+   "choice": "business",
+   "confidence": 0.6958364173031693,
+   "probabilities": {
+    "politics": 0.26597582614531534,
+    "business": 0.7229972119261996,
+    "technology": 0.00429909780149784,
+    "science": 0.002301141230572584,
+    "health": 0.0007470711782454187,
+    "culture": 0.0003315109838622253,
+    "world": 0.003348140734307073
+   },
+   "label_mass": 0.9624330575899886,
+   "input_tokens": 79,
+   "ms": 30.6
+  },
+  {
+   "lang": "en",
+   "label": "business",
+   "source": "https://feeds.bbci.co.uk/news/business/rss.xml",
+   "choice": "business",
+   "confidence": 0.5857839957087434,
+   "probabilities": {
+    "politics": 0.0011999948389661145,
+    "business": 0.6216128272732945,
+    "technology": 0.3770272606844818,
+    "science": 0.00014331894552246726,
+    "health": 3.3705385371485993e-06,
+    "culture": 4.0656455403477825e-06,
+    "world": 9.16207365765197e-06
+   },
+   "label_mass": 0.9423614990029818,
+   "input_tokens": 80,
+   "ms": 31.5
+  },
+  {
+   "lang": "en",
+   "label": "business",
+   "source": "https://feeds.bbci.co.uk/news/business/rss.xml",
+   "choice": "business",
+   "confidence": 0.9946690409846127,
+   "probabilities": {
+    "politics": 1.6701296228820297e-05,
+    "business": 0.9999759024917454,
+    "technology": 3.2886802184984937e-06,
+    "science": 1.0676781472881326e-06,
+    "health": 2.237974974839796e-07,
+    "culture": 9.422226579390365e-07,
+    "world": 1.8738335045327807e-06
+   },
+   "label_mass": 0.9946930106076467,
+   "input_tokens": 72,
+   "ms": 31.0
+  },
+  {
+   "lang": "en",
+   "label": "business",
+   "source": "https://feeds.bbci.co.uk/news/business/rss.xml",
+   "choice": "business",
+   "confidence": 0.797699359341667,
+   "probabilities": {
+    "politics": 3.119941142516635e-05,
+    "business": 0.9998888570859885,
+    "technology": 3.5353564793022726e-05,
+    "science": 3.5353564793022726e-05,
+    "health": 4.222381182040499e-06,
+    "culture": 1.2877535034521866e-06,
+    "world": 3.7262383146822235e-06
+   },
+   "label_mass": 0.7977880278278433,
+   "input_tokens": 74,
+   "ms": 30.2
+  },
+  {
+   "lang": "en",
+   "label": "business",
+   "source": "https://feeds.bbci.co.uk/news/business/rss.xml",
+   "choice": "culture",
+   "confidence": 0.2037942283425521,
+   "probabilities": {
+    "politics": 0.012978677891555858,
+    "business": 0.2030206806010598,
+    "technology": 0.021398222305373634,
+    "science": 0.07468713452576375,
+    "health": 0.12313826734026863,
+    "culture": 0.33472447459671495,
+    "world": 0.23005254273926334
+   },
+   "label_mass": 0.6088417304652994,
+   "input_tokens": 77,
+   "ms": 31.5
+  },
+  {
+   "lang": "en",
+   "label": "business",
+   "source": "https://feeds.bbci.co.uk/news/business/rss.xml",
+   "choice": "business",
+   "confidence": 0.8121495226242216,
+   "probabilities": {
+    "politics": 0.0025447447493231867,
+    "business": 0.9059918318702116,
+    "technology": 0.004754209090619918,
+    "science": 0.0015434657116072524,
+    "health": 0.0006434122338451254,
+    "culture": 0.08427037249334651,
+    "world": 0.0002519638510464395
+   },
+   "label_mass": 0.8964203583907879,
+   "input_tokens": 83,
+   "ms": 30.8
+  },
+  {
+   "lang": "en",
+   "label": "business",
+   "source": "https://feeds.bbci.co.uk/news/business/rss.xml",
+   "choice": "business",
+   "confidence": 0.6593897932535571,
+   "probabilities": {
+    "politics": 0.017768044387116426,
+    "business": 0.6667409864549046,
+    "technology": 0.3149461225705946,
+    "science": 0.00041786435225449315,
+    "health": 7.261397094366048e-05,
+    "culture": 3.2222254280555024e-05,
+    "world": 2.2146009905501984e-05
+   },
+   "label_mass": 0.9889744393239807,
+   "input_tokens": 71,
+   "ms": 30.7
+  },
+  {
+   "lang": "en",
+   "label": "business",
+   "source": "https://feeds.bbci.co.uk/news/business/rss.xml",
+   "choice": "technology",
+   "confidence": 0.9335693600287092,
+   "probabilities": {
+    "politics": 0.000683012566022595,
+    "business": 0.03729121366330524,
+    "technology": 0.9617531837856047,
+    "science": 6.762740211722008e-05,
+    "health": 5.214865294247823e-06,
+    "culture": 4.061341174772096e-06,
+    "world": 0.00019568637648126075
+   },
+   "label_mass": 0.9706953673436673,
+   "input_tokens": 71,
+   "ms": 32.3
+  },
+  {
+   "lang": "en",
+   "label": "technology",
+   "source": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+   "choice": "technology",
+   "confidence": 0.6417650530007865,
+   "probabilities": {
+    "politics": 0.004042212136473151,
+    "business": 0.1947646878003038,
+    "technology": 0.6797955159070731,
+    "science": 0.000901939441365181,
+    "health": 0.0021636402425454183,
+    "culture": 0.11813075458024336,
+    "world": 0.00020124989199599814
+   },
+   "label_mass": 0.9440560256483285,
+   "input_tokens": 76,
+   "ms": 31.5
+  },
+  {
+   "lang": "en",
+   "label": "technology",
+   "source": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+   "choice": "technology",
+   "confidence": 0.9992721613798627,
+   "probabilities": {
+    "politics": 0.00012338581120997685,
+    "business": 2.4296106781784965e-05,
+    "technology": 0.999805133674184,
+    "science": 1.1476668205539352e-05,
+    "health": 2.5607908146723888e-06,
+    "culture": 2.0142179980520035e-05,
+    "world": 1.3004768823468145e-05
+   },
+   "label_mass": 0.9994669238270836,
+   "input_tokens": 78,
+   "ms": 30.1
+  },
+  {
+   "lang": "en",
+   "label": "technology",
+   "source": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+   "choice": "technology",
+   "confidence": 0.899967418673694,
+   "probabilities": {
+    "politics": 0.0006667092031895179,
+    "business": 0.06001524988277711,
+    "technology": 0.9387964893321648,
+    "science": 0.00010224321650369035,
+    "health": 5.418691959609533e-06,
+    "culture": 9.510100558346037e-06,
+    "world": 0.0004043795728470224
+   },
+   "label_mass": 0.9586395229427277,
+   "input_tokens": 74,
+   "ms": 32.5
+  },
+  {
+   "lang": "en",
+   "label": "technology",
+   "source": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+   "choice": "technology",
+   "confidence": 0.8382858211308961,
+   "probabilities": {
+    "politics": 5.4332889698817014e-05,
+    "business": 0.0075751599605043156,
+    "technology": 0.9921503682422251,
+    "science": 0.00015721742926762855,
+    "health": 6.4891382912379895e-06,
+    "culture": 1.1388792377696628e-05,
+    "world": 4.5043547635203226e-05
+   },
+   "label_mass": 0.8449181172165182,
+   "input_tokens": 72,
+   "ms": 31.8
+  },
+  {
+   "lang": "en",
+   "label": "technology",
+   "source": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+   "choice": "technology",
+   "confidence": 0.966399542278179,
+   "probabilities": {
+    "politics": 0.0018901561393797294,
+    "business": 0.0008928465397010677,
+    "technology": 0.9791249785708251,
+    "science": 0.0003284598860770848,
+    "health": 4.731913305631132e-05,
+    "culture": 0.015826083591580865,
+    "world": 0.0018901561393797294
+   },
+   "label_mass": 0.9870032564063265,
+   "input_tokens": 80,
+   "ms": 31.5
+  },
+  {
+   "lang": "en",
+   "label": "technology",
+   "source": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+   "choice": "technology",
+   "confidence": 0.9944753005561772,
+   "probabilities": {
+    "politics": 0.0002959367186015434,
+    "business": 2.2820189373144758e-05,
+    "technology": 0.9996350286791285,
+    "science": 1.5684071496142066e-05,
+    "health": 7.886446419414173e-06,
+    "culture": 3.7252935085153915e-06,
+    "world": 1.891860147272794e-05
+   },
+   "label_mass": 0.9948383880367127,
+   "input_tokens": 64,
+   "ms": 30.5
+  },
+  {
+   "lang": "en",
+   "label": "technology",
+   "source": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+   "choice": "technology",
+   "confidence": 0.9946925119242077,
+   "probabilities": {
+    "politics": 0.0008039959862937464,
+    "business": 3.1174307468424036e-05,
+    "technology": 0.9990840186569245,
+    "science": 2.7511229781104034e-05,
+    "health": 1.220803421238741e-05,
+    "culture": 5.76666703664981e-06,
+    "world": 3.5325118283274314e-05
+   },
+   "label_mass": 0.9956044670411,
+   "input_tokens": 64,
+   "ms": 31.1
+  },
+  {
+   "lang": "en",
+   "label": "science",
+   "source": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+   "choice": "culture",
+   "confidence": 0.8265057743394024,
+   "probabilities": {
+    "politics": 0.0011596704659853497,
+    "business": 0.00022835276302906015,
+    "technology": 0.004047647643928457,
+    "science": 0.0010234055942509054,
+    "health": 0.002781904829995567,
+    "culture": 0.990426767393099,
+    "world": 0.00033225130971162715
+   },
+   "label_mass": 0.8344945851118778,
+   "input_tokens": 72,
+   "ms": 33.3
+  },
+  {
+   "lang": "en",
+   "label": "science",
+   "source": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+   "choice": "world",
+   "confidence": 0.47794332035339454,
+   "probabilities": {
+    "politics": 0.014831472307802332,
+    "business": 0.003309348791276937,
+    "technology": 0.011550762247418312,
+    "science": 0.3375627538081279,
+    "health": 8.819115805868946e-05,
+    "culture": 0.0020072215055924065,
+    "world": 0.6306502501817234
+   },
+   "label_mass": 0.7578579731248406,
+   "input_tokens": 73,
+   "ms": 31.0
+  },
+  {
+   "lang": "en",
+   "label": "science",
+   "source": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+   "choice": "science",
+   "confidence": 0.8152859924273221,
+   "probabilities": {
+    "politics": 0.003000846095762025,
+    "business": 0.000758732713924722,
+    "technology": 0.04142541242650347,
+    "science": 0.942837970786392,
+    "health": 1.7843691647254862e-05,
+    "culture": 9.061774335499029e-05,
+    "world": 0.01186857654241548
+   },
+   "label_mass": 0.8647148478198404,
+   "input_tokens": 77,
+   "ms": 31.4
+  },
+  {
+   "lang": "en",
+   "label": "science",
+   "source": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+   "choice": "science",
+   "confidence": 0.3746381041669998,
+   "probabilities": {
+    "politics": 0.2236682161627752,
+    "business": 0.08228293836977511,
+    "technology": 0.056552181368964755,
+    "science": 0.41786726555901044,
+    "health": 0.01113578476981426,
+    "culture": 0.17419298189575358,
+    "world": 0.03430063187390669
+   },
+   "label_mass": 0.8965481028187744,
+   "input_tokens": 71,
+   "ms": 29.6
+  },
+  {
+   "lang": "en",
+   "label": "science",
+   "source": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+   "choice": "politics",
+   "confidence": 0.8082930961163132,
+   "probabilities": {
+    "politics": 0.9439462369127111,
+    "business": 0.0011052474119236113,
+    "technology": 0.000406597800254641,
+    "science": 0.0011052474119236113,
+    "health": 8.006385398248164e-05,
+    "culture": 0.00010280402347148249,
+    "world": 0.05325380258573317
+   },
+   "label_mass": 0.8562914544369945,
+   "input_tokens": 74,
+   "ms": 18.5
+  },
+  {
+   "lang": "en",
+   "label": "science",
+   "source": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+   "choice": "health",
+   "confidence": 0.9792128455556572,
+   "probabilities": {
+    "politics": 5.14363986257368e-05,
+    "business": 4.784330345008982e-06,
+    "technology": 1.4736774939486485e-05,
+    "science": 8.480428450246312e-05,
+    "health": 0.9998358570994932,
+    "culture": 3.288218952318987e-06,
+    "world": 5.092893141894633e-06
+   },
+   "label_mass": 0.9793736027794973,
+   "input_tokens": 77,
+   "ms": 18.5
+  },
+  {
+   "lang": "en",
+   "label": "science",
+   "source": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+   "choice": "business",
+   "confidence": 0.49503132344931317,
+   "probabilities": {
+    "politics": 0.042408768032914906,
+    "business": 0.7517134446577128,
+    "technology": 0.005739404001830729,
+    "science": 0.08977936263020392,
+    "health": 0.001451148587983026,
+    "culture": 0.05445393604467733,
+    "world": 0.05445393604467733
+   },
+   "label_mass": 0.6585372750313413,
+   "input_tokens": 77,
+   "ms": 43.0
+  },
+  {
+   "lang": "en",
+   "label": "science",
+   "source": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+   "choice": "world",
+   "confidence": 0.8717177543401676,
+   "probabilities": {
+    "politics": 0.001995342287212986,
+    "business": 0.0002700400848287827,
+    "technology": 0.08484411301277621,
+    "science": 0.0006477927967681488,
+    "health": 1.431160018700298e-05,
+    "culture": 6.827682589918886e-05,
+    "world": 0.9121601233923277
+   },
+   "label_mass": 0.9556630814974079,
+   "input_tokens": 73,
+   "ms": 32.0
+  },
+  {
+   "lang": "en",
+   "label": "science",
+   "source": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+   "choice": "world",
+   "confidence": 0.9433643438209492,
+   "probabilities": {
+    "politics": 0.0011479914182818236,
+    "business": 0.00010677983538970896,
+    "technology": 0.015847532698639814,
+    "science": 0.0021447303263719005,
+    "health": 4.451245784149274e-05,
+    "culture": 0.00025615150901024637,
+    "world": 0.980452301754465
+   },
+   "label_mass": 0.9621726035349717,
+   "input_tokens": 73,
+   "ms": 30.5
+  },
+  {
+   "lang": "en",
+   "label": "science",
+   "source": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+   "choice": "politics",
+   "confidence": 0.11465638364505942,
+   "probabilities": {
+    "politics": 0.28689178013167743,
+    "business": 0.1355180811905336,
+    "technology": 0.05649234102804192,
+    "science": 0.05649234102804192,
+    "health": 0.04399626894064672,
+    "culture": 0.22343154302329968,
+    "world": 0.19717764465775875
+   },
+   "label_mass": 0.3996502918014399,
+   "input_tokens": 73,
+   "ms": 31.0
+  },
+  {
+   "lang": "en",
+   "label": "science",
+   "source": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+   "choice": "technology",
+   "confidence": 0.5416173094110619,
+   "probabilities": {
+    "politics": 0.00045788620103418546,
+    "business": 0.26877246495595647,
+    "technology": 0.7305993510270355,
+    "science": 0.00014865388493508967,
+    "health": 6.952634718207567e-06,
+    "culture": 5.763936629466056e-06,
+    "world": 8.92735969112413e-06
+   },
+   "label_mass": 0.7413328641062803,
+   "input_tokens": 75,
+   "ms": 30.5
+  },
+  {
+   "lang": "en",
+   "label": "science",
+   "source": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+   "choice": "science",
+   "confidence": 0.7134124823705645,
+   "probabilities": {
+    "politics": 0.019484166476952357,
+    "business": 0.010429122781955341,
+    "technology": 0.0038366598609340884,
+    "science": 0.9387997987477763,
+    "health": 0.011817744347216691,
+    "culture": 0.0004582236754211379,
+    "world": 0.015174284109744113
+   },
+   "label_mass": 0.7599197223115663,
+   "input_tokens": 72,
+   "ms": 31.7
+  },
+  {
+   "lang": "en",
+   "label": "science",
+   "source": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+   "choice": "culture",
+   "confidence": 0.5275606212308313,
+   "probabilities": {
+    "politics": 0.01753818197236758,
+    "business": 0.022519471415014713,
+    "technology": 0.022519471415014713,
+    "science": 0.061214269933937394,
+    "health": 0.00443434684104351,
+    "culture": 0.6581154624625355,
+    "world": 0.21365879596008655
+   },
+   "label_mass": 0.8016231973289394,
+   "input_tokens": 71,
+   "ms": 19.9
+  },
+  {
+   "lang": "en",
+   "label": "science",
+   "source": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+   "choice": "science",
+   "confidence": 0.9614796468061555,
+   "probabilities": {
+    "politics": 0.00037994108532252326,
+    "business": 2.2817235698826994e-05,
+    "technology": 7.481483558975768e-05,
+    "science": 0.999505729050737,
+    "health": 1.7594762896590265e-06,
+    "culture": 2.7251301871522668e-06,
+    "world": 1.2213186175008639e-05
+   },
+   "label_mass": 0.9619551132731414,
+   "input_tokens": 72,
+   "ms": 42.5
+  },
+  {
+   "lang": "en",
+   "label": "science",
+   "source": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+   "choice": "science",
+   "confidence": 0.9567943084419834,
+   "probabilities": {
+    "politics": 0.00029590375454739833,
+    "business": 1.8916494151249745e-05,
+    "technology": 0.00013977503647867793,
+    "science": 0.9995235240837683,
+    "health": 1.2092910126185894e-06,
+    "culture": 2.900938333387188e-06,
+    "world": 1.7770401708318727e-05
+   },
+   "label_mass": 0.957250415210634,
+   "input_tokens": 73,
+   "ms": 30.6
+  },
+  {
+   "lang": "en",
+   "label": "health",
+   "source": "https://feeds.bbci.co.uk/news/health/rss.xml",
+   "choice": "culture",
+   "confidence": 0.7432036533439792,
+   "probabilities": {
+    "politics": 0.0014365620266590716,
+    "business": 0.00019441752876486778,
+    "technology": 0.00643822433374066,
+    "science": 0.0016278380382432718,
+    "health": 0.14653334536079626,
+    "culture": 0.8432411310762205,
+    "world": 0.0005284816355754538
+   },
+   "label_mass": 0.8813655145064325,
+   "input_tokens": 80,
+   "ms": 19.0
+  },
+  {
+   "lang": "en",
+   "label": "health",
+   "source": "https://feeds.bbci.co.uk/news/health/rss.xml",
+   "choice": "health",
+   "confidence": 0.4413913902832666,
+   "probabilities": {
+    "politics": 0.025117188622704057,
+    "business": 0.44521287414968774,
+    "technology": 0.0049458676881163795,
+    "science": 0.00924009731431808,
+    "health": 0.5044922796281542,
+    "culture": 0.010470401977906467,
+    "world": 0.0005212906191130472
+   },
+   "label_mass": 0.874921992084007,
+   "input_tokens": 75,
+   "ms": 30.1
+  },
+  {
+   "lang": "en",
+   "label": "health",
+   "source": "https://feeds.bbci.co.uk/news/health/rss.xml",
+   "choice": "health",
+   "confidence": 0.9534813712587815,
+   "probabilities": {
+    "politics": 0.00020289037882049158,
+    "business": 2.4231800175290494e-05,
+    "technology": 0.0001085993940002154,
+    "science": 0.002471709636062199,
+    "health": 0.9971589997880238,
+    "culture": 1.2184514319217842e-05,
+    "world": 2.1384488598742717e-05
+   },
+   "label_mass": 0.9561979297799776,
+   "input_tokens": 78,
+   "ms": 31.7
+  },
+  {
+   "lang": "en",
+   "label": "health",
+   "source": "https://feeds.bbci.co.uk/news/health/rss.xml",
+   "choice": "business",
+   "confidence": 0.9561495626386926,
+   "probabilities": {
+    "politics": 0.0002304108353196186,
+    "business": 0.9993534879183881,
+    "technology": 0.00012333003285943287,
+    "science": 0.00013975123595134722,
+    "health": 0.00010883837199410588,
+    "culture": 1.2998889828573474e-05,
+    "world": 3.1182715658765106e-05
+   },
+   "label_mass": 0.9567681247906709,
+   "input_tokens": 75,
+   "ms": 29.5
+  },
+  {
+   "lang": "en",
+   "label": "health",
+   "source": "https://feeds.bbci.co.uk/news/health/rss.xml",
+   "choice": "health",
+   "confidence": 0.9826622127845318,
+   "probabilities": {
+    "politics": 2.7530576456029835e-05,
+    "business": 1.0674762932332136e-06,
+    "technology": 2.560742506732733e-06,
+    "science": 0.0001795219093481894,
+    "health": 0.999786309493557,
+    "culture": 1.1363225991729319e-06,
+    "world": 1.8734792396336689e-06
+   },
+   "label_mass": 0.9828722432519611,
+   "input_tokens": 75,
+   "ms": 31.8
+  },
+  {
+   "lang": "en",
+   "label": "health",
+   "source": "https://feeds.bbci.co.uk/news/health/rss.xml",
+   "choice": "health",
+   "confidence": 0.9940061792570187,
+   "probabilities": {
+    "politics": 0.0002611227974141819,
+    "business": 2.1434264466411724e-05,
+    "technology": 9.606170878985298e-05,
+    "science": 9.606170878985298e-05,
+    "health": 0.9994804689955917,
+    "culture": 9.511397200536675e-06,
+    "world": 3.5339127747584946e-05
+   },
+   "label_mass": 0.9945228647198336,
+   "input_tokens": 79,
+   "ms": 30.6
+  },
+  {
+   "lang": "en",
+   "label": "health",
+   "source": "https://feeds.bbci.co.uk/news/health/rss.xml",
+   "choice": "health",
+   "confidence": 0.9698578513757314,
+   "probabilities": {
+    "politics": 5.143878023880203e-05,
+    "business": 1.6699726922431e-05,
+    "technology": 1.0782154079215772e-05,
+    "science": 3.1199197313053765e-05,
+    "health": 0.9998813693768344,
+    "culture": 4.7845518695317416e-06,
+    "world": 3.7262127426370745e-06
+   },
+   "label_mass": 0.9699729198676691,
+   "input_tokens": 71,
+   "ms": 31.3
+  },
+  {
+   "lang": "en",
+   "label": "health",
+   "source": "https://feeds.bbci.co.uk/news/health/rss.xml",
+   "choice": "health",
+   "confidence": 0.9834558566485856,
+   "probabilities": {
+    "politics": 5.828468168450119e-05,
+    "business": 1.6698840886078855e-05,
+    "technology": 1.4736675358717592e-05,
+    "science": 7.483901268645403e-05,
+    "health": 0.9998288643959184,
+    "culture": 3.2881967328460755e-06,
+    "world": 3.2881967328460755e-06
+   },
+   "label_mass": 0.9836241897684909,
+   "input_tokens": 74,
+   "ms": 31.7
+  },
+  {
+   "lang": "en",
+   "label": "health",
+   "source": "https://feeds.bbci.co.uk/news/health/rss.xml",
+   "choice": "health",
+   "confidence": 0.8611064506866275,
+   "probabilities": {
+    "politics": 0.0001785649910853067,
+    "business": 7.923773446875686e-05,
+    "technology": 0.0005500188941678598,
+    "science": 0.0046052518174006084,
+    "health": 0.9944574301334274,
+    "culture": 8.434812927919634e-05,
+    "world": 4.5148300170887104e-05
+   },
+   "label_mass": 0.8659057940480086,
+   "input_tokens": 77,
+   "ms": 30.3
+  },
+  {
+   "lang": "en",
+   "label": "health",
+   "source": "https://feeds.bbci.co.uk/news/health/rss.xml",
+   "choice": "technology",
+   "confidence": 0.6634450644007588,
+   "probabilities": {
+    "politics": 0.002773467065830121,
+    "business": 0.2203238049776685,
+    "technology": 0.7690056181468478,
+    "science": 0.00029232141747604463,
+    "health": 0.007539065126875645,
+    "culture": 3.0810450724800126e-05,
+    "world": 3.4912814577098936e-05
+   },
+   "label_mass": 0.8627311020165638,
+   "input_tokens": 78,
+   "ms": 32.4
+  },
+  {
+   "lang": "en",
+   "label": "health",
+   "source": "https://feeds.bbci.co.uk/news/health/rss.xml",
+   "choice": "politics",
+   "confidence": 0.5367191286139514,
+   "probabilities": {
+    "politics": 0.9395965688559926,
+    "business": 0.015187167676665569,
+    "technology": 0.019500709304337106,
+    "science": 0.004930551458414453,
+    "health": 0.004351196390084714,
+    "culture": 0.0012466386378400134,
+    "world": 0.015187167676665569
+   },
+   "label_mass": 0.5712229550470099,
+   "input_tokens": 76,
+   "ms": 18.0
+  },
+  {
+   "lang": "en",
+   "label": "health",
+   "source": "https://feeds.bbci.co.uk/news/health/rss.xml",
+   "choice": "world",
+   "confidence": 0.5288442269514941,
+   "probabilities": {
+    "politics": 0.03212990999293058,
+    "business": 0.0014116900592585438,
+    "technology": 0.0014116900592585438,
+    "science": 0.002053996916323041,
+    "health": 0.391422434446823,
+    "culture": 0.002053996916323041,
+    "world": 0.5695162816090832
+   },
+   "label_mass": 0.9285849132483512,
+   "input_tokens": 70,
+   "ms": 28.5
+  },
+  {
+   "lang": "en",
+   "label": "health",
+   "source": "https://feeds.bbci.co.uk/news/health/rss.xml",
+   "choice": "health",
+   "confidence": 0.983940229120739,
+   "probabilities": {
+    "politics": 1.6678724789865056e-05,
+    "business": 3.0852538602978975e-06,
+    "technology": 2.426740137603342e-05,
+    "science": 0.0013249558530312368,
+    "health": 0.9986247334751219,
+    "culture": 3.7215265334341767e-06,
+    "world": 2.557765287165442e-06
+   },
+   "label_mass": 0.9852952727264402,
+   "input_tokens": 80,
+   "ms": 30.7
+  },
+  {
+   "lang": "en",
+   "label": "health",
+   "source": "https://feeds.bbci.co.uk/news/health/rss.xml",
+   "choice": "health",
+   "confidence": 0.9663761633892295,
+   "probabilities": {
+    "politics": 4.5395350038593585e-05,
+    "business": 2.405865412586163e-06,
+    "technology": 7.888528990519724e-06,
+    "science": 4.0061255800802335e-05,
+    "health": 0.999899583032949,
+    "culture": 2.2601013959545738e-06,
+    "world": 2.405865412586163e-06
+   },
+   "label_mass": 0.966473213698085,
+   "input_tokens": 75,
+   "ms": 31.5
+  },
+  {
+   "lang": "en",
+   "label": "health",
+   "source": "https://feeds.bbci.co.uk/news/health/rss.xml",
+   "choice": "health",
+   "confidence": 0.9910884121103757,
+   "probabilities": {
+    "politics": 3.119909711148907e-05,
+    "business": 4.7845365031241094e-06,
+    "technology": 1.473740995118624e-05,
+    "science": 5.828758705407478e-05,
+    "health": 0.9998782586571856,
+    "culture": 5.771252659527181e-06,
+    "world": 6.96145953497297e-06
+   },
+   "label_mass": 0.9912090832351785,
+   "input_tokens": 79,
+   "ms": 23.5
+  },
+  {
+   "lang": "en",
+   "label": "culture",
+   "source": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+   "choice": "culture",
+   "confidence": 0.9959271809007931,
+   "probabilities": {
+    "politics": 0.0010308524029751728,
+    "business": 3.7548813938251664e-05,
+    "technology": 0.0004297232146946742,
+    "science": 0.000625243588042885,
+    "health": 0.0002029869703498172,
+    "culture": 0.9976336745056229,
+    "world": 3.997050437620658e-05
+   },
+   "label_mass": 0.9982894586976774,
+   "input_tokens": 74,
+   "ms": 42.1
+  },
+  {
+   "lang": "en",
+   "label": "culture",
+   "source": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+   "choice": "culture",
+   "confidence": 0.6109755289625604,
+   "probabilities": {
+    "politics": 0.00033115450016420547,
+    "business": 0.00010751012555513034,
+    "technology": 0.0016817421197986976,
+    "science": 0.0004252107950613647,
+    "health": 0.0006186783512260216,
+    "culture": 0.9871579464052495,
+    "world": 0.009677757702945135
+   },
+   "label_mass": 0.618923781333511,
+   "input_tokens": 77,
+   "ms": 44.0
+  },
+  {
+   "lang": "en",
+   "label": "culture",
+   "source": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+   "choice": "culture",
+   "confidence": 0.9355693938690013,
+   "probabilities": {
+    "politics": 0.00013954563556232508,
+    "business": 3.7558198292693147e-05,
+    "technology": 0.001031110529530952,
+    "science": 0.000260705569516624,
+    "health": 0.0005519136949977098,
+    "culture": 0.9978832581528756,
+    "world": 9.590821922405825e-05
+   },
+   "label_mass": 0.9375539535564311,
+   "input_tokens": 82,
+   "ms": 21.1
+  },
+  {
+   "lang": "en",
+   "label": "culture",
+   "source": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+   "choice": "culture",
+   "confidence": 0.9920808408819864,
+   "probabilities": {
+    "politics": 0.0004871827543986228,
+    "business": 5.1348684533528044e-05,
+    "technology": 0.00029549127742601455,
+    "science": 0.0009101772114359222,
+    "health": 9.593197229922624e-05,
+    "culture": 0.9981306105013869,
+    "world": 2.9257598519730665e-05
+   },
+   "label_mass": 0.9939388998235797,
+   "input_tokens": 79,
+   "ms": 42.8
+  },
+  {
+   "lang": "en",
+   "label": "culture",
+   "source": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+   "choice": "world",
+   "confidence": 0.8073686552978736,
+   "probabilities": {
+    "politics": 0.011740988922385748,
+    "business": 0.040980077998886595,
+    "technology": 0.0029685868934840186,
+    "science": 0.0043192684435673645,
+    "health": 0.00016747621231187943,
+    "culture": 0.007121269756773349,
+    "world": 0.9327023317725911
+   },
+   "label_mass": 0.86562306943468,
+   "input_tokens": 78,
+   "ms": 20.2
+  },
+  {
+   "lang": "en",
+   "label": "culture",
+   "source": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+   "choice": "culture",
+   "confidence": 0.9439969516927048,
+   "probabilities": {
+    "politics": 0.0003793180881254429,
+    "business": 0.0010310934661572181,
+    "technology": 0.00029541322406524304,
+    "science": 0.0001395433262858078,
+    "health": 0.00020303434171311675,
+    "culture": 0.9978669602479027,
+    "world": 8.463730575062628e-05
+   },
+   "label_mass": 0.9460148389502596,
+   "input_tokens": 72,
+   "ms": 39.0
+  },
+  {
+   "lang": "en",
+   "label": "culture",
+   "source": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+   "choice": "technology",
+   "confidence": 0.4914238013437956,
+   "probabilities": {
+    "politics": 0.0017729935662208847,
+    "business": 0.00039560833837300175,
+    "technology": 0.5570579528467408,
+    "science": 0.0005079711615245386,
+    "health": 0.0061883556074842205,
+    "culture": 0.4338371698931954,
+    "world": 0.00023994858646119544
+   },
+   "label_mass": 0.8821771573899375,
+   "input_tokens": 78,
+   "ms": 31.8
+  },
+  {
+   "lang": "en",
+   "label": "culture",
+   "source": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+   "choice": "culture",
+   "confidence": 0.8243022994571716,
+   "probabilities": {
+    "politics": 0.0034684443840173537,
+    "business": 6.352674455140035e-05,
+    "technology": 0.14748197290301254,
+    "science": 7.198523231679075e-05,
+    "health": 1.8200717042888144e-05,
+    "culture": 0.848700193870135,
+    "world": 0.00019567614892413508
+   },
+   "label_mass": 0.9712526348065185,
+   "input_tokens": 79,
+   "ms": 31.5
+  },
+  {
+   "lang": "en",
+   "label": "culture",
+   "source": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+   "choice": "culture",
+   "confidence": 0.22149786274239938,
+   "probabilities": {
+    "politics": 0.04844260088731547,
+    "business": 0.02288266438695003,
+    "technology": 0.033294080226601956,
+    "science": 0.029381922674379255,
+    "health": 0.09050269327522972,
+    "culture": 0.45961060044499635,
+    "world": 0.31588543810452724
+   },
+   "label_mass": 0.4819250524856139,
+   "input_tokens": 76,
+   "ms": 31.5
+  },
+  {
+   "lang": "en",
+   "label": "culture",
+   "source": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+   "choice": "culture",
+   "confidence": 0.7747349785382993,
+   "probabilities": {
+    "politics": 0.00012329673272713331,
+    "business": 5.139772502439403e-05,
+    "technology": 0.0006261527732764159,
+    "science": 6.59959852912495e-05,
+    "health": 3.117429606677424e-05,
+    "culture": 0.9990842199091421,
+    "world": 1.776257847192473e-05
+   },
+   "label_mass": 0.7754451157368442,
+   "input_tokens": 83,
+   "ms": 32.0
+  },
+  {
+   "lang": "en",
+   "label": "culture",
+   "source": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+   "choice": "culture",
+   "confidence": 0.9129948904435878,
+   "probabilities": {
+    "politics": 0.00043013612820941175,
+    "business": 1.889885350248864e-05,
+    "technology": 0.0008036000826727816,
+    "science": 8.46987851840236e-05,
+    "health": 3.5307706656128205e-05,
+    "culture": 0.9985920507371191,
+    "world": 3.5307706656128205e-05
+   },
+   "label_mass": 0.9142821533274303,
+   "input_tokens": 78,
+   "ms": 31.4
+  },
+  {
+   "lang": "en",
+   "label": "culture",
+   "source": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+   "choice": "culture",
+   "confidence": 0.40296219132767375,
+   "probabilities": {
+    "politics": 0.0003700978940117906,
+    "business": 0.07052817462622447,
+    "technology": 0.4058616708203494,
+    "science": 0.0006914338943417069,
+    "health": 0.0012917685779355122,
+    "culture": 0.5211367009926821,
+    "world": 0.00012015319445505682
+   },
+   "label_mass": 0.7732370231459331,
+   "input_tokens": 76,
+   "ms": 31.9
+  },
+  {
+   "lang": "en",
+   "label": "culture",
+   "source": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+   "choice": "culture",
+   "confidence": 0.9321532109180987,
+   "probabilities": {
+    "politics": 0.0001572192023029474,
+    "business": 2.1277305273903693e-05,
+    "technology": 0.007575245390130142,
+    "science": 3.5080345788265036e-05,
+    "health": 2.5665329247547204e-05,
+    "culture": 0.9921614020817007,
+    "world": 2.41103455565546e-05
+   },
+   "label_mass": 0.9395177125035342,
+   "input_tokens": 75,
+   "ms": 30.0
+  },
+  {
+   "lang": "en",
+   "label": "culture",
+   "source": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+   "choice": "culture",
+   "confidence": 0.9660523084106718,
+   "probabilities": {
+    "politics": 0.0001396112272257668,
+    "business": 9.500663244193186e-06,
+    "technology": 0.0005521731150590058,
+    "science": 5.8198618151128314e-05,
+    "health": 0.0008034071417938418,
+    "culture": 0.9983524307447735,
+    "world": 8.467848975253472e-05
+   },
+   "label_mass": 0.9676465731545264,
+   "input_tokens": 77,
+   "ms": 19.0
+  },
+  {
+   "lang": "en",
+   "label": "culture",
+   "source": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+   "choice": "culture",
+   "confidence": 0.8107861105995843,
+   "probabilities": {
+    "politics": 0.0004838646394581858,
+    "business": 0.00015708784906755835,
+    "technology": 0.005202035119091037,
+    "science": 0.00013862954023579664,
+    "health": 0.002457267396442727,
+    "culture": 0.9913325539839706,
+    "world": 0.0002285614717341372
+   },
+   "label_mass": 0.8178749979925448,
+   "input_tokens": 74,
+   "ms": 28.0
+  },
+  {
+   "lang": "en",
+   "label": "world",
+   "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "choice": "world",
+   "confidence": 0.9302793550942214,
+   "probabilities": {
+    "politics": 0.0002304379519461222,
+    "business": 1.147283006809213e-05,
+    "technology": 8.477338498663111e-05,
+    "science": 7.48122496723134e-05,
+    "health": 3.118638549509339e-05,
+    "culture": 9.606083005883956e-05,
+    "world": 0.9994712563677729
+   },
+   "label_mass": 0.930771494595047,
+   "input_tokens": 75,
+   "ms": 31.9
+  },
+  {
+   "lang": "en",
+   "label": "world",
+   "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "choice": "world",
+   "confidence": 0.8015076549052388,
+   "probabilities": {
+    "politics": 0.1636197883936637,
+    "business": 0.004360320706637975,
+    "technology": 0.00040557300332261047,
+    "science": 0.00045957442132068285,
+    "health": 3.3291443545025866e-05,
+    "culture": 0.00019157903011229953,
+    "world": 0.8309298730013978
+   },
+   "label_mass": 0.9645912139493997,
+   "input_tokens": 71,
+   "ms": 17.5
+  },
+  {
+   "lang": "en",
+   "label": "world",
+   "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "choice": "world",
+   "confidence": 0.9384708450656377,
+   "probabilities": {
+    "politics": 0.00023048736061590913,
+    "business": 1.3003207090364567e-05,
+    "technology": 3.1193072231413346e-05,
+    "science": 2.4293189080227613e-05,
+    "health": 2.725620275624307e-06,
+    "culture": 1.3003207090364567e-05,
+    "world": 0.9996852943436162
+   },
+   "label_mass": 0.9387662801240151,
+   "input_tokens": 71,
+   "ms": 42.1
+  },
+  {
+   "lang": "en",
+   "label": "world",
+   "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "choice": "world",
+   "confidence": 0.9613260468144933,
+   "probabilities": {
+    "politics": 0.00048769162875102456,
+    "business": 1.6687881894807592e-05,
+    "technology": 9.603212980872734e-05,
+    "science": 0.00010881865933747204,
+    "health": 8.932379501970903e-06,
+    "culture": 0.00010881865933747204,
+    "world": 0.9991730186613685
+   },
+   "label_mass": 0.9621217035087873,
+   "input_tokens": 82,
+   "ms": 33.2
+  },
+  {
+   "lang": "en",
+   "label": "world",
+   "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "choice": "world",
+   "confidence": 0.9563083775609507,
+   "probabilities": {
+    "politics": 0.00037994559066567747,
+    "business": 1.147336268095074e-05,
+    "technology": 2.428910898617596e-05,
+    "science": 4.537802967305391e-05,
+    "health": 6.537324997514469e-06,
+    "culture": 1.4732089297217358e-05,
+    "world": 0.9995176444936994
+   },
+   "label_mass": 0.9567698807812081,
+   "input_tokens": 83,
+   "ms": 34.5
+  },
+  {
+   "lang": "en",
+   "label": "world",
+   "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "choice": "world",
+   "confidence": 0.9918287655803186,
+   "probabilities": {
+    "politics": 0.0002611759139239079,
+    "business": 8.936948322805785e-06,
+    "technology": 1.4734536794957732e-05,
+    "science": 1.891951974784646e-05,
+    "health": 3.965746778578685e-06,
+    "culture": 8.936948322805785e-06,
+    "world": 0.9996833303861091
+   },
+   "label_mass": 0.9921429471043027,
+   "input_tokens": 74,
+   "ms": 44.8
+  },
+  {
+   "lang": "en",
+   "label": "world",
+   "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "choice": "world",
+   "confidence": 0.9949164263953837,
+   "probabilities": {
+    "politics": 0.00013981069194357043,
+    "business": 1.012785255518282e-05,
+    "technology": 1.6698005934244556e-05,
+    "science": 2.4295455275569608e-05,
+    "health": 1.1476360455794317e-05,
+    "culture": 1.8921319593689906e-05,
+    "world": 0.9997786703142421
+   },
+   "label_mass": 0.9951366796839843,
+   "input_tokens": 74,
+   "ms": 44.4
+  },
+  {
+   "lang": "en",
+   "label": "world",
+   "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "choice": "world",
+   "confidence": 0.9729370741890571,
+   "probabilities": {
+    "politics": 0.00010888851070635823,
+    "business": 1.0128209204261772e-05,
+    "technology": 2.4296310832233727e-05,
+    "science": 2.4296310832233727e-05,
+    "health": 3.2881481080851327e-06,
+    "culture": 1.4736457437657923e-05,
+    "world": 0.9998143660528791
+   },
+   "label_mass": 0.9731177178720389,
+   "input_tokens": 75,
+   "ms": 30.3
+  },
+  {
+   "lang": "en",
+   "label": "world",
+   "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "choice": "world",
+   "confidence": 0.9730596398399992,
+   "probabilities": {
+    "politics": 0.00012336959898804768,
+    "business": 1.4734397401017423e-05,
+    "technology": 6.603498779015737e-05,
+    "science": 5.827567218702546e-05,
+    "health": 1.1475160233997641e-05,
+    "culture": 5.1428100201085225e-05,
+    "world": 0.9996746820831988
+   },
+   "label_mass": 0.9733762965890693,
+   "input_tokens": 80,
+   "ms": 18.5
+  },
+  {
+   "lang": "en",
+   "label": "world",
+   "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "choice": "world",
+   "confidence": 0.5790973875450095,
+   "probabilities": {
+    "politics": 0.008507242745008504,
+    "business": 0.0010160452528018816,
+    "technology": 0.0035463463925795836,
+    "science": 0.02620415244101088,
+    "health": 0.0013046279291025374,
+    "culture": 0.19362395241155994,
+    "world": 0.7657976328279368
+   },
+   "label_mass": 0.7562015899768706,
+   "input_tokens": 74,
+   "ms": 27.5
+  },
+  {
+   "lang": "en",
+   "label": "world",
+   "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "choice": "world",
+   "confidence": 0.8069103784868409,
+   "probabilities": {
+    "politics": 0.005838187307635083,
+    "business": 0.00017629806468541807,
+    "technology": 0.00022637119596893631,
+    "science": 0.0016726686686057296,
+    "health": 0.00275776441276393,
+    "culture": 0.007496380890387222,
+    "world": 0.9818323294599537
+   },
+   "label_mass": 0.8218413208400596,
+   "input_tokens": 73,
+   "ms": 30.8
+  },
+  {
+   "lang": "en",
+   "label": "world",
+   "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "choice": "world",
+   "confidence": 0.5420657431179866,
+   "probabilities": {
+    "politics": 0.4368017670807341,
+    "business": 0.0005114422264317367,
+    "technology": 0.0013902441104160263,
+    "science": 0.00035150875894751746,
+    "health": 1.5444224374301697e-05,
+    "culture": 6.50226133149817e-05,
+    "world": 0.5608645709857814
+   },
+   "label_mass": 0.9664824115476687,
+   "input_tokens": 74,
+   "ms": 18.5
+  },
+  {
+   "lang": "en",
+   "label": "world",
+   "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "choice": "science",
+   "confidence": 0.9103685157435081,
+   "probabilities": {
+    "politics": 0.0018714854665656108,
+    "business": 0.0003685173383417371,
+    "technology": 0.02583506612091039,
+    "science": 0.9694535956522609,
+    "health": 1.521053437044352e-05,
+    "culture": 5.308998151910882e-05,
+    "world": 0.002403034906031961
+   },
+   "label_mass": 0.9390532149514598,
+   "input_tokens": 73,
+   "ms": 18.0
+  },
+  {
+   "lang": "en",
+   "label": "world",
+   "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "choice": "culture",
+   "confidence": 0.2642732469853836,
+   "probabilities": {
+    "politics": 0.03781786840003163,
+    "business": 0.02024245108951996,
+    "technology": 0.029452585524035967,
+    "science": 0.21762680669565457,
+    "health": 0.07065307975706288,
+    "culture": 0.40658040183804034,
+    "world": 0.21762680669565457
+   },
+   "label_mass": 0.6499901268990722,
+   "input_tokens": 75,
+   "ms": 43.4
+  },
+  {
+   "lang": "en",
+   "label": "world",
+   "source": "https://feeds.bbci.co.uk/news/world/rss.xml",
+   "choice": "world",
+   "confidence": 0.9698257828997692,
+   "probabilities": {
+    "politics": 0.0001233647287155484,
+    "business": 1.5684065203212984e-05,
+    "technology": 3.534458654036066e-05,
+    "science": 9.607654732706052e-05,
+    "health": 1.012639358685344e-05,
+    "culture": 8.478725542715321e-05,
+    "world": 0.9996346164231998
+   },
+   "label_mass": 0.9701802708372687,
+   "input_tokens": 73,
+   "ms": 32.6
+  },
+  {
+   "lang": "fr",
+   "label": "politics",
+   "source": "https://www.lemonde.fr/politique/rss_full.xml",
+   "choice": "politics",
+   "confidence": 0.6732591239854115,
+   "probabilities": {
+    "politics": 0.7259364169461388,
+    "business": 0.005542592279556851,
+    "technology": 0.0004015040380710163,
+    "science": 0.0008499840552663973,
+    "health": 4.504750460292974e-05,
+    "culture": 0.00016737178421936057,
+    "world": 0.2670570833921447
+   },
+   "label_mass": 0.9274353900272293,
+   "input_tokens": 96,
+   "ms": 19.5
+  },
+  {
+   "lang": "fr",
+   "label": "politics",
+   "source": "https://www.lemonde.fr/politique/rss_full.xml",
+   "choice": "politics",
+   "confidence": 0.9928672134626259,
+   "probabilities": {
+    "politics": 0.9998887540857451,
+    "business": 1.3005851517458383e-05,
+    "technology": 1.3005851517458383e-05,
+    "science": 3.119941588223541e-05,
+    "health": 1.1364386404377441e-06,
+    "culture": 1.4592160988281247e-06,
+    "world": 5.143914059846092e-05
+   },
+   "label_mass": 0.9929776781722689,
+   "input_tokens": 99,
+   "ms": 19.5
+  },
+  {
+   "lang": "fr",
+   "label": "politics",
+   "source": "https://www.lemonde.fr/politique/rss_full.xml",
+   "choice": "politics",
+   "confidence": 0.9977509411650886,
+   "probabilities": {
+    "politics": 0.9997913908696946,
+    "business": 8.937911007154689e-06,
+    "technology": 8.937911007154689e-06,
+    "science": 8.937911007154689e-06,
+    "health": 1.1363278667759196e-06,
+    "culture": 1.1363278667759196e-06,
+    "world": 0.00017952274155037096
+   },
+   "label_mass": 0.9979591245501414,
+   "input_tokens": 105,
+   "ms": 40.0
+  },
+  {
+   "lang": "fr",
+   "label": "politics",
+   "source": "https://www.lemonde.fr/politique/rss_full.xml",
+   "choice": "politics",
+   "confidence": 0.8303523430929323,
+   "probabilities": {
+    "politics": 0.9939465765611318,
+    "business": 0.00020223662854538586,
+    "technology": 0.00022916412278965438,
+    "science": 0.0003334318311974584,
+    "health": 3.3014222063852345e-05,
+    "culture": 3.982275331452026e-05,
+    "world": 0.005215753880957277
+   },
+   "label_mass": 0.8354094301182616,
+   "input_tokens": 113,
+   "ms": 30.0
+  },
+  {
+   "lang": "fr",
+   "label": "politics",
+   "source": "https://www.lemonde.fr/politique/rss_full.xml",
+   "choice": "politics",
+   "confidence": 0.9567626647853297,
+   "probabilities": {
+    "politics": 0.9992505612191742,
+    "business": 3.3190404469243186e-05,
+    "technology": 4.0035269861318444e-05,
+    "science": 2.9290429139637026e-05,
+    "health": 2.9001452215545982e-06,
+    "culture": 1.7765543309330183e-05,
+    "world": 0.0006262569888247375
+   },
+   "label_mass": 0.9574802376072669,
+   "input_tokens": 83,
+   "ms": 19.5
+  },
+  {
+   "lang": "fr",
+   "label": "politics",
+   "source": "https://www.lemonde.fr/politique/rss_full.xml",
+   "choice": "business",
+   "confidence": 0.7436787059924903,
+   "probabilities": {
+    "politics": 0.00852412611923124,
+    "business": 0.9852552242510909,
+    "technology": 0.0019019896261094802,
+    "science": 0.0014812710102077517,
+    "health": 0.00025740630476262557,
+    "culture": 0.00013777966639703752,
+    "world": 0.0024422030222009867
+   },
+   "label_mass": 0.7548081833900175,
+   "input_tokens": 87,
+   "ms": 41.5
+  },
+  {
+   "lang": "fr",
+   "label": "politics",
+   "source": "https://www.lemonde.fr/politique/rss_full.xml",
+   "choice": "politics",
+   "confidence": 0.9852832513865434,
+   "probabilities": {
+    "politics": 0.9995773945538101,
+    "business": 1.6694647458182496e-05,
+    "technology": 1.3001804513533568e-05,
+    "science": 1.0125815536481268e-05,
+    "health": 9.418475599672056e-07,
+    "culture": 1.8730875331414364e-06,
+    "world": 0.00037996824358862557
+   },
+   "label_mass": 0.9856998134960352,
+   "input_tokens": 113,
+   "ms": 32.1
+  },
+  {
+   "lang": "fr",
+   "label": "politics",
+   "source": "https://www.lemonde.fr/politique/rss_full.xml",
+   "choice": "politics",
+   "confidence": 0.9659805576966628,
+   "probabilities": {
+    "politics": 0.9995486349708802,
+    "business": 0.00029591106723623795,
+    "technology": 2.143572581433913e-05,
+    "science": 1.8916961635806934e-05,
+    "health": 1.4587194483117347e-06,
+    "culture": 4.782956933851322e-06,
+    "world": 0.00010885959805131233
+   },
+   "label_mass": 0.9664167644276805,
+   "input_tokens": 99,
+   "ms": 19.5
+  },
+  {
+   "lang": "fr",
+   "label": "politics",
+   "source": "https://www.lemonde.fr/politique/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.9597317154342445,
+   "probabilities": {
+    "politics": 0.02026214224583211,
+    "business": 0.00022509206806632206,
+    "technology": 0.00047651991183578516,
+    "science": 0.0006118636783549498,
+    "health": 0.00025506272872696567,
+    "culture": 0.0018846728113098795,
+    "world": 0.9762846465558741
+   },
+   "label_mass": 0.9830449744549146,
+   "input_tokens": 88,
+   "ms": 19.5
+  },
+  {
+   "lang": "fr",
+   "label": "politics",
+   "source": "https://www.lemonde.fr/politique/rss_full.xml",
+   "choice": "politics",
+   "confidence": 0.9912636155162367,
+   "probabilities": {
+    "politics": 0.9999232402136611,
+    "business": 5.421832230700393e-06,
+    "technology": 5.421832230700393e-06,
+    "science": 5.421832230700393e-06,
+    "health": 1.0676220672233065e-06,
+    "culture": 1.1364777747776403e-06,
+    "world": 5.8290189804953695e-05
+   },
+   "label_mass": 0.991339710540607,
+   "input_tokens": 116,
+   "ms": 41.0
+  },
+  {
+   "lang": "fr",
+   "label": "politics",
+   "source": "https://www.lemonde.fr/politique/rss_full.xml",
+   "choice": "politics",
+   "confidence": 0.6858357596247788,
+   "probabilities": {
+    "politics": 0.8350949754561385,
+    "business": 0.164439940770289,
+    "technology": 0.00028014313831686713,
+    "science": 6.653982767699451e-05,
+    "health": 4.573211017499712e-05,
+    "culture": 1.3947505580169827e-05,
+    "world": 5.8721191823460384e-05
+   },
+   "label_mass": 0.8212667777699985,
+   "input_tokens": 94,
+   "ms": 31.5
+  },
+  {
+   "lang": "fr",
+   "label": "politics",
+   "source": "https://www.lemonde.fr/politique/rss_full.xml",
+   "choice": "politics",
+   "confidence": 0.9803916027743549,
+   "probabilities": {
+    "politics": 0.9987274271152374,
+    "business": 5.822048798111848e-05,
+    "technology": 2.7501411206540613e-05,
+    "science": 0.0001396636902206135,
+    "health": 5.087249544412309e-06,
+    "culture": 1.0117203786088204e-05,
+    "world": 0.0010319828420237852
+   },
+   "label_mass": 0.9816408122546064,
+   "input_tokens": 88,
+   "ms": 30.5
+  },
+  {
+   "lang": "fr",
+   "label": "politics",
+   "source": "https://www.lemonde.fr/politique/rss_full.xml",
+   "choice": "politics",
+   "confidence": 0.9864380478621813,
+   "probabilities": {
+    "politics": 0.9992358849840162,
+    "business": 8.475342830592704e-05,
+    "technology": 5.825012261544297e-05,
+    "science": 5.825012261544297e-05,
+    "health": 5.418105401533945e-06,
+    "culture": 4.7814612347305715e-06,
+    "world": 0.0005526617758108164
+   },
+   "label_mass": 0.9871923763806385,
+   "input_tokens": 89,
+   "ms": 31.5
+  },
+  {
+   "lang": "fr",
+   "label": "politics",
+   "source": "https://www.lemonde.fr/politique/rss_full.xml",
+   "choice": "politics",
+   "confidence": 0.9660704430615288,
+   "probabilities": {
+    "politics": 0.9997761339302049,
+    "business": 7.887560908200018e-06,
+    "technology": 1.669796657369292e-05,
+    "science": 1.4735903780745113e-05,
+    "health": 2.1229082188210807e-06,
+    "culture": 2.901671499114337e-06,
+    "world": 0.00017952005881443484
+   },
+   "label_mass": 0.9662867618812061,
+   "input_tokens": 102,
+   "ms": 33.7
+  },
+  {
+   "lang": "fr",
+   "label": "politics",
+   "source": "https://www.lemonde.fr/politique/rss_full.xml",
+   "choice": "politics",
+   "confidence": 0.903566460132559,
+   "probabilities": {
+    "politics": 0.9993378158286988,
+    "business": 0.00043045730647625543,
+    "technology": 6.60127974401706e-05,
+    "science": 3.533410425836045e-05,
+    "health": 2.5595939274985413e-06,
+    "culture": 4.492227242383616e-06,
+    "world": 0.00012332814195639087
+   },
+   "label_mass": 0.9041651840056492,
+   "input_tokens": 87,
+   "ms": 43.7
+  },
+  {
+   "lang": "fr",
+   "label": "business",
+   "source": "https://www.lemonde.fr/economie/rss_full.xml",
+   "choice": "business",
+   "confidence": 0.9852525851192068,
+   "probabilities": {
+    "politics": 0.00013978678413360517,
+    "business": 0.9996078632635255,
+    "technology": 0.00017948978374459173,
+    "science": 3.5343633999186074e-05,
+    "health": 5.769689644182278e-06,
+    "culture": 4.2211951178553435e-06,
+    "world": 2.7525649835155245e-05
+   },
+   "label_mass": 0.985639090415464,
+   "input_tokens": 79,
+   "ms": 30.5
+  },
+  {
+   "lang": "fr",
+   "label": "business",
+   "source": "https://www.lemonde.fr/economie/rss_full.xml",
+   "choice": "business",
+   "confidence": 0.9912938373998043,
+   "probabilities": {
+    "politics": 8.93950998891821e-06,
+    "business": 0.9999701762398909,
+    "technology": 1.1478558038504934e-05,
+    "science": 5.422086891086239e-06,
+    "health": 9.422174207950199e-07,
+    "culture": 7.811256774959066e-07,
+    "world": 2.260262092290574e-06
+   },
+   "label_mass": 0.9913234023911477,
+   "input_tokens": 96,
+   "ms": 19.5
+  },
+  {
+   "lang": "fr",
+   "label": "business",
+   "source": "https://www.lemonde.fr/economie/rss_full.xml",
+   "choice": "business",
+   "confidence": 0.940329817041425,
+   "probabilities": {
+    "politics": 0.007498410723811628,
+    "business": 0.9820977937551628,
+    "technology": 0.0004230313854511769,
+    "science": 0.0003294571742531579,
+    "health": 1.5408917088680623e-05,
+    "culture": 7.748090094524674e-06,
+    "world": 0.009628149954138056
+   },
+   "label_mass": 0.9574706541656782,
+   "input_tokens": 93,
+   "ms": 18.5
+  },
+  {
+   "lang": "fr",
+   "label": "business",
+   "source": "https://www.lemonde.fr/economie/rss_full.xml",
+   "choice": "business",
+   "confidence": 0.9869258276032065,
+   "probabilities": {
+    "politics": 0.00029592976286440024,
+    "business": 0.9996119697412842,
+    "technology": 2.7525755735064963e-05,
+    "science": 1.1474442128896466e-05,
+    "health": 9.418795663604728e-07,
+    "culture": 7.335365438404915e-07,
+    "world": 5.1424881877301925e-05
+   },
+   "label_mass": 0.9873089333440443,
+   "input_tokens": 91,
+   "ms": 41.5
+  },
+  {
+   "lang": "fr",
+   "label": "business",
+   "source": "https://www.lemonde.fr/economie/rss_full.xml",
+   "choice": "technology",
+   "confidence": 0.9650416359270191,
+   "probabilities": {
+    "politics": 0.000619344494518869,
+    "business": 0.010978143842639225,
+    "technology": 0.9882209568163094,
+    "science": 0.00013819437035281698,
+    "health": 7.796392876461196e-06,
+    "culture": 4.728751314738885e-06,
+    "world": 3.083533198843547e-05
+   },
+   "label_mass": 0.9765443945208714,
+   "input_tokens": 97,
+   "ms": 30.0
+  },
+  {
+   "lang": "fr",
+   "label": "business",
+   "source": "https://www.lemonde.fr/economie/rss_full.xml",
+   "choice": "business",
+   "confidence": 0.923951870813068,
+   "probabilities": {
+    "politics": 4.006151637507104e-05,
+    "business": 0.9999052188649684,
+    "technology": 4.006151637507104e-05,
+    "science": 1.0129137607598194e-05,
+    "health": 6.083019950901835e-07,
+    "culture": 8.314502465809792e-07,
+    "world": 3.089212432220612e-06
+   },
+   "label_mass": 0.9240394523211729,
+   "input_tokens": 82,
+   "ms": 30.8
+  },
+  {
+   "lang": "fr",
+   "label": "business",
+   "source": "https://www.lemonde.fr/economie/rss_full.xml",
+   "choice": "technology",
+   "confidence": 0.8502000921482963,
+   "probabilities": {
+    "politics": 0.0003540053010457055,
+    "business": 0.03186654926288851,
+    "technology": 0.9312771759271312,
+    "science": 0.0003540053010457055,
+    "health": 1.9971612448871222e-05,
+    "culture": 1.8761593619917855e-05,
+    "world": 0.03610953100181994
+   },
+   "label_mass": 0.9129399003061374,
+   "input_tokens": 84,
+   "ms": 31.0
+  },
+  {
+   "lang": "fr",
+   "label": "business",
+   "source": "https://www.lemonde.fr/economie/rss_full.xml",
+   "choice": "business",
+   "confidence": 0.9035299661839887,
+   "probabilities": {
+    "politics": 0.00013972108164308307,
+    "business": 0.9991381240896252,
+    "technology": 0.00023036111927018024,
+    "science": 0.00017940542007682166,
+    "health": 1.4726493660125891e-05,
+    "culture": 1.8722635649990803e-06,
+    "world": 0.0002957895321595477
+   },
+   "label_mass": 0.9043093686443495,
+   "input_tokens": 81,
+   "ms": 32.1
+  },
+  {
+   "lang": "fr",
+   "label": "business",
+   "source": "https://www.lemonde.fr/economie/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.4871603024552774,
+   "probabilities": {
+    "politics": 0.056438649719895,
+    "business": 0.22321918978022465,
+    "technology": 0.0036080021659874325,
+    "science": 0.0036080021659874325,
+    "health": 0.0009122458093109122,
+    "culture": 0.10544127918212706,
+    "world": 0.6067726311764675
+   },
+   "label_mass": 0.8028712526316908,
+   "input_tokens": 105,
+   "ms": 31.3
+  },
+  {
+   "lang": "fr",
+   "label": "business",
+   "source": "https://www.lemonde.fr/economie/rss_full.xml",
+   "choice": "business",
+   "confidence": 0.9801910128762442,
+   "probabilities": {
+    "politics": 0.0005512304947664546,
+    "business": 0.9966479104751762,
+    "technology": 0.0003788548091956273,
+    "science": 0.0003343380362195819,
+    "health": 0.00015793010561924442,
+    "culture": 5.75260367667063e-06,
+    "world": 0.001923983475346301
+   },
+   "label_mass": 0.9834877518670704,
+   "input_tokens": 80,
+   "ms": 18.0
+  },
+  {
+   "lang": "fr",
+   "label": "technology",
+   "source": "https://www.lemonde.fr/pixels/rss_full.xml",
+   "choice": "technology",
+   "confidence": 0.5568802176336803,
+   "probabilities": {
+    "politics": 0.013742313412420588,
+    "business": 0.4016093627263726,
+    "technology": 0.5843381747971592,
+    "science": 0.0002516992499577038,
+    "health": 2.0660732586414477e-05,
+    "culture": 2.0660732586414477e-05,
+    "world": 1.7128348917076258e-05
+   },
+   "label_mass": 0.9530101603014208,
+   "input_tokens": 96,
+   "ms": 43.7
+  },
+  {
+   "lang": "fr",
+   "label": "technology",
+   "source": "https://www.lemonde.fr/pixels/rss_full.xml",
+   "choice": "technology",
+   "confidence": 0.9716093578630407,
+   "probabilities": {
+    "politics": 0.0002954878568065547,
+    "business": 0.0015006118728092795,
+    "technology": 0.998119422350411,
+    "science": 5.818500888627571e-05,
+    "health": 1.9909815180359216e-06,
+    "culture": 2.8968610154057795e-06,
+    "world": 2.140506855363851e-05
+   },
+   "label_mass": 0.9734399873464606,
+   "input_tokens": 81,
+   "ms": 19.0
+  },
+  {
+   "lang": "fr",
+   "label": "technology",
+   "source": "https://www.lemonde.fr/pixels/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.7713827015497848,
+   "probabilities": {
+    "politics": 0.001440412779124879,
+    "business": 0.0009899802601260382,
+    "technology": 0.012060428540201115,
+    "science": 0.003049353877336478,
+    "health": 0.02253184686513093,
+    "culture": 0.9580784510591623,
+    "world": 0.0018495266189181708
+   },
+   "label_mass": 0.8051352169511964,
+   "input_tokens": 93,
+   "ms": 28.5
+  },
+  {
+   "lang": "fr",
+   "label": "technology",
+   "source": "https://www.lemonde.fr/pixels/rss_full.xml",
+   "choice": "technology",
+   "confidence": 0.9981762115299385,
+   "probabilities": {
+    "politics": 0.00012335387977815225,
+    "business": 2.7523970949829273e-05,
+    "technology": 0.9995467197337119,
+    "science": 2.1435690128961635e-05,
+    "health": 5.419791228002455e-06,
+    "culture": 9.606809816612092e-05,
+    "world": 0.0001794788360370573
+   },
+   "label_mass": 0.9986288702901867,
+   "input_tokens": 91,
+   "ms": 18.5
+  },
+  {
+   "lang": "fr",
+   "label": "technology",
+   "source": "https://www.lemonde.fr/pixels/rss_full.xml",
+   "choice": "technology",
+   "confidence": 0.8917650284070351,
+   "probabilities": {
+    "politics": 0.002562562986482923,
+    "business": 0.08486043146999835,
+    "technology": 0.9123355225460653,
+    "science": 0.00016381917093332636,
+    "health": 8.156076263224308e-06,
+    "culture": 9.242045200767688e-06,
+    "world": 6.0265705056121084e-05
+   },
+   "label_mass": 0.9774529286313176,
+   "input_tokens": 87,
+   "ms": 18.9
+  },
+  {
+   "lang": "fr",
+   "label": "technology",
+   "source": "https://www.lemonde.fr/pixels/rss_full.xml",
+   "choice": "business",
+   "confidence": 0.9599128132617256,
+   "probabilities": {
+    "politics": 0.0006201712849027814,
+    "business": 0.9895400476984375,
+    "technology": 0.009701111114878196,
+    "science": 9.510634683444272e-05,
+    "health": 1.0670636383573811e-05,
+    "culture": 8.846268271497893e-06,
+    "world": 2.404665029208653e-05
+   },
+   "label_mass": 0.9700595903059996,
+   "input_tokens": 99,
+   "ms": 19.1
+  },
+  {
+   "lang": "fr",
+   "label": "technology",
+   "source": "https://www.lemonde.fr/pixels/rss_full.xml",
+   "choice": "business",
+   "confidence": 0.9920191295905371,
+   "probabilities": {
+    "politics": 0.00015841262883698075,
+    "business": 0.9996925765931151,
+    "technology": 0.00010887530142475048,
+    "science": 2.143881799190919e-05,
+    "health": 2.2596347918701743e-06,
+    "culture": 4.2215535651846536e-06,
+    "world": 1.2215470274322152e-05
+   },
+   "label_mass": 0.992324193274768,
+   "input_tokens": 81,
+   "ms": 38.6
+  },
+  {
+   "lang": "fr",
+   "label": "technology",
+   "source": "https://www.lemonde.fr/pixels/rss_full.xml",
+   "choice": "technology",
+   "confidence": 0.9247178999306994,
+   "probabilities": {
+    "politics": 0.0007556578226799891,
+    "business": 0.06002933619010948,
+    "technology": 0.9390168642438225,
+    "science": 0.00013131370236151664,
+    "health": 8.394604139105944e-06,
+    "culture": 1.0125825444504162e-05,
+    "world": 4.830761144290785e-05
+   },
+   "label_mass": 0.9847724094661092,
+   "input_tokens": 80,
+   "ms": 31.5
+  },
+  {
+   "lang": "fr",
+   "label": "technology",
+   "source": "https://www.lemonde.fr/pixels/rss_full.xml",
+   "choice": "technology",
+   "confidence": 0.6788589016623282,
+   "probabilities": {
+    "politics": 0.0014424210134306324,
+    "business": 0.001634477140040005,
+    "technology": 0.8466801201679562,
+    "science": 0.0003647009721130573,
+    "health": 0.0026947972272570683,
+    "culture": 5.25401565204641e-05,
+    "world": 0.14713094332268253
+   },
+   "label_mass": 0.8017891119584368,
+   "input_tokens": 86,
+   "ms": 19.5
+  },
+  {
+   "lang": "fr",
+   "label": "technology",
+   "source": "https://www.lemonde.fr/pixels/rss_full.xml",
+   "choice": "technology",
+   "confidence": 0.9219967928721117,
+   "probabilities": {
+    "politics": 0.001585524207935502,
+    "business": 0.06741820485871007,
+    "technology": 0.9306795549907063,
+    "science": 0.00016711294235478654,
+    "health": 2.2616277386088764e-05,
+    "culture": 2.562759973417673e-05,
+    "world": 0.00010135912317296795
+   },
+   "label_mass": 0.9906705137423145,
+   "input_tokens": 79,
+   "ms": 17.9
+  },
+  {
+   "lang": "fr",
+   "label": "technology",
+   "source": "https://www.lemonde.fr/pixels/rss_full.xml",
+   "choice": "business",
+   "confidence": 0.7836707856160516,
+   "probabilities": {
+    "politics": 0.00021350138275682363,
+    "business": 0.8172030524121086,
+    "technology": 0.1823426398071481,
+    "science": 0.00016627504407784195,
+    "health": 7.305615574877285e-06,
+    "culture": 6.056568037805514e-06,
+    "world": 6.116917029611344e-05
+   },
+   "label_mass": 0.9589670318813899,
+   "input_tokens": 86,
+   "ms": 19.8
+  },
+  {
+   "lang": "fr",
+   "label": "technology",
+   "source": "https://www.lemonde.fr/pixels/rss_full.xml",
+   "choice": "technology",
+   "confidence": 0.9250491050617304,
+   "probabilities": {
+    "politics": 0.00036186758179723244,
+    "business": 0.047395300100339155,
+    "technology": 0.9519601068921646,
+    "science": 0.00019369375876749918,
+    "health": 7.51032205815844e-06,
+    "culture": 1.0265393139525431e-05,
+    "world": 7.125595173378375e-05
+   },
+   "label_mass": 0.9717309563335698,
+   "input_tokens": 100,
+   "ms": 37.0
+  },
+  {
+   "lang": "fr",
+   "label": "technology",
+   "source": "https://www.lemonde.fr/pixels/rss_full.xml",
+   "choice": "technology",
+   "confidence": 0.844690172742846,
+   "probabilities": {
+    "politics": 0.0021441034855073943,
+    "business": 0.13265101708088364,
+    "technology": 0.8649932498440499,
+    "science": 0.00017599881558012613,
+    "health": 5.3147037159469915e-06,
+    "culture": 1.0569550419632024e-05,
+    "world": 1.974651984335358e-05
+   },
+   "label_mass": 0.9765280513982457,
+   "input_tokens": 82,
+   "ms": 19.5
+  },
+  {
+   "lang": "fr",
+   "label": "technology",
+   "source": "https://www.lemonde.fr/pixels/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.6742854516704276,
+   "probabilities": {
+    "politics": 0.0010236790044602952,
+    "business": 0.0005479358862723153,
+    "technology": 0.004587811005824256,
+    "science": 0.0001078949218220562,
+    "health": 0.0002588264623034421,
+    "culture": 0.9906912046833182,
+    "world": 0.0027826480359994664
+   },
+   "label_mass": 0.6806212152513941,
+   "input_tokens": 96,
+   "ms": 43.1
+  },
+  {
+   "lang": "fr",
+   "label": "technology",
+   "source": "https://www.lemonde.fr/pixels/rss_full.xml",
+   "choice": "business",
+   "confidence": 0.9865625292979741,
+   "probabilities": {
+    "politics": 3.1140559029043905e-05,
+    "business": 0.9980028107628991,
+    "technology": 0.0019265990846325232,
+    "science": 2.4252291757100698e-05,
+    "health": 2.556172745046508e-06,
+    "culture": 3.7192093983237096e-06,
+    "world": 8.92191953872898e-06
+   },
+   "label_mass": 0.9885368244041519,
+   "input_tokens": 84,
+   "ms": 30.7
+  },
+  {
+   "lang": "fr",
+   "label": "science",
+   "source": "https://www.lemonde.fr/sciences/rss_full.xml",
+   "choice": "science",
+   "confidence": 0.9641363357237007,
+   "probabilities": {
+    "politics": 0.00029220202538583935,
+    "business": 9.486410850861989e-05,
+    "technology": 0.00012180792645649177,
+    "science": 0.9870201452757648,
+    "health": 1.1329902061160644e-05,
+    "culture": 3.489855522537815e-05,
+    "world": 0.012424752206597823
+   },
+   "label_mass": 0.9768152558368801,
+   "input_tokens": 87,
+   "ms": 31.7
+  },
+  {
+   "lang": "fr",
+   "label": "science",
+   "source": "https://www.lemonde.fr/sciences/rss_full.xml",
+   "choice": "science",
+   "confidence": 0.9937857353899628,
+   "probabilities": {
+    "politics": 7.483813834397829e-05,
+    "business": 8.39660641452567e-06,
+    "technology": 5.828400074589642e-05,
+    "science": 0.9998166466089694,
+    "health": 4.494379544150727e-06,
+    "culture": 6.143088482980605e-06,
+    "world": 3.119717749905041e-05
+   },
+   "label_mass": 0.9939679827901833,
+   "input_tokens": 92,
+   "ms": 31.1
+  },
+  {
+   "lang": "fr",
+   "label": "science",
+   "source": "https://www.lemonde.fr/sciences/rss_full.xml",
+   "choice": "science",
+   "confidence": 0.8273638368454334,
+   "probabilities": {
+    "politics": 0.002084218507390888,
+    "business": 0.0007667411397781375,
+    "technology": 0.0023617289775032346,
+    "science": 0.9527895571369817,
+    "health": 2.4646865304055562e-05,
+    "culture": 0.00011045958685128028,
+    "world": 0.04186264778619077
+   },
+   "label_mass": 0.8683594720869553,
+   "input_tokens": 91,
+   "ms": 31.0
+  },
+  {
+   "lang": "fr",
+   "label": "science",
+   "source": "https://www.lemonde.fr/sciences/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.6122389001971972,
+   "probabilities": {
+    "politics": 0.00015519316100105865,
+    "business": 9.412941032486105e-05,
+    "technology": 0.0021423765257738594,
+    "science": 0.0002899389956613559,
+    "health": 0.000478028817294158,
+    "culture": 0.8642962224518841,
+    "world": 0.13254411063806074
+   },
+   "label_mass": 0.7083669745314441,
+   "input_tokens": 114,
+   "ms": 31.8
+  },
+  {
+   "lang": "fr",
+   "label": "science",
+   "source": "https://www.lemonde.fr/sciences/rss_full.xml",
+   "choice": "science",
+   "confidence": 0.9834316438272175,
+   "probabilities": {
+    "politics": 0.00012336000249341345,
+    "business": 3.1190293168907165e-05,
+    "technology": 0.00023046682596714852,
+    "science": 0.9995967272084174,
+    "health": 2.5602551718487448e-06,
+    "culture": 4.221147160247037e-06,
+    "world": 1.1474267620951023e-05
+   },
+   "label_mass": 0.9838283950505278,
+   "input_tokens": 82,
+   "ms": 28.0
+  },
+  {
+   "lang": "fr",
+   "label": "science",
+   "source": "https://www.lemonde.fr/sciences/rss_full.xml",
+   "choice": "business",
+   "confidence": 0.970307817835217,
+   "probabilities": {
+    "politics": 5.14402233195091e-05,
+    "business": 0.9999097779779921,
+    "technology": 2.144347538568407e-05,
+    "science": 1.0129180546722384e-05,
+    "health": 3.28846345681162e-06,
+    "culture": 8.314537712389294e-07,
+    "world": 3.0892255279135944e-06
+   },
+   "label_mass": 0.9703953688675434,
+   "input_tokens": 92,
+   "ms": 30.5
+  },
+  {
+   "lang": "fr",
+   "label": "science",
+   "source": "https://www.lemonde.fr/sciences/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.41369302592630397,
+   "probabilities": {
+    "politics": 0.0018714978540150533,
+    "business": 0.005764619222651105,
+    "technology": 0.008387471477500408,
+    "science": 0.002403050811831893,
+    "health": 0.0005361931124888646,
+    "culture": 0.3147376202415396,
+    "world": 0.6662995472799731
+   },
+   "label_mass": 0.6208814453125748,
+   "input_tokens": 116,
+   "ms": 19.5
+  },
+  {
+   "lang": "fr",
+   "label": "science",
+   "source": "https://www.lemonde.fr/sciences/rss_full.xml",
+   "choice": "health",
+   "confidence": 0.8974971636301362,
+   "probabilities": {
+    "politics": 0.0002847920882322475,
+    "business": 4.6491030386306175e-05,
+    "technology": 0.00017273513315644359,
+    "science": 0.03730042038358157,
+    "health": 0.9619904419055016,
+    "culture": 0.00015243821997809912,
+    "world": 5.268123916372566e-05
+   },
+   "label_mass": 0.9329585040911449,
+   "input_tokens": 101,
+   "ms": 44.6
+  },
+  {
+   "lang": "fr",
+   "label": "science",
+   "source": "https://www.lemonde.fr/sciences/rss_full.xml",
+   "choice": "health",
+   "confidence": 0.9921884422257944,
+   "probabilities": {
+    "politics": 2.1443325321336023e-05,
+    "business": 2.7262128812281325e-06,
+    "technology": 6.961628473939518e-06,
+    "science": 5.828900156272343e-05,
+    "health": 0.9999027059752387,
+    "culture": 3.089203909094514e-06,
+    "world": 4.784652613064587e-06
+   },
+   "label_mass": 0.9922849856257562,
+   "input_tokens": 89,
+   "ms": 30.5
+  },
+  {
+   "lang": "fr",
+   "label": "science",
+   "source": "https://www.lemonde.fr/sciences/rss_full.xml",
+   "choice": "technology",
+   "confidence": 0.9910282291452773,
+   "probabilities": {
+    "politics": 0.00012314572262925476,
+    "business": 3.1136114734664194e-05,
+    "technology": 0.9978600886135848,
+    "science": 0.0019263232072017735,
+    "health": 7.872442664442706e-06,
+    "culture": 3.9979562696214525e-05,
+    "world": 1.1454336488838175e-05
+   },
+   "label_mass": 0.9931534896061436,
+   "input_tokens": 78,
+   "ms": 31.4
+  },
+  {
+   "lang": "fr",
+   "label": "science",
+   "source": "https://www.lemonde.fr/sciences/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.5282850778902712,
+   "probabilities": {
+    "politics": 0.0003771251469512421,
+    "business": 8.414799443523078e-05,
+    "technology": 0.004054475494348753,
+    "science": 0.00315762868994263,
+    "health": 5.103833857829553e-05,
+    "culture": 0.9920974430301266,
+    "world": 0.0001781413056173068
+   },
+   "label_mass": 0.5324931352274729,
+   "input_tokens": 115,
+   "ms": 31.2
+  },
+  {
+   "lang": "fr",
+   "label": "science",
+   "source": "https://www.lemonde.fr/sciences/rss_full.xml",
+   "choice": "science",
+   "confidence": 0.9521299930141495,
+   "probabilities": {
+    "politics": 6.604716506023299e-05,
+    "business": 2.144237509882883e-05,
+    "technology": 4.005963059613231e-05,
+    "science": 0.9998590004917074,
+    "health": 1.9944515672810137e-06,
+    "culture": 4.49456598827967e-06,
+    "world": 6.961319981858018e-06
+   },
+   "label_mass": 0.9522642618068289,
+   "input_tokens": 90,
+   "ms": 19.0
+  },
+  {
+   "lang": "fr",
+   "label": "science",
+   "source": "https://www.lemonde.fr/sciences/rss_full.xml",
+   "choice": "science",
+   "confidence": 0.9922322176313866,
+   "probabilities": {
+    "politics": 3.535332727513499e-05,
+    "business": 2.4297962805788737e-05,
+    "technology": 5.143878766350891e-05,
+    "science": 0.9998820468195005,
+    "health": 1.1364308430890255e-06,
+    "culture": 1.7601385220786151e-06,
+    "world": 3.9665333898182024e-06
+   },
+   "label_mass": 0.9923492683837587,
+   "input_tokens": 87,
+   "ms": 41.5
+  },
+  {
+   "lang": "fr",
+   "label": "science",
+   "source": "https://www.lemonde.fr/sciences/rss_full.xml",
+   "choice": "science",
+   "confidence": 0.837738150880151,
+   "probabilities": {
+    "politics": 0.0015552961455225832,
+    "business": 0.00030625596945347785,
+    "technology": 0.08491629229921294,
+    "science": 0.9129361238063173,
+    "health": 3.436096747597359e-05,
+    "culture": 8.774380431548926e-05,
+    "world": 0.00016392700770213677
+   },
+   "label_mass": 0.9176306304841545,
+   "input_tokens": 88,
+   "ms": 19.1
+  },
+  {
+   "lang": "fr",
+   "label": "science",
+   "source": "https://www.lemonde.fr/sciences/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.35700892848174437,
+   "probabilities": {
+    "politics": 0.001920247131371418,
+    "business": 0.005914777568136758,
+    "technology": 0.007594724731542106,
+    "science": 0.0816509857334294,
+    "health": 0.023393399080990467,
+    "culture": 0.6836553333505461,
+    "world": 0.19587053240398375
+   },
+   "label_mass": 0.5222060167834413,
+   "input_tokens": 89,
+   "ms": 44.5
+  },
+  {
+   "lang": "fr",
+   "label": "health",
+   "source": "https://www.lemonde.fr/sante/rss_full.xml",
+   "choice": "health",
+   "confidence": 0.9765178908031112,
+   "probabilities": {
+    "politics": 5.8279949845860543e-05,
+    "business": 5.4208797661358045e-06,
+    "technology": 2.1439995380794864e-05,
+    "science": 0.00010888128069888164,
+    "health": 0.9997471365549477,
+    "culture": 7.409464138895754e-06,
+    "world": 5.14318752217575e-05
+   },
+   "label_mass": 0.9767648789354049,
+   "input_tokens": 92,
+   "ms": 31.1
+  },
+  {
+   "lang": "fr",
+   "label": "health",
+   "source": "https://www.lemonde.fr/sante/rss_full.xml",
+   "choice": "health",
+   "confidence": 0.8444664456877267,
+   "probabilities": {
+    "politics": 0.0013181842302129535,
+    "business": 0.0031621595827548915,
+    "technology": 0.0011632935001987907,
+    "science": 0.00042795176277150225,
+    "health": 0.9935209480160296,
+    "culture": 0.00017839683615390633,
+    "world": 0.00022906607187829432
+   },
+   "label_mass": 0.8499734679717109,
+   "input_tokens": 104,
+   "ms": 31.5
+  },
+  {
+   "lang": "fr",
+   "label": "health",
+   "source": "https://www.lemonde.fr/sante/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.25514715505442515,
+   "probabilities": {
+    "politics": 0.21682650224744413,
+    "business": 0.03767879634010517,
+    "technology": 0.005099270574702779,
+    "science": 0.04838053217089609,
+    "health": 0.022853345201341944,
+    "culture": 0.07976601247794823,
+    "world": 0.5893955409875618
+   },
+   "label_mass": 0.4328963103910038,
+   "input_tokens": 90,
+   "ms": 29.8
+  },
+  {
+   "lang": "fr",
+   "label": "health",
+   "source": "https://www.lemonde.fr/sante/rss_full.xml",
+   "choice": "health",
+   "confidence": 0.9702221898847629,
+   "probabilities": {
+    "politics": 6.604323516122314e-05,
+    "business": 1.0781261768011158e-05,
+    "technology": 2.4295948444264922e-05,
+    "science": 7.483678975846864e-05,
+    "health": 0.9997994180889659,
+    "culture": 1.384341413409014e-05,
+    "world": 1.0781261768011158e-05
+   },
+   "label_mass": 0.9704168379486183,
+   "input_tokens": 97,
+   "ms": 31.5
+  },
+  {
+   "lang": "fr",
+   "label": "health",
+   "source": "https://www.lemonde.fr/sante/rss_full.xml",
+   "choice": "health",
+   "confidence": 0.9959782635773338,
+   "probabilities": {
+    "politics": 0.0002609995241268691,
+    "business": 2.142414557879229e-05,
+    "technology": 8.473413948714318e-05,
+    "science": 0.0001583042135533533,
+    "health": 0.9990088998604705,
+    "culture": 3.532244452233096e-05,
+    "world": 0.00043031567226103375
+   },
+   "label_mass": 0.996966357072935,
+   "input_tokens": 91,
+   "ms": 18.5
+  },
+  {
+   "lang": "fr",
+   "label": "health",
+   "source": "https://www.lemonde.fr/sante/rss_full.xml",
+   "choice": "health",
+   "confidence": 0.8342790198665202,
+   "probabilities": {
+    "politics": 0.02028072178857872,
+    "business": 0.0006939681376075699,
+    "technology": 0.0003714541995592839,
+    "science": 0.0010097176822375967,
+    "health": 0.977179680648099,
+    "culture": 0.00013665036335465476,
+    "world": 0.0003278071805631082
+   },
+   "label_mass": 0.8537621446581838,
+   "input_tokens": 86,
+   "ms": 19.4
+  },
+  {
+   "lang": "fr",
+   "label": "health",
+   "source": "https://www.lemonde.fr/sante/rss_full.xml",
+   "choice": "health",
+   "confidence": 0.9943564758667505,
+   "probabilities": {
+    "politics": 4.0059120179369234e-05,
+    "business": 5.092945604616604e-06,
+    "technology": 2.1442101892423083e-05,
+    "science": 6.604632352525879e-05,
+    "health": 0.9998454158186908,
+    "culture": 8.938397901027854e-06,
+    "world": 1.300529220643688e-05
+   },
+   "label_mass": 0.9945102114135855,
+   "input_tokens": 106,
+   "ms": 40.7
+  },
+  {
+   "lang": "fr",
+   "label": "health",
+   "source": "https://www.lemonde.fr/sante/rss_full.xml",
+   "choice": "health",
+   "confidence": 0.48949689274750485,
+   "probabilities": {
+    "politics": 0.0015294293141371864,
+    "business": 0.0007224512527800373,
+    "technology": 0.17677803515661697,
+    "science": 0.00023454558176116993,
+    "health": 0.6991706919715712,
+    "culture": 6.71984342569391e-05,
+    "world": 0.12149764828887642
+   },
+   "label_mass": 0.700110714548384,
+   "input_tokens": 92,
+   "ms": 29.2
+  },
+  {
+   "lang": "fr",
+   "label": "health",
+   "source": "https://www.lemonde.fr/sante/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.9228107375489857,
+   "probabilities": {
+    "politics": 0.00020324959838470002,
+    "business": 1.668374300371608e-05,
+    "technology": 0.00048757020758214423,
+    "science": 5.13895463030646e-05,
+    "health": 0.00015829094638095294,
+    "culture": 0.9989245250119644,
+    "world": 0.00015829094638095294
+   },
+   "label_mass": 0.9238042659308349,
+   "input_tokens": 92,
+   "ms": 31.5
+  },
+  {
+   "lang": "fr",
+   "label": "health",
+   "source": "https://www.lemonde.fr/sante/rss_full.xml",
+   "choice": "health",
+   "confidence": 0.872599414821551,
+   "probabilities": {
+    "politics": 0.0002549658749329062,
+    "business": 6.055970345545402e-05,
+    "technology": 0.00032738266380187943,
+    "science": 0.00037097315904799653,
+    "health": 0.9759143736623315,
+    "culture": 0.0001204373514086536,
+    "world": 0.022951307585021518
+   },
+   "label_mass": 0.8941352216659454,
+   "input_tokens": 109,
+   "ms": 18.0
+  },
+  {
+   "lang": "fr",
+   "label": "health",
+   "source": "https://www.lemonde.fr/sante/rss_full.xml",
+   "choice": "health",
+   "confidence": 0.9718874026431343,
+   "probabilities": {
+    "politics": 2.1407079978940436e-05,
+    "business": 1.0111988573903287e-05,
+    "technology": 2.7487234790026803e-05,
+    "science": 0.0017005741879122978,
+    "health": 0.9982122892738841,
+    "culture": 1.6671850650871005e-05,
+    "world": 1.1458384209947934e-05
+   },
+   "label_mass": 0.9736279678044247,
+   "input_tokens": 114,
+   "ms": 20.0
+  },
+  {
+   "lang": "fr",
+   "label": "health",
+   "source": "https://www.lemonde.fr/sante/rss_full.xml",
+   "choice": "health",
+   "confidence": 0.9936888509348188,
+   "probabilities": {
+    "politics": 0.0006262392912056878,
+    "business": 7.883185516501569e-06,
+    "technology": 3.5329986368752416e-05,
+    "science": 7.479358172957444e-05,
+    "health": 0.9992221155186619,
+    "culture": 2.1428719939877745e-05,
+    "world": 1.2209716577711398e-05
+   },
+   "label_mass": 0.9944624278246975,
+   "input_tokens": 89,
+   "ms": 18.5
+  },
+  {
+   "lang": "fr",
+   "label": "health",
+   "source": "https://www.lemonde.fr/sante/rss_full.xml",
+   "choice": "business",
+   "confidence": 0.9386812974937015,
+   "probabilities": {
+    "politics": 5.141107850330861e-05,
+    "business": 0.9993432303652671,
+    "technology": 0.00010883725404557985,
+    "science": 5.141107850330861e-05,
+    "health": 0.00013974980047702526,
+    "culture": 9.510093272286344e-06,
+    "world": 0.0002958503299314804
+   },
+   "label_mass": 0.9392982000294402,
+   "input_tokens": 103,
+   "ms": 36.3
+  },
+  {
+   "lang": "fr",
+   "label": "health",
+   "source": "https://www.lemonde.fr/sante/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.4874638338008414,
+   "probabilities": {
+    "politics": 0.3676139509698763,
+    "business": 0.005941926107035872,
+    "technology": 0.0015023541952046207,
+    "science": 0.004083822108733933,
+    "health": 0.00218591245573836,
+    "culture": 0.012579057667306225,
+    "world": 0.6060929764961046
+   },
+   "label_mass": 0.8042723686041169,
+   "input_tokens": 104,
+   "ms": 32.0
+  },
+  {
+   "lang": "fr",
+   "label": "health",
+   "source": "https://www.lemonde.fr/sante/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.7966470279269152,
+   "probabilities": {
+    "politics": 0.0002954837406764378,
+    "business": 3.5290500223540604e-05,
+    "technology": 0.0013242662510521985,
+    "science": 9.59295254748803e-05,
+    "health": 3.5290500223540604e-05,
+    "culture": 0.998105037088954,
+    "world": 0.00010870239339529532
+   },
+   "label_mass": 0.7981595105965944,
+   "input_tokens": 78,
+   "ms": 18.5
+  },
+  {
+   "lang": "fr",
+   "label": "culture",
+   "source": "https://www.lemonde.fr/culture/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.9078339365672558,
+   "probabilities": {
+    "politics": 0.0009071655876167664,
+    "business": 0.00013911834861182924,
+    "technology": 0.0031663190199899137,
+    "science": 0.00037816287903676604,
+    "health": 9.561454948401517e-05,
+    "culture": 0.9948280488669298,
+    "world": 0.00048557074833101955
+   },
+   "label_mass": 0.9125536192925432,
+   "input_tokens": 98,
+   "ms": 44.5
+  },
+  {
+   "lang": "fr",
+   "label": "culture",
+   "source": "https://www.lemonde.fr/culture/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.8070654897003139,
+   "probabilities": {
+    "politics": 0.0005448788173445072,
+    "business": 4.201654277973724e-05,
+    "technology": 0.014052609912992994,
+    "science": 6.507649450111425e-05,
+    "health": 4.761098045407538e-05,
+    "culture": 0.9851642473789592,
+    "world": 8.355987296837075e-05
+   },
+   "label_mass": 0.819219223441696,
+   "input_tokens": 90,
+   "ms": 31.0
+  },
+  {
+   "lang": "fr",
+   "label": "culture",
+   "source": "https://www.lemonde.fr/culture/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.9880485181298485,
+   "probabilities": {
+    "politics": 0.00013954469646703307,
+    "business": 1.8885321020533066e-05,
+    "technology": 0.0017000032325823467,
+    "science": 4.530353001479427e-05,
+    "health": 0.00017917893702764655,
+    "culture": 0.9978771040579734,
+    "world": 3.998022491420419e-05
+   },
+   "label_mass": 0.990150504618098,
+   "input_tokens": 84,
+   "ms": 18.3
+  },
+  {
+   "lang": "fr",
+   "label": "culture",
+   "source": "https://www.lemonde.fr/culture/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.989423326656861,
+   "probabilities": {
+    "politics": 0.0001397387957744828,
+    "business": 1.567825837095432e-05,
+    "technology": 0.00048773655428652164,
+    "science": 2.5849078063724727e-05,
+    "health": 2.5849078063724727e-05,
+    "culture": 0.9992651124001438,
+    "world": 4.003583529685579e-05
+   },
+   "label_mass": 0.9901509763313523,
+   "input_tokens": 91,
+   "ms": 18.5
+  },
+  {
+   "lang": "fr",
+   "label": "culture",
+   "source": "https://www.lemonde.fr/culture/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.9633613887166851,
+   "probabilities": {
+    "politics": 0.0002938452238005179,
+    "business": 1.8784896683373428e-05,
+    "technology": 0.006687886467433669,
+    "science": 3.5094807289494374e-05,
+    "health": 1.657761313844869e-05,
+    "culture": 0.9925705062557222,
+    "world": 0.00037730473593216256
+   },
+   "label_mass": 0.9705722491702652,
+   "input_tokens": 83,
+   "ms": 18.5
+  },
+  {
+   "lang": "fr",
+   "label": "culture",
+   "source": "https://www.lemonde.fr/culture/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.980078325056839,
+   "probabilities": {
+    "politics": 0.0010315764846503222,
+    "business": 6.594650978056793e-05,
+    "technology": 0.0003349040107052186,
+    "science": 2.7490595257876057e-05,
+    "health": 6.594650978056793e-05,
+    "culture": 0.9983345271275244,
+    "world": 0.0001396087623010102
+   },
+   "label_mass": 0.9817133419964815,
+   "input_tokens": 85,
+   "ms": 18.5
+  },
+  {
+   "lang": "fr",
+   "label": "culture",
+   "source": "https://www.lemonde.fr/culture/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.49630384580814835,
+   "probabilities": {
+    "politics": 0.000702372480837511,
+    "business": 0.0002927922713142614,
+    "technology": 0.0024515208420062087,
+    "science": 0.0007958922901377348,
+    "health": 0.004580043902638937,
+    "culture": 0.9890139186633732,
+    "world": 0.0021634595496920588
+   },
+   "label_mass": 0.5018168464998857,
+   "input_tokens": 95,
+   "ms": 31.9
+  },
+  {
+   "lang": "fr",
+   "label": "culture",
+   "source": "https://www.lemonde.fr/culture/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.9784899459074777,
+   "probabilities": {
+    "politics": 7.47718813138223e-05,
+    "business": 1.4723456407673922e-05,
+    "technology": 0.0003797229455098847,
+    "science": 0.00012327799117236427,
+    "health": 0.00043028246829850467,
+    "culture": 0.9989318698187966,
+    "world": 4.535143850122737e-05
+   },
+   "label_mass": 0.9795362181056182,
+   "input_tokens": 94,
+   "ms": 18.2
+  },
+  {
+   "lang": "fr",
+   "label": "culture",
+   "source": "https://www.lemonde.fr/culture/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.9382061315377389,
+   "probabilities": {
+    "politics": 0.0004302868748743248,
+    "business": 3.75980481111892e-05,
+    "technology": 0.0004302868748743248,
+    "science": 0.0001087935595233118,
+    "health": 3.318016100135106e-05,
+    "culture": 0.9989420944212393,
+    "world": 1.776006037607326e-05
+   },
+   "label_mass": 0.9391997161570319,
+   "input_tokens": 85,
+   "ms": 44.4
+  },
+  {
+   "lang": "fr",
+   "label": "culture",
+   "source": "https://www.lemonde.fr/culture/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.981554823265452,
+   "probabilities": {
+    "politics": 0.00033471058513118477,
+    "business": 1.7739011139003928e-05,
+    "technology": 0.0016998006074758932,
+    "science": 3.5278236125474754e-05,
+    "health": 5.8163978292851905e-05,
+    "culture": 0.9977584113936356,
+    "world": 9.589618819996546e-05
+   },
+   "label_mass": 0.9837600084918843,
+   "input_tokens": 105,
+   "ms": 31.0
+  },
+  {
+   "lang": "fr",
+   "label": "culture",
+   "source": "https://www.lemonde.fr/culture/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.9840879766982544,
+   "probabilities": {
+    "politics": 0.00023016717617268723,
+    "business": 1.6673254319209217e-05,
+    "technology": 0.0013245206479320284,
+    "science": 5.135723888032357e-05,
+    "health": 4.53226042371827e-05,
+    "culture": 0.9982966617987878,
+    "world": 3.529727967075326e-05
+   },
+   "label_mass": 0.9857670714084815,
+   "input_tokens": 88,
+   "ms": 19.3
+  },
+  {
+   "lang": "fr",
+   "label": "culture",
+   "source": "https://www.lemonde.fr/culture/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.5883507205011772,
+   "probabilities": {
+    "politics": 0.00045158963422053055,
+    "business": 0.18218421785130667,
+    "technology": 0.0005798522917566967,
+    "science": 6.111601105395383e-05,
+    "health": 4.200437915985301e-05,
+    "culture": 0.8164929692655153,
+    "world": 0.00018825056698704924
+   },
+   "label_mass": 0.720582714913558,
+   "input_tokens": 92,
+   "ms": 19.5
+  },
+  {
+   "lang": "fr",
+   "label": "culture",
+   "source": "https://www.lemonde.fr/culture/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.9023875312852011,
+   "probabilities": {
+    "politics": 0.0002302254369941999,
+    "business": 4.5334076473145535e-05,
+    "technology": 0.0009105597010685747,
+    "science": 7.474325616882129e-05,
+    "health": 6.596069205807174e-05,
+    "culture": 0.9985499460409504,
+    "world": 0.0001232307962869242
+   },
+   "label_mass": 0.9036979420638759,
+   "input_tokens": 88,
+   "ms": 41.0
+  },
+  {
+   "lang": "fr",
+   "label": "culture",
+   "source": "https://www.lemonde.fr/culture/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.9369743832731586,
+   "probabilities": {
+    "politics": 0.00012305372569125993,
+    "business": 3.525548268206399e-05,
+    "technology": 0.0024716013294586816,
+    "science": 7.463585742361733e-05,
+    "health": 9.58343379282071e-05,
+    "culture": 0.9971150457604332,
+    "world": 8.457350638288818e-05
+   },
+   "label_mass": 0.9396853324568889,
+   "input_tokens": 88,
+   "ms": 31.0
+  },
+  {
+   "lang": "fr",
+   "label": "culture",
+   "source": "https://www.lemonde.fr/culture/rss_full.xml",
+   "choice": "culture",
+   "confidence": 0.9308972131965332,
+   "probabilities": {
+    "politics": 0.0002957647137475954,
+    "business": 2.584363267023215e-05,
+    "technology": 0.00037976940981128676,
+    "science": 8.473800923066708e-05,
+    "health": 7.478103067724857e-05,
+    "culture": 0.9990543651946322,
+    "world": 8.473800923066708e-05
+   },
+   "label_mass": 0.931778335221206,
+   "input_tokens": 87,
+   "ms": 19.3
+  },
+  {
+   "lang": "fr",
+   "label": "world",
+   "source": "https://www.lemonde.fr/international/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.983754913434454,
+   "probabilities": {
+    "politics": 9.609423192887505e-05,
+    "business": 6.961042813320717e-06,
+    "technology": 2.144152135963025e-05,
+    "science": 3.119722949461479e-05,
+    "health": 8.938155898955342e-06,
+    "culture": 1.6698673625122288e-05,
+    "world": 0.9998186691448795
+   },
+   "label_mass": 0.9839333309067289,
+   "input_tokens": 80,
+   "ms": 42.0
+  },
+  {
+   "lang": "fr",
+   "label": "world",
+   "source": "https://www.lemonde.fr/international/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.9951155325774774,
+   "probabilities": {
+    "politics": 9.609571275911893e-05,
+    "business": 1.1476996212527654e-05,
+    "technology": 1.4736754844114453e-05,
+    "science": 2.7531882663186547e-05,
+    "health": 6.143193387824593e-06,
+    "culture": 1.0128413608530789e-05,
+    "world": 0.9998338870465248
+   },
+   "label_mass": 0.9952808616209387,
+   "input_tokens": 90,
+   "ms": 32.1
+  },
+  {
+   "lang": "fr",
+   "label": "world",
+   "source": "https://www.lemonde.fr/international/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.9226800027631195,
+   "probabilities": {
+    "politics": 0.00023039188973612317,
+    "business": 3.533174061182358e-05,
+    "technology": 6.600838156708329e-05,
+    "science": 0.0003352182215637225,
+    "health": 2.1429783942085002e-05,
+    "culture": 4.003610721844625e-05,
+    "world": 0.9992715838753607
+   },
+   "label_mass": 0.9233525876767106,
+   "input_tokens": 85,
+   "ms": 30.0
+  },
+  {
+   "lang": "fr",
+   "label": "world",
+   "source": "https://www.lemonde.fr/international/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.5347760369276672,
+   "probabilities": {
+    "politics": 0.4070086511498206,
+    "business": 0.0004205609778727068,
+    "technology": 0.00017531598223113985,
+    "science": 0.00011319250558679394,
+    "health": 2.372643811115627e-05,
+    "culture": 6.449514557161424e-05,
+    "world": 0.592194057800806
+   },
+   "label_mass": 0.9030418827801674,
+   "input_tokens": 100,
+   "ms": 32.6
+  },
+  {
+   "lang": "fr",
+   "label": "world",
+   "source": "https://www.lemonde.fr/international/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.9496931200227059,
+   "probabilities": {
+    "politics": 0.001168937452897265,
+    "business": 8.467750469872432e-05,
+    "technology": 0.00010872806825485766,
+    "science": 0.0001792622788539192,
+    "health": 4.2578523306301305e-05,
+    "culture": 7.472763561521673e-05,
+    "world": 0.9983410885363738
+   },
+   "label_mass": 0.951271194712632,
+   "input_tokens": 85,
+   "ms": 19.1
+  },
+  {
+   "lang": "fr",
+   "label": "world",
+   "source": "https://www.lemonde.fr/international/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.8290009156275542,
+   "probabilities": {
+    "politics": 0.14780633601164958,
+    "business": 0.0006844792119675334,
+    "technology": 0.000285333250671211,
+    "science": 0.000470435223940579,
+    "health": 8.174934502101301e-05,
+    "culture": 0.00010496823680455616,
+    "world": 0.8505666987199455
+   },
+   "label_mass": 0.9746453945059845,
+   "input_tokens": 86,
+   "ms": 18.9
+  },
+  {
+   "lang": "fr",
+   "label": "world",
+   "source": "https://www.lemonde.fr/international/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.78129418548504,
+   "probabilities": {
+    "politics": 0.010875919046555724,
+    "business": 0.007474902557696281,
+    "technology": 0.0010116180548119067,
+    "science": 0.0012989432943587011,
+    "health": 9.40951366446145e-05,
+    "culture": 0.0002257224985792238,
+    "world": 0.9790187994113536
+   },
+   "label_mass": 0.7980379804297958,
+   "input_tokens": 87,
+   "ms": 40.1
+  },
+  {
+   "lang": "fr",
+   "label": "world",
+   "source": "https://www.lemonde.fr/international/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.9699351148888804,
+   "probabilities": {
+    "politics": 0.00015840228670586855,
+    "business": 1.147462316264296e-05,
+    "technology": 2.4291777425939327e-05,
+    "science": 8.478663426285786e-05,
+    "health": 2.7526190012446797e-05,
+    "culture": 6.603189715790251e-05,
+    "world": 0.9996274865912723
+   },
+   "label_mass": 0.9702965633691778,
+   "input_tokens": 108,
+   "ms": 30.5
+  },
+  {
+   "lang": "fr",
+   "label": "world",
+   "source": "https://www.lemonde.fr/international/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.9379559374159006,
+   "probabilities": {
+    "politics": 0.00023030104586399362,
+    "business": 5.1387109245983775e-05,
+    "technology": 0.00012327126679857872,
+    "science": 0.000379702414036629,
+    "health": 0.00015828343971667076,
+    "culture": 0.00017935863486104173,
+    "world": 0.9988776960894771
+   },
+   "label_mass": 0.9390097917772314,
+   "input_tokens": 94,
+   "ms": 19.6
+  },
+  {
+   "lang": "fr",
+   "label": "world",
+   "source": "https://www.lemonde.fr/international/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.9919453440272853,
+   "probabilities": {
+    "politics": 0.0001398024964153541,
+    "business": 1.3003657794449773e-05,
+    "technology": 1.8920210449557478e-05,
+    "science": 5.143046425565303e-05,
+    "health": 2.1439407202614858e-05,
+    "culture": 3.534760668615264e-05,
+    "world": 0.9997200561571962
+   },
+   "label_mass": 0.9922231107778352,
+   "input_tokens": 88,
+   "ms": 18.6
+  },
+  {
+   "lang": "fr",
+   "label": "world",
+   "source": "https://www.lemonde.fr/international/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.9856311316631522,
+   "probabilities": {
+    "politics": 0.000123385116580756,
+    "business": 6.9609119497097625e-06,
+    "technology": 1.669835969963909e-05,
+    "science": 3.5350427761540374e-05,
+    "health": 4.784160153643483e-06,
+    "culture": 1.3004695610086913e-05,
+    "world": 0.9997998163282447
+   },
+   "label_mass": 0.9858284784276848,
+   "input_tokens": 80,
+   "ms": 39.5
+  },
+  {
+   "lang": "fr",
+   "label": "world",
+   "source": "https://www.lemonde.fr/international/rss_full.xml",
+   "choice": "world",
+   "confidence": 0.9312225208341316,
+   "probabilities": {
+    "politics": 0.00029589108557625903,
+    "business": 3.118669097450594e-05,
+    "technology": 5.82644093388087e-05,
+    "science": 7.481298247932897e-05,
+    "health": 1.3839010230266903e-05,
+    "culture": 4.537636761825709e-05,
+    "world": 0.9994806294537825
+   },
+   "label_mass": 0.9317064217072881,
+   "input_tokens": 93,
+   "ms": 20.6
+  }
+ ],
+ "note": "night n17 2026-11-26: the headline texts are left out (they name real people); the feeds and labels are kept"
+}

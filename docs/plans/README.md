@@ -405,7 +405,7 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     `choice` questions with Qwen3.6, Qwen3.8 or Gemma 4 on `/v1/systemone`. A scratch vLLM 0.34.0 with Qwen3.6 beside
     the live farm; a new labelled set of public headlines, English and French; accuracy and confidence against Laya
     0.3.20 and 0.5.4 on the same items; the time per item alone and beside 10 chats; thinking off for the read. **S**,
-    no farm code; if it wins, a plan for the owner (Laya stays the CPU fallback; the Classify box's contract unchanged).
+    no farm code; if it wins, a plan for the owner (Laya stays the CPU fallback; the Classify box's contract unchanged). **Measured night n° 17 (2026-11-26):** vLLM 73 % right against Laya's 59 % (French included), 31 ms an item against 78–166; [CLASSIFY_VLLM_PLAN](CLASSIFY_VLLM_PLAN.md), for the owner.
 
 ## 3. Later
 
@@ -447,6 +447,7 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
 - **The farm keeps its panel and beacon ports when its own boot starts WSL** ([WSL_PORTS_PLAN](WSL_PORTS_PLAN.md), night n° 17, 2026-11-26): on the PRO 6000 (WSL in mirrored networking) a cold WSL boot reserves 40525–44620, which holds the farm's 41997 and 41998, and `lol up` starts WSL before it binds them; reproduced by the lifecycle suite and two cold boots, not seen in production's three boots. **S**. Summary n° 17's question 1.
 - **Ternary Bonsai 2.5 27B as the llama.cpp default** ([BONSAI_DEFAULT_PLAN](BONSAI_DEFAULT_PLAN.md), night n° 17): measured against UD-IQ2_S on the farm's llama.cpp: the quality check 28 (three passes) against 24, one person 183 tok/s with its draft head against 110, the same size; a 12 GB card (the 4070) first. **S**. Summary n° 17's question.
+- **The Classify box answered by the farm's vLLM** ([CLASSIFY_VLLM_PLAN](CLASSIFY_VLLM_PLAN.md), night n° 17): 73 % right against Laya's 59 % on 194 English and French headlines, 31 ms an item on the GPU, Laya kept for Ollama and llama.cpp. **S–M**. Summary n° 17's question.
 
 **The ones that unblock the most:**
 - **[BLENDER_TOOLS_ENV_PLAN](BLENDER_TOOLS_ENV_PLAN.md)** (night n° 12, proposed): the Blender tools through
