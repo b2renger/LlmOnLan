@@ -315,6 +315,11 @@ admin panel; clients that never made an explicit choice then enable it automatic
 
 **In Blender (your side, once):**
 1. Install the **BlenderMCP** add-on (from [github.com/ahujasid/blender-mcp](https://github.com/ahujasid/blender-mcp) — download the add-on `.py`, then Blender ▸ Edit ▸ Preferences ▸ Add-ons ▸ Install, and tick it on).
+   **Not** Blender's own **MCP** extension (Blender Lab's, offered in Blender 5.1's *Get Extensions*). It uses the same
+   port, 9876, but different messages, so every call fails with *Incomplete JSON response received*, and **Test
+   connection** cannot tell the two apart. If it is installed, untick its *Auto Start* and press *Stop MCP Server*
+   (or disable it) first. Supporting it is a question for the owner (plans ▸ *Waiting on the owner*, 2026-11-27).
+   Whether the community add-on runs on Blender 5.1 was not checked.
 2. Open its panel: in the 3D viewport press **N** ▸ the **BlenderMCP** tab ▸ **Connect / Start MCP Server**.
 3. In the chat, ask something like *“add a red cube and a sun lamp.”*
 

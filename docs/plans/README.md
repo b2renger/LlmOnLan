@@ -45,6 +45,17 @@ file stays the whole list.
 ## 1. Now
 
 - **The farm keeps its panel and beacon ports when its own boot starts WSL** ([WSL_PORTS_PLAN](WSL_PORTS_PLAN.md), night n° 17, 2026-11-26): on the PRO 6000 (WSL in mirrored networking) a cold WSL boot reserves 40525–44620, which holds the farm's 41997 and 41998, and `lol up` starts WSL before it binds them; reproduced by the lifecycle suite and two cold boots, not seen in production's three boots. **Approved by the owner 2026-11-26** (summary n° 17, question 1: "yes"). **Built night n° 18 (2026-11-27), unreleased:** measured cold before and after; HUMAN_TESTS J20 says what to look for. **S**.
+- **Blender's *Test connection* names the add-on it found** (a reproduced bug, approved in advance; the owner's A31,
+  2026-11-27, DEVLOG 14:10).
+  - Today it only checks that something listens on the port (`tcpProbe`, `shell/src/main/index.ts:1057`). With Blender
+    Lab's own **MCP** extension on 9876, it said *Blender ✓* while every call failed.
+  - The fix: send the community add-on's read-only `{"type": "get_scene_info", "params": {}}` and read the reply.
+    - JSON with a `status`: the BlenderMCP add-on, ✓.
+    - JSON ended by a zero byte, or *Unknown request type*: Blender's own MCP extension, which is named, with "turn its
+      server off and use the BlenderMCP add-on".
+    - Anything else: not an add-on LlmOnLan knows.
+  - Done when a unit test drives the probe against three stand-in sockets (the community reply, the Lab reply, a
+    silent port). **S**. Client.
 - **The Blender tools through Open WebUI's env** ([BLENDER_TOOLS_ENV_PLAN](BLENDER_TOOLS_ENV_PLAN.md), **approved by the owner 2026-11-26**, summary n° 17 question 2): `TOOL_SERVER_CONNECTIONS` (env, as the Computer's), so Open WebUI can move to 0.13.5 without losing them; then the bump (the Open WebUI entry below). **S**. Client. **Built night n° 18 (2026-11-27), steps 1–3 and 5, unreleased:** run on a real 0.13.3 with a stand-in mcpo; HUMAN_TESTS A31. Step 4, the bump, blocked (0.13.5 does not start on Windows, below).
 - **Ternary Bonsai 2.5 27B as the llama.cpp default** ([BONSAI_DEFAULT_PLAN](BONSAI_DEFAULT_PLAN.md), night n° 17, **approved by the owner 2026-11-26**, question 3): measured against UD-IQ2_S on the farm's llama.cpp: the quality check 28 (three passes) against 24, one person 183 tok/s with its draft head against 110, the same size; a 12 GB card (the 4070) first. **S**. Farm only. **Built night n° 18 (2026-11-27), unreleased:** the draft's memory in the farm's sizing (measured), Bonsai in the library; the default (step 2) waits on HUMAN_TESTS **K18**, the 4070.
 - **The Classify box answered by the farm's vLLM** ([CLASSIFY_VLLM_PLAN](CLASSIFY_VLLM_PLAN.md), night n° 17, **approved by the owner 2026-11-26**, question 4): 73 % right against Laya's 59 % on 194 English and French headlines, 31 ms an item on the GPU, Laya kept for Ollama and llama.cpp. **S–M**. **Built night n° 18 (2026-11-27), unreleased:** steps 1–4, run against a real vLLM serving Qwen3.6; HUMAN_TESTS J21.
@@ -479,11 +490,10 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     Extensions*). It uses the same port 9876 but different messages, and its own MCP server, also named
     `blender-mcp`, is not on PyPI.
   - With it, every call fails, and *Test connection* says ✓ because it only checks that the port listens.
-  - Two moves:
-    - (a) *Test connection* speaks to the add-on and names the one it found: a reproduced bug, approved in advance.
-    - (b) A plan to support Blender Lab's extension: its server pinned from projects.blender.org, and its own tools
-      (code, scene, screenshots, Blender's docs).
-  - **S** for (a), **M** for (b). Client.
+  - Waiting: a plan to support Blender Lab's extension, with its server pinned from projects.blender.org and its own
+    tools (code, scene, screenshots, Blender's docs). **M**. Client.
+  - Already approved and filed under *1. Now*: *Test connection* naming the add-on it found. Meanwhile the
+    Preferences hint and GETTING_STARTED say which add-on to use, and to turn Lab's server off.
 - **A farm's bundled CPython moved to a newer 3.12, its venvs rebuilt** ([CPYTHON_BUMP_PLAN](CPYTHON_BUMP_PLAN.md), night n° 18, proposed): for the PRO 6000's CPython 3.12.14 and its expat 2.8.3, which RUNTIME_UPDATE cannot reach; a button in the Farm app's window, the venvs rebuilt through their install signatures, the old ones kept until a start works. **M**. **Not before** a python-build-standalone release carries a 3.12.x with expat 2.11.0 on Windows (none yet: python/cpython#162493); then the owner's question.
 **The ones that unblock the most:**
 - **[AGENT_FIRST_STEP_PLAN](AGENT_FIRST_STEP_PLAN.md)** (night n° 13, proposed): Gemma 4 26B on Ollama ends 1 coding

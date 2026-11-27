@@ -63,6 +63,32 @@ export default (test) => {
     assert.deepEqual(v.data.labels.map((l) => [l.label, l.sure]), [['ai', true], ['business', false]]);
   });
 
+  // The owner's J21 (2026-11-27): a Text box's lines on `items`, nothing on `options`, the options TYPED in the box as
+  // "sports,\npolitics,\nbusiness" (trailing commas). The typed options are used; the owner's failure was a wire on the
+  // `options` dot (the middle one), which replaces them and leaves `items` empty.
+  test('classify: a Text box on items and options typed in the box with commas: the typed options are sent', async () => {
+    const lines = 'Le PSG bat Marseille 3-1\nParliament votes the budget\nLe Sénat rejette la réforme\nShares fall 8%\nA runner wins the marathon';
+    /** @type {any} */ let seen = null;
+    const answer = (choice) => ({ choice, confidence: 0.9 });
+    const v = await withFetch(async (_url, init) => {
+      seen = JSON.parse(init.body);
+      return new Response(JSON.stringify({ answers: ['sports', 'politics', 'politics', 'business', 'sports'].map(answer), ms: 485, model: 'qwen3.6-35b-a3b' }),
+        { status: 200, headers: { 'content-type': 'application/json' } });
+    }, () => classifyPart.run(/** @type {any} */ ({
+      part: part({ question: 'What is each item mainly about?', options: 'sports,\npolitics,\nbusiness' }),
+      inputs: { items: [{ kind: 'text', data: lines }] },
+      app: app({ url: 'http://farm:8891', key: 'kk' }), signal: new AbortController().signal,
+    })));
+    assert.equal(seen.items.length, 5, 'every line is an item');
+    assert.deepEqual(seen.question.options, ['sports', 'politics', 'business'], 'the typed options, commas dropped');
+    assert.deepEqual(v.data.labels.map((l) => l.label), ['sports', 'politics', 'politics', 'business', 'sports']);
+    // The same box with the Text box on `options` instead (the owner's first wiring): nothing on items, refused.
+    await assert.rejects(() => classifyPart.run(/** @type {any} */ ({
+      part: part({ options: 'sports\npolitics\nbusiness' }), inputs: { options: [{ kind: 'text', data: lines }] },
+      app: app({ url: 'http://farm:8891', key: 'kk' }), signal: new AbortController().signal,
+    })), /Nothing to classify/);
+  });
+
   // CLASSIFY_VLLM_PLAN (2026-11-27): the farm's own vLLM answers when it serves Qwen3.6 or Qwen3.8, and its reply's
   // `model` says so; the box's output and its status line name who answered instead of always "Laya".
   test('classify: the output names who answered, Laya or the farm\'s model (CLASSIFY_VLLM_PLAN)', async () => {
