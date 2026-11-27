@@ -56,6 +56,9 @@ import './strings/core.en.mjs';
 
 const PHASE = 'K1';
 const LAST_THREAD_KEY = 'ui:lastThreadId';       // §3.7; written on THREAD_SELECTED, read at boot
+// This window's start: the crash recovery (settle, below) leaves a message written since then alone, a first message sent
+// before its scan ran (night n° 18, the harness's p1-errors).
+const BOOTED_AT = now();
 
 /** @type {import('./core/types.mjs').ModuleRow[]} */
 const MODULES = [
@@ -351,7 +354,7 @@ async function mount() {
         result = skipped('no-migrate');
       }
     }
-    try { await repo.recoverInterrupted(); } catch (err) { console.error('[lolchat] recoverInterrupted failed', err); }
+    try { await repo.recoverInterrupted({ before: BOOTED_AT }); } catch (err) { console.error('[lolchat] recoverInterrupted failed', err); }
     // rescan:true - recoverInterrupted() just rewrote records BEHIND the sidebar's back, and the
     // whole-store cursor that finds them is a boot job, not a per-render one.
     if (app.sidebar) app.sidebar.render({ rescan: true });

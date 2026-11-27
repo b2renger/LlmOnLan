@@ -249,6 +249,25 @@ export default (test) => {
     assert.equal(await repo.recoverInterrupted(), 0);
   });
 
+  // Night n° 18 (2026-11-27): the boot's recovery runs after the store and the v1 migration, and the harness's p1-errors
+  // sent its first message before it: the live seat wait became 'interrupted' in the store. A record written since this
+  // window started is this session's, and is left alone.
+  test('repo: recoverInterrupted leaves alone a message written since this window started (`before`)', async () => {
+    const repo = makeRepo(createMemoryBackend({ kind: 'idb' }));
+    const th = repo.createThread();
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const old = repo.appendMessage(th.id, { content: 'half', status: 'streaming' });
+    await sleep(5);
+    const bootedAt = Date.now();
+    await sleep(5);
+    const live = repo.appendMessage(th.id, { content: '', status: 'waiting', error: { kind: 'seats_full', code: 'lol_seats_full', message: 'All 2 seats are in use.', retryAfter: null } });
+    assert.equal(await repo.recoverInterrupted({ before: bootedAt }), 1, 'only the one left from before');
+    const msgs = await repo.getMessages(th.id);
+    assert.equal(msgs.find((m) => m.id === old.id).status, 'interrupted');
+    assert.equal(msgs.find((m) => m.id === live.id).status, 'waiting', "this session's seat wait is still waiting");
+    assert.equal(await repo.recoverInterrupted(), 1, 'without `before`, as before: everything left');
+  });
+
   test('repo: recoverInterrupted also recovers a seat wait nobody is waiting on any more', async () => {
     // A row left at status 'waiting' (P2-U1) reopens with Try now / Cancel buttons that do
     // nothing: the waiter died with the window. Recovery is what makes the row honest again.

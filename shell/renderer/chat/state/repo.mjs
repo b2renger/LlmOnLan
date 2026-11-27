@@ -588,8 +588,14 @@ export function openRepoSync(options = {}) {
       await enqueue('kvSet', () => applyOps([{ op: 'put', store: 'kv', value: { key, value: clone(value) } }], false));
     },
 
-    /** Crash recovery: every message still 'streaming' becomes 'interrupted'. @returns {Promise<number>} */
-    async recoverInterrupted() {
+    /**
+     * Crash recovery: every message still 'streaming' becomes 'interrupted'. `before` (ms): a record written at or after
+     * it belongs to this session, a first message sent before this scan ran, and is left alone (night n° 18, 2026-11-27:
+     * the harness's p1-errors saw a live seat wait turned 'interrupted' in the store).
+     * @param {{before?: number}} [o] @returns {Promise<number>}
+     */
+    async recoverInterrupted(o = {}) {
+      const before = Number(o && o.before) || Infinity;
       const n = await enqueue('recoverInterrupted', async () => {
         let count = 0;
         for (const [backend, ephemeral] of /** @type {[any, boolean][]} */ ([[persist, false], [eph, true]])) {
@@ -598,7 +604,7 @@ export function openRepoSync(options = {}) {
           await backend.scan('messages', (/** @type {any} */ rec) => {
             // 'waiting' (a seat wait, P2-U1) is recovered too: the waiter itself died with the
             // window, so a row left waiting has no Try now / Cancel behind it any more.
-            if (rec && (rec.status === 'streaming' || rec.status === 'waiting')) ops.push({ op: 'put', store: 'messages', value: { ...rec, status: 'interrupted' } });
+            if (rec && (rec.status === 'streaming' || rec.status === 'waiting') && !((Number(rec.updatedAt) || 0) >= before)) ops.push({ op: 'put', store: 'messages', value: { ...rec, status: 'interrupted' } });
             return true;
           });
           if (ops.length) { await applyOps(ops, ephemeral); count += ops.length; }

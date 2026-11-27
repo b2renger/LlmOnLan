@@ -283,10 +283,9 @@ export default [
         run: async (h) => {
             await requireReal(h);
             await waitForModels(h);
-            // The boot's crash recovery (main.mjs settle → repo.recoverInterrupted) runs after the store and the v1
-            // migration: a 'waiting' row created before it scans is turned 'interrupted' in the store (night n° 18:
-            // 2 failures in 4 runs, in 327 ms). Wait for it, as a person's first message does in practice.
-            await h.eval(async () => { await window.LolChat.migration; return true; });
+            // No wait for the boot's crash recovery here: it once turned this fresh 'waiting' row 'interrupted' when it ran
+            // after the first message (night n° 18: 2 failures in 4, in 327 ms); it now leaves a record written since the
+            // window started alone (repo.recoverInterrupted `before`), and this scenario is the check.
 
             // mock-429 left this loop at the P2 landing. A `seats_full` refusal is no longer an
             // error row: P2-U1 turns it into a WAITING row that holds the foreground slot until a

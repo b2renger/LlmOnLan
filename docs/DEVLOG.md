@@ -9,6 +9,18 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-27 (04:13) — The boot's crash recovery no longer marks this session's first message interrupted
+
+- **The bug** (reproduced by the harness's `p1-errors`, 2 failures in 4, 03:18): `main.mjs` `settle` runs
+  `repo.recoverInterrupted` after the store and the v1 migration, and a message sent before its scan (a seat wait)
+  was turned *interrupted* in the store.
+- **The fix:** the window notes its start (`BOOTED_AT`, at module load), and the recovery leaves a record written at or
+  after it alone (`recoverInterrupted({ before })`). Without `before`, it behaves as it did.
+- **Tests:** `repo.test.mjs` *leaves alone a message written since this window started*, which failed on the old code
+  (`2 !== 1`) and passes on the fix. The harness scenario's wait (03:21) is taken out: `p1-errors` **6/6** on the fixed
+  product. `test:chat` **1994** (1 skipped), lint 0, `test/unit.js` 35.
+- The client installer was repackaged (04:13), carrying it.
+
 ## 2026-11-27 (04:10) — Inkling 2 Mini on llama.cpp v1.1.0 (plans ▸ Next 20); the pinned tools' releases
 
 - **llama.cpp v1.1.0** (2026-11-26, build b12774, an official release) adds the Inkling 2 family, so Next 20's

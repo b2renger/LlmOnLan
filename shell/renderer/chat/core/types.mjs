@@ -136,7 +136,7 @@
  *   listRecipes(): Promise<Recipe[]>, putRecipe(r: Recipe): Promise<void>, deleteRecipe(id: string): Promise<void>,
  *   findLegacy(legacyId: string, legacyHash: string): Promise<Thread|null>,
  *   kvGet(key: string, fallback?: any): Promise<any>, kvSet(key: string, value: any): Promise<void>,
- *   recoverInterrupted(): Promise<number>,
+ *   recoverInterrupted(o?: {before?: number}): Promise<number>,
  *   flush(): Promise<void>, estimate(): Promise<{usage: number, quota: number}|null>,
  *   runTx(stores: string[], mode: 'readonly'|'readwrite', fn: (tx: any) => any): Promise<any>,
  *   debug: {journalLength(): number, persistentIds(): string[]},
