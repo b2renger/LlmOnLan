@@ -39,7 +39,11 @@ Blender's server on the road that holds across versions, as the Computer's does.
    (PASS on 0.13.4 already; run again on 0.13.5).
 5. Tests: `buildSidecarEnv` with the toggle on and off; HUMAN_TESTS A27 (the Blender tools end to end) run again.
 
-## Built (night n° 18, 2026-11-27, DEVLOG 02:35): steps 1–3 and 5; step 4, the bump, next
+## Built (night n° 18, 2026-11-27, DEVLOG 02:35): steps 1–3 and 5; step 4, the bump, blocked
+
+**Step 4 is blocked:** Open WebUI 0.13.5 does not start on Windows (`utils/machines/managed.py:48`,
+`tempfile.mkdtemp(dir='/tmp')` at import; [OWUI_0135_2026-11-27](../research/OWUI_0135_2026-11-27.md)). The pin stays
+0.13.3 until a release starts on Windows. The move of the Blender tools works on 0.13.3 and does not wait.
 
 - **Step 1:** `configBridge.ts` `toolServerConnections` (the Computer's entry, then Blender's) and `setBlenderTools`.
   mcpo's port is chosen before Open WebUI's first start and kept for the app's run (`mcpoSupervisor.ts` `reservePort`,

@@ -45,7 +45,7 @@ file stays the whole list.
 ## 1. Now
 
 - **The farm keeps its panel and beacon ports when its own boot starts WSL** ([WSL_PORTS_PLAN](WSL_PORTS_PLAN.md), night n° 17, 2026-11-26): on the PRO 6000 (WSL in mirrored networking) a cold WSL boot reserves 40525–44620, which holds the farm's 41997 and 41998, and `lol up` starts WSL before it binds them; reproduced by the lifecycle suite and two cold boots, not seen in production's three boots. **Approved by the owner 2026-11-26** (summary n° 17, question 1: "yes"): the next session's objective. **S**.
-- **The Blender tools through Open WebUI's env** ([BLENDER_TOOLS_ENV_PLAN](BLENDER_TOOLS_ENV_PLAN.md), **approved by the owner 2026-11-26**, summary n° 17 question 2): `TOOL_SERVER_CONNECTIONS` (env, as the Computer's), so Open WebUI can move to 0.13.5 without losing them; then the bump (the Open WebUI entry below). **S**. Client.
+- **The Blender tools through Open WebUI's env** ([BLENDER_TOOLS_ENV_PLAN](BLENDER_TOOLS_ENV_PLAN.md), **approved by the owner 2026-11-26**, summary n° 17 question 2): `TOOL_SERVER_CONNECTIONS` (env, as the Computer's), so Open WebUI can move to 0.13.5 without losing them; then the bump (the Open WebUI entry below). **S**. Client. **Built night n° 18 (2026-11-27), steps 1–3 and 5, unreleased:** run on a real 0.13.3 with a stand-in mcpo; HUMAN_TESTS A31. Step 4, the bump, blocked (0.13.5 does not start on Windows, below).
 - **Ternary Bonsai 2.5 27B as the llama.cpp default** ([BONSAI_DEFAULT_PLAN](BONSAI_DEFAULT_PLAN.md), night n° 17, **approved by the owner 2026-11-26**, question 3): measured against UD-IQ2_S on the farm's llama.cpp: the quality check 28 (three passes) against 24, one person 183 tok/s with its draft head against 110, the same size; a 12 GB card (the 4070) first. **S**. Farm only.
 - **The Classify box answered by the farm's vLLM** ([CLASSIFY_VLLM_PLAN](CLASSIFY_VLLM_PLAN.md), night n° 17, **approved by the owner 2026-11-26**, question 4): 73 % right against Laya's 59 % on 194 English and French headlines, 31 ms an item on the GPU, Laya kept for Ollama and llama.cpp. **S–M**.
 - **llama.cpp b12377 → b12751** ([TOOL_UPDATES_2026-11-26](../research/TOOL_UPDATES_2026-11-26.md), night n° 17, **approved by the owner 2026-11-26**, question 5, in the Farm app after farm-v0.0.56): two llama-server faults one request can reach (a malformed grammar hangs it, #32551; a bad `grammar_triggers` aborted it, #31478), Qwen3.8's recurrent state ~10× smaller (#31669); the same asset names. The pin and the Spark's CI build together, with the farm's suites. **Tried in scratch the same night:** UD-IQ2_S the same speed and quality, the cancel test passing on every path. **S**. A llama.cpp farm only (the class farm runs vLLM).
@@ -92,7 +92,10 @@ file stays the whole list.
   tools reach chats: they would vanish (TOOL_UPDATES_2026-11-20, corrected). The pin stays 0.13.3; the owner's
   question in n° 12's summary. **Unblocked 2026-11-26:** the owner approved BLENDER_TOOLS_ENV_PLAN and the move to
   **0.13.5** (summary n° 17, question 2: "yes"): that plan first, then the bump to 0.13.5, its smoke tests and
-  `owui_doc_check.sh` run again on it.
+  `owui_doc_check.sh` run again on it. **Blocked again, night n° 18 (2026-11-27): 0.13.5 does not start on Windows**
+  (`utils/machines/managed.py:48`, `mkdtemp(dir='/tmp')` at import; upstream `main` unchanged;
+  [OWUI_0135_2026-11-27](../research/OWUI_0135_2026-11-27.md)). The pin stays 0.13.3 until a release starts on Windows:
+  each session reads a new release's `managed.py` first. The Blender tools' move (that plan's steps 1–3) is built.
 - **LOL Vibe's page preview, code beside it** ([VIBE_PAGE_PLAN](VIBE_PAGE_PLAN.md), the owner's request of 2026-11-18,
   approved with its three choices): step 1 the side column (errors with block and line, the shared editor, live
   reload, edits kept with the thread), step 2 the pop-out window. **M**. Built by day, 2026-11-18; **released in client
