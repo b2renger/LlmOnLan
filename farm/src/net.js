@@ -1,6 +1,7 @@
 // Network helpers shared by the beacon, the self-endpoint, and status.
 
 const os = require('os');
+const net = require('net');
 
 // Container/VM/VPN bridges are NOT the LAN. On the DGX Spark, Docker's compose
 // bridge (172.22.0.1, iface `br-<hash>`) was non-internal, so the beacon also
@@ -80,4 +81,34 @@ function serviceHosts(proxyHost) {
     return { bind: h, probe: h, advertise: h, loopback: false };
 }
 
-module.exports = { ipv4Interfaces, lanAddresses, broadcastAddr, primaryAddress, isVirtualIfaceName, serviceHosts };
+// The panel's port, held from the start of `lol up` until the panel takes it (WSL_PORTS_PLAN). On Windows, WSL in
+// mirrored networking reserves a block of 4,096 ports while its VM runs (Linux's ephemeral range, chosen at the VM's
+// boot among the ports in use then: 40525–44620 or 37795–41890 on the PRO 6000), and the farm's first WSL call can be
+// that boot. A port held then is in use, so the block goes around it. A connection to the hold is reset at once: the
+// client fails fast, as before the panel existed, and no TIME_WAIT is left on the port the panel then listens on. The
+// hold never keeps the process alive.
+function holdPort(port, host) {
+    return new Promise((resolve) => {
+        const s = net.createServer((c) => c.resetAndDestroy());
+        s.once('error', (e) => resolve({ ok: false, code: e.code, release: async () => {} }));
+        s.listen(port, host, () => {
+            s.unref();
+            resolve({ ok: true, release: () => new Promise((r) => s.close(() => r())) });
+        });
+    });
+}
+
+// Whether a program answers a connection on that port, where the farm's own checks reach it (serviceHosts). A port
+// that cannot be bound while nothing answers is WSL's block (a connection there is refused in 1-2 ms, measured
+// 2026-11-27).
+function answers(port, host, ms = 1500) {
+    return new Promise((resolve) => {
+        const c = net.connect({ port, host: serviceHosts(host).probe });
+        const done = (v) => { c.destroy(); resolve(v); };
+        c.setTimeout(ms, () => done(false));
+        c.once('connect', () => done(true));
+        c.once('error', () => done(false));
+    });
+}
+
+module.exports = { ipv4Interfaces, lanAddresses, broadcastAddr, primaryAddress, isVirtualIfaceName, serviceHosts, holdPort, answers };

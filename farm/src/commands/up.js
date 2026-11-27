@@ -38,6 +38,7 @@ const presetsMod = require('../presets');
 const { sendKey: sendBusKey } = require('../bus');
 const { farmId, pluginKey } = require('../identity');
 const { startSelfServer } = require('../selfServer');
+const { holdPort, answers: portAnswers } = require('../net');
 const { createSeats, createGateStats, startSeatGate } = require('../seats');
 const {
     readRuntime, writeRuntime, clearRuntime, isAlive, killTree, spawnLitellm,
@@ -678,6 +679,13 @@ async function run(args) {
             if (pid && isAlive(pid)) { try { await killTree(pid); } catch { /* already gone */ } }
         }
         clearRuntime();
+    }
+
+    // The panel's port, held before anything below can call WSL (a stale vLLM's check, vLLM's probe), so a WSL VM
+    // this boot starts reserves its block of ports around it (net.holdPort, WSL_PORTS_PLAN); the panel takes it below.
+    const panelHold = await holdPort(config.beacon.httpPort, config.proxy.host);
+    if (!panelHold.ok && process.platform === 'win32' && !(await portAnswers(config.beacon.httpPort, config.proxy.host))) {
+        log.warn(`Port ${config.beacon.httpPort} (the admin panel and unicast discovery) cannot be opened, and no program answers on it: WSL holds a block of ports while it runs (mirrored networking). Quit the programs that use WSL, or restart the computer, then start the farm again.`);
     }
 
     // The job and download slots (makeJobs). They exist from the start; the beacon's kick is wired once it does.
@@ -2011,6 +2019,7 @@ async function run(args) {
         password: config.proxy.masterKey || null,
         keys: { extract: liveHealth.extractKey || null, classify: liveHealth.classifyKey || null, stt: liveHealth.sttKey || null, embed: liveHealth.embedKey || null },
     });
+    await panelHold.release();   // then the panel listens at once on the port the hold kept (no other step between)
     const selfServer = startSelfServer({ httpPort: config.beacon.httpPort, getSnapshot, host: config.proxy.host, control, adminToken, onClientPing, getPluginKeys });
     log.ok(`Unicast discovery → ${log.paint.grey(`http://<ip>:${config.beacon.httpPort}/lol/self`)}`);
     log.ok(`Admin panel → ${log.paint.grey(`http://<ip>:${config.beacon.httpPort}/lol/admin`)} ${log.paint.grey('(token in the startup banner)')}`);

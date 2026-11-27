@@ -288,6 +288,12 @@
     tied to the farm password** (2026-09-27): on an open farm the key rides the snapshot; with a password
     it is `null` there and a client holding the password fetches it from `GET /lol/plugin-keys`
     (`selfServer.js`; the client side is `farmSelect.ts` `applyPluginKeys` + `index.ts`).
+  - **The panel's port is held from `lol up`'s start** (`net.js` `holdPort`, released just before `startSelfServer`;
+    [WSL_PORTS_PLAN](../plans/WSL_PORTS_PLAN.md), built 2026-11-27): on Windows, WSL in mirrored networking reserves
+    4,096 ports while its VM runs, chosen at the VM's boot among the ports not in use then (40525–44620, 37795–41890,
+    36430–40525 seen on the PRO 6000), and the farm's first WSL call can be that boot. A port it cannot hold while
+    nothing answers there gets one line naming WSL and the cure. The beacon binds no fixed port (it sends *to* 41998
+    from an ephemeral one); only a coordinator's peer listener binds UDP 41998, at boot, not held.
   - Also: beacon group **`239.255.43.10:41998`** (+ httpPort `41997`), distinct from ComfyQ; coordinator mode;
     `lol fleet`/`lol bench`; `modelAlias` + the interactive picker in `lol up`; `lol install` (Ollama, the
     LiteLLM venv, `models` + `preinstall` — `gemma4:12b` for reading documents beside vLLM; a Qwen3.8-27B staged for

@@ -9,6 +9,37 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-27 (02:20) — WSL_PORTS_PLAN: `lol up` holds its panel's port before its first WSL call
+
+- **Reproduced first, on the old code** (a scratch farm: the fake Ollama on 11500, the Ollama engine with a `vllm.root`
+  set, so the stale-vLLM check at `up.js` ~788 is the boot's first WSL call; WSL's VM stopped first, no `vmmemWSL`).
+  The farm started at 02:08:55, its first WSL call booted the VM at 02:08:56, the VM's block was **37795–41890**, and the
+  panel on 41000 failed (`[self] HTTP server error on :41000 — listen EADDRINUSE`, no answer). A first run with the
+  panel on 41990 had passed: that boot also took 37795–41890, outside 41990.
+- **The block moves with what Windows holds at the VM's boot:** OneDrive listens on `::1:42050`, inside last night's
+  40525–44620, and tonight's boots went to 37795–41890 (as last night's while 41997 was held). A loopback listener
+  counts. A connection to a port in the block is refused in 1–2 ms (`ECONNREFUSED`, measured).
+- **The fix:**
+  - `net.js` `holdPort` listens on the panel's port, resets each connection at once (no TIME_WAIT left on the port) and
+    is `unref()`ed (a `lol up` that returns early still exits).
+  - `up.js` calls it right after the double-start check, before `detectHardware` and every `vllmMod` call, and awaits
+    its `release()` just before `startSelfServer`, with no other step between.
+  - A hold that fails while nothing answers there (`net.js` `answers`, probed where `serviceHosts` says) gets one line
+    on Windows naming WSL's block and a cure an operator can follow (quit the programs that use WSL, or restart the
+    computer), no command.
+- **After, the same cold boot** (02:16:40): the farm's first WSL call booted the VM at 02:16:41 onto **36430–40525**,
+  around the held 41000 and OneDrive's 42050; the panel on 41000 answered 200. The hold was on `127.0.0.1` (the scratch
+  config's `proxy.host`); last night's `0.0.0.0` holder on 41997 moved a block too, so both hosts are measured.
+- **The warning path:** with that VM still up, the panel on 40000 (inside the block): the line at the start, then the
+  old `EADDRINUSE` line; the farm ran on without its panel, as before.
+- **The plan's text corrected:** the farm's beacon binds no fixed port (`beacon.js` `socket.bind()`, an ephemeral port,
+  sending *to* 41998), so it is not exposed. Only a coordinator's peer listener binds UDP 41998 (at boot, not held),
+  and a **client** binds it to hear beacons (`discovery.ts:344`), which goes beside the client's 41995 under *Not proposed*.
+- Tests: `holdPort` (held, a second bind refused, three connections reset, the handoff at once, a port in use not held,
+  `answers` both ways, a process holding a port still exits) and the source order (the hold after the double-start
+  check, before the first `detectHardware()`, `vllmMod.status(`, `vllmMod.probe(`, `vllmMod.stop(`, `discoverPeers(`;
+  nothing awaited between the release and `startSelfServer`). The unit suite **296/296**.
+
 ## 2026-11-26 (03:21) — The final farm code under the Farm app's Electron 45; the PRO 6000's expat read
 
 - The advisor's last check: L7 and D-F4 changed `farm/` after the objective's 182/182 under Electron 45, and the Farm app

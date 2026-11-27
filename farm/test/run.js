@@ -847,6 +847,62 @@ test('broadcastAddr honors the netmask (/23 → .17.255)', () => {
     assert.equal(broadcastAddr('192.168.1.20', '255.255.255.0'), '192.168.1.255');
 });
 
+// WSL_PORTS_PLAN: the panel's port held from the start of `lol up`, so a WSL VM the boot starts reserves its block
+// around it; reproduced 2026-11-27 (a cold boot 1 s after `lol up` took 37795–41890: the panel on 41000 EADDRINUSE).
+test('holdPort keeps a port, resets each connection at once, and hands the port over at once (WSL_PORTS_PLAN)', async () => {
+    const net = require('net');
+    const { holdPort, answers } = require('../src/net');
+    const port = await new Promise((r) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
+    const open = [];   // closed whatever happens, so a failure does not keep the suite alive
+    const bind = () => new Promise((r) => { const s = net.createServer(); s.once('error', (e) => r({ code: e.code })); s.listen(port, '127.0.0.1', () => { open.push(s); r({ s }); }); });
+    const h = await holdPort(port, '127.0.0.1');
+    try {
+        assert.ok(h.ok, 'held');
+        assert.equal((await bind()).code, 'EADDRINUSE', 'nothing else binds it while it is held');
+        for (let i = 0; i < 3; i++) {
+            const end = await new Promise((r) => {
+                const c = net.connect(port, '127.0.0.1');
+                c.setTimeout(2000, () => { c.destroy(); r('timeout'); });
+                c.on('error', (e) => r(e.code)); c.on('close', () => r('closed'));
+            });
+            assert.notEqual(end, 'timeout', `a connection to the hold ends at once (${end})`);
+        }
+        await h.release();
+        const real = await bind();
+        assert.ok(real.s, `the real server listens at once after the release, connections reset before it (${real.code || 'ok'})`);
+        assert.equal(await answers(port, '127.0.0.1'), true, 'answers: a program listens');
+        const h2 = await holdPort(port, '127.0.0.1');
+        assert.ok(!h2.ok && h2.code === 'EADDRINUSE', `a port in use is not held, with its code (${h2.code})`);
+        await h2.release();
+        await new Promise((r) => real.s.close(r));
+        assert.equal(await answers(port, '0.0.0.0'), false, 'answers: nothing listens (a wildcard host is probed on loopback)');
+    } finally {
+        await h.release();
+        for (const s of open) { try { s.close(); } catch { /* closed */ } }
+    }
+    // The hold never keeps a process alive: a `lol up` that returns early still exits.
+    const { spawnSync } = require('child_process');
+    const r = spawnSync(process.execPath, ['-e', `require(${JSON.stringify(path.join(__dirname, '..', 'src', 'net'))}).holdPort(0, '127.0.0.1').then((h) => console.log(h.ok))`], { timeout: 5000, encoding: 'utf8' });
+    assert.equal(r.status, 0, `the process exits by itself (${r.error ? r.error.code : 'exit ' + r.status})`);
+    assert.equal(r.stdout.trim(), 'true');
+});
+
+test('lol up holds the panel\'s port before any WSL call and lets the panel take it with no wait between (WSL_PORTS_PLAN)', () => {
+    const up = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    const run = up.slice(up.indexOf('async function run(args)'));
+    const hold = run.indexOf('await holdPort(config.beacon.httpPort, config.proxy.host)');
+    assert.ok(hold > 0, 'the hold is in run()');
+    assert.ok(hold > run.indexOf('Farm already running'), 'after the double-start check (a running farm holds its own port)');
+    for (const first of ['detectHardware()', 'vllmMod.status(', 'vllmMod.probe(', 'vllmMod.stop(', 'discoverPeers(']) {
+        assert.ok(run.indexOf(first) > hold, `the hold comes before the first ${first}`);
+    }
+    const rel = run.indexOf('await panelHold.release();');
+    const self = run.indexOf('startSelfServer(');
+    assert.ok(rel > hold && rel < self, 'released just before the panel starts');
+    assert.ok(!run.slice(rel + 'await panelHold.release();'.length, self).includes('await '), 'no wait between the release and the listen');
+    assert.ok(run.includes('WSL holds a block of ports while it runs') && !/wsl --shutdown/.test(run.slice(hold, rel)), 'a refused hold names WSL, with a cure an operator can follow (no command)');
+});
+
 // ---- preinstall: installed but NOT served ----------------------------------
 // The invariant: a client must never be able to change what the farm is running.
 // Anything in `models` is a LiteLLM deployment and is advertised, so a client can
