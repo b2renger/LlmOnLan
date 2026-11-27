@@ -23,8 +23,20 @@
   was not run on b12774 tonight.
 - **The old `llama_batch` API deprecated** (#32306): a library change; the farm runs `llama-server`.
 - **For the approved bump (b12751, after farm-v0.0.56):** b12774 is 23 builds later, an official release, and carries
-  Inkling. Question 2 of summary n° 18. Either needs the same scratch checks as b12751 got (speed, quality, the cancel
-  test, the Spark's CI build).
+  Inkling. Question 2 of summary n° 18.
+- **b12774 given b12751's scratch checks** (04:36–04:39, no farm code; the farm's `binDir`, the running binary checked).
+  UD-IQ2_S, 4 slots sharing 64k:
+
+  | | b12774 | b12751 (2026-11-26) |
+  |---|---|---|
+  | the 28-item check | 25/28 | 26/28 (b12377: 24, 23) |
+  | one person | 109.5 tok/s, first token 1.05 s | 111.1 tok/s |
+  | four at once, each / in all | 55.9 / 210.6 | 56.6–49.4 / 211 |
+  | the card | 11.5–11.8 GB | 11.6 GB |
+
+  The farm's cancel test (`LOL_CANCEL_ENGINE=llamacpp`, b12774's llama-server) **PASS** on all four paths: a generation
+  released 16 to 990 ms after the abort. Within noise of b12751 on every line; the Spark's CI build is not tried (it
+  builds at the bump). Results: `results/n18-lcpp-b12774-qwen38-ud-iq2s__*`.
 
 Sources: `gh api repos/ggml-org/llama.cpp/releases/tags/v1.1.0` (body, assets, `target_commitish` 074f1f3f), `…/tags/b12774`
 (assets); `gh api repos/<repo>/releases?per_page=3` for the others.

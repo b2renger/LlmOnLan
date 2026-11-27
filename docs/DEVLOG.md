@@ -9,6 +9,15 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-27 (04:39) — llama.cpp b12774 given b12751's scratch checks (no farm code)
+
+- The same as 2026-11-26 02:58 for b12751: UD-IQ2_S, 4 slots sharing 64k, the farm's argv through a scratch farm with
+  `binDir` on b12774 (the running `llama-server.exe` checked by path).
+- The quality check **25/28**; one person **109.5 tok/s**; four at once 55.9 each, 210.6 in all; the card 11.5–11.8 GB.
+- `LOL_CANCEL_ENGINE=llamacpp node test/litellm-cancel.js` with b12774's llama-server: **PASS**, four paths, released
+  16–990 ms after the abort.
+- Within noise of b12751 on every line. Evidence for summary n° 18's question 2 ([TOOL_UPDATES_2026-11-27](research/TOOL_UPDATES_2026-11-27.md)).
+
 ## 2026-11-27 (04:34) — CLASSIFY_VLLM's harness scenario
 
 - `k17-classify-example-names-the-farm-model-that-answered`: the Classify example runs against the mock service
