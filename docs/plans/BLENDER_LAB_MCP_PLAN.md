@@ -53,19 +53,35 @@ for the screenshot tools.
    - Recommended: (b). The wheel's size is measured first (it carries Blender's API and manual as text).
    - **The owner chose (b), 2026-11-27 16:04.** How, for the build:
      - The wheel is built once from a clone of Lab's repository at `dbbf836` (`pip wheel --no-deps` of its `mcp/`).
-       `git ls-remote` reached the repository on 2026-11-27; the clone itself is not checked yet. If it is refused,
-       stop and ask.
+       - `git ls-remote` reached the repository on 2026-11-27; the clone itself is not checked yet.
+       - The site's web `raw/` route answers 403 to a script, but its API's raw route
+         (`/api/v1/repos/lab/blender_mcp/raw/<path>?ref=<commit>`) answered on 2026-11-27. Its archive route may too.
+       - If every route is refused, stop and ask.
      - The installer packs `shell/assets/**` (`electron-builder.yml`, `files`). The wheel goes there, committed, with
        Lab's licence file and a short note naming the repository and the commit. That is the GPL's source offer, and
        the wheel holds the Python source itself.
+     - **`assets/` lands inside `app.asar`.** The yml sets no `asar` or `asarUnpack`, so the default packs it.
+       Electron's own `fs` reads inside the archive; a spawned `pip` cannot.
+       - The fix: `asarUnpack` for the wheel (one line in the yml), with the path taken from `app.asar.unpacked`, or
+         a copy to the helper's folder before `pip install`.
+       - The unit test installs from the path the packaged app would use, not the repo's, so a pass in development
+         means a pass on a teacher's laptop.
      - If the wheel is too large to commit (above about 20 MB), stop and ask rather than choose another route.
      - The code pins the wheel's sha256 and installs it from that file. Its dependencies (`docutils`, `mcp[cli]`,
        `pyyaml`) still come from PyPI, as `mcpo`'s do today.
 2. **Point it at Blender.**
    - `BLENDER_MCP_HOST=127.0.0.1` and `BLENDER_MCP_PORT=<Preferences ▸ Blender port>`, in place of `BLENDER_PORT`.
-   - **`BLENDER_PATH` stays unset**, so the `_for_cli` tools fail with their own message.
+   - **The `_for_cli` tools stay off, whatever the laptop's PATH holds.**
      - Why: they run Python in a background Blender the person never opened, which would skip today's consent (Blender
        open, its server started, Online Access on).
+     - **Leaving `BLENDER_PATH` unset is not enough.** Lab's helper reads `os.environ.get("BLENDER_PATH", "blender")`
+       (`mcp/blmcp/tools_helpers/blender_cli.py:31-32` at `dbbf836`, read 2026-11-27). A laptop with Blender on its
+       PATH (winget, scoop, by hand) would run them.
+     - So, two layers:
+       - `BLENDER_PATH` is set to a path inside the helper's folder that never exists. The helper then raises its own
+         `RuntimeError` on `FileNotFoundError` (`blender_cli.py:78-81`), with no fallback.
+       - The tools are also kept out of the list the chat sees, if `mcpo` or Open WebUI's connection settings can
+         filter them (the same check as step 5's). If neither can, the first layer holds alone, and that is written down.
      - Turning them on would be a question for the owner, not a session's choice.
    - `DISABLE_TELEMETRY` stays harmless. Lab's server is read for any call outside the laptop before it is pinned (one
      pass over `mcp/blmcp/`).
@@ -85,14 +101,15 @@ for the screenshot tools.
    - **The screenshot tools: allowed by the owner, 2026-11-27 16:04**, with a privacy line. They send pixels of the
      person's Blender window to the farm's model. `docs/context/privacy.md` lists only the Computer's Image and Preview
      pixels today.
-   - **First, check that their picture reaches the model** through `mcpo` and Open WebUI 0.13.3 (a scratch Blender, a
-     screenshot tool call, the model asked what it sees).
-     - If it does: `privacy.md` gains its line in the commit that ships the tools, beside the Computer's pixels: *the
-       Blender tools, when switched on in Preferences: a screenshot of the person's own Blender window or one of its
-       areas, taken when the model calls the tool, sent with the request to the farm's model; kept only in the chat on
-       this computer*.
-     - If it does not reach the model: the tools are kept out of the chat. How (mcpo or Open WebUI's connection
-       settings) is checked then; if neither can, stop and ask. No privacy line is added, and that is written down.
+   - **First, check what the farm receives** after a screenshot tool call through `mcpo` and Open WebUI 0.13.3: a scratch
+     Blender, and the request read at the scratch farm's gate. The model's answer is not the test.
+     - **If the picture arrives as an image part** of the request: `privacy.md` gains its line in the commit that ships
+       the tools, beside the Computer's pixels: *the Blender tools, when switched on in Preferences: a screenshot of the
+       person's own Blender window or one of its areas, taken when the model calls the tool, sent with the request to
+       the farm's model; kept only in the chat on this computer*.
+     - **If it arrives in any other form**, base64 inside the tool's text for one: the pixels would still leave, and
+       would flood the context. The tools are kept out of the chat. How (mcpo or Open WebUI's connection settings) is
+       checked then; if neither can, stop and ask. No privacy line is added, and that is written down.
 
 Not changed: how the tools reach Open WebUI (BLENDER_TOOLS_ENV_PLAN's env entry), the helper's loopback bind and its
 key, the switch in Preferences, and the farm's *Recommend* for Blender.
@@ -101,7 +118,9 @@ key, the switch in Preferences, and the farm's *Recommend* for Blender.
 
 - **Unit:**
   - `mcpoSupervisor`'s environment carries `BLENDER_MCP_HOST` and `BLENDER_MCP_PORT`, and no `BLENDER_PORT`.
-  - The package list is pinned.
+  - Its `BLENDER_PATH` names a path that does not exist, even with a `blender` on the test's PATH. Where the tools
+    are filtered, no `_for_cli` tool is in the list.
+  - The package list is pinned, and the wheel is installed from the packaged app's path, its sha256 checked.
 - **Unit, the Test connection probe** against three stand-in sockets on loopback:
   - Lab's reply (zero-byte JSON);
   - the community add-on's (bare JSON to `execute`);

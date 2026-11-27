@@ -212,7 +212,7 @@ its date, before anything else, and commits it. An unanswered question's default
     file. Nothing is downloaded from Lab's site at a person's install.
   - **Lab's screenshot tools: allowed**, with a privacy line: pixels of the person's own Blender window (or one of its
     areas) go to the farm's model with the request, and nothing is kept but the chat on the person's computer.
-  - Not asked, so unchanged: the background-Blender `_for_cli` tools stay off (`BLENDER_PATH` unset).
+  - Not asked, so unchanged: the background-Blender `_for_cli` tools stay off.
 - **2026-11-27, the chat (14:22–14:23).** Blender (day question 4: **"yes"**): "I think we should use the 'official'
   blender lab MCP rather than the community one." The client's Blender tools move from the community `blender-mcp` and
   its BlenderMCP add-on to Blender Lab's MCP server and its **MCP** extension (Blender 5.1+), before the next release.

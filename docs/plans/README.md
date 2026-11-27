@@ -61,8 +61,10 @@ tested otherwise (HUMAN_TESTS J20, J21, A30, A31).
   - Blender 5.1 or later, with *Allow Online Access* on.
   - **The install route: a wheel** built once from Lab's commit, committed in `shell/assets/` with its GPL-3.0 licence
     and a source note, and installed from that file (the owner, 16:04). The plan is built whole.
-  - **Its screenshot tools: allowed** (the owner, 16:04), once a check shows their picture reaches the model.
-    `privacy.md`'s line goes in the same commit. Its background-Blender tools stay off (`BLENDER_PATH` unset).
+  - **Its screenshot tools: allowed** (the owner, 16:04), once the farm's gate shows the picture arriving as an image
+    part. `privacy.md`'s line goes in the same commit.
+  - Its background-Blender tools stay off, even with Blender on the PATH: `BLENDER_PATH` names a path that never
+    exists, and they are filtered out where the tool list allows. The wheel is unpacked from `app.asar` for pip.
   - **M**. Client.
 - **The panel says what a plugin downloads, and how far it has got**
   ([PLUGIN_PROGRESS_PLAN](PLUGIN_PROGRESS_PLAN.md), **approved by the owner 2026-11-27**, the owner's J21 request).
