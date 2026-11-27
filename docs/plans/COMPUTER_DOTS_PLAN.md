@@ -36,15 +36,18 @@ The boxes with more than one input are **Classify** (items, options, question), 
      its dot.
    - The measurement runs at render and resize only, never while panning: the pan budget's measured margins
      (`computer-look.css:131-135`) are not touched.
-   - Saved graphs are unaffected: a wire refers to its dot by name (`serialize.mjs:122`), not by position.
+   - Saved graphs are unaffected: a wire is saved as `{from, to, port}`, with the dot's name (`serialize.mjs:122`,
+     checked 2026-11-27), not its position.
+   - The examples and the Computer's MCP name the dots too (*"Classify's question port"*, `examples/think.mjs:107`;
+     `mcp-tools.mjs:56`), never their position.
 2. **Each row says which dot it is.**
    - On Classify, Filter and Code, every row a dot fills starts with the dot's name in small type: *items*,
      *question*, *options*; *items*, *criterion*; *inputs*, *code*.
    - Classify and Filter gain a first row for **items**, the input that has no field: *items — wire a list, or lines
      of text, here*. Once a run has read them, it becomes *5 items, from "Text"*.
    - The order of `inputs` follows the rows: Classify becomes `items`, `question`, `options`.
-   - A wire dropped on the box's body still lands on `items` first (`bodyDropPort`, `canvas.mjs:329-343`, takes the
-     first free input that accepts it).
+   - A wire dropped on the box's body still lands on `items` first: `bodyDropPort` (`canvas.mjs:329-343`, checked)
+     takes the first free input, in order, that accepts it.
 3. **A field that a wire replaces says so.**
    - While its dot is wired, the field is read-only, dimmed, and reads *From the wire: "<the source box's name>"*.
    - What was typed stays underneath and comes back when the wire is unplugged.
@@ -76,10 +79,10 @@ The boxes with more than one input are **Classify** (items, options, question), 
   - Hovering a dot shows its name.
 - **Harness, kept:** `k4-shots` (the glyph map) and `k8-input-canvas` (dots move with the box's height) pass,
   adjusted only where they pinned the old even spacing for these three boxes.
-- **HUMAN_TESTS K19**, 5 minutes: the owner's J21 graph built again from nothing, without being told which dot is
-  which.
+- **HUMAN_TESTS A32** (a client test, beside A10, the Computer's), 5 minutes: the owner's J21 graph built again from
+  nothing, without being told which dot is which.
 
 ## Done when
 
-The tests above pass, `test:chat` and the full harness are whole, the lessons are checked, K19 is written, and the
+The tests above pass, `test:chat` and the full harness are whole, the lessons are checked, A32 is written, and the
 plan's built section names the build the owner tests.

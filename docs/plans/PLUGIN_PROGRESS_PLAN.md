@@ -36,6 +36,8 @@ use it through `runJob` / `runDownload` (`up.js:363-393`). The plugins do not.
    - `setPlugin(id, true)` checks `svc.installed(config)`. If it is not installed, the work runs in
      `runJob('plugin', 'Turning on <label>', …)`, and the request returns at once with `{ok, started, job}`.
    - The panel shows the job bar it already draws, and the button reads *Installing…* until the job ends.
+   - The *Enabled …* toast moves from the reply (`pluginAct`, `index.html:1801`) to the job's end, since the reply now
+     comes back at once.
    - An installed plugin turns on as today, in seconds, and turning one off is unchanged.
    - The job takes the farm's one job slot. That is right, since an install and an engine switch should not run
      together: `busy()` refuses the second, as it does today.
@@ -53,6 +55,8 @@ use it through `runJob` / `runDownload` (`up.js:363-393`). The plugins do not.
    `huggingface_hub.snapshot_download` with the cache the service uses (`storage.js`: the farm's model folder, else
    the shared cache), so the bar covers them. The first start then only loads them (13.7 s on the dev box's CPU). The
    same applies to Speech to text's Whisper model where its install already fetches it (`stt.modelOnDisk`).
+   - `classify.installed()` then also checks that the weights are on disk, as Speech to text's does. Otherwise a farm
+     with the venv but no weights would skip the job and download silently again.
 4. **The end says what happened.**
    - On success: *Classify up — the Computer's Classify box works on this farm* (the plugin's own health line), and
      the toast as today.
@@ -80,6 +84,8 @@ Not changed:
   step, written in the DEVLOG.
 - **HUMAN_TESTS J22**, the PRO 6000, about 5 minutes:
   - Turn on a plugin that has never been installed there (*Speech to text*, off today).
+  - It may run on the card beside the live vLLM, as the panel's row says; note which, since the bar is the same either
+    way.
   - Expected: the job bar names each step, the bytes grow towards the total, it ends with the plugin's *up* line, and
     chats go on meanwhile.
 

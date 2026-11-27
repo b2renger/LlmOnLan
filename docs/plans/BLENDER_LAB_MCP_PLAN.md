@@ -4,8 +4,11 @@
 - Day question 4, "yes", the chat 14:23.
 - The owner's words, 14:22: "I think we should use the 'official' blender lab MCP rather than the community one".
 - The timing, 14:23: "We should do all that before releasing new farm and new client".
-- The design below is the session's. **Step 1's install route is a question for the owner** (it ships GPL code, or
-  depends on a download a script may be refused). The rest may be built once it is answered.
+- The design below is the session's. **Two questions for the owner come first:**
+  - Step 1's install route: it either ships GPL code, or depends on a download that may refuse a script.
+  - Step 5's screenshot tools: they send pixels of the person's Blender window to the farm, which needs a privacy line.
+- The plan is built **whole, once the install route is answered**: Lab's env and probe beside the community server
+  would leave `main` half-switched.
 
 Size **M**. The client only: `shell/src/main/mcpoSupervisor.ts`, the Test connection in `shell/src/main/index.ts`, the
 Preferences text, GETTING_STARTED and the README.
@@ -50,8 +53,10 @@ Preferences text, GETTING_STARTED and the README.
    - Recommended: (b). The wheel's size is measured first (it carries Blender's API and manual as text).
 2. **Point it at Blender.**
    - `BLENDER_MCP_HOST=127.0.0.1` and `BLENDER_MCP_PORT=<Preferences ▸ Blender port>`, in place of `BLENDER_PORT`.
-   - `BLENDER_PATH` set to the `blender.exe` found in the usual places (`Program Files\Blender Foundation\*`), else left
-     unset, so the background tools fail with their own message.
+   - **`BLENDER_PATH` stays unset**, so the `_for_cli` tools fail with their own message.
+     - Why: they run Python in a background Blender the person never opened, which would skip today's consent (Blender
+       open, its server started, Online Access on).
+     - Turning them on would be a question for the owner, not a session's choice.
    - `DISABLE_TELEMETRY` stays harmless. Lab's server is read for any call outside the laptop before it is pinned (one
      pass over `mcp/blmcp/`).
 3. **Test connection speaks to the add-on.**
@@ -60,13 +65,18 @@ Preferences text, GETTING_STARTED and the README.
    - Anything else names what it found: *the community BlenderMCP add-on (LlmOnLan now uses Blender's own MCP
      extension)*, *something else on port 9876*, or *nothing listening*.
    - This replaces the port-only check (`index.ts:1057`), the bug the owner's A31 reproduced.
-4. **The words.** The Preferences hint, GETTING_STARTED ▸ *Control Blender from the chat* and the README now say:
+4. **The words.** This replaces the hint written on 2026-11-27 (`5932690`, "not Blender's own MCP extension"), which
+   the owner's decision reverses. The Preferences hint, GETTING_STARTED ▸ *Control Blender from the chat* and the
+   README now say:
    - Blender **5.1 or later**; *Edit ▸ Preferences ▸ Get Extensions*, search **MCP** (Blender Lab), install;
      *System ▸ Network ▸ Allow Online Access* on (the extension asks for it); its server starts by itself.
    - What is lost: Blender before 5.1 is no longer supported.
 5. **Tools Open WebUI shows.** Lab's tools replace the community ones in the chat's list (the server's own names).
-   - Whether a screenshot tool's image reaches the model through `mcpo` and Open WebUI 0.13.3 is checked at the build.
-   - If the image does not come through, the tool stays and its result is text, and that is written down.
+   - **The screenshot tools wait for a privacy line and the owner's yes.** They would send pixels of the person's
+     Blender window to the farm's model. `docs/context/privacy.md` lists only the Computer's Image and Preview pixels.
+   - Until then they are kept out of the chat. How (mcpo or Open WebUI's connection settings) is checked at the build;
+     if neither can, the plan stops and asks.
+   - Whether their image reaches the model through `mcpo` and Open WebUI 0.13.3 is checked once they are allowed.
 
 Not changed: how the tools reach Open WebUI (BLENDER_TOOLS_ENV_PLAN's env entry), the helper's loopback bind and its
 key, the switch in Preferences, and the farm's *Recommend* for Blender.
@@ -82,14 +92,18 @@ key, the switch in Preferences, and the farm's *Recommend* for Blender.
   - a port that accepts and says nothing.
 
   Each gives its sentence.
-- **On the PRO 6000, without a person:** Blender 5.1.1 with the extension is installed here. The session may start a
-  Blender of its own (a background `blender.exe` with the extension's server; never the owner's open Blender, and
-  only if Blender allows a second instance with the add-on), wrap Lab's server in `mcpo` as the client does, list the
-  tools, and run `execute_blender_code` with *add a cube*.
+- **On the PRO 6000, without a person:**
+  - **A scratch Blender:** the session starts a Blender of its own, with a scratch user profile (its own config and
+    extensions folders, the extension installed there from the repo's `addon/` at the pinned commit) and another
+    port.
+  - **Never the owner's:** not the owner's Blender, profile or port 9876.
+  - **The check:** wrap Lab's server in `mcpo` as the client does, list the tools, and run `execute_blender_code`
+    with *add a cube*.
+  - If a scratch profile cannot start the extension's server, that is written down, and the check waits for A31.
 - **HUMAN_TESTS A31 rewritten** for the extension, about 10 minutes:
   - Get Extensions ▸ MCP, Allow Online Access, Test connection: *Blender's MCP extension ✓*.
   - *Add a red cube and a sun lamp*: both appear.
-  - A screenshot tool: the model describes the viewport, or the plan says why not.
+  - The screenshot tools: only once the owner allowed them (step 5).
 
 ## Done when
 

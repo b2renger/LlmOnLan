@@ -59,7 +59,9 @@ farm and new client"). Farm-v0.0.56 and client v0.2.22 are built and tested othe
     A31 reproduced).
   - Blender 5.1 or later, with *Allow Online Access* on.
   - **Step 1's install route is a question for the owner:** a wheel shipped with the client (GPL-3.0), or Lab's
-    archive, which answered 403 to a script.
+    archive, which answered 403 to a script. The plan is built whole once it is answered.
+  - Its screenshot tools stay out of the chat until the owner allows them, with a privacy line. Its background-Blender
+    tools stay off (`BLENDER_PATH` unset).
   - **M**. Client.
 - **The panel says what a plugin downloads, and how far it has got**
   ([PLUGIN_PROGRESS_PLAN](PLUGIN_PROGRESS_PLAN.md), **approved by the owner 2026-11-27**, the owner's J21 request).
