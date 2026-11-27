@@ -437,6 +437,10 @@ update arriving on v0.2.20, serves as well; on it, About reads 0.2.21.
 `4aca681`; it also carries Preferences' *Bring over 1 remaining chat first*, D-U2): the kept tokens moved to `safeStorage`'s async API (the sync one goes in Electron 46). Install it over
 v0.2.21 and do **step 4** (and 5): a GitHub token or Home Assistant link saved on v0.2.21 still connects without typing it
 again; About reads 0.2.21+n17. Measured without a person on Windows, both ways (DEVLOG 2026-11-26 00:21); not on a Mac.
+**For the morning of 2026-11-27, the local build `0.2.21+n18`** (`shell\dist\LlmOnLan-Setup-0.2.21+n18-windows-x64.exe`,
+04:13, `05d553e`) replaces `+n17`. It carries n° 17's client work and the night's: the Blender tools by Open WebUI's
+env (A31), the Classify box naming who answered (J21), and the boot's crash recovery leaving a first message alone. Do
+**step 4** (and 5) on it; About reads 0.2.21+n18.
 *Expect:* About reads 0.2.20+n16 on the local build (the build's own stamp, `app.getVersion()`; the updater reads 0.2.20), 0.2.21 on the release; everything as on v0.2.20: the old chats, an answer,
 the Preview and its window, the saved tokens read; the second start as quick as before. Note anything that differs.
 - [ ] Done · Found:

@@ -20,6 +20,10 @@ commit so the history records that a feature was tested + documented before it w
   (`2 !== 1`) and passes on the fix. The harness scenario's wait (03:21) is taken out: `p1-errors` **6/6** on the fixed
   product. `test:chat` **1994** (1 skipped), lint 0, `test/unit.js` 35.
 - The client installer was repackaged (04:13), carrying it.
+- **The in-app text, to the code (04:15):** the palette's Classify line and the Classify example's *what* said Laya
+  answers; they now say the farm answers, with Laya or with its own model when its vLLM serves Qwen3.6 or Qwen3.8. The
+  Agent's *ask Laya* tool and the *Write a Laya question* preset keep their names. The examples and palette tests pass (6, 30),
+  and lint is 0.
 
 ## 2026-11-27 (04:10) — Inkling 2 Mini on llama.cpp v1.1.0 (plans ▸ Next 20); the pinned tools' releases
 

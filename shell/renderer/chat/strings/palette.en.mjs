@@ -25,7 +25,7 @@ registerStrings('palette', {
   descFile: 'Writes what arrives into a file in this graph’s own folder (LOL Studio Projects, in your data folder).',
   descSend: 'Sends what arrives to a device — OSC, DMX over Art-Net, MQTT, WebSocket, HTTP, USB serial or the farm’s message bus. A dry run until you arm the outputs in the run bar.',
   descSpeak: 'Says what arrives out loud — with this computer’s own voice (offline) or the farm’s voice — and passes the same text on.',
-  descClassify: 'Laya on the farm answers one multiple-choice question for every item of a list, and says how sure it is. Fast, and it does not use up the Cap; the items it is unsure of are marked for a model or a person to check.',
+  descClassify: 'The farm answers one multiple-choice question for every item of a list (with Laya, or with its own model when its vLLM serves Qwen3.6 or Qwen3.8), and says how sure it is. Fast, and it does not use up the Cap; the items it is unsure of are marked for a model or a person to check.',
   descReceive: 'What a board says over USB, or what arrives on the farm’s message bus: the latest message, or every new one. JSON flows on as data.',
   descTrigger: 'Starts a run by itself: on a message on the farm’s bus, or every few seconds. Only while the outputs are armed and the Computer is on screen.',
   descFetch: 'Reads a web address you type (an open API or a page) and hands on its JSON or text. Only that request leaves this computer.',

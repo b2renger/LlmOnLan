@@ -126,7 +126,7 @@ export const THINK = [
     key: 'classify',
     title: 'Classify',
     needsFarm: 'one with the Classify (Laya) plugin, off by default; without it every item comes out unsure and nothing is sent.',
-    what: 'Asks Laya, the farm\'s fast decision model, ONE multiple-choice question about every item of a list, with a confidence. One quick pass per item: not a generation, no seat.',
+    what: 'Asks the farm ONE multiple-choice question about every item of a list, with a confidence: Laya, its fast decision model, answers, or its own model when its vLLM serves Qwen3.6 or Qwen3.8 (the box says which). One quick pass per item: not a generation, no seat.',
     inputs: [
       ['items', 'a list, an object holding a list, or lines of text (200 at most)'],
       ['options', 'the choices, one per line, 2 to 20 (or type them in the box)'],
