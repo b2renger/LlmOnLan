@@ -1784,6 +1784,39 @@ scratch farm, while the client harness drew on the card, gave +488, +841 and +95
 1,536 → 1,345 MiB). Sized as a 12 GB card with the term (the farm's `auto`, `gpuReserveGb` 84): 4,096 tokens, 8.6 GB on
 the card inside a 9.1 GB budget. One model, one build; a 4070 itself is HUMAN_TESTS K18.
 
+# Inkling 2 Mini on llama.cpp (RTX PRO 6000, 2026-11-27, night n° 18)
+
+plans ▸ Next 20, the owner's "wait for official support in either of the backends we have": llama.cpp **v1.1.0**
+(2026-11-26, its build `b12774`) adds the Inkling 2 family. vLLM 0.34.1 is still not on PyPI.
+
+- **Setup:** `unsloth/Inkling-2-Mini-GGUF` UD-Q4_K_XL, 17.63 GB, sha256 `e6427665…` as published; the 4-bit quant,
+  since the ask is to replace Qwen3.6 or Qwen3.8, which the class farm serves at 4 bits. The farm's arguments through a
+  scratch farm on b12774 (`llamacpp.binDir`), 4 slots sharing 64k (as the Bonsai runs), a q4_0 cache, no vision file,
+  no draft. Thinking asked off with `reasoning_effort: "none"` (the research note's switch), which **did not** turn it
+  off (below).
+- **On the card:** 25.5 GB (64k shared by 4); 46.3 GB with 256k shared, a first try.
+
+| | Inkling 2 Mini UD-Q4_K_XL (b12774) | Qwen3.8 UD-IQ2_S, the default (b12377) | Bonsai Q2_0, draft on (b12377) |
+|---|---|---|---|
+| the 28-item check | **28/28** (code 10, exact 7, tools 11), 110 s | 24, 23 (2026-11-26) | 28 ×3 |
+| one person: tok/s (first token) | 89.4 (1.55 s on a 3.3k prompt) | 109.7 (1.06 s) | 183.2 (1.03 s) |
+| four at once: tok/s each, first token p95 | 36 (p10 25.5), 8.7 s: the bar passes 1 person | — | — |
+| French, 5 classroom prompts (`fr_probe.py`) | all French, no English, no other script; tool call right | all French, no English; tool call right | — |
+| thinking off | **not possible**: 198–310 chars of reasoning whatever the request | yes (`enable_thinking: false`, 0 chars) | yes |
+
+- **The thinking switch:** on a two-number sum, four requests (`chat_template_kwargs.reasoning_effort: "none"`, a
+  top-level `reasoning_effort`, `enable_thinking: false`, nothing) all returned 198–310 characters of reasoning, so
+  LOL Vibe's think switch would do nothing. The quality check's 15,438 completion tokens and the French answers' 650–3,066
+  reasoning characters include it.
+- **Not measured:** the coding agent's tasks, people per card at 128k and 64k (the plan's question, for vLLM: no release
+  yet), vision, the DSpark draft head (`dspark-Inkling-2-Mini-Q8_0.gguf`), and the 2-bit quants for 12 GB cards.
+  French quality was read by its language only; the answers are kept in `results/` for a person to judge.
+
+**Verdict: not a replacement on llama.cpp.** Its answers match the best (28/28; French fine), but at 4 bits it is
+slower than the 2-bit defaults, it fills the farm's bar at one person, and its thinking cannot be turned off. For the
+class farm it needs vLLM (0.34.1), the night one is on PyPI. Results:
+`results/n18-lcpp-b12774-inkling2mini-ud-q4kxl__*` and `results/n18-lcpp-b12377-qwen38-ud-iq2s__fr_probe.json`.
+
 # Classify: vLLM's decision endpoint against Laya (RTX PRO 6000, 2026-11-26)
 
 Plans ▸ Next 22 (the owner, 2026-11-25 19:05), [research note](../research/VLLM_DECISIONS_2026-11-25.md). **The set:** 194

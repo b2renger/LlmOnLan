@@ -9,6 +9,24 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-27 (04:10) — Inkling 2 Mini on llama.cpp v1.1.0 (plans ▸ Next 20); the pinned tools' releases
+
+- **llama.cpp v1.1.0** (2026-11-26, build b12774, an official release) adds the Inkling 2 family, so Next 20's
+  condition is met on llama.cpp ([TOOL_UPDATES_2026-11-27](research/TOOL_UPDATES_2026-11-27.md)). b12774 ran from a
+  scratch `binDir`; no farm code changed.
+- **Inkling 2 Mini UD-Q4_K_XL** (17.63 GB, sha256 as published), 4 slots sharing 64k:
+  - the 28-item check **28/28**;
+  - one person 89.4 tok/s, four at once 36 tok/s each (first token p95 8.7 s, so the bar passes one person);
+  - five French classroom prompts all answered in French, and the tool call right;
+  - its thinking **cannot be turned off** (four request forms, 198–310 characters of reasoning each);
+  - 25.5 GB on the card.
+
+  The default UD-IQ2_S on the French probe: all French too, no reasoning. RESULTS ▸ *Inkling 2 Mini on llama.cpp*.
+- **The first run was invalid** and was dropped: the script measured before the gate listed a model (0/28 with
+  `model=None`). Its file was removed. TaskStop stopped the wrapper but not the script, which went on to start the
+  next farm. Its processes were then killed by name and the farm stopped, the card back at 1.2 GB.
+- `fr_probe.py` takes `--base-url` (it only spoke to vLLM's socket).
+
 ## 2026-11-27 (03:56) — The draft's memory grows by slot: the term corrected; the class rehearsal
 
 - **My 03:25 check was wrong:** the night before's "+1.9 GB at 4 × 64k" was 4 slots sharing one 64k pool

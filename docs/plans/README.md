@@ -402,7 +402,12 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
     that unblocks this is likely 0.34.1, not 0.35; it is not on PyPI yet (0.34.0 is). Ollama 0.40.18-rc0 still runs
     Inkling on Metal only; llama.cpp #32187 and #32695 are still open. `~/lol-vllm-nightly` holds part of the checkpoint. **2026-11-25:** **Raon-1-mini** (KRAFTON, 28.8B / 4.3B active,
     Apache-2.0, coding claims; [MODELS_2026-11-25](../research/MODELS_2026-11-25.md)) joins this rule: no vLLM release
-    serves its architecture yet (0.34.0 checked); measured the night one does.
+    serves its architecture yet (0.34.0 checked); measured the night one does. **2026-11-27 (night n° 18): llama.cpp
+    v1.1.0** (2026-11-26, its build `b12774`, an official release) adds the Inkling 2 family, Mini included, and
+    RAON-1-mini: the condition is met on llama.cpp. vLLM 0.34.1 is still not on PyPI. Measured the same night on a
+    scratch llama.cpp farm (RESULTS ▸ *Inkling 2 Mini on llama.cpp*): UD-Q4_K_XL 28/28, French fine, but 89 tok/s
+    for one person, the bar passing one person at once, and its thinking cannot be turned off on llama.cpp: not a
+    replacement there. **Still waits** for vLLM 0.34.1 (the class farm's engine), as the plan says.
 21. **Measure Ternary Bonsai 2.5 27B against the llama.cpp default** (the owner, 2026-11-25 18:51: "yes after tonight
     objective"; [MODELS_2026-11-25](../research/MODELS_2026-11-25.md) ▸ *Ternary Bonsai 2.5*). PrismML's Qwen3.8 27B in
     ternary weights; its `Q2_0` file (7.67 GB, `-mtp` 7.91 GB with the draft head) runs on stock llama.cpp since b11556
