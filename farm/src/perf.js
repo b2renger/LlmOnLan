@@ -193,12 +193,14 @@ const OVERHEAD_GB = 1.0;   // llama.cpp compute buffers + CUDA context
 const MARGIN_GB = 0.4;     // desktop / driver headroom — the difference between
                            // "fits on paper" and "fits with a browser open"
 // The draft head's own context when `mtp` is on (llama-server's `--spec-type draft-mtp`), uncounted before 2026-11-27
-// (BONSAI_DEFAULT_PLAN step 3). Measured that night on Ternary Bonsai 2.5 27B Q2_0-mtp, llama.cpp b12377, one person,
-// the card's memory with the draft on less off: +746 MiB at 16k, +956 at 64k, +1,276 at 128k, about 0.7 GB fixed and
-// 0.08 GB per 16k of context (rounded up; it also gives the night before's +1.9 GB at 4 × 64k).
+// (BONSAI_DEFAULT_PLAN step 3). Measured that night on Ternary Bonsai 2.5 27B Q2_0-mtp, llama.cpp b12377, the farm's
+// arguments (`--kv-unified`, a q4_0 cache), the card's memory with the draft on less off: one slot +746 MiB at 16k, +956
+// at 64k, +1,276 at 128k; at 64k, 2 slots +1,254, 4 slots +1,852. So about 0.39 GB, plus 0.31 GB a slot, plus 0.079 GB
+// per 16k of the shared context (all six within 20 MiB; rounded up below).
 // ponytail: one measured model stands for every MTP quant (the library's other MTP entry, UD-Q2_K_XL, is the same 27B
 // family); the upgrade path is the draft's layers read from the GGUF header, as `kvRate` is.
-const DRAFT_FIXED_GB = 0.7;
+const DRAFT_FIXED_GB = 0.4;
+const DRAFT_GB_PER_SLOT = 0.32;
 const DRAFT_GB_PER_16K = 0.08;
 
 // Estimate the VRAM a llama.cpp shape needs, and the largest context that fits.
@@ -211,13 +213,13 @@ const DRAFT_GB_PER_16K = 0.08;
 // Returns { needGb, budgetGb, maxContext, fits, usableGb } — maxContext in 4096 steps,
 // ≥ 4096 whenever the weights themselves fit (a model too big for ANY context reports
 // maxContext 0); usableGb is the VRAM it budgeted against.
-function fitBudget({ vramGb, freeGb = null, reserveGb = 0, weightsGb, mmprojGb = 0, kvCacheType = 'q4_0', contextLength = 16384, kvRate = null, mtp = false }) {
+function fitBudget({ vramGb, freeGb = null, reserveGb = 0, weightsGb, mmprojGb = 0, kvCacheType = 'q4_0', contextLength = 16384, kvRate = null, mtp = false, slots = 1 }) {
     // `kvRate` (GB per 16k) computed from the model's OWN header (gguf.js) beats
     // the table — the table is the shipped model's measurement, wrong for models
     // an operator adds by URL.
     const rate = kvRate || KV_GB_PER_16K[kvCacheType] || KV_GB_PER_16K.f16;
-    // The draft head (mtp): a fixed part, and its own context, which grows with the model's.
-    const draftFixed = mtp ? DRAFT_FIXED_GB : 0;
+    // The draft head (mtp): a fixed part, a part per slot (people at once), and its own context, which grows with the model's.
+    const draftFixed = mtp ? DRAFT_FIXED_GB + DRAFT_GB_PER_SLOT * Math.max(1, slots || 1) : 0;
     const perToken = rate + (mtp ? DRAFT_GB_PER_16K : 0);
     const kvGb = (contextLength / 16384) * perToken;
     const needGb = round1((weightsGb || 0) + (mmprojGb || 0) + OVERHEAD_GB + draftFixed + kvGb);
@@ -278,6 +280,6 @@ function makeClockWatch() {
 module.exports = {
     parsePrometheus, metricsSample, sampleRates,
     vllmSample, metricsUrlFor, poolShortfall,
-    fitBudget, KV_GB_PER_16K, OVERHEAD_GB, MARGIN_GB, DRAFT_FIXED_GB, DRAFT_GB_PER_16K,
+    fitBudget, KV_GB_PER_16K, OVERHEAD_GB, MARGIN_GB, DRAFT_FIXED_GB, DRAFT_GB_PER_SLOT, DRAFT_GB_PER_16K,
     shouldEvictOllama, makeClockWatch,
 };

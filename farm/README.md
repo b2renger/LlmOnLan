@@ -934,7 +934,8 @@ The library ships with five: the three 12 GB-class Qwen3.8-27B quants measured h
 (Q2_0 with its MTP head, the same size as the default; better answers and faster for one person on the PRO 6000,
 2026-11-26; not yet tried on a 12 GB card, so not the default), plus an NVFP4+MTP build for Blackwell cards
 (16 GB+), so you can switch between them without hunting for URLs. With `llamacpp.mtp` on, the farm counts the draft
-head's own memory when it sizes the context (about 0.7 GB, plus 0.08 GB per 16k; measured on Bonsai, 2026-11-27).
+head's own memory when it sizes the context (about 0.4 GB, plus 0.32 GB for each person at once, plus 0.08 GB per
+16k of context; measured on Bonsai, 2026-11-27).
 
 If the new weights fail to load — a wrong URL, a file that isn't a GGUF, something too big for the card —
 **the farm rolls back to the model that was working** and tells you why. It will not leave you with a

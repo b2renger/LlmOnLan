@@ -8,7 +8,7 @@ kept whole for a person to read; then one tool call through the server's tool pa
 
 Writes docs/spike/results/<label>__fr_probe.json. Standard library only.
 """
-import argparse, http.client, json, os, re, socket, time
+import argparse, http.client, json, os, re, socket, time, urllib.error, urllib.request
 
 PROMPTS = [
     "Explique simplement à des élèves de quatrième ce qu'est la photosynthèse, en cinq phrases.",
@@ -34,6 +34,15 @@ class UDSConnection(http.client.HTTPConnection):
 
 
 def post(uds, body):
+    # A farm's gate or llama-server over HTTP (--base-url, 2026-11-27: Inkling 2 Mini on llama.cpp) or vLLM's socket.
+    if uds.startswith("http"):
+        req = urllib.request.Request(uds.rstrip("/") + "/chat/completions", json.dumps(body).encode("utf-8"),
+                                     {"content-type": "application/json", "authorization": "Bearer sk-spike"})
+        try:
+            with urllib.request.urlopen(req, timeout=900) as r:
+                return json.loads(r.read() or b"{}")
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(f"HTTP {e.code}: {e.read()[:400]!r}")
     c = UDSConnection(uds)
     c.request("POST", "/v1/chat/completions", json.dumps(body), {"content-type": "application/json"})
     r = c.getresponse()
@@ -56,12 +65,16 @@ def language(text):
 
 def main():
     a = argparse.ArgumentParser()
-    a.add_argument("--uds", required=True)
+    a.add_argument("--uds", default=None)
+    a.add_argument("--base-url", default=None, help="an OpenAI base URL ending in /v1, instead of --uds")
     a.add_argument("--model", required=True)
     a.add_argument("--label", required=True)
     a.add_argument("--kwargs", default=None, help="chat_template_kwargs as JSON")
     a.add_argument("--max-tokens", type=int, default=4096)
     o = a.parse_args()
+    if not (o.uds or o.base_url):
+        a.error("give --uds or --base-url")
+    o.uds = o.base_url or o.uds
     kw = json.loads(o.kwargs) if o.kwargs else None
     out = {"label": o.label, "model": o.model, "chat_template_kwargs": kw, "at": time.strftime("%Y-%m-%d %H:%M"), "answers": []}
     for p in PROMPTS:

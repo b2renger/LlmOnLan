@@ -31,7 +31,7 @@
     `--mmap`, `--direct-io`, `--tensor-read-lazy` in `extraArgs`) serves ONE
     `.gguf` (`llamacpp.model`, default Unsloth Qwen3.8-27B-UD-IQ2_S) as `llamacpp.alias` (`assistant`).
     `contextLength: 'auto'` = min(native max, VRAM budget), both read from the real files (`gguf.js`).
-    With `llamacpp.mtp` on, the budget counts the draft head's own memory, about 0.7 GB plus 0.08 GB per 16k (`perf.js`
+    With `llamacpp.mtp` on, the budget counts the draft head's own memory, about 0.4 GB + 0.32 GB a slot + 0.08 GB per 16k (`perf.js`
     `DRAFT_*`, measured on Ternary Bonsai 2.5 27B 2026-11-27; BONSAI_DEFAULT_PLAN step 3). Bonsai is in the library,
     not the default (it waits on a 12 GB card's test).
     `kvUnified` (default true) = one KV pool shared by the `parallel` slots: a person alone gets the whole

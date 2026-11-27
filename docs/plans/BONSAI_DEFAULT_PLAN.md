@@ -38,14 +38,16 @@ same Qwen3.8 27B, Unsloth's 2-bit, 8.37 GB, its draft head stripped):
 
 ## Built (night n° 18, 2026-11-27, DEVLOG 03:25): step 3's sizing, step 1; the 4070 and step 2 wait
 
-- **Step 3, the draft in the farm's sizing:** `perf.js` `fitBudget({ …, mtp })` adds `DRAFT_FIXED_GB` 0.7 and
-  `DRAFT_GB_PER_16K` 0.08, measured that night. The measurement ran the pinned llama-server b12377 alone, Bonsai Q2_0-mtp,
-  one person, the card's memory with the draft on less off: **+746 MiB at 16k, +956 at 64k, +1,276 at 128k** (the main
-  context 23 MiB per 1k tokens). The term also gives the night before's +1.9 GB at 4 × 64k. `up.js` `computeFit` passes
-  `llamacpp.mtp`.
+- **Step 3, the draft in the farm's sizing:** `perf.js` `fitBudget({ …, mtp, slots })` adds `DRAFT_FIXED_GB` 0.4,
+  `DRAFT_GB_PER_SLOT` 0.32 and `DRAFT_GB_PER_16K` 0.08, measured that night. The pinned llama-server b12377 ran alone with
+  the farm's arguments, Bonsai Q2_0-mtp, the card's memory with the draft on less off:
+  - one slot: **+746 MiB at 16k, +956 at 64k, +1,276 at 128k**;
+  - at 64k: **2 slots +1,254, 4 slots +1,852**.
+  The night before's +1.9 GB was 4 slots sharing 64k (`--kv-unified`), not 4 × 64k. `up.js` `computeFit` passes
+  `llamacpp.mtp` and `llamacpp.parallel`.
   - Checked through a scratch farm sized as a 12 GB card (`gpuReserveGb` 84, `contextLength: 'auto'`, the draft on, no
     vision file): a 4,096-token context, **8.6 GB on the card inside the 9.1 GB budget**.
-  - Test: `farm/test/run.js` *fitBudget counts the draft head's own memory…* (the four measured points, a 12 GB card,
+  - Test: `farm/test/run.js` *fitBudget counts the draft head's own memory…* (the six measured points, a 12 GB card,
     off unchanged).
 - **Step 1, the library:** *Ternary Bonsai 2.5 27B · Q2_0* (the `-mtp` file and `mmproj-Q8_0`, both checked to exist,
   `mtp: true`), second, after the default. **Not the default** (step 2) until **HUMAN_TESTS K18**, the 4070 with its

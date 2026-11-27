@@ -9,12 +9,26 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-27 (03:56) — The draft's memory grows by slot: the term corrected; the class rehearsal
+
+- **My 03:25 check was wrong:** the night before's "+1.9 GB at 4 × 64k" was 4 slots sharing one 64k pool
+  (`--kv-unified`, `llamacpp.js`), not 262,144 tokens. The test encoded that reading.
+- **Measured, the same way, at 64k:** 1 slot +956, 2 slots +1,254, 4 slots +1,852 MiB, so about 299 MiB a slot. With
+  tonight's one-slot points: **0.39 GB + 0.31 GB a slot + 0.079 GB per 16k**, all six within 20 MiB.
+- **The fix:** `fitBudget({ …, slots })` (`DRAFT_FIXED_GB` 0.4, `DRAFT_GB_PER_SLOT` 0.32, `DRAFT_GB_PER_16K` 0.08), and
+  `computeFit` passes `llamacpp.parallel`. The test now checks the six points.
+- **The class rehearsal** (CLASS_REHEARSAL_PLAN step 4, `shell/` built 03:27, v0.2.21's own sidecar fetched again,
+  Open WebUI 0.13.3): 2 clients, 3 min, **0 farm moves, no *keeps exiting*, `sealHeard` []**; ready at 48.8 and 30.9 s,
+  first chats at 35.3 and 32.0 s. Slower than n° 17 (30.5 / 15.7, 19.8 / 16.6), as n° 16 (51.1 / 33.5);
+  `results/rehearsal-2026-11-270248-2c.json`.
+
 ## 2026-11-27 (03:25) — BONSAI_DEFAULT_PLAN: the draft head's memory measured and counted; Bonsai in the library; a harness flake
 
 - **The draft's memory, measured** (RESULTS ▸ Bonsai, the table): Bonsai Q2_0-mtp fetched again (7.91 GB, sha256
   `b0f83de8…` as the night before), then the pinned llama-server alone, one person, the draft on less off: +746 MiB at
-  16k, +956 at 64k, +1,276 at 128k. That is about 0.7 GB fixed plus 0.08 GB per 16k, and it matches the night before's
-  +1.9 GB at 4 × 64k. A first pass through a scratch farm while the harness ran was too noisy to use.
+  16k, +956 at 64k, +1,276 at 128k. ~~That is about 0.7 GB fixed plus 0.08 GB per 16k, and it matches the night
+  before's +1.9 GB at 4 × 64k.~~ **Corrected 03:56:** that run had 4 slots sharing 64k, and the draft grows by slot
+  (the 03:56 entry). A first pass through a scratch farm while the harness ran was too noisy to use.
 - **Counted:** `perf.js` `fitBudget` gains `mtp` (`DRAFT_FIXED_GB`, `DRAFT_GB_PER_16K`), and `up.js` `computeFit`
   passes `llamacpp.mtp`. With MTP off, nothing changes (the test checks it). A scratch farm sized as a 12 GB card, the
   draft on, chose 4,096 tokens; llama-server held 8.6 GB inside the 9.1 GB budget.

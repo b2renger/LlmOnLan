@@ -1370,15 +1370,17 @@ test('fitBudget counts the draft head\'s own memory when mtp is on, as measured;
     const shape = { vramGb: 96, weightsGb: 7.9, kvCacheType: 'q4_0', contextLength: 16384 };
     assert.deepEqual(perfMod.fitBudget({ ...shape, mtp: false }), perfMod.fitBudget(shape), 'off: as before');
     const MiB = 2 ** 20 / 1e9;
-    for (const [ctx, measured] of [[16384, 746 * MiB], [65536, 956 * MiB], [131072, 1276 * MiB], [262144, 1.9]]) {
-        const d = r1(perfMod.fitBudget({ ...shape, contextLength: ctx, mtp: true }).needGb - perfMod.fitBudget({ ...shape, contextLength: ctx }).needGb);
-        assert.ok(d >= measured - 0.1 && d <= measured + 0.3, `${ctx} tokens: the term ${d} GB for ${measured.toFixed(2)} measured`);
+    // [shared context, slots, measured MiB]: one slot at 16k/64k/128k, then 2 and 4 slots at 64k (`--kv-unified`)
+    for (const [ctx, slots, measured] of [[16384, 1, 746], [65536, 1, 956], [131072, 1, 1276], [65536, 2, 1254], [65536, 4, 1852]]) {
+        const d = r1(perfMod.fitBudget({ ...shape, contextLength: ctx, mtp: true, slots }).needGb - perfMod.fitBudget({ ...shape, contextLength: ctx, slots }).needGb);
+        const m = measured * MiB;
+        assert.ok(d >= m - 0.1 && d <= m + 0.3, `${ctx} tokens, ${slots} slot(s): the term ${d} GB for ${m.toFixed(2)} measured`);
     }
     const small = { vramGb: 12, weightsGb: 7.9, mmprojGb: 0.63, kvCacheType: 'q4_0' };
     const withDraft = perfMod.fitBudget({ ...small, mtp: true }).maxContext;
     assert.ok(withDraft >= 4096 && withDraft < perfMod.fitBudget(small).maxContext, `a 12 GB card: less context with the draft (${withDraft}), still one that runs`);
     const up = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
-    assert.ok(up.includes('mtp: !!config.llamacpp.mtp,'), 'the farm sizes llama.cpp with the draft counted');
+    assert.ok(/mtp: !!config\.llamacpp\.mtp,[^\n]*\n\s*slots: config\.llamacpp\.parallel,/.test(up), 'the farm sizes llama.cpp with the draft counted, for its slots');
 });
 
 test('shouldEvictOllama: only under pressure, only when idle, only llama.cpp engine', () => {

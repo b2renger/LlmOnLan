@@ -1775,8 +1775,11 @@ no vision file; the card's memory once it listens. The draft is on with `--spec-
 | 65,536 | 10,470 MiB | 11,426 MiB | +956 MiB |
 | 131,072 | 11,942 MiB | 13,218 MiB | +1,276 MiB |
 
-So **about 0.7 GB fixed and 0.08 GB per 16k of context** (the farm's `DRAFT_*`, rounded up). The main context grows
-23 MiB per 1k tokens at both steps. The term also gives the night before's +1.9 GB at 4 × 64k. A first pass through a
+And at 65,536 shared by several slots (`--kv-unified`, as the farm runs it): 1 slot +956, **2 slots +1,254, 4 slots
++1,852 MiB** (off: 10,476 / 10,626 / 10,926; on: 11,432 / 11,880 / 12,778). So **about 0.39 GB, plus 0.31 GB a slot, plus
+0.079 GB per 16k of the shared context**, all six within 20 MiB (the farm's `DRAFT_*`: 0.4, 0.32, 0.08). The night
+before's +1.9 GB "at 4 × 64k" was 4 slots sharing 64k. The main context grows 23 MiB per 1k tokens, and ~150 MiB a slot
+with the draft off (compute buffers, inside the farm's fixed 1.0 GB overhead at a few slots). A first pass through a
 scratch farm, while the client harness drew on the card, gave +488, +841 and +956 (too noisy to use; the baseline drifted
 1,536 → 1,345 MiB). Sized as a 12 GB card with the term (the farm's `auto`, `gpuReserveGb` 84): 4,096 tokens, 8.6 GB on
 the card inside a 9.1 GB budget. One model, one build; a 4070 itself is HUMAN_TESTS K18.

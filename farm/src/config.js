@@ -237,7 +237,7 @@ const LlamacppSchema = z.object({
             // BONSAI_DEFAULT_PLAN step 1 (approved 2026-11-26): offered, not the default until a 12 GB card is tested
             // with its draft on (step 3, the 4070). Measured 2026-11-26 on the PRO 6000 (b12377, RESULTS): the
             // quality check 28 ×3 against UD-IQ2_S's 24/23; one person 183 tok/s with the draft, 120 without, 110 for
-            // UD-IQ2_S; the coding agent a tie. Its draft head costs ~0.7 GB + 0.08 GB per 16k (perf.js DRAFT_*).
+            // UD-IQ2_S; the coding agent a tie. Its draft head costs ~0.4 GB + 0.32 GB a slot + 0.08 GB per 16k (perf.js DRAFT_*).
             id: 'ternary-bonsai-2.5-27b-q2_0',
             label: 'Ternary Bonsai 2.5 27B · Q2_0',
             url: 'https://huggingface.co/prism-ml/Ternary-Bonsai-2.5-27B-GGUF/resolve/main/Ternary-Bonsai-2.5-27B-Q2_0-mtp.gguf',
