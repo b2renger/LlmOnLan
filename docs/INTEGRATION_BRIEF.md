@@ -97,6 +97,14 @@ new pin's source and on one box:
 > `keepDbBeforeEngine`). Not checked: the Blender tools end to end (HUMAN_TESTS A27), Call mode, macOS and Linux.
 > Open WebUI shows its "What's New" note once at the first start.
 >
+> **NOTE (2026-11-27): 0.13.5 tried, not pinned.** It does not start on Windows: `utils/machines/managed.py:48` runs
+> `tempfile.mkdtemp(dir='/tmp')` at import ([research/OWUI_0135_2026-11-27.md](research/OWUI_0135_2026-11-27.md)). The
+> pin stays 0.13.3 until a release starts on Windows. The same night the Blender tools moved to `TOOL_SERVER_CONNECTIONS`
+> (0.13.4 dropped a person's own tool servers). Read again at the bump: an OpenAPI entry listed as `server:<info.id>`
+> (`routers/tools.py`); its spec fetched again at each listing without Redis (`utils/tools.py` `get_tool_servers`);
+> a new chat's tools from `$settings.tools` when the model names none (`Chat.svelte`, 0.13.3's source map); and
+> 0.13.5's chat-history migration, which converts existing chats.
+>
 > **NOTE (2026-09-27):** the sidecar bundles standalone **CPython 3.12**, not 3.11
 > (`sidecar/build-sidecar.mjs`), and a packaged client runs `<userData>/sidecar/python launcher.py serve`;
 > only dev runs `sidecar/.venv`'s `open-webui serve` console script (`shell/src/main/paths.ts`).
