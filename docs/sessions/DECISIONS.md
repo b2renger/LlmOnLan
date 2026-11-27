@@ -30,6 +30,16 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## The farms and the room
 
+- **2026-11-27, the chat (14:23).** After the morning tests of the n18 builds, the day questions 1 and 2 (release
+  farm-v0.0.56 and client v0.2.22): **"1, no, 2, no … We should do all that before releasing new farm and new
+  client."** Nothing is released until these are built and tested:
+  - the Computer's dots;
+  - Blender Lab's MCP;
+  - the panel's plugin download progress (the owner, 14:06: "we probably need some feedback about what is happening in
+    the download and give the farm operator proper information (including the download progress)").
+
+  The session read "all that" as these three findings of the tests, not LOL Vibe's annotate ideas (below); the
+  owner may correct it.
 - **2026-11-27, the chat (09:20).** n° 18's questions 2 and 3 ("1 yes, 2 yes, 3 yes"; 1 is under *Open WebUI*):
   **yes**. llama.cpp goes to **b12774** (the official v1.1.0) instead of b12751, with the Spark's CI build; LiteLLM goes
   from 1.106.9 to **1.108.19** (the LTS line), `install.js` and the Farm app's `LITELLM_PIN` together. Both in the Farm
@@ -131,6 +141,14 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## LOL Vibe and the Computer
 
+- **2026-11-27, the chat (14:22–14:23).** The Computer's dots (day question 3: **"yes"**): "the inputs should be in
+  the same order of the fields in the box, we should have a clearer connection on how they relate. Maybe we should add
+  tooltips when hovering the inputs / outputs." Before the next release.
+- **2026-11-27, the chat (14:22).** LOL Vibe, ideas from Google AI Studio "we could consider": an annotate mode (draw
+  rectangles, arrows, circles or freehand on the preview, add a short comment, send it; the annotated view goes to the
+  model, which changes the code); an edit tool (retouch or replace images, try fonts live, HTML/CSS design variations);
+  DOM inspection (spacing, margins, colours on an element); reference screenshots to guide styling. A plan to write,
+  not approved yet.
 - **Default taken, 2026-11-24** (PLAN_FIRST_NEW_CHAT_PLAN's question, asked by day 2026-11-23 18:21; no answer by
   02:00): *Plan first* is **off by default** in a new chat, as decided 2026-11-20; (a) and (b) make it one press away.
 - **2026-11-23, the chat (17:41).** "re-check passed on +n14, release v0.2.20": the go of 12:11 holds; v0.2.20 is
@@ -175,6 +193,9 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## Open WebUI, privacy, cloud
 
+- **2026-11-27, the chat (14:22–14:23).** Blender (day question 4: **"yes"**): "I think we should use the 'official'
+  blender lab MCP rather than the community one." The client's Blender tools move from the community `blender-mcp` and
+  its BlenderMCP add-on to Blender Lab's MCP server and its **MCP** extension (Blender 5.1+), before the next release.
 - **2026-11-27, the chat (09:20).** n° 18's question 1: **"1 yes"**. Open WebUI 0.13.5 does not start on Windows, so
   the client stays on **0.13.3**; the approved bump goes to the first release that starts on Windows (each session
   reads a new release's `utils/machines/managed.py` first).

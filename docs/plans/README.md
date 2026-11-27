@@ -45,17 +45,28 @@ file stays the whole list.
 ## 1. Now
 
 - **The farm keeps its panel and beacon ports when its own boot starts WSL** ([WSL_PORTS_PLAN](WSL_PORTS_PLAN.md), night n° 17, 2026-11-26): on the PRO 6000 (WSL in mirrored networking) a cold WSL boot reserves 40525–44620, which holds the farm's 41997 and 41998, and `lol up` starts WSL before it binds them; reproduced by the lifecycle suite and two cold boots, not seen in production's three boots. **Approved by the owner 2026-11-26** (summary n° 17, question 1: "yes"). **Built night n° 18 (2026-11-27), unreleased:** measured cold before and after; HUMAN_TESTS J20 says what to look for. **S**.
-- **Blender's *Test connection* names the add-on it found** (a reproduced bug, approved in advance; the owner's A31,
-  2026-11-27, DEVLOG 14:10).
-  - Today it only checks that something listens on the port (`tcpProbe`, `shell/src/main/index.ts:1057`). With Blender
-    Lab's own **MCP** extension on 9876, it said *Blender ✓* while every call failed.
-  - The fix: send the community add-on's read-only `{"type": "get_scene_info", "params": {}}` and read the reply.
-    - JSON with a `status`: the BlenderMCP add-on, ✓.
-    - JSON ended by a zero byte, or *Unknown request type*: Blender's own MCP extension, which is named, with "turn its
-      server off and use the BlenderMCP add-on".
-    - Anything else: not an add-on LlmOnLan knows.
-  - Done when a unit test drives the probe against three stand-in sockets (the community reply, the Lab reply, a
-    silent port). **S**. Client.
+**The next releases wait for these three** (the owner, 2026-11-27 14:23: "We should do all that before releasing new
+farm and new client"). Farm-v0.0.56 and client v0.2.22 are built and tested otherwise (HUMAN_TESTS J20, J21, A30, A31).
+
+- **The Computer's input dots sit beside the fields they fill, and say their names**
+  ([COMPUTER_DOTS_PLAN](COMPUTER_DOTS_PLAN.md), **approved by the owner 2026-11-27**, day question 3): the owner's J21
+  test wired a Text box into Classify's `options` dot, twice. The dots move level with their rows, each row is named,
+  a field a wire replaces says so, and hovering a dot names it. Classify, Filter, Code. **M**. Client.
+- **The Blender tools speak to Blender Lab's official MCP extension**
+  ([BLENDER_LAB_MCP_PLAN](BLENDER_LAB_MCP_PLAN.md), **approved by the owner 2026-11-27**, day question 4).
+  - The move: Lab's server (`blender-mcp` 1.0.2 from projects.blender.org, pinned) replaces the community one,
+    `BLENDER_MCP_PORT` replaces `BLENDER_PORT`, and *Test connection* speaks to the add-on (the false ✓ the owner's
+    A31 reproduced).
+  - Blender 5.1 or later, with *Allow Online Access* on.
+  - **Step 1's install route is a question for the owner:** a wheel shipped with the client (GPL-3.0), or Lab's
+    archive, which answered 403 to a script.
+  - **M**. Client.
+- **The panel says what a plugin downloads, and how far it has got**
+  ([PLUGIN_PROGRESS_PLAN](PLUGIN_PROGRESS_PLAN.md), **approved by the owner 2026-11-27**, the owner's J21 request).
+  - Turning a plugin on that is not installed yet becomes a panel job, on the job bar the vLLM downloads already use.
+  - Each step is named, the bytes are counted on disk against measured sizes, and Classify's weights download in the
+    install.
+  - **S–M**. Farm.
 - **The Blender tools through Open WebUI's env** ([BLENDER_TOOLS_ENV_PLAN](BLENDER_TOOLS_ENV_PLAN.md), **approved by the owner 2026-11-26**, summary n° 17 question 2): `TOOL_SERVER_CONNECTIONS` (env, as the Computer's), so Open WebUI can move to 0.13.5 without losing them; then the bump (the Open WebUI entry below). **S**. Client. **Built night n° 18 (2026-11-27), steps 1–3 and 5, unreleased:** run on a real 0.13.3 with a stand-in mcpo; HUMAN_TESTS A31. Step 4, the bump, blocked (0.13.5 does not start on Windows, below).
 - **Ternary Bonsai 2.5 27B as the llama.cpp default** ([BONSAI_DEFAULT_PLAN](BONSAI_DEFAULT_PLAN.md), night n° 17, **approved by the owner 2026-11-26**, question 3): measured against UD-IQ2_S on the farm's llama.cpp: the quality check 28 (three passes) against 24, one person 183 tok/s with its draft head against 110, the same size; a 12 GB card (the 4070) first. **S**. Farm only. **Built night n° 18 (2026-11-27), unreleased:** the draft's memory in the farm's sizing (measured), Bonsai in the library; the default (step 2) waits on HUMAN_TESTS **K18**, the 4070.
 - **The Classify box answered by the farm's vLLM** ([CLASSIFY_VLLM_PLAN](CLASSIFY_VLLM_PLAN.md), night n° 17, **approved by the owner 2026-11-26**, question 4): 73 % right against Laya's 59 % on 194 English and French headlines, 31 ms an item on the GPU, Laya kept for Ollama and llama.cpp. **S–M**. **Built night n° 18 (2026-11-27), unreleased:** steps 1–4, run against a real vLLM serving Qwen3.6; HUMAN_TESTS J21.
@@ -474,26 +485,13 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
 ## 4. Waiting on the owner
 
-- **The Computer's input dots named on the box** (the owner's J21 test, 2026-11-27; DEVLOG 14:10): a box's input dots
-  show only a kind glyph, and their names show only in a hover tooltip. On the Classify box (`items {}`, `options T`,
-  `question {}`), the owner wired a Text box's `T` output into the `T` dot, *options*, and the box looked broken.
-  Proposed: each input's name in small text beside its dot, on every box with more than one input. The `::after` that
-  draws the glyph today can carry it, so it adds no new element. **S**. Client. Summary n° 18's day questions.
-- **The panel says what a plugin downloads, and how far it has got** (the owner's request, 2026-11-27, after J21 step
-  1). Turning Classify on fetches ~1.7 GB with nothing in the panel: `classify.js` runs `pip install -q`, writes its
-  steps only to `farm.log`, and Laya's weights download at its first start. The same holds for OCR, voice, speech and
-  document search. A plan first: which steps, and progress as bytes on disk against the expected size. **S–M**. Farm.
-- **Blender: which add-on the client works with** (the owner's A31, 2026-11-27; DEVLOG 14:10).
-  - The client's helper is the community `blender-mcp` (PyPI, 1.6.4), which speaks only to the community
-    **BlenderMCP** add-on (`addon.py` from GitHub, installed from a file).
-  - Blender 5.1's own extension platform now offers Blender Lab's official **MCP** extension (one click in *Get
-    Extensions*). It uses the same port 9876 but different messages, and its own MCP server, also named
-    `blender-mcp`, is not on PyPI.
-  - With it, every call fails, and *Test connection* says ✓ because it only checks that the port listens.
-  - Waiting: a plan to support Blender Lab's extension, with its server pinned from projects.blender.org and its own
-    tools (code, scene, screenshots, Blender's docs). **M**. Client.
-  - Already approved and filed under *1. Now*: *Test connection* naming the add-on it found. Meanwhile the
-    Preferences hint and GETTING_STARTED say which add-on to use, and to turn Lab's server off.
+- **LOL Vibe: draw on the preview, say what to change** ([VIBE_ANNOTATE_PLAN](VIBE_ANNOTATE_PLAN.md), proposed
+  2026-11-27, the owner's ideas from Google AI Studio).
+  - The order: first [PICTURE_TO_PAGE_PLAN](PICTURE_TO_PAGE_PLAN.md) steps 2–4 (reference screenshots: the agent sees
+    a picture dropped in a project chat), then Annotate on the project's Preview (marks and a comment, one screenshot
+    saved in the project, the agent reads it).
+  - Later: DOM inspection, fonts and design variations, as a plan of their own.
+  - Three questions in the plan, one of them a privacy line. **M**. Client.
 - **A farm's bundled CPython moved to a newer 3.12, its venvs rebuilt** ([CPYTHON_BUMP_PLAN](CPYTHON_BUMP_PLAN.md), night n° 18, proposed): for the PRO 6000's CPython 3.12.14 and its expat 2.8.3, which RUNTIME_UPDATE cannot reach; a button in the Farm app's window, the venvs rebuilt through their install signatures, the old ones kept until a start works. **M**. **Not before** a python-build-standalone release carries a 3.12.x with expat 2.11.0 on Windows (none yet: python/cpython#162493); then the owner's question.
 **The ones that unblock the most:**
 - **[AGENT_FIRST_STEP_PLAN](AGENT_FIRST_STEP_PLAN.md)** (night n° 13, proposed): Gemma 4 26B on Ollama ends 1 coding
