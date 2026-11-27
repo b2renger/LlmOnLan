@@ -63,6 +63,23 @@ export default (test) => {
     assert.deepEqual(v.data.labels.map((l) => [l.label, l.sure]), [['ai', true], ['business', false]]);
   });
 
+  // CLASSIFY_VLLM_PLAN (2026-11-27): the farm's own vLLM answers when it serves Qwen3.6 or Qwen3.8, and its reply's
+  // `model` says so; the box's output and its status line name who answered instead of always "Laya".
+  test('classify: the output names who answered, Laya or the farm\'s model (CLASSIFY_VLLM_PLAN)', async () => {
+    const reply = (model) => withFetch(async () => new Response(JSON.stringify({ answers: [{ choice: 'ai', confidence: 0.8 }], ms: 40, model }),
+      { status: 200, headers: { 'content-type': 'application/json' } }), () => classifyPart.run(/** @type {any} */ ({
+      part: part(), inputs: { items: [listValue([{ id: 1, title: 'LLMs' }])] }, app: app({ url: 'http://farm:8891', key: 'kk' }), signal: new AbortController().signal,
+    })));
+    assert.equal((await reply('qwen3.6-35b-a3b')).data.by, 'qwen3.6-35b-a3b');
+    assert.equal((await reply('convaiinnovations/laya')).data.by, 'laya', "Laya's own id still reads 'laya'");
+    assert.equal(labelsFrom([{ id: 1 }], null, 0.6, 0, 'qwen3.6-35b-a3b').by, 'none', 'no answers: none, whoever was asked');
+    const fs = await import('node:fs');
+    const src = fs.readFileSync(new URL('../../../renderer/chat/graph/parts/classify.mjs', import.meta.url), 'utf8');
+    assert.ok(src.includes("const who = value.by === 'laya' ? 'Laya' : t('parts.classifyByModel', { model: value.by });") && /classifyStatus', \{[^}]*who \}/.test(src), 'the status line names who answered');
+    const strings = fs.readFileSync(new URL('../../../renderer/chat/strings/parts-classify.en.mjs', import.meta.url), 'utf8');
+    assert.ok(strings.includes("classifyStatus: '{n} items · {unsure} unsure (below {thr}) · {sec} s · {who}'"));
+  });
+
   test('classify: a busy or warming farm is "not now" (the run puts the box back); other failures are the box\'s', async () => {
     const run = (status, headers = {}) => withFetch(async () => new Response('{}', { status, headers }), () => classifyPart.run(/** @type {any} */ ({
       part: part(), inputs: { items: [listValue([{ title: 'x' }])] }, app: app({ url: 'http://farm:8891', key: 'kk' }), signal: new AbortController().signal,

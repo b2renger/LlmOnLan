@@ -2741,6 +2741,74 @@ test('classify plugin: pinned CPU install, bound like the others, key in env, ad
     assert.equal(buildSnapshot(defaultConfig(), { proxyUp: true, hostsUp: 1, classifyUp: true, classifyKey: 'kk' }).classify, null, 'off in the config: never advertised');
 });
 
+// CLASSIFY_VLLM_PLAN (approved 2026-11-26): the service asks the farm's own vLLM (its decision endpoint) when it serves
+// Qwen3.6 or Qwen3.8, else Laya answers as before. The service's own functions, run by the Classify venv's Python
+// against a fake vLLM in this process (no Laya loaded); skipped where that venv is not installed.
+test('Classify: the farm\'s vLLM answers when it serves Qwen3.6 or Qwen3.8, through its decision endpoint, else nobody but Laya (CLASSIFY_VLLM_PLAN)', async () => {
+    const classifyMod = require('../src/classify');
+    const env = [];
+    classifyMod.spawnClassify(defaultConfig(), { key: 'kk' }, (cmd, args, opts) => { env.push(opts.env); return { pid: null, on() {} }; });
+    assert.equal(env[0].CLASSIFY_VLLM_URL, 'http://127.0.0.1:8100', 'the farm\'s vLLM relay, on loopback');
+    const py = path.join(__dirname, '..', '.classify', 'venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
+    if (!fs.existsSync(py)) return 'skip';
+    const http = require('http');
+    const { execFile } = require('child_process');
+    const fake = { served: 'qwen3.6-35b-a3b', failAfter: Infinity, bodies: [] };
+    const srv = http.createServer((req, res) => {
+        let raw = '';
+        req.on('data', (c) => { raw += c; });
+        req.on('end', () => {
+            const send = (o) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
+            if (req.url === '/v1/models') return send({ object: 'list', data: [{ id: fake.served }] });
+            if (req.url === '/v1/systemone') {
+                const b = JSON.parse(raw);
+                fake.bodies.push(b);
+                if (fake.bodies.length > fake.failAfter) { res.writeHead(500); return res.end(); }
+                const choice = /goal|cup/.test(b.state) ? 'sport' : 'politics';
+                return send({ answers: { q: { choice, confidence: 0.912345, probabilities: { sport: choice === 'sport' ? 0.95 : 0.05, politics: choice === 'sport' ? 0.05 : 0.95 } } }, diagnostics: { q: { label_mass: 0.96 } } });
+            }
+            res.writeHead(404); res.end();
+        });
+    });
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    const url = `http://127.0.0.1:${srv.address().port}`;
+    const snippet = [
+        'import sys, json, asyncio',
+        `sys.path.insert(0, ${JSON.stringify(path.join(__dirname, '..', 'src', 'pysvc'))})`,
+        'import classify_server as c',
+        "items = ['A late goal wins the cup'] * 9 + ['The vote on the budget', {'title': 'cup final'}]",
+        'm = c._vllm_model()',
+        "a = asyncio.run(c._vllm_answers(None, m, items, 'Which section?', {'sport': 'sport', 'politics': 'Politics and elections'})) if m else None",
+        "print(json.dumps({'model': m, 'answers': a}))",
+    ].join('\n');
+    const run = (vllmUrl) => new Promise((resolve) => execFile(py, ['-I', '-c', snippet], { env: { ...process.env, CLASSIFY_VLLM_URL: vllmUrl }, timeout: 30000 },
+        (err, stdout, stderr) => resolve(err ? { err: String(stderr || err.message) } : JSON.parse(stdout.trim().split('\n').pop()))));
+    try {
+        const r = await run(url);
+        assert.ok(!r.err, r.err);
+        assert.equal(r.model, 'qwen3.6-35b-a3b');
+        assert.equal(r.answers.length, 11, 'every item answered, 8 at a time');
+        assert.deepEqual(r.answers.map((a) => a.choice), [...Array(9).fill('sport'), 'politics', 'sport']);
+        assert.deepEqual(r.answers[0], { choice: 'sport', confidence: 0.9123, probabilities: { sport: 0.95, politics: 0.05 } }, "Laya's shape");
+        const b = fake.bodies[0];
+        assert.deepEqual(b.questions.q, { type: 'choice', instructions: 'Which section?', criteria: { sport: null, politics: 'Politics and elections' } }, 'a bare label stays bare, as measured');
+        assert.deepEqual([b.model, b.chat_template_kwargs], ['qwen3.6-35b-a3b', { enable_thinking: false }]);
+        assert.ok(fake.bodies.some((x) => x.state === '{"title": "cup final"}'), 'an object item is read as its JSON');
+        fake.served = 'qwen3.8-27b-nvfp4';
+        assert.equal((await run(url)).model, 'qwen3.8-27b-nvfp4');
+        fake.served = 'gemma-4-26b'; fake.bodies.length = 0;
+        assert.deepEqual(await run(url), { model: null, answers: null }, 'Gemma 4: not asked (sure of nearly everything)');
+        assert.equal(fake.bodies.length, 0);
+        fake.served = 'qwen3.6-35b-a3b'; fake.failAfter = 3;
+        assert.equal((await run(url)).answers, null, 'one item failing: Laya answers them all');
+        assert.deepEqual(await run('http://127.0.0.1:9'), { model: null, answers: null }, 'no vLLM answering: Laya');
+        assert.deepEqual(await run(''), { model: null, answers: null }, 'no vLLM given: Laya');
+    } finally { srv.close(); }
+    const server = fs.readFileSync(path.join(__dirname, '..', 'src', 'pysvc', 'classify_server.py'), 'utf8');
+    const flow = server.slice(server.indexOf('model = await asyncio.to_thread(_vllm_model)'), server.indexOf('router = state["router"]'));
+    assert.ok(flow.includes('if got is not None:') && flow.includes('"model": model'), 'the reply names who answered; a failed vLLM read falls through to Laya');
+});
+
 // ---- document search (owner, 2026-10-08: EmbeddingGemma 2 on the farm, src/embed.js) -------------------------
 const embedMod = require('../src/embed');
 

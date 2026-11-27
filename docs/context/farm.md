@@ -263,7 +263,10 @@
     folders refused. Two independent reviews of the data-loss paths (2026-10-12) fixed: DEVLOG.
   - **Plugins** (`plugins/registry.js`): web search (SearXNG, ON), document OCR (`farm/src/pysvc` +
     `extract.js`, ON — hybrid text/vision PDF extraction), Kokoro TTS (OFF), and since 2026-09-27 **Classify**
-    (Laya on the CPU, `classify.js` + `pysvc/classify_server.py`, OFF) and **speech to text** (faster-whisper,
+    (Laya on the CPU, `classify.js` + `pysvc/classify_server.py`, OFF; since 2026-11-27, while the farm's own vLLM
+    serves Qwen3.6 or Qwen3.8, its decision endpoint `/v1/systemone` answers instead, on loopback and not through the
+    seat gate, 8 items at a time, thinking off, the reply's `model` naming it; any other model, or a vLLM that does not
+    answer, and Laya answers: [CLASSIFY_VLLM_PLAN](../plans/CLASSIFY_VLLM_PLAN.md)) and **speech to text** (faster-whisper,
     `stt.js` + `pysvc/stt_server.py`, OFF; since 2026-10-09 `device: 'auto'` = Whisper large-v3-turbo on the NVIDIA
     GPU, int8_float16, 1.7 GB, cuBLAS as a pip wheel in its venv, else `small` on the CPU, and a GPU that does not
     load falls back to the CPU by itself; 2 GB kept out of vLLM's Automatic memory while it is on but not running

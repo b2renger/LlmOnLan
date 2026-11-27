@@ -72,7 +72,7 @@ been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the 
 | G. LOL Vibe's IDE | 1 laptop, a password farm, a GitHub account, a second drive or USB stick (G11) | 14 | G11, G13 | 3 h (+3 h of waiting for G13) |
 | H. Home Assistant on a real home | the office's Home Assistant Green | 4 | — | 2.5 h |
 | I. Document search on the farm | the farm, 2 laptops (one with old documents) | 6 | I1–I4 | 2 h |
-| J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client; J16: 10 laptops | 22 | J14, J17, J18, J20 | about 8 h in several quiet moments (J16 2 h; +45 min if J1's install still runs here) |
+| J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client; J16: 10 laptops | 23 | J14, J17, J18, J20, J21 | about 8 h in several quiet moments (J16 2 h; +45 min if J1's install still runs here) |
 | K. A Windows test box with an RTX card | a non-production RTX PC, the 4070/4080, a PC with no NVIDIA GPU | 17 | K1–K5, K11, K12, K14, K15 | 5 h (+45 min K6) |
 | L. The DGX Spark | a Spark with a screen; L4: a second disk | 4 | — | 4 h (+45 min) |
 | M. Reboot tests | the PRO 6000, the Spark | 2 | — | 1 h each |
@@ -80,7 +80,7 @@ been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the 
 | O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 6 | — | 1 h 15 |
 | P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
 | Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q5) | 8 | Q1, Q6 | 2 h 30 |
-| **Total** | | **166** | **36** | about 60–66 h |
+| **Total** | | **167** | **37** | about 60–66 h |
 
 Part 3's measurements (Q4, Q5 step 3, J12–J13 on llama.cpp) are not in these counts: an agent runs them. J16 is
 counted in J, though an agent can run its steps 1–4.
@@ -2073,6 +2073,24 @@ memory back to what ComfyUI or nothing holds. **One thing that is not Electron 4
 `%APPDATA%\LlmOnLan Farm\farm.log` has `HTTP server error on :41997 — listen EADDRINUSE`, WSL took the panel's port
 (summary n° 17, question 1): write it on *Found*, with whether WSL was already running before you opened the Farm app.
 **The way back:** install farm-v0.0.55 again.
+- [ ] Done · Found:
+
+### J21 ★ The Computer's Classify box answered by the farm's vLLM
+*Proves:* [CLASSIFY_VLLM_PLAN](plans/CLASSIFY_VLLM_PLAN.md) (2026-11-27): while the PRO 6000's vLLM serves Qwen3.6, the
+Classify box's items are read by it (73 % right against Laya's 59 % on 194 headlines, French included), and the box says
+who answered. Measured without you: the service against a real vLLM serving Qwen3.6 under the farm's name, six headlines
+in English and French all right, 0.6 s (DEVLOG 2026-11-27 02:52). *Needs:* J20's build installed (it carries the farm
+side), the client build of A31 (it carries the box's words), the panel's **Classify (Laya)** plugin on (the first time
+it installs Laya, about 1 GB, a few minutes), 5 minutes. *Was:* new (2026-11-27).
+1. In the farm panel, Plugins: turn **Classify (Laya)** on if it is off; wait for it to say it is up.
+2. On a laptop, the Computer: a **Text** box with five headlines, one per line (two in French), wired into a
+   **Classify** box; its options `sport`, `politics`, `business`; **Run**.
+3. Optional: switch the farm to Ollama in the panel, Run again, switch back.
+
+*Expect:* step 1: *Classify up (Laya 0.3.20, CPU; the farm's vLLM answers instead while it serves Qwen3.6 or Qwen3.8)*.
+Step 2: each headline labelled as you would; the box's status line ends with *qwen3.6-35b-a3b, the farm's model*, in
+well under a second. Step 3: the same box answers, and its status line ends with *Laya*. If step 2's line says *Laya*,
+write it on *Found*, with the vLLM version the panel shows.
 - [ ] Done · Found:
 
 ## K. A Windows test box with an RTX card (not production)

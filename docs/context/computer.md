@@ -21,7 +21,8 @@
   hands on the copy it holds, so a template's made-up reading never drives a real device) (*bring*); Instruction (+ "Write a p5.js/three.js/SVG/HTML"
   and "Describe a picture" presets, plus "Write code" — a model writes a Code box's program into its **code**
   port — and "Write a Laya question" — a model writes Classify's question + options into its **question**
-  port), **Classify** (Laya on the farm: one multiple-choice question per item,
+  port), **Classify** (the farm's Laya, or its vLLM's model when it serves Qwen3.6 or Qwen3.8, the status line naming
+  which, 2026-11-27: one multiple-choice question per item,
   with a confidence; unsure below 0.6; no Laya → every item passed on unsure; the unsure items' text rides a `check` list for a
   second opinion), **Agent** (P4, 2026-09-27, `graph/parts/agent.mjs`: a model in ≤ 12 short steps, each ONE tool —
   `run_code` in the sandbox over the labelled inputs and earlier results, `fetch` on hosts a PERSON listed on the box
@@ -77,7 +78,7 @@
   camera control); a Preview box's **Edit code** opens a drawer editor. View tools: Select (V) · Hand (H) · − % + Fit,
   answering from anywhere on the Computer, never while typing. What leaves the machine: prompt text and an
   Image's (or a Preview's rendered) pixels inside the Instruction's chat completion to the farm; a Document's PDF bytes to the farm
-  OCR for text only; a Classify box's items (text) to the farm's Laya for one forward pass each; a Sound
+  OCR for text only; a Classify box's items (text) to the farm's Classify service for one read each (Laya, or the farm's own vLLM on the farm's loopback); a Sound
   box's recording ONLY when a person turns on its **Listen** switch (an imported graph always opens with it off) — to the farm's speech-to-text, written down
   and dropped (never logged or kept); a **Converse** box's turns ONLY after a person's ● Start on it and ONLY while the
   Computer is on screen — each turn's sound (the speech plus 250 ms before and 150 ms after, a 16 kHz WAV) to the farm's

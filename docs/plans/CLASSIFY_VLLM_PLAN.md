@@ -40,6 +40,28 @@ CPU core per thread), and its confidence is closer to what it claims. The read i
    Laya), with a fake vLLM; the farm's lifecycle suite gains one step (a decision through the running fake); a scratch
    farm on vLLM answers a Computer Classify box (the harness). Docs: `farm.md`, `computer.md`, the Classify box's help.
 
+## Built (night n° 18, 2026-11-27, DEVLOG 02:52): steps 1–4
+
+- **Step 1** (`classify_server.py`): at each request the service reads what `CLASSIFY_VLLM_URL` serves
+  (`/v1/models`, 2 s). When an id starts `qwen3.6` or `qwen3.8`, every item goes to `/v1/systemone`, 8 at a time:
+  the item's text (an object as its JSON), the question, its options (a bare label as `null`, as measured), thinking off.
+  The answer keeps the box's shape and the reply's `model` is the served id. `classify.js` passes the relay's address,
+  `http://127.0.0.1:<vllm.port>`; it is read per request, so an engine switch needs no restart.
+- **Step 2:** any other model, a vLLM that does not answer, or one item failing, and Laya answers them all, as before.
+  The plugin, its install and its warm-up are unchanged (the service still waits for Laya before it answers).
+- **Step 3** (the client, in the next client release): the box's `by` and its status line name who answered (*Laya*,
+  or *qwen3.6-35b-a3b, the farm's model*). The help and the errors say *the farm* where they said *Laya*. The
+  panel's *up* line names the vLLM path.
+- **Step 4:**
+  - `farm/test/run.js`: the routing against a fake vLLM, run by the Classify venv's Python. Qwen3.6 and Qwen3.8 are
+    asked, Gemma 4 is not. A failure, no answer or no address falls through. The request shape is checked.
+  - `classify-part.test.mjs`: who answered.
+  - Run, not committed: the HTTP service under uvicorn (Laya's loader stubbed) against a fake vLLM (401 without the key;
+    Qwen3.6, Gemma, vLLM gone), then against **a real vLLM 0.33.0 serving Qwen3.6 under the farm's name**. Six headlines,
+    English and French, all right, 0.98–0.9999 sure, 638 ms for the six.
+  - The lifecycle suite's step and the harness scenario the plan names were not added (the fake vLLM has no decision
+    endpoint); HUMAN_TESTS **J21** on the PRO 6000 instead.
+
 ## What it does not change
 
 The privacy boundary: the items already go to the farm, which keeps nothing; vLLM keeps nothing either (its prefix cache is

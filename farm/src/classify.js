@@ -108,6 +108,9 @@ function spawnClassify(config, opts, spawnFn = spawn) {
             CLASSIFY_API_KEY: opts.key,
             CLASSIFY_THREADS: String(config.classify.threads),
             CLASSIFY_MAX_ITEMS: String(config.classify.maxItems),
+            // The farm's vLLM relay on this computer (CLASSIFY_VLLM_PLAN): the service reads what it serves at each
+            // request and asks it only when that is Qwen3.6 or Qwen3.8, so an engine switch needs no restart here.
+            CLASSIFY_VLLM_URL: `http://127.0.0.1:${config.vllm.port}`,
             ...(require('./storage').classifyCache() ? { HF_HUB_CACHE: require('./storage').classifyCache() } : {}),
             PYTHONUTF8: '1',
             PYTHONIOENCODING: 'utf-8',

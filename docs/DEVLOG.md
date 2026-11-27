@@ -9,6 +9,30 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-27 (02:52) — CLASSIFY_VLLM_PLAN: the Classify box answered by the farm's vLLM; Open WebUI 0.13.5 blocked
+
+- **Open WebUI 0.13.5 does not start on Windows** (02:44): at import, `utils/machines/managed.py:48` runs
+  `tempfile.mkdtemp(dir='/tmp')`, and there is no `\tmp` on the current drive. Reproduced in a clean venv with every
+  temp variable a Windows path; upstream `main` is unchanged ([OWUI_0135_2026-11-27](research/OWUI_0135_2026-11-27.md)).
+  The pin stays 0.13.3, and BLENDER_TOOLS_ENV's step 4 waits for a release that starts on Windows. The `docs` explorer's
+  reading of 0.13.4 and 0.13.5 is in the same file (0.13.5 converts chat history in the database; no CVE ids yet).
+- **Classify on vLLM, built** (plan steps 1–4):
+  - `classify_server.py` reads what the farm's vLLM serves at each request. For an id starting `qwen3.6` or `qwen3.8`,
+    every item goes to `/v1/systemone`, 8 at a time, with thinking off and a bare label as `null`, as measured.
+  - Anything else, no answer, or one failure, and Laya answers them all. `classify.js` passes the relay's address.
+  - The client's box names who answered, in `by` and the status line; its help and errors say *the farm*; the panel's
+    *up* line names the vLLM path.
+- **Run:**
+  - The routing test: the Classify venv's Python against a fake vLLM in `farm/test/run.js`.
+  - The HTTP service under uvicorn with Laya's loader stubbed (`n18/classify-e2e`): no key 401; Qwen3.6 answered by
+    vLLM; Gemma and a vLLM gone answered by Laya.
+  - **A real vLLM 0.33.0 serving Qwen3.6** under the farm's name (`qwen3.6-35b-a3b`, the 0.33.0 trial root, port 8190,
+    37.7 GB on the card, stopped with `stop.sh` after): six headlines, two in French and one an object, all right,
+    0.98–0.9999 sure, **638 ms** for the six; the reply names `qwen3.6-35b-a3b`.
+  - The served-name prefix first required a dash (`qwen3.6-`); last night's trial served the bare `qwen3.6`, so the
+    dash was dropped.
+- HUMAN_TESTS **J21** (the PRO 6000); the sessions table 167 tests, 37 ★.
+
 ## 2026-11-27 (02:35) — BLENDER_TOOLS_ENV_PLAN: the Blender tools through Open WebUI's env (steps 1–3, 5)
 
 - **Why:** Open WebUI 0.13.4 dropped a person's own tool servers, where the client wrote Blender's mcpo

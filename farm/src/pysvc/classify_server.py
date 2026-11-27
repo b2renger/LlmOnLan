@@ -2,7 +2,9 @@
 
 The Computer's Classify box sends a list of items and ONE `choice` question; this answers each item
 with the chosen option, its probability, and the full distribution. Laya (convaiinnovations/laya,
-Apache-2.0) is a non-autoregressive "System 1" encoder: one forward pass per item, no prose.
+Apache-2.0) is a non-autoregressive "System 1" encoder: one forward pass per item, no prose. When the farm's own vLLM
+serves Qwen3.6 or Qwen3.8, its decision endpoint answers instead, on the GPU (CLASSIFY_VLLM_PLAN, below); the reply's
+`model` says which answered.
 
 Why our own wrapper and not `laya-serve`: laya-serve has no auth, no concurrency cap and no batch
 endpoint. This adds exactly those, in the OCR service's shape (farm/src/pysvc/server.py):
@@ -26,6 +28,7 @@ import hmac
 import json
 import os
 import time
+import urllib.request
 from collections import defaultdict
 
 from fastapi import FastAPI, Request
@@ -39,6 +42,16 @@ MAX_ITEM_CHARS = 4000
 # The largest body worth reading: every item at its cap, JSON-escaped, plus the question.
 MAX_BODY = MAX_ITEMS * MAX_ITEM_CHARS * 4 + 65536
 MIN_OPTIONS, MAX_OPTIONS = 2, 20
+
+# The farm's own vLLM, on this computer (CLASSIFY_VLLM_PLAN, approved 2026-11-26): when it serves a model measured on
+# its decision endpoint, `/v1/systemone` answers instead of Laya, on the GPU (194 English and French headlines, 2026-11-26:
+# Qwen3.6 73 % right, Qwen3.8 70 %, Laya 59 %; 31-47 ms an item). Gemma 4 is left out (66 %, and sure of nearly
+# everything, so the box's "Sure above" would stop meaning anything); Nemotron and the rest were not measured. Asked on
+# loopback, not through the seat gate: a decision read takes no seat, as Laya's never did. Anything else, or a vLLM
+# that does not answer, and Laya answers, as before.
+VLLM_URL = os.environ.get("CLASSIFY_VLLM_URL", "").rstrip("/")
+VLLM_MODELS = ("qwen3.6", "qwen3.8")   # the farm's library ids (vLLM's --served-model-name) start so
+VLLM_AT_ONCE = 8
 
 app = FastAPI(title="lol-classify")
 state = {"router": None, "ready": False, "model": "convaiinnovations/laya", "error": None}
@@ -105,6 +118,56 @@ def _answer(result):
     }
 
 
+def _http_json(url, body=None, timeout=30):
+    """GET (no body) or POST JSON on loopback; the decoded answer, or raises."""
+    data = None if body is None else json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(url, data=data, method="GET" if body is None else "POST",
+                                 headers={"content-type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read())
+
+
+def _vllm_model():
+    """The model the farm's vLLM serves, when it is one measured for decisions; else None (or no vLLM)."""
+    if not VLLM_URL:
+        return None
+    try:
+        ids = [m.get("id", "") for m in _http_json(f"{VLLM_URL}/v1/models", timeout=2).get("data", [])]
+    except Exception:
+        return None
+    return next((i for i in ids if i.startswith(VLLM_MODELS)), None)
+
+
+def _vllm_one(model, item, instructions, criteria):
+    """One item through vLLM's decision endpoint, thinking off, as measured; the answer in Laya's shape."""
+    text = item if isinstance(item, str) else json.dumps(item, ensure_ascii=False)
+    body = {"model": model, "state": text[:MAX_ITEM_CHARS], "chat_template_kwargs": {"enable_thinking": False},
+            # an option given without words of its own is a bare label, as in the measurement
+            "questions": {"q": {"type": "choice", "instructions": instructions,
+                                "criteria": {k: (None if v == k else v) for k, v in criteria.items()}}}}
+    a = _http_json(f"{VLLM_URL}/v1/systemone", body)["answers"]["q"]
+    return {
+        "choice": a.get("choice"),
+        "confidence": round(float(a.get("confidence", 0.0) or 0.0), 4),
+        "probabilities": {k: round(float(v), 4) for k, v in (a.get("probabilities") or {}).items()},
+    }
+
+
+async def _vllm_answers(request, model, items, instructions, criteria):
+    """Every item through vLLM, VLLM_AT_ONCE at a time; None as soon as one fails (Laya then answers them all), or
+    "left" when the person stopped."""
+    answers = []
+    for i in range(0, len(items), VLLM_AT_ONCE):
+        if request is not None and await request.is_disconnected():
+            return "left"
+        try:
+            answers += await asyncio.gather(*(asyncio.to_thread(_vllm_one, model, it, instructions, criteria)
+                                              for it in items[i:i + VLLM_AT_ONCE]))
+        except Exception:
+            return None
+    return answers
+
+
 @app.post("/classify")
 async def classify(request: Request):
     # Constant time, as the OCR service; as bytes (Starlette reads headers as latin-1), so an odd header is a 401, not a 500.
@@ -154,6 +217,13 @@ async def classify(request: Request):
             queued = False
             q = {"q": {"type": "choice", "instructions": instructions, "criteria": criteria}}
             t0 = time.time()
+            model = await asyncio.to_thread(_vllm_model)
+            if model:
+                got = await _vllm_answers(request, model, items, instructions, criteria)
+                if got == "left":
+                    return JSONResponse({"detail": "the client left"}, status_code=499)
+                if got is not None:
+                    return {"answers": got, "ms": round((time.time() - t0) * 1000), "model": model}
             router = state["router"]
             answers = []
             for it in items:

@@ -10,7 +10,9 @@
 //
 // Output (the same `labels` shape the Read-the-news labelling Instruction returns, so a graph can
 // put either in front of the same Code):
-//   { labels: [{id, label, confidence, sure}], unsure: [id…], check: [{id, text}], by: 'laya' | 'none', ms, threshold }
+//   { labels: [{id, label, confidence, sure}], unsure: [id…], check: [{id, text}], by: 'laya' | <the farm's model> | 'none', ms, threshold }
+// `by` names who answered: Laya, or the farm's own vLLM model when it serves Qwen3.6 or Qwen3.8 (CLASSIFY_VLLM_PLAN,
+// 2026-11-27: the farm's reply says which, in `model`).
 // `check` carries the words of the UNSURE items only, so a model can give a second opinion from
 // Classify's answers alone, and never re-reads an item Laya was sure of (owner, 2026-09-27).
 // With no Classify service on the farm (it is off by default), nothing is sent: every item comes
@@ -104,16 +106,16 @@ export function textOf(item) {
 /**
  * PURE: answers → the box's output.
  * @param {{id: any}[]} rows @param {({choice: string|null, confidence: number})[]|null} answers
- * @param {number} threshold @param {number} ms
+ * @param {number} threshold @param {number} ms @param {string} [model] who answered (the reply's `model`)
  */
-export function labelsFrom(rows, answers, threshold, ms) {
+export function labelsFrom(rows, answers, threshold, ms, model = 'laya') {
   const labels = rows.map((r, i) => {
     const a = answers ? answers[i] : null;
     const confidence = a ? Math.round(a.confidence * 1000) / 1000 : 0;
     return { id: r.id, label: a ? a.choice : null, confidence, sure: !!a && !!a.choice && confidence >= threshold };
   });
   const check = rows.filter((r, i) => !labels[i].sure).map((r) => ({ id: r.id, text: textOf(/** @type {any} */ (r).item) }));
-  return { labels, unsure: check.map((c) => c.id), check, by: answers ? 'laya' : 'none', ms, threshold };
+  return { labels, unsure: check.map((c) => c.id), check, by: answers ? (/laya/i.test(model) ? 'laya' : model) : 'none', ms, threshold };
 }
 
 /** @type {PartSpec} */
@@ -219,8 +221,9 @@ export const classifyPart = /** @type {any} */ ({
       // "Not now" is the farm's etiquette, not a broken box: the runner puts it back to stale.
       throw partFail(message, out.code === 'busy' || out.code === 'warming' ? 'busy' : 'part');
     }
-    const value = labelsFrom(rows, out.answers, threshold, out.ms);
-    const status = t('parts.classifyStatus', { n: rows.length, unsure: value.unsure.length, thr: threshold, sec: (out.ms / 1000).toFixed(1) });
+    const value = labelsFrom(rows, out.answers, threshold, out.ms, out.model);
+    const who = value.by === 'laya' ? 'Laya' : t('parts.classifyByModel', { model: value.by });
+    const status = t('parts.classifyStatus', { n: rows.length, unsure: value.unsure.length, thr: threshold, sec: (out.ms / 1000).toFixed(1), who });
     notes.set(id, wired.question ? t('parts.classifyAsked', { question, options: options.join(', ') }) + ' · ' + status : status);
     return valueOf('json', value);
   },

@@ -163,7 +163,7 @@ const DESCRIPTORS = [
         waitReady: async (c, ctx, isDead) => {
             const cx = await classify.waitForClassify(c.classify.port, undefined, probeHost(c), isDead);
             if (cx.error) return { ok: false, level: 'warn', message: `Classify could not load Laya (${cx.error}). Continuing without it.` };
-            if (cx.up) return { ok: true, level: 'ok', message: `Classify up (Laya ${classify.LAYA_VERSION}, CPU) — the Computer's Classify box works on this farm${firewallNote(c)}.` };
+            if (cx.up) return { ok: true, level: 'ok', message: `Classify up (Laya ${classify.LAYA_VERSION}, CPU; the farm's vLLM answers instead while it serves Qwen3.6 or Qwen3.8) — the Computer's Classify box works on this farm${firewallNote(c)}.` };
             return { ok: false, level: 'warn', message: `Classify did not become ready on port ${c.classify.port} (download or load still running? see the [classify] log). Continuing without it.` };
         },
         alive: (c) => classify.classifyAlive(c.classify.port, probeHost(c)),
