@@ -9,6 +9,17 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-27 (05:24) — LiteLLM 1.108.19 (the LTS line) tried in scratch; Ollama 0.40.17/18 read
+
+- **The `docs` explorer** (TOOL_UPDATES_2026-11-27): Ollama 0.40.17 and 0.40.18 bring nothing for our NVIDIA boxes. LiteLLM's
+  1.108 LTS line fixes `ollama_chat/` parallel tool calls (#50718) and vLLM mid-stream aborts ending as `stop` (#54466).
+  Its two advisories against 1.106.9 are on routes the seat gate already refuses (checked in `farm/test/run.js:1913`).
+- **Tried:** a scratch venv with `litellm[proxy]==1.108.19` (FastAPI 0.140.6, in the farm's range), no farm code.
+  - The cancel test with fake engines: **PASS**, the same 32 checks as on 1.106.9.
+  - With the real llama.cpp: **PASS**, four paths.
+  - **The whole lifecycle suite on it: 184/184** (Electron 45).
+- The bump is a question for the owner (summary n° 18, question 3).
+
 ## 2026-11-27 (04:46) — CLASSIFY_VLLM's lifecycle step; the suite's preflight waits out Linux's TIME-WAIT
 
 - **`test/fake-vllm/fake_vllm.py` answers `/v1/systemone`** (the option an item names wins at 0.9; a model it does not

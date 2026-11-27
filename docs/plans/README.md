@@ -462,6 +462,7 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
 ## 4. Waiting on the owner
 
+- **LiteLLM 1.106.9 → 1.108.19, the LTS line** ([TOOL_UPDATES_2026-11-27](../research/TOOL_UPDATES_2026-11-27.md), night n° 18): fixes on our `ollama_chat/` and vLLM routes; tried in scratch the same night: the cancel test PASS (fake and real llama.cpp), the lifecycle suite 184/184. `install.js` and the Farm app's `LITELLM_PIN` together. **S**. Summary n° 18's question 3.
 - **A farm's bundled CPython moved to a newer 3.12, its venvs rebuilt** ([CPYTHON_BUMP_PLAN](CPYTHON_BUMP_PLAN.md), night n° 18, proposed): for the PRO 6000's CPython 3.12.14 and its expat 2.8.3, which RUNTIME_UPDATE cannot reach; a button in the Farm app's window, the venvs rebuilt through their install signatures, the old ones kept until a start works. **M**. **Not before** a python-build-standalone release carries a 3.12.x with expat 2.11.0 on Windows (none yet: python/cpython#162493); then the owner's question.
 **The ones that unblock the most:**
 - **[AGENT_FIRST_STEP_PLAN](AGENT_FIRST_STEP_PLAN.md)** (night n° 13, proposed): Gemma 4 26B on Ollama ends 1 coding

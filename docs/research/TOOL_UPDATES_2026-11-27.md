@@ -58,6 +58,14 @@ most of 1.111.0 not read). **Worth a scratch test** of the 1.108 line:
 - **Advisories:** GHSA-2364-6whj-g7vx (`/global/activity/cache_hits`) and GHSA-fjxr-j47c-4x2x (`/spend/tags`) affect
   1.106.9 (fixed in 1.108.0). Both routes are already refused by the farm's seat gate, checked and tested on 2026-11-26
   (`375432f`, `farm/test/run.js`). GHSA-2rwg-2wh4-7c4f is fixed in 1.106.9 itself.
+- **Tried the same night, 05:03–05:24** (a scratch venv, `litellm[proxy]==1.108.19` with the farm's FastAPI range, which
+  resolved to 0.140.6; no farm code; the suites take `LOL_LITELLM`):
+  - `test/litellm-cancel.js` with fake engines: **PASS**, the same 32 checks as on 1.106.9 (cancels on every route,
+    thinking off and the reply limit reaching `openai/`, `hosted_vllm/` and `ollama_chat/`);
+  - with the real llama.cpp (b12377, UD-IQ2_S): **PASS**, four paths, released 15–997 ms after the abort;
+  - **the whole vLLM lifecycle suite on it, under the Farm app's Electron 45: 184/184.**
+
+  The bump (`install.js` and the Farm app's `LITELLM_PIN` together) is summary n° 18's question 3.
 
 Sources: `gh api repos/ggml-org/llama.cpp/releases/tags/v1.1.0` (body, assets, `target_commitish` 074f1f3f), `…/tags/b12774`
 (assets); `gh api repos/<repo>/releases?per_page=3` for the others.
