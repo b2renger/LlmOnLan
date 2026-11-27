@@ -133,7 +133,7 @@ async function classifyMock(req, res, store) {
         const confidence = hit ? 0.9 : 0.4;
         return { choice, confidence, probabilities: { [choice]: confidence } };
     });
-    return json(res, 200, { answers, ms: 5 * items.length, model: 'mock-laya' });
+    return json(res, 200, { answers, ms: 5 * items.length, model: s.classifyModel || 'mock-laya' });
 }
 
 /**

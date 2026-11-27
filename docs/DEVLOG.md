@@ -9,6 +9,13 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-27 (04:34) — CLASSIFY_VLLM's harness scenario
+
+- `k17-classify-example-names-the-farm-model-that-answered`: the Classify example runs against the mock service
+  answering as `qwen3.6-35b-a3b` (a new `classifyModel` state, null by default, so every other scenario is as it was).
+  The box's `by` is the model, and its status line reads *3 items · 3 unsure (below 0.6) · 0.0 s · qwen3.6-35b-a3b, the
+  farm’s model*. `k13-read-the-news…` (the Laya path) still passes. Test code only; the builds stand.
+
 ## 2026-11-27 (04:32) — The full harness again; a second flake, in a test; the final client build
 
 - **The full harness on the recovery fix: 423/424.** `p1-errors` passed (no wait in it any more). The one failure,

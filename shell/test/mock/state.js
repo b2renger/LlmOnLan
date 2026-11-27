@@ -62,6 +62,9 @@ function defaults() {
         // scenario sets `classify` (h.computer.classify(true)); `classifyDown` answers 503 (warming).
         classify: null,
         classifyDown: false,
+        // CLASSIFY_VLLM_PLAN (2026-11-27): who the service says answered (`model`); null = the mock Laya. A farm whose vLLM
+        // serves Qwen3.6 answers as e.g. 'qwen3.6-35b-a3b'.
+        classifyModel: null,
         // P3b: the farm's message bus, as a scenario advertises it (a REAL farm/src/bus.js it started).
         bus: null,
         // Ecosystem plan v2 §3.3: speech to text at POST /stt/v1/audio/transcriptions (h.computer.stt(true)).

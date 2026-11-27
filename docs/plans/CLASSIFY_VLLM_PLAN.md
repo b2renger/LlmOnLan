@@ -59,8 +59,11 @@ CPU core per thread), and its confidence is closer to what it claims. The read i
   - Run, not committed: the HTTP service under uvicorn (Laya's loader stubbed) against a fake vLLM (401 without the key;
     Qwen3.6, Gemma, vLLM gone), then against **a real vLLM 0.33.0 serving Qwen3.6 under the farm's name**. Six headlines,
     English and French, all right, 0.98–0.9999 sure, 638 ms for the six.
-  - The lifecycle suite's step and the harness scenario the plan names were not added (the fake vLLM has no decision
-    endpoint); HUMAN_TESTS **J21** on the PRO 6000 instead.
+  - **The harness scenario, added at 04:34:** `k17-classify-example-names-the-farm-model-that-answered`. The mock's
+    Classify answers as `qwen3.6-35b-a3b` (`state.classifyModel`), and the box's output and status line name it. The
+    news template's Laya path still passes.
+  - **Not added:** the lifecycle suite's step (the fake vLLM has no decision endpoint yet), the next session's fallback.
+    HUMAN_TESTS **J21** on the PRO 6000.
 
 ## What it does not change
 

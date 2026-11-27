@@ -69,4 +69,45 @@ export default [
             h.eq(titles, ['Example — Code'], 'one example graph in the library');
         },
     },
+    {
+        // CLASSIFY_VLLM_PLAN (2026-11-27): a farm whose vLLM serves Qwen3.6 answers the Classify box itself, and the
+        // reply's `model` says so; the box's output and its status line name it (they said "Laya" whoever answered).
+        name: 'k17-classify-example-names-the-farm-model-that-answered',
+        needsMock: true,
+        timeoutMs: 90000,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            await h.fresh();
+            await h.computer.classify(true);
+            await h.mock.state({ classifyModel: 'qwen3.6-35b-a3b' });
+            try {
+                await open(h);
+                const cls = await h.computer.place('classify', 40, 60);
+                const before = await docId(h);
+                await h.click(`#lolcomputer .graph-part[data-id="${cls}"] .graph-part-help`);
+                await h.waitFor((was) => {
+                    const dbg = window.LolComputer.debug.computer;
+                    const d = dbg.doc();
+                    return dbg.docId() && dbg.docId() !== was && d && /^Example — Classify$/.test(d.title) ? dbg.docId() : null;
+                }, { timeout: 15000, args: [before] });
+                await h.click('#lolcomputer .comp-run-all');
+                await h.waitFor(() => {
+                    const dbg = window.LolComputer.debug.computer;
+                    const d = dbg.doc();
+                    return !dbg.running() && d.parts.filter((p) => p.type === 'classify').every((p) => p.state === 'done') ? true : null;
+                }, { timeout: 30000 });
+                const doc = await h.computer.doc();
+                const box = doc.parts.find((/** @type {any} */ p) => p.type === 'classify');
+                h.eq(box.value.data.by, 'qwen3.6-35b-a3b', "the farm's model answered, and the output says so");
+                const status = await h.eval((id) => {
+                    const el = document.querySelector(`#lolcomputer .graph-part[data-id="${id}"] .graph-classify-status`);
+                    return el ? el.textContent : null;
+                }, box.id);
+                h.assert(typeof status === 'string' && status.endsWith('qwen3.6-35b-a3b, the farm’s model'), `the box's status names who answered: ${status}`);
+                h.note(`status: ${status}`);
+            } finally {
+                await h.mock.state({ classifyModel: null });
+            }
+        },
+    },
 ];
