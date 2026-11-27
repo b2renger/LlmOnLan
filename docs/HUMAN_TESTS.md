@@ -73,14 +73,14 @@ been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the 
 | H. Home Assistant on a real home | the office's Home Assistant Green | 4 | — | 2.5 h |
 | I. Document search on the farm | the farm, 2 laptops (one with old documents) | 6 | I1–I4 | 2 h |
 | J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client; J16: 10 laptops | 23 | J14, J17, J18, J20, J21 | about 8 h in several quiet moments (J16 2 h; +45 min if J1's install still runs here) |
-| K. A Windows test box with an RTX card | a non-production RTX PC, the 4070/4080, a PC with no NVIDIA GPU | 17 | K1–K5, K11, K12, K14, K15 | 5 h (+45 min K6) |
+| K. A Windows test box with an RTX card | a non-production RTX PC, the 4070/4080, a PC with no NVIDIA GPU | 18 | K1–K5, K11, K12, K14, K15 | 5 h (+45 min K6) |
 | L. The DGX Spark | a Spark with a screen; L4: a second disk | 4 | — | 4 h (+45 min) |
 | M. Reboot tests | the PRO 6000, the Spark | 2 | — | 1 h each |
 | N. The Farm app on a clean box | a PC with no Ollama or Python, a Mac | 5 | — | 2 h + downloads |
 | O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 6 | — | 1 h 15 |
 | P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
 | Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q5) | 8 | Q1, Q6 | 2 h 30 |
-| **Total** | | **167** | **37** | about 60–66 h |
+| **Total** | | **168** | **37** | about 60–66 h |
 
 Part 3's measurements (Q4, Q5 step 3, J12–J13 on llama.cpp) are not in these counts: an agent runs them. J16 is
 counted in J, though an agent can run its steps 1–4.
@@ -2376,6 +2376,25 @@ aside (not deleted), 30 minutes (a 1.6 GB download, then the model). *Was:* new 
 *Expect:* step 2 says 0.40.16. Step 3 answers, and the scan is read. Settings ▸ logs: Ollama's server line shows
 `OLLAMA_NO_CLOUD:true` if its log is kept (else, the PRO 6000's Ollama after its next restart, `/api/show` of a
 `-cloud` model says "ollama cloud is disabled").
+- [ ] Done · Found:
+
+### K18 Ternary Bonsai 2.5 27B on the 4070, its draft head off and on
+*Proves:* [BONSAI_DEFAULT_PLAN](plans/BONSAI_DEFAULT_PLAN.md) step 3 on a real 12 GB card, the test that decides whether
+Bonsai becomes the llama.cpp engine's default. Measured without you on the PRO 6000, a 12 GB card previewed by keeping
+84 GB back: `auto` gave a 4,096-token context with the draft on, 8.6 GB on the card inside a 9.1 GB budget (DEVLOG
+2026-11-27 03:25). *Needs:* the K test box with its RTX 4070, J20's Farm app build (its farm counts the draft's memory and
+lists Bonsai), its farm on the llama.cpp engine, 30 minutes (an 8.5 GB download). *Was:* new (2026-11-27).
+1. Panel ▸ llama.cpp ▸ the library: **Ternary Bonsai 2.5 27B · Q2_0** ▸ **Download**, then **Use this**.
+2. From a laptop, a chat of a few lines; the panel's speed for it.
+3. Its draft head on: the Farm app's drawer ▸ *Open data & logs folder* ▸ `farm\lol.config.json`, in `"llamacpp"` set
+   `"mtp": true`; close the Farm app's window and open it again (the panel has no switch for it yet: it comes with the
+   default, the plan's step 2).
+4. The same chat; the panel's speed; Task Manager ▸ GPU ▸ dedicated memory.
+
+*Expect:* step 1: a context the panel names (about 4,096–8,192 tokens on a 12 GB card); step 2 answers. Step 3: the
+farm starts (no *out of memory* in `farm.log`), the context the same or smaller, the card under its 12 GB. Step 4:
+faster than step 2 (183 against 120 tok/s on the PRO 6000). If the farm does not start with the draft on, or the card
+fills, write it on *Found*: the library entry then says *draft on 16 GB and up*.
 - [ ] Done · Found:
 
 ## L. The DGX Spark

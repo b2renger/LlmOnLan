@@ -1363,6 +1363,24 @@ test('llama.cpp auto context: nothing fits the free VRAM → the 4096 floor, not
     assert.equal(autoLlamacppContext(null), 16384, 'no model file to read');
 });
 
+// BONSAI_DEFAULT_PLAN step 3 (approved 2026-11-26): the draft head's memory counted when mtp is on, measured 2026-11-27
+// on Ternary Bonsai 2.5 27B Q2_0-mtp, llama.cpp b12377, one person (the card with the draft on less off).
+test('fitBudget counts the draft head\'s own memory when mtp is on, as measured; off, nothing changes', () => {
+    const r1 = (x) => Math.round(x * 10) / 10;
+    const shape = { vramGb: 96, weightsGb: 7.9, kvCacheType: 'q4_0', contextLength: 16384 };
+    assert.deepEqual(perfMod.fitBudget({ ...shape, mtp: false }), perfMod.fitBudget(shape), 'off: as before');
+    const MiB = 2 ** 20 / 1e9;
+    for (const [ctx, measured] of [[16384, 746 * MiB], [65536, 956 * MiB], [131072, 1276 * MiB], [262144, 1.9]]) {
+        const d = r1(perfMod.fitBudget({ ...shape, contextLength: ctx, mtp: true }).needGb - perfMod.fitBudget({ ...shape, contextLength: ctx }).needGb);
+        assert.ok(d >= measured - 0.1 && d <= measured + 0.3, `${ctx} tokens: the term ${d} GB for ${measured.toFixed(2)} measured`);
+    }
+    const small = { vramGb: 12, weightsGb: 7.9, mmprojGb: 0.63, kvCacheType: 'q4_0' };
+    const withDraft = perfMod.fitBudget({ ...small, mtp: true }).maxContext;
+    assert.ok(withDraft >= 4096 && withDraft < perfMod.fitBudget(small).maxContext, `a 12 GB card: less context with the draft (${withDraft}), still one that runs`);
+    const up = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
+    assert.ok(up.includes('mtp: !!config.llamacpp.mtp,'), 'the farm sizes llama.cpp with the draft counted');
+});
+
 test('shouldEvictOllama: only under pressure, only when idle, only llama.cpp engine', () => {
     const base = { llamacppOn: true, vramUsedGb: 11.5, vramTotalGb: 12, gpuUtil: 3, loadedCount: 1 };
     assert.equal(perfMod.shouldEvictOllama(base), true, 'full + idle + loaded → evict');

@@ -1765,6 +1765,22 @@ Blue sphere* in 1.0 s, right objects and colours (the green ground not named).
 a 12 GB card first. Not for the class farm (vLLM cannot load it). One night, one card, temperature 0.6; the vendor's own
 benchmarks not rerun. Results: `results/n17-lcpp-b12377-*` and `results/ide/n17-lcpp-b12377-*.jsonl`.
 
+**The draft head's memory, measured (2026-11-27, night n° 18)**, for the farm's sizing (BONSAI_DEFAULT_PLAN step 3).
+The pinned llama-server b12377 alone, with the farm's arguments (`-fa 1`, a q4_0 KV cache, one person), Bonsai Q2_0-mtp,
+no vision file; the card's memory once it listens. The draft is on with `--spec-type draft-mtp --spec-draft-n-max 2`.
+
+| context | draft off | draft on | the draft |
+|---|---|---|---|
+| 16,384 | 9,366 MiB | 10,112 MiB | +746 MiB |
+| 65,536 | 10,470 MiB | 11,426 MiB | +956 MiB |
+| 131,072 | 11,942 MiB | 13,218 MiB | +1,276 MiB |
+
+So **about 0.7 GB fixed and 0.08 GB per 16k of context** (the farm's `DRAFT_*`, rounded up). The main context grows
+23 MiB per 1k tokens at both steps. The term also gives the night before's +1.9 GB at 4 × 64k. A first pass through a
+scratch farm, while the client harness drew on the card, gave +488, +841 and +956 (too noisy to use; the baseline drifted
+1,536 → 1,345 MiB). Sized as a 12 GB card with the term (the farm's `auto`, `gpuReserveGb` 84): 4,096 tokens, 8.6 GB on
+the card inside a 9.1 GB budget. One model, one build; a 4070 itself is HUMAN_TESTS K18.
+
 # Classify: vLLM's decision endpoint against Laya (RTX PRO 6000, 2026-11-26)
 
 Plans ▸ Next 22 (the owner, 2026-11-25 19:05), [research note](../research/VLLM_DECISIONS_2026-11-25.md). **The set:** 194

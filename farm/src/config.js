@@ -234,6 +234,18 @@ const LlamacppSchema = z.object({
             note: 'Default. Best speed/quality on a 12 GB card, with headroom to spare.',
         },
         {
+            // BONSAI_DEFAULT_PLAN step 1 (approved 2026-11-26): offered, not the default until a 12 GB card is tested
+            // with its draft on (step 3, the 4070). Measured 2026-11-26 on the PRO 6000 (b12377, RESULTS): the
+            // quality check 28 ×3 against UD-IQ2_S's 24/23; one person 183 tok/s with the draft, 120 without, 110 for
+            // UD-IQ2_S; the coding agent a tie. Its draft head costs ~0.7 GB + 0.08 GB per 16k (perf.js DRAFT_*).
+            id: 'ternary-bonsai-2.5-27b-q2_0',
+            label: 'Ternary Bonsai 2.5 27B · Q2_0',
+            url: 'https://huggingface.co/prism-ml/Ternary-Bonsai-2.5-27B-GGUF/resolve/main/Ternary-Bonsai-2.5-27B-Q2_0-mtp.gguf',
+            mmproj: 'https://huggingface.co/prism-ml/Ternary-Bonsai-2.5-27B-GGUF/resolve/main/Ternary-Bonsai-2.5-27B-mmproj-Q8_0.gguf',
+            sizeGb: 7.9, mtp: true,
+            note: 'Better answers than the default at the same size (measured on the PRO 6000), and the fastest for one person with its draft head (MTP). Not yet tried on a 12 GB card.',
+        },
+        {
             id: 'qwen3.8-27b-ud-iq2_xxs',
             label: 'Qwen3.8 27B · UD-IQ2_XXS',
             url: 'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_XXS.gguf',

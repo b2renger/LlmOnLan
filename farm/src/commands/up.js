@@ -983,6 +983,7 @@ async function run(args) {
                 // The model's own KV geometry when the header carries it — exact,
                 // where the table is one measured family.
                 kvRate: ggufMod.kvGbPer16k(meta, config.llamacpp.kvCacheType),
+                mtp: !!config.llamacpp.mtp,   // the draft head's own memory (perf.js DRAFT_*, 2026-11-27)
             });
             // "Max that fits" is also capped by what the model was TRAINED at —
             // llama-server will run past n_ctx_train, silently degrading.

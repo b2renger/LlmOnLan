@@ -36,6 +36,23 @@ same Qwen3.8 27B, Unsloth's 2-bit, 8.37 GB, its draft head stripped):
 4. **Tests:** the config's default and the library's first entry (the existing config tests); a scratch farm downloads it
    and serves it (tonight's runner, `docs/spike`); HUMAN_TESTS K-row: the 4070, a chat and LOL Vibe's agent.
 
+## Built (night n° 18, 2026-11-27, DEVLOG 03:25): step 3's sizing, step 1; the 4070 and step 2 wait
+
+- **Step 3, the draft in the farm's sizing:** `perf.js` `fitBudget({ …, mtp })` adds `DRAFT_FIXED_GB` 0.7 and
+  `DRAFT_GB_PER_16K` 0.08, measured that night. The measurement ran the pinned llama-server b12377 alone, Bonsai Q2_0-mtp,
+  one person, the card's memory with the draft on less off: **+746 MiB at 16k, +956 at 64k, +1,276 at 128k** (the main
+  context 23 MiB per 1k tokens). The term also gives the night before's +1.9 GB at 4 × 64k. `up.js` `computeFit` passes
+  `llamacpp.mtp`.
+  - Checked through a scratch farm sized as a 12 GB card (`gpuReserveGb` 84, `contextLength: 'auto'`, the draft on, no
+    vision file): a 4,096-token context, **8.6 GB on the card inside the 9.1 GB budget**.
+  - Test: `farm/test/run.js` *fitBudget counts the draft head's own memory…* (the four measured points, a 12 GB card,
+    off unchanged).
+- **Step 1, the library:** *Ternary Bonsai 2.5 27B · Q2_0* (the `-mtp` file and `mmproj-Q8_0`, both checked to exist,
+  `mtp: true`), second, after the default. **Not the default** (step 2) until **HUMAN_TESTS K18**, the 4070 with its
+  draft off and on.
+  - Found: the panel has no MTP switch, and *Use this* only ever turns MTP off, so K18 turns it on in `lol.config.json`.
+    Step 2 (the default with MTP on) is what an operator would get.
+
 ## What was not measured
 
 - Vision beyond one picture: one question (a three.js scene) named its three objects and colours in 1.0 s (RESULTS).

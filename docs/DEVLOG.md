@@ -9,6 +9,26 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-27 (03:25) — BONSAI_DEFAULT_PLAN: the draft head's memory measured and counted; Bonsai in the library; a harness flake
+
+- **The draft's memory, measured** (RESULTS ▸ Bonsai, the table): Bonsai Q2_0-mtp fetched again (7.91 GB, sha256
+  `b0f83de8…` as the night before), then the pinned llama-server alone, one person, the draft on less off: +746 MiB at
+  16k, +956 at 64k, +1,276 at 128k. That is about 0.7 GB fixed plus 0.08 GB per 16k, and it matches the night before's
+  +1.9 GB at 4 × 64k. A first pass through a scratch farm while the harness ran was too noisy to use.
+- **Counted:** `perf.js` `fitBudget` gains `mtp` (`DRAFT_FIXED_GB`, `DRAFT_GB_PER_16K`), and `up.js` `computeFit`
+  passes `llamacpp.mtp`. With MTP off, nothing changes (the test checks it). A scratch farm sized as a 12 GB card, the
+  draft on, chose 4,096 tokens; llama-server held 8.6 GB inside the 9.1 GB budget.
+- **The library:** *Ternary Bonsai 2.5 27B · Q2_0*, second, `mtp: true`, its two files checked to exist (the vision file
+  629 MB). Not the default: that waits on **K18**, the 4070. Found: the panel has no MTP switch and *Use this* never
+  turns MTP on, so K18 sets it in the config; the plan's step 2 (the default with MTP) is what gives it to operators.
+- **A harness flake, fixed in the test:** `p1-errors` failed 2 of 4 runs (in 327 ms; 5 of 5 passes in earlier logs).
+  The boot's crash recovery (`main.mjs` `settle` → `repo.recoverInterrupted`) turns a `waiting` message
+  `interrupted`, and it ran after the scenario's first message. The scenario now waits for `LolChat.migration`, and
+  passed 5 of 5 after. The same race exists for a person who sends within the boot's first moments: their record reads
+  *interrupted* until its next write. That one is noted, not fixed tonight.
+- **Suites:** the farm **298/298**; the full client harness **423/424** (only `p1-errors`, then fixed).
+- **CPYTHON_BUMP_PLAN** written and listed under *Waiting on the owner* (to build when a 3.12.x ships expat 2.11.0).
+
 ## 2026-11-27 (03:08) — The real client with the Blender tools: its boot, the switch off and on; two fixes
 
 The advisor's point: `test:chat` and the harness never boot `index.ts`; the harness runs its own `main.cjs`.
