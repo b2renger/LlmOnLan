@@ -21,6 +21,9 @@ const seedV1 = (/** @type {any} */ h, /** @type {string} */ raw) =>
 const writeThread = (/** @type {any} */ h, /** @type {string} */ title, /** @type {string[]} */ texts) =>
     h.eval(async (t, list) => {
         const repo = window.LolChat.app.repo;
+        // Opened first: read straight after the page loads, `mode` was still 'pending' in 2 runs of 5 (night n° 18, on
+        // the code before that night's changes too); the check is what it opened as, IndexedDB or the memory fallback.
+        await repo.ready;
         const th = repo.createThread({ title: t });
         const ids = list.map((text, i) => repo.appendMessage(th.id, { role: i % 2 ? 'assistant' : 'user', content: text }).id);
         await repo.flush();

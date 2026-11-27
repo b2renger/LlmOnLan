@@ -9,6 +9,19 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-27 (04:32) — The full harness again; a second flake, in a test; the final client build
+
+- **The full harness on the recovery fix: 423/424.** `p1-errors` passed (no wait in it any more). The one failure,
+  `p0-store-idb`, was "got pending, want idb" in ~195 ms.
+- **`p0-store-idb` is an older flake.** It failed 3 in 5 alone on tonight's code, and also 2 in 5 with the code from
+  before tonight's fix. Its helper wrote straight after the page loaded and read the store's mode before the store had
+  opened. It now awaits `repo.ready` first, so the check is what the store opened as, IndexedDB or the memory fallback.
+- **After:** `p0-store-idb` 6/6 alone, and the whole `p0-store` group 6/6, the late-IndexedDB and memory-fallback cases
+  included.
+- `test:chat` **1994** (1 skipped), lint 0.
+- **The client installer** `0.2.21+n18` rebuilt at 04:32, carrying every change of the night (the palette's text, the
+  recovery fix, the Blender and Classify changes), on Electron 45.5.0.
+
 ## 2026-11-27 (04:13) — The boot's crash recovery no longer marks this session's first message interrupted
 
 - **The bug** (reproduced by the harness's `p1-errors`, 2 failures in 4, 03:18): `main.mjs` `settle` runs
