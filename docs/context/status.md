@@ -55,7 +55,20 @@ shorter (FARM_START step 3); the built-ins read their weights with `prefetch`, ~
 start begins before LiteLLM and the other plugins, ~10 s sooner (step 1). **Open WebUI stays at 0.13.3:** 0.13.4 would drop the Blender tools
 ([BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md), approved by the owner 2026-11-26, not built yet).
 
-**On `main`, not released yet (2026-11-26, night n° 17):** **Farm app:** Electron 45.5.0 (it runs the farm on Node
+**On `main`, not released yet (night n° 18, 2026-11-27; the local builds `0.0.55+n18` and `0.2.21+n18`):**
+- **Farm:**
+  - `lol up` holds its panel's port before its first WSL call (WSL_PORTS_PLAN, J20);
+  - the Classify service answered by the farm's own vLLM when it serves Qwen3.6 or Qwen3.8, else Laya
+    (CLASSIFY_VLLM_PLAN, J21);
+  - the llama.cpp sizing counts a draft head's memory when MTP is on (0.4 GB + 0.32 GB a slot + 0.08 GB per 16k);
+  - Ternary Bonsai 2.5 27B in the llama.cpp library, not the default until K18.
+- **Client:**
+  - the Blender tools through Open WebUI's env, `TOOL_SERVER_CONNECTIONS` (BLENDER_TOOLS_ENV steps 1–3, A31);
+  - the Classify box naming who answered;
+  - the boot's crash recovery leaving a first message sent before its scan alone.
+- **Open WebUI stays 0.13.3:** 0.13.5 does not start on Windows (`research/OWUI_0135_2026-11-27.md`).
+
+**Before that, night n° 17 (2026-11-26):** **Farm app:** Electron 45.5.0 (it runs the farm on Node
 24.22); after an app update the bundled Python swapped for pbs 20261124's build of the same CPython (RUNTIME_UPDATE_PLAN:
 expat 2.11.0 on Linux farms; the PRO 6000's 3.12.14 is left alone and `farm.log` says so); HUMAN_TESTS J20 on the local
 build `0.0.55+n17`. **Farm** (in that build's farm copy): Qwen3.8's measured labels at 64k and 128k follow its drafting
