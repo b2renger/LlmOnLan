@@ -2092,7 +2092,7 @@ Classify box's items are read by it (73 % right against Laya's 59 % on 194 headl
 who answered. Measured without you: the service against a real vLLM serving Qwen3.6 under the farm's name, six headlines
 in English and French all right, 0.6 s (DEVLOG 2026-11-27 02:52). *Needs:* J20's build installed (it carries the farm
 side), the client build of A31 (it carries the box's words), the panel's **Classify (Laya)** plugin on (the first time
-it installs Laya, about 1 GB, a few minutes), 5 minutes. *Was:* new (2026-11-27).
+it installs Laya, about 1.7 GB, a few minutes), 5 minutes. *Was:* new (2026-11-27).
 1. In the farm panel, Plugins: turn **Classify (Laya)** on if it is off; wait for it to say it is up. The first time,
    that fetches about 1.7 GB on the live farm (torch for the CPU, 0.9 GB, then Laya's weights, 0.8 GB, at its first
    start), a few minutes while chats go on. Read without you, 05:27: the PRO 6000 serves `qwen3.6-35b-a3b` on vLLM

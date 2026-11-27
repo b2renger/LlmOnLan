@@ -30,6 +30,10 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## The farms and the room
 
+- **2026-11-27, the chat (09:20).** n° 18's questions 2 and 3 ("1 yes, 2 yes, 3 yes"; 1 is under *Open WebUI*):
+  **yes**. llama.cpp goes to **b12774** (the official v1.1.0) instead of b12751, with the Spark's CI build; LiteLLM goes
+  from 1.106.9 to **1.108.19** (the LTS line), `install.js` and the Farm app's `LITELLM_PIN` together. Both in the Farm
+  app after farm-v0.0.56, in the same build (the recommendation).
 - **2026-11-26, the chat (08:52).** n° 17's questions 1, 3, 4 and 5 ("1 yes, 2 yes, 3 yes, 4 yes, 5 yes"; 2 is
   under *Open WebUI*): **yes**.
   [WSL_PORTS_PLAN](../plans/WSL_PORTS_PLAN.md) is built (the farm holds its panel and beacon ports before any WSL call);
@@ -171,6 +175,9 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## Open WebUI, privacy, cloud
 
+- **2026-11-27, the chat (09:20).** n° 18's question 1: **"1 yes"**. Open WebUI 0.13.5 does not start on Windows, so
+  the client stays on **0.13.3**; the approved bump goes to the first release that starts on Windows (each session
+  reads a new release's `utils/machines/managed.py` first).
 - **2026-11-26, the chat (08:52).** n° 17's question 2: **"2 yes"**.
   [BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md) is built, then Open WebUI moves from 0.13.3 to
   **0.13.5** with its smoke tests; this overturns the default taken 2026-11-22. The plan's own question 2 takes its
