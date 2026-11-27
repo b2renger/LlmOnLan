@@ -1,8 +1,15 @@
 # VIBE_ANNOTATE_PLAN: draw on LOL Vibe's preview, say what to change, the agent changes the code
 
-**Status: proposed, for the owner** (the owner's ideas from Google AI Studio, the chat 2026-11-27 14:22: "we could
-consider"; DECISIONS). Nothing here is built before the owner's yes. Size **M** for steps 1–2, more for what follows.
-The client only. The privacy boundary gains one line (step 2), which needs the owner's yes first.
+**Status: approved by the owner, 2026-11-27, steps 1–2, after the release** (the chat, 16:04, day question 4: "yes";
+DECISIONS).
+- The ideas: the owner's, from Google AI Studio (the chat, 14:22: "we could consider").
+- What the yes covers: step 1 (PICTURE_TO_PAGE steps 2–4), then step 2 (Annotate on the project's Preview), with step
+  2's privacy line.
+- When: once farm-v0.0.56 and client v0.2.22 are out. The three fixes that hold them come first.
+- Not approved: steps 3 and 4. Step 3 is a question once step 2 is in people's hands, and step 4 needs a plan of its
+  own.
+
+Size **M** for steps 1–2. The client only.
 
 ## What the owner listed
 
@@ -54,9 +61,10 @@ The client only. The privacy boundary gains one line (step 2), which needs the o
      refs/annotations/<time>.png; the red marks show what to change; read it with read_image"*, and the page's file
      name.
    - The marks stay on the layer until *Clear*, so a second comment can point at the same place.
-   - **Privacy:** `docs/context/privacy.md` gains *LOL Vibe: a marked screenshot of the person's own project page,
-     sent with a request to the coding agent* beside the Computer's Preview pixels, which it already lists. Nothing new
-     is kept anywhere but the project folder.
+   - **Privacy** (allowed by the owner, 2026-11-27 16:04): `docs/context/privacy.md` gains *LOL Vibe: a marked
+     screenshot of the person's own project page, sent with a request to the coding agent*, beside the Computer's
+     Preview pixels, which it already lists. The line goes in the commit that ships step 2. Nothing new is kept
+     anywhere but the project folder.
 3. **The same on a plain chat's page** (optional, after 2): the guest's `snapshot` gives the page's picture, the marks
    are drawn over it in the client, and the two go with the next message, once the chat can carry a picture (the gap
    above).
@@ -79,14 +87,10 @@ The client only. The privacy boundary gains one line (step 2), which needs the o
 
 ## Questions for the owner
 
-1. **Build PICTURE_TO_PAGE steps 2–4 and this plan's step 2 (Annotate on the project's Preview)?**
-   - *Recommended:* yes, in that order, after the three fixes that hold the release (COMPUTER_DOTS, BLENDER_LAB_MCP,
-     PLUGIN_PROGRESS).
-   - *Default if no answer:* nothing built.
-2. **The privacy line in step 2** (a marked screenshot of a person's own project page goes to the farm's model with the
-   request, kept only in the project)?
-   - *Recommended:* yes.
-   - *Default if no answer:* step 2 waits.
-3. **DOM inspection (step 4) as the next plan after Annotate?**
+1. ~~Build PICTURE_TO_PAGE steps 2–4 and this plan's step 2, after the three fixes?~~ **Yes**, after the release (the
+   chat, 2026-11-27 16:04).
+2. ~~The privacy line in step 2?~~ **Yes** (the same answer).
+3. **DOM inspection (step 4) as the next plan after Annotate?** Not asked yet: it is asked once step 2 is in people's
+   hands.
    - *Recommended:* yes, written once step 2 is in people's hands.
    - *Default if no answer:* not written.

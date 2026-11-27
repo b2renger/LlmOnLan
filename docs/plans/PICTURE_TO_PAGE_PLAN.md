@@ -1,7 +1,12 @@
 # PICTURE_TO_PAGE_PLAN: LOL Vibe builds a page from a picture, a Figma export or a scene
 
-**Status: proposed, for the owner** (night n° 12, 2026-11-21; plans ▸ Next 18, the owner's ask of 2026-11-20). Step 1
-is a measurement a session may run; steps 2–4 wait for the owner's yes. Size **M**.
+**Status: approved by the owner, 2026-11-27, steps 2–4, after the release**:
+- The source: the chat, 16:04, through [VIBE_ANNOTATE_PLAN](VIBE_ANNOTATE_PLAN.md)'s step 1; DECISIONS.
+- The plan: night n° 12, 2026-11-21; plans ▸ Next 18, the owner's ask of 2026-11-20.
+- Step 1, the measurement, is done (below). Steps 2–4 come once farm-v0.0.56 and client v0.2.22 are out.
+- Annotate on the project's Preview (VIBE_ANNOTATE step 2) builds on step 2.
+
+Size **M**.
 
 ## Why
 
@@ -59,7 +64,7 @@ server).
 
 ## Questions for the owner
 
-1. **Approve steps 2–4 after step 1's scores?** *Recommended:* yes, if the best model rebuilds a recognisable page from
-   a screenshot. *Default if no answer:* step 1 only.
+1. ~~Approve steps 2–4 after step 1's scores?~~ **Yes**, after the release (the chat, 2026-11-27 16:04, through
+   VIBE_ANNOTATE_PLAN).
 2. **Two or three Figma frames** exported as SVG and PNG, for step 1. *Default if no answer:* step 1 runs without
    Figma, and says so.

@@ -4,14 +4,14 @@
 - Day question 4, "yes", the chat 14:23.
 - The owner's words, 14:22: "I think we should use the 'official' blender lab MCP rather than the community one".
 - The timing, 14:23: "We should do all that before releasing new farm and new client".
-- The design below is the session's. **Two questions for the owner come first:**
-  - Step 1's install route: it either ships GPL code, or depends on a download that may refuse a script.
-  - Step 5's screenshot tools: they send pixels of the person's Blender window to the farm, which needs a privacy line.
-- The plan is built **whole, once the install route is answered**: Lab's env and probe beside the community server
-  would leave `main` half-switched.
+- The design below is the session's. **Its two questions, answered** (the chat, 16:04, "1 wheel, 2 yes"; DECISIONS):
+  - Step 1's install route: **the wheel**, shipped inside the client (option b).
+  - Step 5's screenshot tools: **allowed**, with their privacy line.
+- The plan is built **whole**: Lab's env and probe beside the community server would leave `main` half-switched.
 
 Size **M**. The client only: `shell/src/main/mcpoSupervisor.ts`, the Test connection in `shell/src/main/index.ts`, the
-Preferences text, GETTING_STARTED and the README.
+wheel and its licence in `shell/assets/`, the Preferences text, GETTING_STARTED, the README, and `privacy.md`'s line
+for the screenshot tools.
 
 ## Why (HUMAN_TESTS A31, 2026-11-27; DEVLOG 14:10)
 
@@ -51,6 +51,16 @@ Preferences text, GETTING_STARTED and the README.
      distribute a GPL-3.0 program, as a separate program the client starts, which the GPL allows with its licence and
      source.
    - Recommended: (b). The wheel's size is measured first (it carries Blender's API and manual as text).
+   - **The owner chose (b), 2026-11-27 16:04.** How, for the build:
+     - The wheel is built once from a clone of Lab's repository at `dbbf836` (`pip wheel --no-deps` of its `mcp/`).
+       `git ls-remote` reached the repository on 2026-11-27; the clone itself is not checked yet. If it is refused,
+       stop and ask.
+     - The installer packs `shell/assets/**` (`electron-builder.yml`, `files`). The wheel goes there, committed, with
+       Lab's licence file and a short note naming the repository and the commit. That is the GPL's source offer, and
+       the wheel holds the Python source itself.
+     - If the wheel is too large to commit (above about 20 MB), stop and ask rather than choose another route.
+     - The code pins the wheel's sha256 and installs it from that file. Its dependencies (`docutils`, `mcp[cli]`,
+       `pyyaml`) still come from PyPI, as `mcpo`'s do today.
 2. **Point it at Blender.**
    - `BLENDER_MCP_HOST=127.0.0.1` and `BLENDER_MCP_PORT=<Preferences ▸ Blender port>`, in place of `BLENDER_PORT`.
    - **`BLENDER_PATH` stays unset**, so the `_for_cli` tools fail with their own message.
@@ -72,11 +82,17 @@ Preferences text, GETTING_STARTED and the README.
      *System ▸ Network ▸ Allow Online Access* on (the extension asks for it); its server starts by itself.
    - What is lost: Blender before 5.1 is no longer supported.
 5. **Tools Open WebUI shows.** Lab's tools replace the community ones in the chat's list (the server's own names).
-   - **The screenshot tools wait for a privacy line and the owner's yes.** They would send pixels of the person's
-     Blender window to the farm's model. `docs/context/privacy.md` lists only the Computer's Image and Preview pixels.
-   - Until then they are kept out of the chat. How (mcpo or Open WebUI's connection settings) is checked at the build;
-     if neither can, the plan stops and asks.
-   - Whether their image reaches the model through `mcpo` and Open WebUI 0.13.3 is checked once they are allowed.
+   - **The screenshot tools: allowed by the owner, 2026-11-27 16:04**, with a privacy line. They send pixels of the
+     person's Blender window to the farm's model. `docs/context/privacy.md` lists only the Computer's Image and Preview
+     pixels today.
+   - **First, check that their picture reaches the model** through `mcpo` and Open WebUI 0.13.3 (a scratch Blender, a
+     screenshot tool call, the model asked what it sees).
+     - If it does: `privacy.md` gains its line in the commit that ships the tools, beside the Computer's pixels: *the
+       Blender tools, when switched on in Preferences: a screenshot of the person's own Blender window or one of its
+       areas, taken when the model calls the tool, sent with the request to the farm's model; kept only in the chat on
+       this computer*.
+     - If it does not reach the model: the tools are kept out of the chat. How (mcpo or Open WebUI's connection
+       settings) is checked then; if neither can, stop and ask. No privacy line is added, and that is written down.
 
 Not changed: how the tools reach Open WebUI (BLENDER_TOOLS_ENV_PLAN's env entry), the helper's loopback bind and its
 key, the switch in Preferences, and the farm's *Recommend* for Blender.
@@ -103,9 +119,11 @@ key, the switch in Preferences, and the farm's *Recommend* for Blender.
 - **HUMAN_TESTS A31 rewritten** for the extension, about 10 minutes:
   - Get Extensions ▸ MCP, Allow Online Access, Test connection: *Blender's MCP extension ✓*.
   - *Add a red cube and a sun lamp*: both appear.
-  - The screenshot tools: only once the owner allowed them (step 5).
+  - The screenshot tools (allowed, step 5), if their picture reaches the model: *What do you see in the viewport?*
+    The answer names the cube and the lamp.
 
 ## Done when
 
-The unit tests pass, the run on the PRO 6000 adds a cube through `mcpo`, the words are changed in the three places,
-A31 is rewritten, and the plan's built section names the build the owner tests.
+The unit tests pass, the run on the PRO 6000 adds a cube through `mcpo`, the screenshot check is written down (with
+`privacy.md`'s line if the picture reaches the model), the words are changed in the three places, A31 is rewritten,
+and the plan's built section names the build the owner tests.

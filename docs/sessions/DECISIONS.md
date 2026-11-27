@@ -30,6 +30,9 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## The farms and the room
 
+- **2026-11-27, the chat (16:04).** Day question 3 ("3 yes"): **"all that" is the three fixes**. The Computer's dots,
+  Blender Lab's MCP and the panel's plugin download progress hold farm-v0.0.56 and client v0.2.22. LOL Vibe's
+  annotate mode does not: it comes after the release (*LOL Vibe and the Computer*, below).
 - **2026-11-27, the chat (14:23).** After the morning tests of the n18 builds, the day questions 1 and 2 (release
   farm-v0.0.56 and client v0.2.22): **"1, no, 2, no … We should do all that before releasing new farm and new
   client."** Nothing is released until these are built and tested:
@@ -39,7 +42,7 @@ its date, before anything else, and commits it. An unanswered question's default
     the download and give the farm operator proper information (including the download progress)").
 
   The session read "all that" as these three findings of the tests, not LOL Vibe's annotate ideas (below); the
-  owner may correct it.
+  owner confirmed it at 16:04 (above).
 - **2026-11-27, the chat (09:20).** n° 18's questions 2 and 3 ("1 yes, 2 yes, 3 yes"; 1 is under *Open WebUI*):
   **yes**. llama.cpp goes to **b12774** (the official v1.1.0) instead of b12751, with the Spark's CI build; LiteLLM goes
   from 1.106.9 to **1.108.19** (the LTS line), `install.js` and the Farm app's `LITELLM_PIN` together. Both in the Farm
@@ -141,6 +144,15 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## LOL Vibe and the Computer
 
+- **2026-11-27, the chat (16:04).** Day question 4 ("4 yes"): **after the release**, LOL Vibe gets:
+  - first, reference screenshots: [PICTURE_TO_PAGE_PLAN](../plans/PICTURE_TO_PAGE_PLAN.md) steps 2–4 (a picture dropped
+    in a project chat is saved in the project and the coding agent reads it). This answers that plan's question 1;
+  - then annotate mode on the project's Preview: [VIBE_ANNOTATE_PLAN](../plans/VIBE_ANNOTATE_PLAN.md) step 2 (marks and
+    a comment, one screenshot saved in the project, the agent reads it).
+
+  **With its privacy line:** a marked screenshot of the person's own project page goes to the farm's model with the
+  request, and is kept only in the project folder. The plan's steps 3 (plain-chat pages) and 4 (DOM inspection, fonts,
+  variations) were not asked; its question 3 stays open.
 - **2026-11-27, the chat (14:22–14:23).** The Computer's dots (day question 3: **"yes"**): "the inputs should be in
   the same order of the fields in the box, we should have a clearer connection on how they relate. Maybe we should add
   tooltips when hovering the inputs / outputs." Before the next release.
@@ -193,6 +205,14 @@ its date, before anything else, and commits it. An unanswered question's default
 
 ## Open WebUI, privacy, cloud
 
+- **2026-11-27, the chat (16:04).** [BLENDER_LAB_MCP_PLAN](../plans/BLENDER_LAB_MCP_PLAN.md)'s two questions
+  ("1 wheel, 2 yes"):
+  - **The install route: the wheel.** Lab's server reaches a laptop as a wheel built once from Lab's commit `dbbf836`,
+    shipped inside the client with its GPL-3.0-or-later licence and a link to its source, and installed from that
+    file. Nothing is downloaded from Lab's site at a person's install.
+  - **Lab's screenshot tools: allowed**, with a privacy line: pixels of the person's own Blender window (or one of its
+    areas) go to the farm's model with the request, and nothing is kept but the chat on the person's computer.
+  - Not asked, so unchanged: the background-Blender `_for_cli` tools stay off (`BLENDER_PATH` unset).
 - **2026-11-27, the chat (14:22–14:23).** Blender (day question 4: **"yes"**): "I think we should use the 'official'
   blender lab MCP rather than the community one." The client's Blender tools move from the community `blender-mcp` and
   its BlenderMCP add-on to Blender Lab's MCP server and its **MCP** extension (Blender 5.1+), before the next release.

@@ -46,7 +46,8 @@ file stays the whole list.
 
 - **The farm keeps its panel and beacon ports when its own boot starts WSL** ([WSL_PORTS_PLAN](WSL_PORTS_PLAN.md), night n° 17, 2026-11-26): on the PRO 6000 (WSL in mirrored networking) a cold WSL boot reserves 40525–44620, which holds the farm's 41997 and 41998, and `lol up` starts WSL before it binds them; reproduced by the lifecycle suite and two cold boots, not seen in production's three boots. **Approved by the owner 2026-11-26** (summary n° 17, question 1: "yes"). **Built night n° 18 (2026-11-27), unreleased:** measured cold before and after; HUMAN_TESTS J20 says what to look for. **S**.
 **The next releases wait for these three** (the owner, 2026-11-27 14:23: "We should do all that before releasing new
-farm and new client"). Farm-v0.0.56 and client v0.2.22 are built and tested otherwise (HUMAN_TESTS J20, J21, A30, A31).
+farm and new client"; "all that" is these three, confirmed 16:04). Farm-v0.0.56 and client v0.2.22 are built and
+tested otherwise (HUMAN_TESTS J20, J21, A30, A31).
 
 - **The Computer's input dots sit beside the fields they fill, and say their names**
   ([COMPUTER_DOTS_PLAN](COMPUTER_DOTS_PLAN.md), **approved by the owner 2026-11-27**, day question 3): the owner's J21
@@ -58,10 +59,10 @@ farm and new client"). Farm-v0.0.56 and client v0.2.22 are built and tested othe
     `BLENDER_MCP_PORT` replaces `BLENDER_PORT`, and *Test connection* speaks to the add-on (the false ✓ the owner's
     A31 reproduced).
   - Blender 5.1 or later, with *Allow Online Access* on.
-  - **Step 1's install route is a question for the owner:** a wheel shipped with the client (GPL-3.0), or Lab's
-    archive, which answered 403 to a script. The plan is built whole once it is answered.
-  - Its screenshot tools stay out of the chat until the owner allows them, with a privacy line. Its background-Blender
-    tools stay off (`BLENDER_PATH` unset).
+  - **The install route: a wheel** built once from Lab's commit, committed in `shell/assets/` with its GPL-3.0 licence
+    and a source note, and installed from that file (the owner, 16:04). The plan is built whole.
+  - **Its screenshot tools: allowed** (the owner, 16:04), once a check shows their picture reaches the model.
+    `privacy.md`'s line goes in the same commit. Its background-Blender tools stay off (`BLENDER_PATH` unset).
   - **M**. Client.
 - **The panel says what a plugin downloads, and how far it has got**
   ([PLUGIN_PROGRESS_PLAN](PLUGIN_PROGRESS_PLAN.md), **approved by the owner 2026-11-27**, the owner's J21 request).
@@ -169,6 +170,14 @@ farm and new client"). Farm-v0.0.56 and client v0.2.22 are built and tested othe
    30 ([the summary](../sessions/2026-11-14-n4.md)); two panel bugs fixed for the next Farm app (J17). J15 open.
 
 ## 2. Next — the most value for the office
+
+**First after the release** (the owner, 2026-11-27 16:04, once farm-v0.0.56 and client v0.2.22 are out): **LOL Vibe
+sees a picture, then draws on the preview.**
+- First [PICTURE_TO_PAGE_PLAN](PICTURE_TO_PAGE_PLAN.md) steps 2–4: a picture dropped in a project chat is saved in the
+  project, and the agent reads it (item 18 below).
+- Then [VIBE_ANNOTATE_PLAN](VIBE_ANNOTATE_PLAN.md) step 2: marks and a comment on the project's Preview, one screenshot
+  saved in the project, its privacy line.
+- Both are **approved 2026-11-27**. **M**. Client.
 
 **New models, measured 2026-11-06** ([RESULTS](../spike/RESULTS.md#model-trials-rtx-pro-6000-2026-11-06)): nothing beats Qwen3.6 for a class,
 and it serves more than we said. Gemma 4 26B is LOL Vibe's coding model since 2026-11-09 (owner), in Flint's place. Nanbeige4.3 and Apex-35B are not for this farm.
@@ -351,7 +360,7 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 18. **LOL Vibe builds from a picture** (owner, 2026-11-20: "upload images of interfaces to be able to reproduce them
     with html css js - and even figma files, or images of scenes to be able to reproduce them with threejs"). Three
     asks: **a screenshot of an interface → a page in HTML, CSS and JS**; **a Figma design → the same**; **a picture of a
-    scene → a three.js scene**. **The plan: [PICTURE_TO_PAGE_PLAN](PICTURE_TO_PAGE_PLAN.md)** (night n° 12, proposed:
+    scene → a three.js scene**. **The plan: [PICTURE_TO_PAGE_PLAN](PICTURE_TO_PAGE_PLAN.md)** (steps 2–4 **approved 2026-11-27**, first after the release, above; night n° 12:
     step 1 measures three models on screenshots, Figma exports and rendered scenes; found: a picture dropped in a chat
     bound to a project never reaches the agent today, `controller.mjs:594-599`). What exists
     (checked 2026-11-20 in the code, not yet run end to end):
@@ -487,13 +496,9 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
 ## 4. Waiting on the owner
 
-- **LOL Vibe: draw on the preview, say what to change** ([VIBE_ANNOTATE_PLAN](VIBE_ANNOTATE_PLAN.md), proposed
-  2026-11-27, the owner's ideas from Google AI Studio).
-  - The order: first [PICTURE_TO_PAGE_PLAN](PICTURE_TO_PAGE_PLAN.md) steps 2–4 (reference screenshots: the agent sees
-    a picture dropped in a project chat), then Annotate on the project's Preview (marks and a comment, one screenshot
-    saved in the project, the agent reads it).
-  - Later: DOM inspection, fonts and design variations, as a plan of their own.
-  - Three questions in the plan, one of them a privacy line. **M**. Client.
+- **LOL Vibe: DOM inspection, fonts and design variations** ([VIBE_ANNOTATE_PLAN](VIBE_ANNOTATE_PLAN.md) steps 3–4,
+  the owner's ideas from Google AI Studio). The plan's steps 1–2 are approved (2 ▸ *First after the release*). Step 3
+  (the same on a plain chat's page) and step 4 (a plan of its own) are asked once Annotate is in people's hands.
 - **A farm's bundled CPython moved to a newer 3.12, its venvs rebuilt** ([CPYTHON_BUMP_PLAN](CPYTHON_BUMP_PLAN.md), night n° 18, proposed): for the PRO 6000's CPython 3.12.14 and its expat 2.8.3, which RUNTIME_UPDATE cannot reach; a button in the Farm app's window, the venvs rebuilt through their install signatures, the old ones kept until a start works. **M**. **Not before** a python-build-standalone release carries a 3.12.x with expat 2.11.0 on Windows (none yet: python/cpython#162493); then the owner's question.
 **The ones that unblock the most:**
 - **[AGENT_FIRST_STEP_PLAN](AGENT_FIRST_STEP_PLAN.md)** (night n° 13, proposed): Gemma 4 26B on Ollama ends 1 coding
