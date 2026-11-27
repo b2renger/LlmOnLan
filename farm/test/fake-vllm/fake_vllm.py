@@ -127,6 +127,19 @@ class H(http.server.BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(n) or b'{}')
         except ValueError:
             body = {}
+        if self.path.split('?')[0] == '/v1/systemone':
+            # vLLM's decision endpoint (0.32+), as the farm's Classify service asks it (CLASSIFY_VLLM_PLAN): the first
+            # option named in the item wins at 0.9, else the first option at 0.5. A model it does not serve is a 404.
+            if body.get('model') not in (None, SERVED):
+                return self.send(404, {'error': {'message': f"The model `{body.get('model')}` does not exist.", 'code': 404}})
+            q = (body.get('questions') or {}).get('q') or {}
+            keys = list((q.get('criteria') or {}).keys())
+            state = str(body.get('state') or '').lower()
+            hit = next((k for k in keys if k.lower() in state), None)
+            choice = hit or (keys[0] if keys else None)
+            conf = 0.9 if hit else 0.5
+            return self.send(200, {'answers': {'q': {'choice': choice, 'confidence': conf, 'probabilities': {choice: conf} if choice else {}}},
+                                   'diagnostics': {'q': {'label_mass': 1.0}}, 'usage': {'input_tokens': 5}})
         if self.path.split('?')[0] != '/v1/chat/completions':
             return self.send(404, {'error': 'not found'})
         # As vLLM: a model it does not serve is a 404 (2026-11-14: a farm still routing to the previous model).

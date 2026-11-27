@@ -62,8 +62,9 @@ CPU core per thread), and its confidence is closer to what it claims. The read i
   - **The harness scenario, added at 04:34:** `k17-classify-example-names-the-farm-model-that-answered`. The mock's
     Classify answers as `qwen3.6-35b-a3b` (`state.classifyModel`), and the box's output and status line name it. The
     news template's Laya path still passes.
-  - **Not added:** the lifecycle suite's step (the fake vLLM has no decision endpoint yet), the next session's fallback.
-    HUMAN_TESTS **J21** on the PRO 6000.
+  - **The lifecycle step, added at 04:44:** step **27**. The fake vLLM answers `/v1/systemone`, and a farm serving the
+    library id `qwen3.6-fake` has the Classify service ask it through the farm's relay. A farm serving `fake-a` is not
+    asked. HUMAN_TESTS **J21** on the PRO 6000.
 
 ## What it does not change
 

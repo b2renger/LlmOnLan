@@ -38,5 +38,26 @@
   released 16 to 990 ms after the abort. Within noise of b12751 on every line; the Spark's CI build is not tried (it
   builds at the bump). Results: `results/n18-lcpp-b12774-qwen38-ud-iq2s__*`.
 
+## Ollama 0.40.17, 0.40.18 (and 0.40.19-rc0)
+
+Read by the `docs` explorer (04:47–04:56, the release pages; its quotes are a fetch tool's relay, not checked byte for
+byte). **Nothing for our NVIDIA boxes:**
+- 0.40.17: a Windows fix for *integrated* GPUs' KV cache, Vulkan on iGPUs, *disabling thinking maps to the model's lowest
+  reasoning level*, Inkling 2 Mini on Apple silicon only. Our scratch A/B of 2026-11-22 held the pin against it.
+- 0.40.18: four Metal/MLX and llama.cpp-bump commits (the compare view lists exactly those four).
+- No security advisory published.
+
+## LiteLLM after 1.106.9
+
+The same explorer. There is no stable 1.107.x; 1.108.x is marked LTS; 1.109.x, 1.110.x and 1.111.0 exist (1.110.x and
+most of 1.111.0 not read). **Worth a scratch test** of the 1.108 line:
+- `ollama_chat/` streams no longer give every parallel tool call index 0 (1.108.5, #50718): our Ollama route.
+- A vLLM mid-stream abort no longer ends as a clean `stop` (1.108.19, #54466): our vLLM route.
+- 1.109.0 changes stream endings: a stream without a finish reason fails, and a stalled read raises 408. That could move
+  our cancel and stream tests.
+- **Advisories:** GHSA-2364-6whj-g7vx (`/global/activity/cache_hits`) and GHSA-fjxr-j47c-4x2x (`/spend/tags`) affect
+  1.106.9 (fixed in 1.108.0). Both routes are already refused by the farm's seat gate, checked and tested on 2026-11-26
+  (`375432f`, `farm/test/run.js`). GHSA-2rwg-2wh4-7c4f is fixed in 1.106.9 itself.
+
 Sources: `gh api repos/ggml-org/llama.cpp/releases/tags/v1.1.0` (body, assets, `target_commitish` 074f1f3f), `…/tags/b12774`
 (assets); `gh api repos/<repo>/releases?per_page=3` for the others.

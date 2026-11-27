@@ -48,6 +48,9 @@
 //  23 `lol down` racing the farm: its runtime file gone during a proxy bounce is not written back, and the vLLM it
 //     stops is not restarted: the farm stops as it was asked
 // Presets (owner, 2026-10-27):
+// Classify on vLLM (CLASSIFY_VLLM_PLAN, 2026-11-27):
+//  27 the Classify service, through the farm's relay, asks vLLM's decision endpoint when it serves a Qwen3.6 id (the
+//     library id is the served name), and does not ask another model (the Classify venv's Python; skipped without it).
 //  24 a preset through the real Apply path: its dry run lists what changes and that vLLM restarts; Apply turns the
 //     message bus off and restarts vLLM with the preset's context, people and memory (Automatic memory from what this
 //     GPU has free, the margin set to 0); everything kept in the file, the preset recorded; a plugin turned on by hand
@@ -814,6 +817,38 @@ const STEPS = {
             fakeEnv(['FAKE_DELAY=3']);
         }
     },
+    // CLASSIFY_VLLM_PLAN (2026-11-27): the Classify service reads what the farm's vLLM serves and asks its decision
+    // endpoint through the farm's relay when that is a Qwen3.6 or Qwen3.8 id (a library id is vLLM's served name). The
+    // service's own functions, run by the Classify venv's Python against the fake (skipped without that venv).
+    async 27() {
+        if (farm) await stopFarm();
+        const py = path.join(FARM, '.classify', 'venv', WIN ? 'Scripts/python.exe' : 'bin/python');
+        if (!fs.existsSync(py)) { console.log('  skip step 27: no Classify venv (farm/.classify)'); return; }
+        const snippet = [
+            'import sys, json, asyncio',
+            `sys.path.insert(0, ${JSON.stringify(path.join(FARM, 'src', 'pysvc'))})`,
+            'import classify_server as c',
+            "items = ['Sport: a late goal wins the cup', 'Politics: the vote on the budget']",   // the fake picks the option an item names
+            'm = c._vllm_model()',
+            "a = asyncio.run(c._vllm_answers(None, m, items, 'Which section?', {'sport': 'sport', 'politics': 'politics'})) if m else None",
+            "print(json.dumps({'model': m, 'answers': a}))",
+        ].join('\n');
+        const ask = () => JSON.parse(execFileSync(py, ['-I', '-c', snippet], {
+            env: { ...process.env, CLASSIFY_VLLM_URL: `http://127.0.0.1:${PORTS.vllm}` }, encoding: 'utf8', timeout: 60000, windowsHide: true,
+        }).trim().split('\n').pop());
+        const qwen = { id: 'qwen3.6-fake', label: 'Qwen3.6 (fake)', folder: 'fake-a', sizeGb: 0.1, weightsGib: 0.1, vision: false, args: ['--enable-prefix-caching'] };
+        writeConfig({ model: 'qwen3.6-fake', library: [...LIB, qwen] });
+        await bootReady();
+        const r = ask();
+        check('a farm whose vLLM serves a Qwen3.6 id: Classify asks it, through the farm\'s relay',
+            r.model === 'qwen3.6-fake' && Array.isArray(r.answers) && r.answers.map((x) => x.choice).join(',') === 'sport,politics', JSON.stringify(r));
+        await stopFarm();
+        writeConfig();   // fake-a: an id the service does not read decisions from
+        await bootReady();
+        const r2 = ask();
+        check('…another model: not asked (Laya answers)', r2.model === null && r2.answers === null, JSON.stringify(r2));
+        await stopFarm();
+    },
 };
 
 // A SearXNG that answers like one (its health and a JSON search) and installs nothing: `dir` = a farm copy's .searxng.
@@ -957,14 +992,21 @@ async function main() {
     // (2026-11-26: every step failed on the panel's 41897; docs/plans/WSL_PORTS_PLAN.md). The VM is up now (the status
     // call above booted it if it was not): a port this test cannot bind fails here, by name, before any step.
     for (const [name, port] of Object.entries(PORTS)) {
-        const err = await new Promise((r) => {
+        const bindErr = () => new Promise((r) => {
             const s = net.createServer();
             s.once('error', (e) => r(e.code));
             s.listen(port, '127.0.0.1', () => s.close(() => r(null)));
         });
+        // A run just before leaves the relay's connections in TIME-WAIT inside Linux, and mirrored networking keeps the
+        // port from Windows until they expire (2026-11-27: 8299, free after ~30 s; Linux waits 60 s): waited for, not failed.
+        let err = await bindErr();
+        for (let i = 0; err && i < 18; i++) { await sleep(5000); err = await bindErr(); }
         if (err) {
             const range = WIN ? sh('cat /proc/sys/net/ipv4/ip_local_port_range').out.trim().replace(/\s+/, '–') : '';
-            throw new Error(`port ${port} (${name}) cannot be bound (${err})${WIN ? `: WSL's VM holds ${range} (mirrored networking, docs/plans/WSL_PORTS_PLAN.md). Once WSL has stopped (no vmmemWSL), boot it while a Windows program listens on ${port}, keep a WSL session open, and run again: the new block lies elsewhere` : ''}`);
+            // WSL's block only when the port is in it (2026-11-27: 8299, outside it, was a fake left by an earlier run).
+            const [lo, hi] = range.split('–').map(Number);
+            const inBlock = WIN && lo > 0 && port >= lo && port <= hi;
+            throw new Error(`port ${port} (${name}) cannot be bound (${err})${inBlock ? `: WSL's VM holds ${range} (mirrored networking, docs/plans/WSL_PORTS_PLAN.md). Once WSL has stopped (no vmmemWSL), boot it while a Windows program listens on ${port}, keep a WSL session open, and run again: the new block lies elsewhere` : ': another program listens on it (a farm, or this suite\'s fake from an earlier run?), waited 90 s'}`);
         }
     }
     // The take-over writes a marker that makes a root's old launchers do nothing: never in another root than the fake's.

@@ -9,6 +9,22 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-27 (04:46) — CLASSIFY_VLLM's lifecycle step; the suite's preflight waits out Linux's TIME-WAIT
+
+- **`test/fake-vllm/fake_vllm.py` answers `/v1/systemone`** (the option an item names wins at 0.9; a model it does not
+  serve is a 404).
+- **Step 27:**
+  - a farm whose library id `qwen3.6-fake` is vLLM's served name: the Classify service (the Classify venv's Python)
+    asks it through the farm's relay, and the answers come back;
+  - a farm serving `fake-a`: not asked.
+  - Run alone under the Farm app's Electron 45: **4/4**, after one wrong expectation of my own (the items did not name
+    the options the fake looks for).
+- **The preflight's flake:** run just after another run, the suite refused 8299. It had no listener on either side, but
+  Linux held the relay's connections in TIME-WAIT, and with mirrored networking Windows cannot bind the port until they
+  expire (it was free after ~30 s).
+  - The preflight now waits up to 90 s.
+  - It names WSL's block only when the port is in it. Its message had blamed the block for 8299, which lies outside.
+
 ## 2026-11-27 (04:39) — llama.cpp b12774 given b12751's scratch checks (no farm code)
 
 - The same as 2026-11-26 02:58 for b12751: UD-IQ2_S, 4 slots sharing 64k, the farm's argv through a scratch farm with
