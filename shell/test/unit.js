@@ -316,14 +316,14 @@ test('date line: no token, a failed read, a read that is not JSON or a refused w
 // writes the Blender tool server, also on the Blender helper's 'ready' push. Slice them out of app.js
 // with the state they share and run them on the fake Open WebUI's page; `fakes` replaces any of the
 // functions by name. A reload only counts: the test runs the load after it (did-finish-load).
-function fakeShell(owui, { blender = { url: 'http://127.0.0.1:8000', apiKey: 'k' }, fakes = {} } = {}) {
+function fakeShell(owui, { blender = { url: 'http://127.0.0.1:8000', apiKey: 'k' }, state = null, fakes = {} } = {}) {
     const stateStart = APP_JS.indexOf('let webviewAuthed');
     const stateEnd = APP_JS.indexOf('\n', APP_JS.indexOf('let blenderSeeded'));
     assert.ok(stateStart > 0 && stateEnd > stateStart, 'the webview auth state moved — update the extraction anchors');
     const names = ['unseedWebSearch', 'seedDateLine', 'seedBlenderToolServer', 'maybeSeedBlender', 'ensureAuthenticated'].filter((n) => !fakes[n]);
     const sh = { reloads: 0, renders: 0 };
     const els = { webview: { ...owui.page, reload: () => { sh.reloads++; } } };
-    const window = { lol: { getBlenderConnection: async () => blender } };
+    const window = { lol: { getBlenderConnection: async () => (typeof blender === 'function' ? blender() : blender), ...(state ? { getBlenderState: async () => state } : {}) } };
     const scope = new Function('els', 'window', 'renderSidecar', ...Object.keys(fakes),
         `const onOwui = () => true;\n${APP_JS.slice(stateStart, stateEnd)}\n${names.map(appFunction).join('\n')}\nreturn { ensureAuthenticated, maybeSeedBlender };`);
     return Object.assign(sh, scope(els, window, () => { sh.renders++; }, ...Object.values(fakes)));
@@ -400,6 +400,34 @@ for (const version of ['0.11', '0.10']) {
         assert.deepEqual(fresh.ui.tools, ['server:lol-blender']);
     });
 }
+
+test('Blender tools off: a selection left from before the restart is taken out once, with one reload (the switch restarts Open WebUI)', async () => {
+    const owui = fakeOwui('0.11', { theme: 'dark', lolWebSearchSeeded: true, lolWebSearchUnseeded: true, lolDateLineSeeded: true, system: 'x', tools: ['server:lol-blender', 'some-tool'] });
+    const sh = fakeShell(owui, { blender: null, state: { enabled: false } });
+    await sh.ensureAuthenticated();
+    assert.deepEqual(owui.ui.tools, ['some-tool']);
+    assert.deepEqual([owui.writes, sh.reloads], [1, 1], 'one write, one reload');
+    await sh.ensureAuthenticated();   // the load after it
+    assert.deepEqual([owui.writes, sh.reloads], [1, 1], 'once a session');
+    const on = fakeOwui('0.11', { lolWebSearchSeeded: true, lolWebSearchUnseeded: true, lolDateLineSeeded: true, system: 'x', tools: ['server:lol-blender'] });
+    const starting = fakeShell(on, { blender: null, state: { enabled: true } });
+    await starting.ensureAuthenticated();
+    assert.deepEqual([on.ui.tools, on.writes], [['server:lol-blender'], 0], 'on, mcpo still starting: left as it is');
+});
+
+test('Blender tools on: a write that lands while Open WebUI restarts is tried again at the next load (night n° 18, the dev client)', async () => {
+    const owui = fakeOwui('0.11', { lolWebSearchSeeded: true, lolWebSearchUnseeded: true, lolDateLineSeeded: true, system: 'x' });
+    const exec = owui.page.executeJavaScript;
+    owui.page.executeJavaScript = (code) => (owui.down ? Promise.reject(new Error('Open WebUI is restarting')) : exec(code));
+    let conn = null;
+    const sh = fakeShell(owui, { blender: () => conn });
+    await sh.ensureAuthenticated();               // signed in, mcpo not up yet
+    conn = { url: 'http://127.0.0.1:8765', apiKey: 'k' }; owui.down = true;
+    assert.equal(await sh.maybeSeedBlender(), false, "mcpo's 'ready' push while Open WebUI restarts: nothing written");
+    owui.down = false;
+    await sh.ensureAuthenticated();               // the restarted page's load (same port: a reload, still signed in)
+    assert.deepEqual(owui.ui.tools, ['server:lol-blender'], 'selected at the next load');
+});
 
 test('Blender tools: a read that fails or is not JSON writes nothing', async () => {
     for (const o of [fakeOwui('0.11', { theme: 'dark' }, { readFails: true }), fakeOwui('0.11', { theme: 'dark' }, { readNotJson: true }), fakeOwui('0.11', { theme: 'dark' }, { token: null })]) {

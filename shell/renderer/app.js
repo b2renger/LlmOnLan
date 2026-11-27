@@ -310,6 +310,7 @@ window.lol.onBlenderState(async (s) => {
   setBlenderStatus(s, s && s.enabled);
   if (!s) return;
   if (s.status === 'ready') {
+    blenderUnseeded = false;                  // on again: a later off takes the selection out again
     await maybeSeedBlender();                 // mcpo up → add the tool server (once)
   } else {
     // installing / starting / stopped / error: a (re)start is coming (e.g. a port
@@ -548,6 +549,7 @@ let authReloads = 0;
 const MAX_AUTH_RELOADS = 4;
 let settingsChecked = false; // the one-time user-settings fixes below (web search, date line), once per session
 let settingsFixing = false;  // ...and they are writing right now: the Blender write waits (maybeSeedBlender)
+let blenderUnseeded = false; // with Blender off, take an old selection out at most once per session (maybeSeedBlender)
 let blenderSeeded = false;   // register the Blender tool server with OWUI at most once per session
 
 // Web search is OFF by default in Open WebUI (owner, 2026-10-05: on, a chat cost ~2.5x the GPU
@@ -688,10 +690,27 @@ async function maybeSeedBlender() {
   if (blenderSeeded || !webviewAuthed || settingsFixing) return false;
   let conn = null;
   try { conn = await window.lol.getBlenderConnection(); } catch { conn = null; }
-  if (!conn || !conn.url) return false; // mcpo not ready yet — retry on its 'ready' push
+  if (!conn || !conn.url) {
+    // Off: a selection left from before is taken out of new chats, once a session. The switch restarts Open WebUI
+    // (its env carries the server), so mcpo's 'stopped' push can land while this page reloads, unauthed.
+    if (!blenderUnseeded && typeof window.lol.getBlenderState === 'function') {
+      let st = null;
+      try { st = await window.lol.getBlenderState(); } catch { st = null; }
+      if (st && !st.enabled) {
+        blenderUnseeded = true;
+        const off = await seedBlenderToolServer(false);
+        if (off === 'removed') { try { els.webview.reload(); } catch { /* not ready */ } return true; }
+        if (off !== 'already') blenderUnseeded = false;   // it did not land (Open WebUI restarting): the next load tries
+      }
+    }
+    return false; // mcpo not ready yet — retry on its 'ready' push
+  }
   blenderSeeded = true;
   const res = await seedBlenderToolServer();
   if (res === 'set') { try { els.webview.reload(); } catch { /* not ready */ } return true; }
+  // A write that did not land (mcpo's 'ready' push while Open WebUI restarts with the new env, on the same port: the
+  // page only reloads, still signed in) is tried again at the next load (night n° 18, seen on a dev client).
+  if (res !== 'already') blenderSeeded = false;
   return false;
 }
 

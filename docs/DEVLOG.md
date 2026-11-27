@@ -9,6 +9,44 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-27 (03:08) — The real client with the Blender tools: its boot, the switch off and on; two fixes
+
+The advisor's point: `test:chat` and the harness never boot `index.ts`; the harness runs its own `main.cjs`.
+
+- **The real client (`shell/`, built) with a scratch profile** (`--user-data-dir` in the session's folder, so its data
+  folder is `<it>/owui-data`), the dev venv's Open WebUI 0.13.3 (`LOL_SIDECAR_CMD`), and a pinned endpoint nobody
+  answers. `LOL_FED_PORT` and `LOL_FED_HTTP_PORT` were on an unused port, so no farm was found or registered with.
+  Your client was not running.
+- **The boot with Blender on (first run):** Open WebUI started once, mcpo installed into the profile and came up on 8765,
+  with **no restart**. Open WebUI listed `server:lol-blender` and `server:mcp:lol-computer`, and the renderer selected
+  `ui.tools: ['server:lol-blender']`, with no `ui.toolServers`.
+- **Found, then fixed (two):**
+  - **(1)** The switch off restarted Open WebUI once and the tool left its list, but the selection stayed. mcpo's
+    `stopped` push landed while the page reloaded. The fix: with Blender off, the next signed-in load takes the
+    selection out, once a session (`maybeSeedBlender`, through the existing guarded write; one settings read).
+  - **(2)** The switch on restarted Open WebUI once and listed the tool, but nothing was selected. The restarted Open WebUI
+    came back on the same port, so the page only reloaded, still signed in. mcpo's `ready` push ran the write against
+    the Open WebUI that was down, and `blenderSeeded` stayed true. The fix: a write that did not land is tried again at
+    the next load.
+  - Both have a test in `test/unit.js` (the second reproduced first: it failed before the fix).
+- **After the fixes, the same client:**
+
+  | Step | Open WebUI starts | Restarts | Tools listed | `ui.tools` |
+  |---|---|---|---|---|
+  | Boot, Blender on | 1 | 0 | both | `['server:lol-blender']` |
+  | Switched off | 2 | 1 | the Computer's | `[]` |
+  | Switched on | 3 | 2 | both | `['server:lol-blender']` |
+
+  The switch was flipped as a person does it: the Preferences checkbox and its change event, over CDP.
+- **The quit path, read:** `mcpo.stop()` changes neither `enabled` nor `port`, so the planned connection is unchanged.
+  The quit handler's `allSettled` calls `sidecar.stop()` first, which nulls its child at once, so `reloadToolServers`
+  returns. There is no restart at quit.
+- **Privacy, read:** the trial vLLM's output and `logs/vllm.log` hold no item text (0 matches for the headlines; the
+  `systemone` route only in access lines).
+- **The Farm app's refresh:** `refreshFarmCodeIfUpdated` compares `app.getVersion()` exactly, so a `0.0.55+n18` build
+  refreshes its farm copy over farm-v0.0.55.
+- **Suites:** `test/unit.js` **35/35**, `test:chat` **1993** (1 skipped), lint 0, the farm **297/297**.
+
 ## 2026-11-27 (02:52) — CLASSIFY_VLLM_PLAN: the Classify box answered by the farm's vLLM; Open WebUI 0.13.5 blocked
 
 - **Open WebUI 0.13.5 does not start on Windows** (02:44): at import, `utils/machines/managed.py:48` runs
