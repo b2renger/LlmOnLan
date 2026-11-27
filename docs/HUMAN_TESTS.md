@@ -442,6 +442,9 @@ the Preview and its window, the saved tokens read; the second start as quick as 
 - [ ] Done · Found:
 
 ### A31 ★ The Blender tools reach chats through Open WebUI's start settings
+**Optional at the next sitting:** on Open WebUI 0.13.3 the move brings nothing a person sees. It matters once an Open
+WebUI that starts on Windows comes (0.13.5 does not: [OWUI_0135_2026-11-27](research/OWUI_0135_2026-11-27.md)). The real
+client was run without you through its boot, the switch off and on (DEVLOG 2026-11-27 03:08).
 *Proves:* [BLENDER_TOOLS_ENV_PLAN](plans/BLENDER_TOOLS_ENV_PLAN.md) (2026-11-27): Blender's helper (mcpo) reaches Open WebUI by
 its start settings, as the Computer does, no longer as a person's own tool server, which Open WebUI 0.13.4 and later
 drop; so the 0.13.5 update can come with the Blender tools. On a real laptop with Blender, which no harness has.
@@ -2049,15 +2052,17 @@ on the PRO 6000: its window, the panel inside it (a `<webview>`), the drawer's C
 login, and closing the window stopping the farm. A session never runs the Farm app on this computer; what was run
 without you: its own tests on 45 (12 + 3), the farm's unit suite (293/293) and the vLLM lifecycle suite run by the
 packaged app's Electron 45 as Node (DEVLOG 2026-11-26), and the installer checked inside (it runs as Node on 45.5.0,
-Node 24.22.3; no config, `.venv` or runtime file in its farm copy). *Needs:* `farm-app\dist\LlmOnLan-Farm-Setup-0.0.55+n17.exe`
-(built 02:51 from `d6caff7`: Electron 45, RUNTIME_UPDATE_PLAN, Qwen3.8's measured labels (review 2026-11-24 L7) and
-an Ollama model's vision from Ollama's own word (D-F4)),
+Node 24.22.3; no config, `.venv` or runtime file in its farm copy). *Needs:* **`farm-app\dist\LlmOnLan-Farm-Setup-0.0.55+n18.exe`**
+(night n° 18; it replaces `0.0.55+n17`). It carries n° 17's work: Electron 45, RUNTIME_UPDATE_PLAN, Qwen3.8's measured
+labels (review 2026-11-24 L7), and an Ollama model's vision from Ollama's own word (D-F4). And tonight's: the farm holds
+its panel's port before it starts WSL (WSL_PORTS_PLAN), Classify on the farm's vLLM (J21), and Bonsai in the llama.cpp
+library with its draft's memory counted (K18),
 the PRO 6000 at a quiet moment, a laptop, 10 minutes. *Was:* new (2026-11-26).
 1. Quit the Farm app if it runs, then install the build over farm-v0.0.55 (it keeps the farm's config, models and data).
 2. It opens and starts the farm as farm-v0.0.55 does: the start bar, then the panel inside the window.
-3. The drawer (the gear): *App version* reads **0.0.55+n17**; **Copy** beside the panel token says *Token copied.* and
+3. The drawer (the gear): *App version* reads **0.0.55+n18**; **Copy** beside the panel token says *Token copied.* and
    the token pastes into Notepad; **Check for updates** says it is up to date (0.0.55 is the latest farm release: the
-   `+n17` does not count); turn *Launch at login* off, then on again.
+   `+n18` does not count); turn *Launch at login* off, then on again.
 4. From a laptop: one chat.
 5. Close the window: the farm stops (the window stays until it has), then the app quits. Open it again: the farm starts
    as in step 2.
@@ -2069,9 +2074,11 @@ the PRO 6000 at a quiet moment, a laptop, 10 minutes. *Was:* new (2026-11-26).
    2.11.0 on a Linux farm such as a Spark (measured in WSL), 2.9.0 on Windows.
 
 *Expect:* everything as on farm-v0.0.55; after step 5's close, no `LlmOnLan Farm.exe` in Task Manager and the card's
-memory back to what ComfyUI or nothing holds. **One thing that is not Electron 45:** if the panel stays blank and
-`%APPDATA%\LlmOnLan Farm\farm.log` has `HTTP server error on :41997 — listen EADDRINUSE`, WSL took the panel's port
-(summary n° 17, question 1): write it on *Found*, with whether WSL was already running before you opened the Farm app.
+memory back to what ComfyUI or nothing holds. **WSL's port block (fixed in this build):** the farm now takes its panel's
+port before it starts WSL, so a WSL its own start boots goes around it. If the panel still stays blank and
+`%APPDATA%\LlmOnLan Farm\farm.log` says *Port 41997 (the admin panel and unicast discovery) cannot be opened … WSL holds
+a block of ports*, WSL was already running on that block before the farm started: write it on *Found*, with what else
+was using WSL.
 **The way back:** install farm-v0.0.55 again.
 - [ ] Done · Found:
 
@@ -2082,7 +2089,8 @@ who answered. Measured without you: the service against a real vLLM serving Qwen
 in English and French all right, 0.6 s (DEVLOG 2026-11-27 02:52). *Needs:* J20's build installed (it carries the farm
 side), the client build of A31 (it carries the box's words), the panel's **Classify (Laya)** plugin on (the first time
 it installs Laya, about 1 GB, a few minutes), 5 minutes. *Was:* new (2026-11-27).
-1. In the farm panel, Plugins: turn **Classify (Laya)** on if it is off; wait for it to say it is up.
+1. In the farm panel, Plugins: turn **Classify (Laya)** on if it is off; wait for it to say it is up. The first time,
+   that installs about 1 GB on the live farm (torch for the CPU, then Laya), a few minutes while chats go on.
 2. On a laptop, the Computer: a **Text** box with five headlines, one per line (two in French), wired into a
    **Classify** box; its options `sport`, `politics`, `business`; **Run**.
 3. Optional: switch the farm to Ollama in the panel, Run again, switch back.
