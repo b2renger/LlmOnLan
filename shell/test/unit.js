@@ -175,6 +175,7 @@ function fakeOwui(version, ui, { token = 't', readFails = false, readNotJson = f
     const extract = (name) => new Function('els', `const onOwui = () => true; ${appFunction(name)}; return ${name};`)({ webview: owui.page });
     owui.run = extract('unseedWebSearch');
     owui.seedDate = extract('seedDateLine');
+    owui.seedBlender = extract('seedBlenderToolServer');
     owui.on = () => ((owui.ui || {}).webSearch ?? false) === 'always';
     return owui;
 }
@@ -365,13 +366,49 @@ for (const version of ['0.11', '0.10']) {
             assert.equal(owui.ui.lolWebSearchUnseeded, true);
             assert.equal(owui.ui.system, ui.system || DATE_LINE);
             assert.equal(owui.ui.lolDateLineSeeded, true);
-            assert.deepEqual(owui.ui.toolServers.map((c) => c.info.id), ['lol-blender']);
-            assert.deepEqual(owui.ui.tools, ['direct_server:0'], 'and selected');
+            assert.equal(owui.ui.toolServers, undefined, "not a person's own tool server (0.13.4 dropped those): the env carries it");
+            assert.deepEqual(owui.ui.tools, ['server:lol-blender'], 'selected for new chats');
             assert.equal(owui.ui.theme, 'dark');
             assert.equal(owui.writes, ui === fixesWrite ? 3 : 1, 'the fixes, then Blender');
         }
     });
 }
+
+// BLENDER_TOOLS_ENV_PLAN (2026-11-27): Blender's mcpo reaches Open WebUI by env (TOOL_SERVER_CONNECTIONS, listed as
+// 'server:lol-blender'); the renderer only selects it for new chats in the person's ui.tools, and removes once what an
+// older client wrote: its entry among the person's own tool servers and that entry's 'direct_server:<idx>'.
+for (const version of ['0.11', '0.10']) {
+    test(`Blender tools (OWUI ${version}): selected for new chats once; an older client's own tool server and its selection removed`, async () => {
+        const old = { theme: 'dark', toolServers: [
+            { url: 'http://127.0.0.1:9000', config: { enable: false }, info: { id: 'off-one' } },
+            { url: 'http://127.0.0.1:8765', config: { enable: true }, info: { id: 'lol-blender' } },
+            { url: 'http://127.0.0.1:9100', config: { enable: true }, info: { id: 'theirs' } }],
+        tools: ['direct_server:0', 'direct_server:1', 'some-tool'] };
+        const owui = fakeOwui(version, old);
+        assert.equal(await owui.seedBlender(), 'set');
+        assert.deepEqual(owui.ui.toolServers.map((c) => c.info.id), ['off-one', 'theirs'], 'only ours removed');
+        assert.deepEqual(owui.ui.tools, ['direct_server:0', 'some-tool', 'server:lol-blender'], 'our direct_server:0 dropped, theirs (1) is 0 now');
+        assert.equal(owui.ui.theme, 'dark');
+        assert.equal(await owui.seedBlender(), 'already', 'idempotent');
+        assert.equal(owui.writes, 1);
+        assert.equal(await owui.seedBlender(false), 'removed', 'the switch off');
+        assert.deepEqual(owui.ui.tools, ['direct_server:0', 'some-tool']);
+        assert.equal(await owui.seedBlender(false), 'already');
+        assert.equal(owui.writes, 2);
+        const fresh = fakeOwui(version, null);
+        assert.equal(await fresh.seedBlender(), 'set', 'a profile with no settings yet');
+        assert.deepEqual(fresh.ui.tools, ['server:lol-blender']);
+    });
+}
+
+test('Blender tools: a read that fails or is not JSON writes nothing', async () => {
+    for (const o of [fakeOwui('0.11', { theme: 'dark' }, { readFails: true }), fakeOwui('0.11', { theme: 'dark' }, { readNotJson: true }), fakeOwui('0.11', { theme: 'dark' }, { token: null })]) {
+        const r = await o.seedBlender();
+        assert.ok(r === 'na' || r.startsWith('err:'), r);
+        assert.equal(o.writes, 0);
+        assert.deepEqual(o.ui, { theme: 'dark' });
+    }
+});
 
 // The one reload of an Open WebUI page that loaded while its farm was not answering (reloadIfFarmBack,
 // 2026-10-07: OWUI reads the model list only as its page loads). Sliced out of app.js with the state it

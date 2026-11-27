@@ -158,8 +158,46 @@ export default (test) => {
       });
       assert.equal(status, 403);
     } finally { srv.close(); }
-    const env = JSON.parse(CB.computerToolServer({ url: 'http://127.0.0.1:41995/mcp', token: 'secret-token' }));
+    const env = JSON.parse(CB.toolServerConnections({ url: 'http://127.0.0.1:41995/mcp', token: 'secret-token' }, null));
     assert.deepEqual([env[0].type, env[0].auth_type, env[0].key, env[0].config.enable, env[0].info.id], ['mcp', 'bearer', 'secret-token', true, 'lol-computer']);
+  });
+
+  // BLENDER_TOOLS_ENV_PLAN (2026-11-27): Blender's mcpo reaches Open WebUI by env, as the Computer does, because
+  // 0.13.4 dropped a person's own tool servers (where the renderer used to write it).
+  test('BLENDER_TOOLS_ENV: TOOL_SERVER_CONNECTIONS carries Blender\'s mcpo while the switch is on, beside the Computer', () => {
+    const data = tempDir('blenderenv');
+    const computer = { url: 'http://127.0.0.1:41995/mcp', token: 'ct' };
+    const blender = { url: 'http://127.0.0.1:8765', apiKey: 'bk' };
+    try {
+      CB.setComputerMcp(computer); CB.setBlenderTools(blender);
+      const both = JSON.parse(CB.buildSidecarEnv({ endpoint: null, dataDir: data }).TOOL_SERVER_CONNECTIONS);
+      assert.deepEqual(both.map((s) => [s.type, s.info.id]), [['mcp', 'lol-computer'], ['openapi', 'lol-blender']], 'the Computer first, then Blender');
+      assert.deepEqual([both[1].url, both[1].path, both[1].auth_type, both[1].key, both[1].config.enable], ['http://127.0.0.1:8765', '/openapi.json', 'bearer', 'bk', true]);
+      assert.ok(!('access_grants' in both[1].config), 'admin-only, which the one local user is (WEBUI_AUTH=false)');
+      CB.setBlenderTools(null);
+      const off = JSON.parse(CB.buildSidecarEnv({ endpoint: null, dataDir: data }).TOOL_SERVER_CONNECTIONS);
+      assert.deepEqual(off.map((s) => s.info.id), ['lol-computer'], 'off: the Computer alone');
+      CB.setComputerMcp(null);
+      assert.equal(CB.buildSidecarEnv({ endpoint: null, dataDir: data }).TOOL_SERVER_CONNECTIONS, undefined, 'neither: no setting at all');
+      CB.setBlenderTools(blender);
+      assert.deepEqual(JSON.parse(CB.buildSidecarEnv({ endpoint: null, dataDir: data }).TOOL_SERVER_CONNECTIONS).map((s) => s.info.id), ['lol-blender']);
+    } finally { CB.setComputerMcp(null); CB.setBlenderTools(null); }
+  });
+
+  test('BLENDER_TOOLS_ENV: the sidecar restarts Open WebUI when the tool servers change, never inside its start, and not for the rest of the env', () => {
+    const src = fs.readFileSync(path.join(SHELL, 'src', 'main', 'sidecar.ts'), 'utf8');
+    const body = src.slice(src.indexOf('async reloadToolServers()'), src.indexOf('// True while a kill could land inside'));
+    assert.ok(/buildSidecarEnv\(this\.launchOpts\(\)\)\.TOOL_SERVER_CONNECTIONS === this\.launchedTools\) return;/.test(body), 'only TOOL_SERVER_CONNECTIONS is compared');
+    assert.ok(body.indexOf('if (this.isBooting()) { this.toolsStale = true; return; }') < body.indexOf('await this.stop('), 'a start is never killed');
+    assert.ok(src.includes('this.launchedTools = built.TOOL_SERVER_CONNECTIONS;'), 'each start records what it launched with');
+    const apply = src.slice(src.indexOf('private applyDeferred()'), src.indexOf('async reloadToolServers()'));
+    assert.ok(apply.indexOf('await this.repoint(') < apply.indexOf('await this.reloadToolServers()'), 'after a start: a waiting move first, then the tool servers');
+    const index = fs.readFileSync(path.join(SHELL, 'src', 'main', 'index.ts'), 'utf8');
+    const boot = index.slice(index.indexOf('let blenderOn = settings.blenderMcp;'));
+    assert.ok(boot.indexOf('await mcpo.reservePort()') < boot.indexOf('setBlenderTools(mcpo.plannedConnection())')
+      && boot.indexOf('setBlenderTools(mcpo.plannedConnection())') < boot.indexOf('sidecar.start('), 'at boot mcpo\'s address is in the env before Open WebUI first starts');
+    const toggle = index.slice(index.indexOf("ipcMain.handle('set-blender-enabled'"), index.indexOf("ipcMain.handle('set-blender-port'"));
+    assert.ok(toggle.indexOf('await mcpo.reservePort()') < toggle.indexOf('syncBlenderTools()'), 'the switch: the port first, then the env');
   });
 
   // -------------------------------------------- plugin keys tied to the farm password (2026-09-27)
@@ -1926,9 +1964,10 @@ export default (test) => {
     }
     const app = fs.readFileSync(path.join(SHELL, 'renderer', 'app.js'), 'utf8');
     for (const f of ['esc(f.busy.percent)', 'esc(f.host.vramGb)', 'esc(f.httpPort)', 'esc(f.proxyPort)']) assert.ok(app.includes(f), f);
-    for (const fn of ['unseedWebSearch()', 'seedDateLine()', 'seedBlenderToolServer(url, key)', 'unseedBlenderToolServer()']) {
+    for (const fn of ['unseedWebSearch()', 'seedDateLine()', 'seedBlenderToolServer(on = true)']) {
       assert.ok(app.includes('async function ' + fn + " {\n  if (!onOwui()) return 'na';"), fn + ': no write with the token off Open WebUI\'s page');
     }
+    assert.ok(app.includes('async function unseedBlenderToolServer() { return seedBlenderToolServer(false); }'), 'unseed goes through the same guard');
     assert.ok(app.includes('async function ensureAuthenticated() {\n  if (!onOwui()) return;'));
     const src = indexSrc();
     assert.ok(src.includes("if (!frameAllowed(String(e.url || ''), e.isMainFrame, INDEX_URL, runnerUrl(), serves)) e.preventDefault();"), 'the window stays on the app\'s own page (pageWindow.ts frameAllowed: its main frame only on INDEX_URL)');

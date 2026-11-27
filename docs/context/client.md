@@ -215,7 +215,8 @@ tools** · **Home Assistant** · startup & updates · **usage report** · about)
   2026-11-05, v0.2.16). Default: `<userData>/owui-data`.
 - **Connection** — "Auto-search the subnet", "Rescan now", the **Search range** (`a.b . c–d . e–f`), and
   "Add by address" + chips (ComfyQ pattern). The farm list and the choice of farm live in the topbar popover.
-- **Assistant tools** — the opt‑in Blender/mcpo toggle, a "Test connection" button (checks both the
+- **Assistant tools** — the opt‑in Blender/mcpo toggle (on or off restarts Open WebUI once: the server is in its env,
+  `TOOL_SERVER_CONNECTIONS`, since 2026-11-27), a "Test connection" button (checks both the
   local helper and whether Blender is listening), and the BlenderMCP socket port.
 - **Home Assistant** (2026-09-30) — address + long-lived token → **Link** (tested before anything is kept), **Test
   connection**, **Forget**, and **Allow commands…** / **Stop commands** (main's native dialog lists the devices).

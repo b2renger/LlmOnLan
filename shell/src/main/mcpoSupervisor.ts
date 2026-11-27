@@ -83,9 +83,8 @@ export class McpoSupervisor extends EventEmitter {
     private child: ChildProcess | null = null;
     private port = 0;
     private enabled = false;
-    // Stable per-session bearer key: the renderer writes it into OWUI's user settings
-    // (ui.toolServers, via the user-settings API), so keeping it constant across mcpo
-    // restarts avoids rewriting that entry each bounce.
+    // Stable per-session bearer key: it is in Open WebUI's env (configBridge setBlenderTools), so keeping it
+    // constant across mcpo restarts keeps that env, and Open WebUI, as they are.
     private readonly apiKey = crypto.randomBytes(24).toString('hex');
     // Generation token: a superseding start()/stop() bumps it so an in-flight start
     // aborts at its awaits instead of clobbering a newer child (same discipline as
@@ -111,9 +110,22 @@ export class McpoSupervisor extends EventEmitter {
         if (this.enabled) this.start();   // respawn with the new BLENDER_PORT
     }
 
-    // The tool-server connection config-bridge injects — null unless actually ready.
+    // The connection Preferences' "Test" probes — null unless actually ready.
     getConnection(): { url: string; apiKey: string } | null {
         return this.state.status === 'ready' && this.state.url ? { url: this.state.url, apiKey: this.apiKey } : null;
+    }
+
+    // The port mcpo will listen on, chosen once and kept while it is free (a restart reuses it), so the address in
+    // Open WebUI's env (configBridge setBlenderTools) is known before mcpo starts and does not change at each
+    // start: a change restarts Open WebUI (BLENDER_TOOLS_ENV_PLAN).
+    async reservePort(): Promise<void> {
+        if (!this.port) this.port = await findFreePort(8765);
+    }
+
+    // What Open WebUI's env carries for the Blender tools: while they are on and a port is chosen, whether or not
+    // mcpo answers yet (Open WebUI fetches its spec again at each tool listing).
+    plannedConnection(): { url: string; apiKey: string } | null {
+        return this.enabled && this.port ? { url: `http://${HOST}:${this.port}`, apiKey: this.apiKey } : null;
     }
 
     private setState(patch: Partial<McpoState>): void {
@@ -164,7 +176,7 @@ export class McpoSupervisor extends EventEmitter {
         if (this.child) { const old = this.child; this.child = null; await killTree(old.pid); }
         if (myGen !== this.gen) return;
 
-        this.port = await findFreePort(8765);
+        this.port = await findFreePort(this.port || 8765);   // the kept port while it is free (reservePort)
         if (myGen !== this.gen) return;
         const url = `http://${HOST}:${this.port}`;
         this.setState({ status: 'starting', url: null, message: undefined });

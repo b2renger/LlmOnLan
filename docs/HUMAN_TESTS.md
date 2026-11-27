@@ -63,24 +63,24 @@ been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the 
 
 | Session | Setup | Tests | ★ | Time |
 |---|---|---|---|---|
-| A. One laptop + the PRO 6000, installed builds | 1 laptop, the production farm (A20: a ComfyQ box) | 21 | A1, A21 | A1 1 h; the rest 7–8 h in several sittings |
+| A. One laptop + the PRO 6000, installed builds | 1 laptop, the production farm (A20: a ComfyQ box) | 31 | A1, A21, A25–A28, A30, A31 | A1 1 h; the rest 7–8 h in several sittings |
 | B. A fresh laptop, first install, no internet | a laptop never used, a blocked network, a proxy network, a farm without document search | 6 | B1 | 2 h |
 | C. Upgrades and the data folder | a laptop on the previous release, an old client (the owner's, or v0.1.45 on a spare profile), a spare profile, a USB stick | 8 | C1, C2, C7 | 2 h 45 |
 | D. Two machines, two farms, other subnets | 2 laptops, a second farm, a guest Wi-Fi | 17 | D16, D17 | 4 h 15 |
 | E. Mac and Linux clients | Apple Silicon + Intel Mac, a Linux PC | 4 | — | 3 h |
 | F. The Computer's devices | mic, webcam, speakers, a headset, OSC tool, Art-Net light, Arduino/ESP32; F11: 5–10 laptops | 11 | — | 6 h (+1 h F11) |
-| G. LOL Vibe's IDE | 1 laptop, a password farm, a GitHub account, a second drive or USB stick (G11) | 13 | G11, G13 | 3 h (+3 h of waiting for G13) |
+| G. LOL Vibe's IDE | 1 laptop, a password farm, a GitHub account, a second drive or USB stick (G11) | 14 | G11, G13 | 3 h (+3 h of waiting for G13) |
 | H. Home Assistant on a real home | the office's Home Assistant Green | 4 | — | 2.5 h |
 | I. Document search on the farm | the farm, 2 laptops (one with old documents) | 6 | I1–I4 | 2 h |
-| J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client; J16: 10 laptops | 14 | J14, J20 | about 8 h in several quiet moments (J16 2 h; +45 min if J1's install still runs here) |
-| K. A Windows test box with an RTX card | a non-production RTX PC, the 4070/4080, a PC with no NVIDIA GPU | 13 | K1–K5, K11, K12 | 5 h (+45 min K6) |
+| J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client; J16: 10 laptops | 22 | J14, J17, J18, J20 | about 8 h in several quiet moments (J16 2 h; +45 min if J1's install still runs here) |
+| K. A Windows test box with an RTX card | a non-production RTX PC, the 4070/4080, a PC with no NVIDIA GPU | 17 | K1–K5, K11, K12, K14, K15 | 5 h (+45 min K6) |
 | L. The DGX Spark | a Spark with a screen; L4: a second disk | 4 | — | 4 h (+45 min) |
 | M. Reboot tests | the PRO 6000, the Spark | 2 | — | 1 h each |
 | N. The Farm app on a clean box | a PC with no Ollama or Python, a Mac | 5 | — | 2 h + downloads |
-| O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 3 | — | 1 h 15 |
+| O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 6 | — | 1 h 15 |
 | P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
-| Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q5) | 6 | Q1, Q6 | 2 h 30 |
-| **Total** | | **140** | **26** | about 60–66 h |
+| Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q5) | 8 | Q1, Q6 | 2 h 30 |
+| **Total** | | **166** | **36** | about 60–66 h |
 
 Part 3's measurements (Q4, Q5 step 3, J12–J13 on llama.cpp) are not in these counts: an agent runs them. J16 is
 counted in J, though an agent can run its steps 1–4.
@@ -439,6 +439,25 @@ v0.2.21 and do **step 4** (and 5): a GitHub token or Home Assistant link saved o
 again; About reads 0.2.21+n17. Measured without a person on Windows, both ways (DEVLOG 2026-11-26 00:21); not on a Mac.
 *Expect:* About reads 0.2.20+n16 on the local build (the build's own stamp, `app.getVersion()`; the updater reads 0.2.20), 0.2.21 on the release; everything as on v0.2.20: the old chats, an answer,
 the Preview and its window, the saved tokens read; the second start as quick as before. Note anything that differs.
+- [ ] Done · Found:
+
+### A31 ★ The Blender tools reach chats through Open WebUI's start settings
+*Proves:* [BLENDER_TOOLS_ENV_PLAN](plans/BLENDER_TOOLS_ENV_PLAN.md) (2026-11-27): Blender's helper (mcpo) reaches Open WebUI by
+its start settings, as the Computer does, no longer as a person's own tool server, which Open WebUI 0.13.4 and later
+drop; so the 0.13.5 update can come with the Blender tools. On a real laptop with Blender, which no harness has.
+*Needs:* the local build `shell\dist\LlmOnLan-Setup-0.2.21+n18-windows-x64.exe` (night n° 18), Blender with the
+BlenderMCP add-on, a farm with a model that calls tools (Qwen3.6 on the PRO 6000), 10 minutes. *Was:* new (2026-11-27).
+1. Install the build over v0.2.21. If the Blender tools were on: open a new chat.
+2. Preferences ▸ Assistant tools: turn **Blender tools** off, then on again.
+3. In Blender, the BlenderMCP panel: **Connect / Start MCP Server**. In LlmOnLan, **Test connection**.
+4. A new chat: Blender is among the chat's tools (Open WebUI's tool list, under the message box), selected. Ask "add a
+   red cube and a sun lamp".
+5. Turn the Blender tools off: a new chat has no Blender tool.
+
+*Expect:* step 1: Blender selected in the new chat, the chat started once (no second restart when the helper comes up).
+Step 2: the chat restarts once each time (10–30 s; the chats stay). Step 3: *helper ✓ · Blender ✓*. Step 4: the cube
+and the lamp appear in Blender. Step 5: nothing of Blender. Measured without a person (DEVLOG 2026-11-27 02:35): a real
+Open WebUI 0.13.3 lists the tool once a stand-in helper answers and runs a chat's tool call against it with its key.
 - [ ] Done · Found:
 
 ### A10 Code, pictures and files

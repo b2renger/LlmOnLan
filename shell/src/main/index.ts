@@ -28,7 +28,7 @@ import { configureSerial, registerSerialIpc, grantRequest } from './serial';
 import { startMcpServer, pageCaller, TOOLS as MCP_TOOLS, MCP_PORT, MCP_PATH } from './mcp';
 import { createHome, withHome, armingText } from './homeAssistant';
 import { withComfyq } from './comfyqPrompts';
-import { setComputerMcp } from './configBridge';
+import { setComputerMcp, setBlenderTools } from './configBridge';
 import { installPageWindow, frameAllowed } from './pageWindow';
 import {
     ensureSidecar, applyPendingSidecar, isSidecarInstalled,
@@ -481,12 +481,18 @@ function onFarms(payload: { farms: DiscoveredFarm[] } & Record<string, unknown>)
     connectTo(chosen);
 }
 
-// Local Blender assistant-tools server (mcpo) state → forward to the renderer. The
-// renderer registers/unregisters the tool server via OWUI's SUPPORTED API (POST
-// /api/v1/users/user/settings/update, writing ui.toolServers) from the authed webview when ready /
-// stopped — the sidecar is NOT restarted (env-configured tool servers are
-// unreliable upstream; see configBridge + app.js seedBlenderToolServer).
+// The Blender tools in Open WebUI's env (TOOL_SERVER_CONNECTIONS, BLENDER_TOOLS_ENV_PLAN): what mcpo plans now, and
+// Open WebUI restarted when that changed (the switch, or a port mcpo had to change); a no-op otherwise.
+function syncBlenderTools(): void {
+    setBlenderTools(mcpo.plannedConnection());
+    if (OWUI_ENABLED) void sidecar.reloadToolServers();
+}
+
+// Local Blender assistant-tools server (mcpo) state → forward to the renderer, which selects the tool server for new
+// chats in the person's settings (app.js seedBlenderToolServer, the user-settings API it already writes); the server
+// itself reaches Open WebUI by env (syncBlenderTools).
 function onMcpoState(s: McpoState): void {
+    syncBlenderTools();
     if (win && !win.isDestroyed()) win.webContents.send('blender-state', { ...s, enabled: mcpo.isEnabled() });
 }
 
@@ -1013,16 +1019,17 @@ function registerIpc(): void {
     // --- local Blender assistant-tools server (mcpo) ---
     // Toggling this installs (first time) + runs a local mcpo that exposes the
     // Blender MCP server to OWUI. Non-blocking: the install/start progress streams
-    // to the renderer over 'blender-state', and onMcpoState repoints OWUI when ready.
+    // to the renderer over 'blender-state'. Open WebUI restarts once with the server in its env (syncBlenderTools).
     ipcMain.handle('get-blender-state', () => ({ ...mcpo.getState(), enabled: mcpo.isEnabled(), blenderPort: mcpo.getBlenderPort() }));
-    // The renderer registers the tool server with OWUI itself (authed webview API);
-    // it needs the local mcpo url + bearer key. Null until mcpo is ready.
+    // Null until mcpo is ready: the renderer selects the tool server for new chats then.
     ipcMain.handle('get-blender-connection', () => mcpo.getConnection());
-    ipcMain.handle('set-blender-enabled', (_e, on: boolean) => {
+    ipcMain.handle('set-blender-enabled', async (_e, on: boolean) => {
         const v = !!on;
         // Mark it a user choice so a farm's Blender recommendation won't override it.
         updateSettings({ blenderMcp: v, blenderMcpUserSet: true });
-        mcpo.setEnabled(v);
+        if (v) await mcpo.reservePort();   // its address is in Open WebUI's env before mcpo starts
+        void mcpo.setEnabled(v);
+        syncBlenderTools();
         return { ...mcpo.getState(), enabled: v };
     });
     // Change the Blender add-on socket port (must match the number the add-on shows).
@@ -1447,6 +1454,20 @@ app.whenReady().then(async () => {
     // authenticated instead of 401-looping until the first beacon.
     currentKey = seed ? seed.key : settings.lastFarmKey;
     booted = true;
+    // Blender assistant tools are OPT-IN (off by default since v0.1.24): enabling it
+    // in Settings — or a farm recommendation — brings mcpo up in the background
+    // (first launch installs it, ~1 min). Here, before Open WebUI's first start: its env carries mcpo's address and
+    // key (chosen now, mcpo answering later), so a launch with them on does not restart Open WebUI once mcpo is up.
+    // One-time migration: installs that carry the old on-by-default WITHOUT an explicit user choice
+    // (blenderMcpUserSet=false) adopt the new default; an explicit choice is kept.
+    let blenderOn = settings.blenderMcp;
+    if (blenderOn && !settings.blenderMcpUserSet) {
+        updateSettings({ blenderMcp: false });
+        blenderOn = false;
+    }
+    mcpo.setBlenderPort(settings.blenderPort);
+    if (blenderOn) { await mcpo.reservePort(); void mcpo.setEnabled(true); }
+    setBlenderTools(mcpo.plannedConnection());
     // LOL Chat talks straight to the farm's OpenAI endpoint, so there is no local
     // process to supervise — discovery alone is enough to be usable.
     if (OWUI_ENABLED) {
@@ -1458,20 +1479,6 @@ app.whenReady().then(async () => {
     } else {
         sidecar.pointTo(initial);
     }
-
-    // Blender assistant tools are OPT-IN (off by default since v0.1.24): enabling it
-    // in Settings — or a farm recommendation — brings mcpo up in the background
-    // (first launch installs it, ~1 min); when ready the renderer registers the tool
-    // server with OWUI via its API — no sidecar restart. One-time migration: installs
-    // that carry the old on-by-default WITHOUT an explicit user choice
-    // (blenderMcpUserSet=false) adopt the new default; an explicit choice is kept.
-    let blenderOn = settings.blenderMcp;
-    if (blenderOn && !settings.blenderMcpUserSet) {
-        updateSettings({ blenderMcp: false });
-        blenderOn = false;
-    }
-    mcpo.setBlenderPort(settings.blenderPort);
-    if (blenderOn) mcpo.setEnabled(true);
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();

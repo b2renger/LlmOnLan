@@ -39,6 +39,28 @@ Blender's server on the road that holds across versions, as the Computer's does.
    (PASS on 0.13.4 already; run again on 0.13.5).
 5. Tests: `buildSidecarEnv` with the toggle on and off; HUMAN_TESTS A27 (the Blender tools end to end) run again.
 
+## Built (night n° 18, 2026-11-27, DEVLOG 02:35): steps 1–3 and 5; step 4, the bump, next
+
+- **Step 1:** `configBridge.ts` `toolServerConnections` (the Computer's entry, then Blender's) and `setBlenderTools`.
+  mcpo's port is chosen before Open WebUI's first start and kept for the app's run (`mcpoSupervisor.ts` `reservePort`,
+  `plannedConnection`; its key was already one per run), so a launch with Blender on starts Open WebUI once.
+- **Step 2:** `sidecar.ts` `reloadToolServers` restarts Open WebUI when `TOOL_SERVER_CONNECTIONS` differs from what it
+  started with (that value alone: the rest of the env follows the model cache), never during a start (kept for its
+  end, after a waiting move); `index.ts` `syncBlenderTools` on the switch and on each mcpo state. Preferences says the
+  switch restarts the chat.
+- **Step 3:** `app.js` `seedBlenderToolServer(on)` puts `server:lol-blender` in `ui.tools` (on) or takes it out (off),
+  and removes once what clients up to v0.2.21 wrote (the `ui.toolServers` entry, its `direct_server:<idx>`, a higher
+  index shifted down); a failed read writes nothing (the old seed wrote after one). **The check the plan asked for:** a
+  new chat's `selectedToolIds` are the model's own `toolIds`, else `$settings.tools`, unfiltered (`Chat.svelte`, read
+  in 0.13.3's source map): a `server:` id is preselected like a `direct_server:` one. To read again on 0.13.5.
+- **Measured on a real Open WebUI 0.13.3** (the released sidecar, the compiled env, a stand-in mcpo, a fake farm): no
+  tool while mcpo is down, `server:lol-blender` once it answers (spec fetched with the bearer); a chat tied to a chat id,
+  as the page sends it, had Open WebUI call the stand-in's operation with the key, hand its result to the farm, and keep
+  the answer made from it.
+- **Step 5:** `test/unit.js` (the selection, the clean-up both ways, a fresh profile, failed reads),
+  `shell-main.test.mjs` (the env on and off, the restart's rules in the source); HUMAN_TESTS **A31** for the owner.
+  Not run here: the switch in the real app (A31), Blender itself.
+
 ## Questions for the owner
 
 1. **This plan, or stay on 0.13.3?** *Recommended:* this plan, then the bump: every Open WebUI after 0.13.3, its

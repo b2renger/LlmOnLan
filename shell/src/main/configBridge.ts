@@ -246,15 +246,31 @@ export const FULL_CONTEXT_MIN_CTX = 24576;
 // same for every launch after — so it never makes the env differ (no extra OWUI restart).
 let computerMcp: { url: string; token: string } | null = null;
 export function setComputerMcp(conn: { url: string; token: string } | null): void { computerMcp = conn; }
+// The Blender tools' local mcpo (mcpoSupervisor.ts) while Preferences' Blender switch is on (BLENDER_TOOLS_ENV_PLAN):
+// set before the sidecar starts, and a change restarts Open WebUI (sidecar.ts reloadToolServers): env is read at start.
+let blenderTools: { url: string; apiKey: string } | null = null;
+export function setBlenderTools(conn: { url: string; apiKey: string } | null): void { blenderTools = conn; }
 
-/** OWUI's public tool-server setting for the Computer's MCP server (OWUI 0.11.4 config.py
- * TOOL_SERVER_CONNECTIONS, type "mcp", bearer auth). Env is authoritative (ENABLE_PERSISTENT_CONFIG=false). */
-export function computerToolServer(conn: { url: string; token: string }): string {
-    return JSON.stringify([{
-        type: 'mcp', url: conn.url, auth_type: 'bearer', key: conn.token,
+/** OWUI's public tool-server setting (config.py TOOL_SERVER_CONNECTIONS; env is authoritative,
+ * ENABLE_PERSISTENT_CONFIG=false): the Computer's MCP server (type "mcp", listed as `server:mcp:lol-computer`) and,
+ * while it is on, Blender's mcpo (type "openapi", listed as `server:lol-blender`, which the renderer selects in the
+ * person's `ui.tools`). Both bearer; with no access_grants both are admin-only, which the one local user is
+ * (WEBUI_AUTH=false). Open WebUI fetches an OpenAPI server's spec again at each tool listing (no Redis here), so mcpo
+ * may come up after Open WebUI. Before 0.13.4 Blender was a person's own tool server (`ui.toolServers`), which
+ * 0.13.4 dropped. */
+export function toolServerConnections(computer: { url: string; token: string } | null, blender: { url: string; apiKey: string } | null): string | undefined {
+    const list: object[] = [];
+    if (computer) list.push({
+        type: 'mcp', url: computer.url, auth_type: 'bearer', key: computer.token,
         config: { enable: true },
         info: { id: 'lol-computer', name: 'LlmOnLan Computer', description: 'Build and run graphs on the LlmOnLan Computer, and write prompts for ComfyQ\'s image, video and audio models (this computer only).' },
-    }]);
+    });
+    if (blender) list.push({
+        type: 'openapi', url: blender.url, path: '/openapi.json', auth_type: 'bearer', key: blender.apiKey,
+        config: { enable: true },
+        info: { id: 'lol-blender', name: 'Blender', description: 'Control Blender running on this machine.' },
+    });
+    return list.length ? JSON.stringify(list) : undefined;
 }
 
 export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> {
@@ -554,14 +570,10 @@ export function buildSidecarEnv(input: SidecarEnvInput): Record<string, string> 
         env.EXTERNAL_DOCUMENT_LOADER_API_KEY = input.extract.key || 'sk-lol-ocr';
     }
 
-    // NOTE: the local Blender assistant-tools server (mcpo) is NOT wired here.
-    // TOOL_SERVER_CONNECTIONS is a PersistentConfig and OWUI does not reliably surface
-    // env-configured tool servers (upstream issue #18140 — env is "not a supported
-    // method"). Instead the renderer registers the tool server through OWUI's own
-    // supported user-settings API (POST /api/v1/users/user/settings/update) from the authed webview, the
-    // same way unseedWebSearch() switches off the web-search default older clients set — see app.js.
-
-    // The Computer as a tool server Open WebUI's models can use (owner, 2026-09-27; this machine only).
-    if (computerMcp) env.TOOL_SERVER_CONNECTIONS = computerToolServer(computerMcp);
+    // The Computer as a tool server Open WebUI's models can use (owner, 2026-09-27; this machine only), and the
+    // Blender tools while they are on (BLENDER_TOOLS_ENV_PLAN, 2026-11-27; before, the renderer wrote them into the
+    // person's own tool servers, which Open WebUI 0.13.4 dropped).
+    const tools = toolServerConnections(computerMcp, blenderTools);
+    if (tools) env.TOOL_SERVER_CONNECTIONS = tools;
     return env;
 }

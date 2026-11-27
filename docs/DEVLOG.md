@@ -9,6 +9,42 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-27 (02:35) — BLENDER_TOOLS_ENV_PLAN: the Blender tools through Open WebUI's env (steps 1–3, 5)
+
+- **Why:** Open WebUI 0.13.4 dropped a person's own tool servers, where the client wrote Blender's mcpo
+  (`ui.toolServers`, selected as `direct_server:<idx>`); the owner approved the move (2026-11-26) so 0.13.5 can come.
+- **Built:**
+  - `TOOL_SERVER_CONNECTIONS` carries a second entry while the switch is on (`type: openapi`, mcpo's address and per-run
+    key, `info.id: lol-blender`), beside the Computer's.
+  - mcpo's port is chosen before Open WebUI's first start and kept for the run (`reservePort`), so a launch with Blender
+    on starts Open WebUI once.
+  - The switch, or a port mcpo had to change, restarts Open WebUI (`sidecar.ts` `reloadToolServers`: only that value is
+    compared, since the rest of the env follows the model cache; never during a start, kept for its end).
+  - The renderer only selects `server:lol-blender` in `ui.tools` and removes, once, what older clients wrote. A failed
+    read now writes nothing; the old seed wrote after one.
+- **Read in 0.13.3's own code:**
+  - Without Redis, `get_tool_servers` fetches the specs again at every listing (`utils/tools.py:1343`), so mcpo may come
+    up after Open WebUI.
+  - A new chat's tools are the model's `toolIds`, else `$settings.tools`, unfiltered (`Chat.svelte`, from the
+    frontend's source map), so a `server:` id is preselected.
+  - An entry with no `access_grants` is admin-only (`has_connection_access`), and the one local user is admin
+    (`WEBUI_AUTH=false`).
+- **Run on a real Open WebUI 0.13.3** (`n18/owui-blender.cjs`: the released sidecar, the compiled `buildSidecarEnv` with
+  Blender on, a stand-in mcpo on 18765 with a bearer key, a fake farm that asks for the tool):
+  - tools `[]` while the stand-in was down, `["server:lol-blender"]` once it answered (spec fetched with the key);
+  - a completion with `tool_ids` offered the farm `get_scene_info`, but a request with no chat id passes the tool call
+    through, streamed or not;
+  - a request tied to a chat (`chat_id`, a message id), as the page sends it: Open WebUI called `POST /get_scene_info`
+    with the key, the farm received the tool's result, and the chat holds the answer made from it.
+- **Tests:**
+  - `test/unit.js` **33/33** (with the new ones: the selection, the clean-up both ways with another server's index
+    shifted, a fresh profile, failed and non-JSON reads, no token); `test:chat` **1992 passed**, 1 skipped, lint clean;
+  - `shell-main.test.mjs` (the env on and off, the restart's rules and the boot order in the source; the token-origin
+    test follows the new signature, unseed delegating to the guarded seed).
+- **Found on the way:** Python's `write_text` on Windows writes CRLF, which broke `test/unit.js`'s function extractor
+  (it looks for `\n}\n`). Tonight's four files went back to LF. HUMAN_TESTS' sessions table had drifted (row A said 21
+  tests for 31): recounted from the headings, **166 tests, 36 ★**. New: **A31** for the owner.
+
 ## 2026-11-27 (02:20) — WSL_PORTS_PLAN: `lol up` holds its panel's port before its first WSL call
 
 - **Reproduced first, on the old code** (a scratch farm: the fake Ollama on 11500, the Ollama engine with a `vllm.root`

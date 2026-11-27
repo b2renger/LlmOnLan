@@ -164,6 +164,10 @@ export class SidecarSupervisor extends EventEmitter {
     // A repoint meanwhile is kept in `deferred` (only the latest) and applied when the start ends.
     private booting = false;
     private deferred: SidecarStartOpts | null = null;
+    // The tool servers this launch was started with (TOOL_SERVER_CONNECTIONS), and whether they changed during a
+    // start (reloadToolServers: applied when the start ends, as `deferred` is).
+    private launchedTools: string | undefined;
+    private toolsStale = false;
     private notice: string | undefined;   // told to the person once this launch is ready (an offline start)
     private migrationBroken = false;      // this start printed MIGRATION_BROKEN: the error state offers the repair
     private repaired: string | undefined; // what the repair did, told with the next ready
@@ -264,15 +268,17 @@ export class SidecarSupervisor extends EventEmitter {
             this.repaired ?? '',
         ].filter(Boolean).join(' ') || undefined;
 
+        const built = buildSidecarEnv({ ...this.launchOpts(), embed });
         const env = {
             ...process.env,
-            ...buildSidecarEnv({ ...this.launchOpts(), embed }),
+            ...built,
             ...(hubOffline ? { HF_HUB_OFFLINE: '1' } : {}),
             // OWUI logs Unicode (loguru/rich) → force UTF-8 so it doesn't crash a
             // Windows cp1252 console (same class of bug as LiteLLM's banner).
             PYTHONUTF8: '1',
             PYTHONIOENCODING: 'utf-8',
         };
+        this.launchedTools = built.TOOL_SERVER_CONNECTIONS;
 
         // Before keepDbBeforeEngine: a half-built first database is not worth a copy.
         try {
@@ -339,7 +345,23 @@ export class SidecarSupervisor extends EventEmitter {
     private takeDeferred(): SidecarStartOpts | null { const d = this.deferred; this.deferred = null; return d; }
     private applyDeferred(): void {
         const d = this.takeDeferred();
-        if (d) void this.repoint(d.endpoint, d.apiKey ?? null, d.defaultModel ?? null, d.searxngUrl ?? null, d.tts ?? null, d.extract ?? null, d.contextPerSlot ?? null, d.embed ?? null, d.stt ?? null);
+        const tools = this.toolsStale; this.toolsStale = false;
+        void (async () => {   // one after the other: a repoint that restarts already starts with the new tool servers
+            if (d) await this.repoint(d.endpoint, d.apiKey ?? null, d.defaultModel ?? null, d.searxngUrl ?? null, d.tts ?? null, d.extract ?? null, d.contextPerSlot ?? null, d.embed ?? null, d.stt ?? null);
+            if (tools) await this.reloadToolServers();
+        })();
+    }
+
+    // The tool servers changed (the Blender switch, mcpo's port; configBridge setBlenderTools): Open WebUI reads them
+    // only at start, so it restarts (10–30 s, the chat stays), never inside its own start. Only TOOL_SERVER_CONNECTIONS
+    // is compared: the rest of the env also follows the model cache (HF_HUB_OFFLINE), which needs no restart.
+    async reloadToolServers(): Promise<void> {
+        if (!this.child || buildSidecarEnv(this.launchOpts()).TOOL_SERVER_CONNECTIONS === this.launchedTools) return;
+        if (this.isBooting()) { this.toolsStale = true; return; }
+        console.log('[sidecar] the tool servers changed (the Blender tools): restarting Open WebUI');
+        this.setState({ status: 'restarting', endpoint: this.endpoint });
+        await this.stop({ keepState: true });
+        await this.start(this.launchOpts());
     }
 
     // True while a kill could land inside Open WebUI's start (index.ts's Retry waits instead of killing).
