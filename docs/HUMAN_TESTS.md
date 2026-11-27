@@ -443,7 +443,9 @@ env (A31), the Classify box naming who answered (J21), and the boot's crash reco
 **step 4** (and 5) on it; About reads 0.2.21+n18.
 *Expect:* About reads 0.2.20+n16 on the local build (the build's own stamp, `app.getVersion()`; the updater reads 0.2.20), 0.2.21 on the release; everything as on v0.2.20: the old chats, an answer,
 the Preview and its window, the saved tokens read; the second start as quick as before. Note anything that differs.
-- [ ] Done · Found:
+- [x] **Done in part, 2026-11-27 (the owner, `0.2.21+n18`):** the first start's time is acceptable. Step 4 was not
+  run: no GitHub token or Home Assistant link was saved yet (Home Assistant is not set up). The tokens' move stays
+  measured without a person (DEVLOG 2026-11-26 00:21).
 
 ### A31 ★ The Blender tools reach chats through Open WebUI's start settings
 **Optional at the next sitting:** on Open WebUI 0.13.3 the move brings nothing a person sees. It matters once an Open
@@ -465,7 +467,14 @@ BlenderMCP add-on, a farm with a model that calls tools (Qwen3.6 on the PRO 6000
 Step 2: the chat restarts once each time (10–30 s; the chats stay). Step 3: *helper ✓ · Blender ✓*. Step 4: the cube
 and the lamp appear in Blender. Step 5: nothing of Blender. Measured without a person (DEVLOG 2026-11-27 02:35): a real
 Open WebUI 0.13.3 lists the tool once a stand-in helper answers and runs a chat's tool call against it with its key.
-- [ ] Done · Found:
+- [x] **Run 2026-11-27 (the owner, `0.2.21+n18`, Blender 5.1.1, on the PRO 6000):**
+  - **This plan's part works:** Blender was in the chat's tools and selected, *Test connection* read *helper ✓ (22
+    tools) · Blender ✓ on port 9876*, and the model's calls reached the helper.
+  - **Step 4 failed:** every call came back *Communication error with Blender: Incomplete JSON response received*.
+  - **Why:** the add-on was Blender Lab's own **MCP** extension (1.0.3, Blender 5.1+), not the **BlenderMCP** add-on
+    that the helper (`blender-mcp` 1.6.4) speaks to. The two speak different messages on the same port 9876.
+  - **Test connection** only checks that something listens there, so it said ✓.
+  - Which add-on the client supports is a question for the owner (DEVLOG 2026-11-27 14:10).
 
 ### A10 Code, pictures and files
 *Proves:* the sandbox and the File box on a real disk. *Was:* 3.1, 3.5, 3.6, 3.9; LOLCHAT_RIG §15, §15b, §18 (a paused
@@ -2084,7 +2093,7 @@ port before it starts WSL, so a WSL its own start boots goes around it. If the p
 a block of ports*, WSL was already running on that block before the farm started: write it on *Found*, with what else
 was using WSL.
 **The way back:** install farm-v0.0.55 again.
-- [ ] Done · Found:
+- [x] **Passed 2026-11-27 (the owner, `0.0.55+n18` on the PRO 6000):** "J20 is good".
 
 ### J21 ★ The Computer's Classify box answered by the farm's vLLM
 *Proves:* [CLASSIFY_VLLM_PLAN](plans/CLASSIFY_VLLM_PLAN.md) (2026-11-27): while the PRO 6000's vLLM serves Qwen3.6, the
@@ -2098,14 +2107,26 @@ it installs Laya, about 1.7 GB, a few minutes), 5 minutes. *Was:* new (2026-11-2
    start), a few minutes while chats go on. Read without you, 05:27: the PRO 6000 serves `qwen3.6-35b-a3b` on vLLM
    0.33.0 (which has the decision endpoint), and Classify is off there.
 2. On a laptop, the Computer: a **Text** box with five headlines, one per line (two in French), wired into a
-   **Classify** box; its options `sport`, `politics`, `business`; **Run**.
+   **Classify** box's **items**, the **top** dot on its left (hover a dot to read its name: the middle one, marked T,
+   is *options*, and a wire there replaces the typed options); type its options `sport`, `politics`, `business` in
+   the box; **Run all**.
 3. Optional: switch the farm to Ollama in the panel, Run again, switch back.
 
 *Expect:* step 1: *Classify up (Laya 0.3.20, CPU; the farm's vLLM answers instead while it serves Qwen3.6 or Qwen3.8)*.
 Step 2: each headline labelled as you would; the box's status line ends with *qwen3.6-35b-a3b, the farm's model*, in
 well under a second. Step 3: the same box answers, and its status line ends with *Laya*. If step 2's line says *Laya*,
 write it on *Found*, with the vLLM version the panel shows.
-- [ ] Done · Found:
+- [x] **Run 2026-11-27 (the owner, both n18 builds):**
+  - **Step 1 passed.** The owner asks that the panel say what a plugin downloads and how far it has got (plans ▸
+    *Waiting on the owner*).
+  - **Step 2: the farm's vLLM answered** (*3 items · 0 unsure (below 0.6) · 0.2 s · qwen3.6-35b-a3b, the farm's
+    model*), but the wires were swapped: the headlines went into **options**, the middle dot, and an options Text box
+    into **items**.
+  - Why: the dots show only a kind glyph (`{}`, `T`, `{}`), and the Text box's `T` output looks as if it belongs in
+    the `T` dot. So the farm classified *sports, politics, business* against the five headlines, and matched each one
+    right.
+  - Step 2 now names the top dot. Showing the dots' names on the box is a question for the owner
+    (DEVLOG 2026-11-27 14:10).
 
 ## K. A Windows test box with an RTX card (not production)
 

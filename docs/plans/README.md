@@ -463,6 +463,27 @@ Kolibri-1 and LFM2.5 do not beat Qwen3.6 either; Super VL waits on the owner (4 
 
 ## 4. Waiting on the owner
 
+- **The Computer's input dots named on the box** (the owner's J21 test, 2026-11-27; DEVLOG 14:10): a box's input dots
+  show only a kind glyph, and their names show only in a hover tooltip. On the Classify box (`items {}`, `options T`,
+  `question {}`), the owner wired a Text box's `T` output into the `T` dot, *options*, and the box looked broken.
+  Proposed: each input's name in small text beside its dot, on every box with more than one input. The `::after` that
+  draws the glyph today can carry it, so it adds no new element. **S**. Client. Summary n° 18's day questions.
+- **The panel says what a plugin downloads, and how far it has got** (the owner's request, 2026-11-27, after J21 step
+  1). Turning Classify on fetches ~1.7 GB with nothing in the panel: `classify.js` runs `pip install -q`, writes its
+  steps only to `farm.log`, and Laya's weights download at its first start. The same holds for OCR, voice, speech and
+  document search. A plan first: which steps, and progress as bytes on disk against the expected size. **S–M**. Farm.
+- **Blender: which add-on the client works with** (the owner's A31, 2026-11-27; DEVLOG 14:10).
+  - The client's helper is the community `blender-mcp` (PyPI, 1.6.4), which speaks only to the community
+    **BlenderMCP** add-on (`addon.py` from GitHub, installed from a file).
+  - Blender 5.1's own extension platform now offers Blender Lab's official **MCP** extension (one click in *Get
+    Extensions*). It uses the same port 9876 but different messages, and its own MCP server, also named
+    `blender-mcp`, is not on PyPI.
+  - With it, every call fails, and *Test connection* says ✓ because it only checks that the port listens.
+  - Two moves:
+    - (a) *Test connection* speaks to the add-on and names the one it found: a reproduced bug, approved in advance.
+    - (b) A plan to support Blender Lab's extension: its server pinned from projects.blender.org, and its own tools
+      (code, scene, screenshots, Blender's docs).
+  - **S** for (a), **M** for (b). Client.
 - **A farm's bundled CPython moved to a newer 3.12, its venvs rebuilt** ([CPYTHON_BUMP_PLAN](CPYTHON_BUMP_PLAN.md), night n° 18, proposed): for the PRO 6000's CPython 3.12.14 and its expat 2.8.3, which RUNTIME_UPDATE cannot reach; a button in the Farm app's window, the venvs rebuilt through their install signatures, the old ones kept until a start works. **M**. **Not before** a python-build-standalone release carries a 3.12.x with expat 2.11.0 on Windows (none yet: python/cpython#162493); then the owner's question.
 **The ones that unblock the most:**
 - **[AGENT_FIRST_STEP_PLAN](AGENT_FIRST_STEP_PLAN.md)** (night n° 13, proposed): Gemma 4 26B on Ollama ends 1 coding

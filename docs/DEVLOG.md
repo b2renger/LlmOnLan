@@ -9,6 +9,38 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-27 (14:10) — The owner's morning tests of the n18 builds; two failures traced, neither from the night's code
+
+- **J20 passed** (the Farm app `0.0.55+n18` on the PRO 6000). **J21 step 1 passed**; the owner asks that the panel say
+  what a plugin downloads and how far it has got. Today `classify.js` runs `pip install -q` and writes its steps only to
+  `farm.log`, and Laya's weights download at its first start with no report.
+- **J21 step 2: the vLLM path works, the wiring misled.** The status line read *3 items · 0 unsure (below 0.6) · 0.2 s ·
+  qwen3.6-35b-a3b, the farm's model*, but its labels were the headlines.
+  - The cause: the Classify box's input dots are, top to bottom, `items`, `options` and `question`
+    (`graph/parts/classify.mjs:130-133`). On the box they show only a kind glyph: `{}`, `T`, `{}`
+    (`css/computer-look.css:170, 202-203`). Their names appear only in a hover tooltip (`graph/canvas.mjs:1931`).
+  - The Text box's `T` output went into the `T` dot, which is `options`, so `items` was empty (*Nothing to classify…*).
+    The owner then wired the options text into `items`. The farm classified *sports, politics, business* against the
+    five headlines, and matched each one right.
+  - The typed options were never the problem: `optionsOf` splits on new lines and commas and lowercases them, which is
+    also why the labels come back in lower case.
+  - The box predates the night. HUMAN_TESTS J21 step 2 now names the top dot. Showing the dots' names on the box is a
+    question for the owner.
+- **A31: the Blender tools reach the chat; the add-on was the wrong one.**
+  - What worked: Blender was in the chat's tools and selected, and the model's calls reached the helper.
+  - What failed: every call came back *Communication error with Blender: Incomplete JSON response received*.
+  - Read on this PC:
+    - The add-on was Blender Lab's own **MCP** extension, 1.0.3, `blender_version_min = "5.1.0"`
+      (`…/Blender/5.1/extensions/lab_blender_org/mcp/`). It takes `{"type": "execute", "code": …, "strict_json": …}`
+      and answers JSON ended by a zero byte (`mcp_to_blender_server.py:228, 324-343`).
+    - The helper the client installs is the community `blender-mcp` 1.6.4. It sends `{"type": <command>, "params": …}`
+      with no ending (`blender_mcp/server.py:122-132`), and a reply with a zero byte after it never parses
+      (`server.py:113`).
+    - Both default to port 9876. The client's **Test connection** only checks that something listens
+      (`tcpProbe`, `shell/src/main/index.ts:1057`), so it said *Blender ✓*.
+  - The night's change (Open WebUI's env) is not involved: the call went through it. Which add-on the client supports
+    is a question for the owner.
+
 ## 2026-11-27 (05:24) — LiteLLM 1.108.19 (the LTS line) tried in scratch; Ollama 0.40.17/18 read
 
 - **The `docs` explorer** (TOOL_UPDATES_2026-11-27): Ollama 0.40.17 and 0.40.18 bring nothing for our NVIDIA boxes. LiteLLM's
