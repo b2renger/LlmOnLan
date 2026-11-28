@@ -33,7 +33,6 @@ const LAYA_VERSION = '0.3.20';
 // rl_agent_config.json, model.safetensors, tokenizer/*, encoder/*; laya/agent.py). 846,201,885 bytes on disk, snapshot
 // 55cf4c4 (read 2026-11-28 from the 2026-09-27 spike's cache). ponytail: a constant that drifts with Laya's repo; the
 // job bar only uses it for its percentage, capped at 99 % until the service answers. Upgrade path: the Hub's file sizes.
-const LAYA_REPO_DIR = 'models--convaiinnovations--laya';
 const WEIGHTS_BYTES = 846201885;
 const TORCH_CPU_INDEX = 'https://download.pytorch.org/whl/cpu';
 const DEPS = [`laya==${LAYA_VERSION}`, 'fastapi', 'uvicorn'];
@@ -73,7 +72,7 @@ function installed() {
  * shared cache (the same rule as spawnClassify's HF_HUB_CACHE). */
 function weightsDir() {
     const storage = require('./storage');
-    return path.join(storage.classifyCache() || storage.hfHubDir(), LAYA_REPO_DIR);
+    return path.join(storage.classifyCache() || storage.hfHubDir(), storage.LAYA_REPO);
 }
 /** Laya's English checkpoint is on disk (a snapshot holding its model.safetensors). */
 function weightsOnDisk(dir = weightsDir()) {

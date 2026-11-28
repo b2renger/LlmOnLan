@@ -1390,7 +1390,7 @@ get *"the farm is busy"*).
 | `POST /lol/admin/model/start` · `/model/stop` · `/model/default` · `/model/alias` | Offer / stop / make default / rename an Ollama model (`{ id }`, `{ id, alias }`). |
 | `POST /lol/admin/ollama/pull` · `/ollama/remove` | Download / delete an Ollama model. |
 | `POST /lol/admin/preset` | `{ id: "balanced" | "rag" | "vibe" | "computer", dryRun? }` — a [preset](#presets): `dryRun` answers `{ reasons, changes, restart, needs, refusal }` and changes nothing (it may check this computer for vLLM); without it, Apply as one job. |
-| `POST /lol/admin/plugin/<id>/enable` · `/disable` | Turn a farm plugin on or off, kept in `<id>.enabled` for the next start. |
+| `POST /lol/admin/plugin/<id>/enable` · `/disable` | Turn a farm plugin on or off, kept in `<id>.enabled` for the next start. A plugin not installed yet answers at once `{started, job}`: its install runs as the panel's job, `kind: 'plugin'`, each step and pip's bytes in `job` of `/lol/admin/state` (PLUGIN_PROGRESS, 2026-11-28). |
 | `POST /lol/admin/plugin/recommend` | `{ id, on }` — recommend a client plugin (Blender) to the fleet (session only). |
 
 ## Config — `lol.config.json`

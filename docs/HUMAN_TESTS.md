@@ -2172,8 +2172,9 @@ farm side), the PRO 6000 at a quiet moment, about 5 minutes plus the download. *
   - *Starting Speech to text*;
   - *Downloading the Whisper model "large-v3-turbo"*, its bytes growing towards 1.6 GB.
 
-  It ends green with *Speech to text up (faster-whisper large-v3-turbo, GPU) — …* and a toast *Enabled Speech to
-  text*. On the CPU the model is *small*, 486 MB. Note which the row says.
+  Once the model is down, the bar stays at *99 %* while the service loads it (seconds on the CPU, longer on the GPU): it
+  is not stuck. It ends green with *Speech to text up (faster-whisper large-v3-turbo, GPU) — …* and a toast *Enabled
+  Speech to text*. On the CPU the model is *small*, 486 MB. Note which the row says.
 - **Step 3:** the chat is answered as usual.
 - **If it fails:** the bar turns red, naming the step that failed, and Speech to text stays off. Write the step on
   *Found*.

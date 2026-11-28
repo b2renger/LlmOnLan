@@ -9,6 +9,21 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-28 (03:24) — PLUGIN_PROGRESS after the advisor: Speech to text for real, the presets' path, the words
+
+- **Speech to text, the plugin J22 tests, installed for real** (03:22–03:23, the scratch copy, CPU, *small*):
+  - a real download on the bar (onnxruntime, 16.7 MB, in 20 % steps), and 33 cached wheels, each named;
+  - *Starting* at 25.5 s, then the Whisper model 0 → 28 → 56 → 83 % of 486.2 MB;
+  - *Speech to text up (faster-whisper small, CPU) …* at 70.9 s; stopped, no process left.
+- **The presets' Apply is unchanged:** its `ctx.setPlugin` is the raw `setPlugin` (`up.js:4293`), not the panel's
+  route. It runs inside the preset's job, with no progress.
+- **`stt.model` is concrete when the registry reads it:** `resolveStt` (boot, `up.js:732`) writes `'auto'` away in
+  the config.
+- Classify reuses `storage.LAYA_REPO` for its weights folder (no second copy of the name).
+- The README's route row says a first install answers `{started, job}`. J22 says the bar waits at 99 % while the
+  service loads its model.
+- Farm **304/304**.
+
 ## 2026-11-28 (03:20) — PLUGIN_PROGRESS: a plugin's first install on the panel's job bar, its steps and its bytes
 
 The queue's first item after COMPUTER_DOTS ([PLUGIN_PROGRESS_PLAN](plans/PLUGIN_PROGRESS_PLAN.md), the owner's J21 request).
