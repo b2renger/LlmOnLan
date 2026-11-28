@@ -4894,6 +4894,149 @@ test('vLLM: wsl.exe\'s UTF-16, its list, and status.sh\'s report as recorded (§
     assert.deepEqual(V.memOf(V.parseStatus('gpu=NVIDIA GB10, [N/A], [N/A], 12.1\nmem_total_kb=124991588\nmem_available_kb=115343360\n')).unified, true);
 });
 
+// ---- PLUGIN_PROGRESS_PLAN (the owner, 2026-11-27): a plugin's first install on the panel's job bar ----------------
+test('PLUGIN_PROGRESS: a plugin that is not installed turns on as a job: the request answers at once, the bar carries each step and the bytes, the end its own sentence', async () => {
+    const { makeJobs, pluginToggle } = require('../src/commands/up');
+    const quiet = { ok() {}, err() {}, step() {}, warn() {} };
+    const jobs = makeJobs({ logger: quiet });
+    const svc = { id: 'fake', label: 'Fake plugin', pid: null, installed: () => false };
+    let release; const held = new Promise((r) => { release = r; });
+    const r = pluginToggle(jobs, svc, true, {}, async (on, progress) => {
+        assert.equal(on, true);
+        progress('Installing torch (CPU build, ~0.9 GB) for Classify …', null);
+        progress('Installing torch (CPU build): downloading torch-2.9.1+cpu-cp312-cp312-win_amd64.whl', 40, { bytes: 40_000_000, total: 100_000_000 });
+        await held;
+        progress('Starting Fake plugin …', null);
+        return { ok: true, enabled: true, message: 'Fake up — the Computer’s box works on this farm.' };
+    });
+    assert.equal(r.ok, true);
+    assert.equal(r.started, true, 'the request answers at once, the install running behind it');
+    assert.deepEqual([r.job.kind, r.job.plugin, r.job.label], ['plugin', 'fake', 'Turning on Fake plugin'], 'the panel knows which plugin is installing');
+    await new Promise((res) => setImmediate(res));
+    const mid = jobs.jobView();
+    assert.equal(mid.done, false);
+    assert.equal(mid.message, 'Installing torch (CPU build): downloading torch-2.9.1+cpu-cp312-cp312-win_amd64.whl', 'the step, as the install said it');
+    assert.deepEqual([mid.bytes, mid.total, mid.percent], [40_000_000, 100_000_000, 40], 'and its bytes against the total');
+    assert.equal(pluginToggle(jobs, { ...svc, id: 'other' }, true, {}, async () => ({ ok: true })).ok, false, 'one admin job at a time, as an engine switch');
+    release();
+    await new Promise((res) => setTimeout(res, 10));
+    const end = jobs.jobView();
+    assert.deepEqual([end.done, end.ok, end.message], [true, true, 'Fake up — the Computer’s box works on this farm.'], 'it ends with the plugin’s own sentence');
+});
+
+test('PLUGIN_PROGRESS: an installed plugin turns on, and any plugin turns off, as before: a quick op, no job', async () => {
+    const { makeJobs, pluginToggle } = require('../src/commands/up');
+    const jobs = makeJobs({ logger: { ok() {}, err() {}, step() {}, warn() {} } });
+    const seen = [];
+    const set = async (on, progress) => { seen.push([on, progress]); return { ok: true, enabled: on }; };
+    const installed = { id: 'a', label: 'A', pid: null, installed: () => true };
+    const fresh = { id: 'b', label: 'B', pid: null, installed: () => false };
+    const running = { id: 'c', label: 'C', pid: 1234, installed: () => false };
+    assert.deepEqual(await pluginToggle(jobs, installed, true, {}, set), { ok: true, enabled: true });
+    assert.deepEqual(await pluginToggle(jobs, fresh, false, {}, set), { ok: true, enabled: false }, 'turning off never installs');
+    assert.deepEqual(await pluginToggle(jobs, running, true, {}, set), { ok: true, enabled: true }, 'one already running answers as before');
+    assert.deepEqual(seen, [[true, null], [false, null], [true, null]], 'no progress: the panel’s reply says it all');
+    assert.equal(jobs.jobView(), null, 'no job opened');
+});
+
+test('PLUGIN_PROGRESS: a failed install ends the job red, naming the step that failed', async () => {
+    const { makeJobs, pluginToggle } = require('../src/commands/up');
+    const jobs = makeJobs({ logger: { ok() {}, err() {}, step() {}, warn() {} } });
+    const svc = { id: 'classify', label: 'Classify (Laya)', pid: null, installed: () => false };
+    pluginToggle(jobs, svc, true, {}, async (on, progress) => {
+        progress('Installing Laya 0.3.20 …', null);
+        return { ok: false, error: 'Classify (Laya) did not come up — see the farm log.' };
+    });
+    await new Promise((res) => setTimeout(res, 10));
+    const end = jobs.jobView();
+    assert.deepEqual([end.done, end.ok], [true, false]);
+    assert.equal(end.error, 'Installing Laya 0.3.20: Classify (Laya) did not come up — see the farm log.', `the step that failed, then the farm log: ${end.error}`);
+});
+
+test('PLUGIN_PROGRESS: pip’s raw progress lines become a file, its bytes, and the install phase; pipInstall passes them on', async () => {
+    const { pipLine, pipInstall } = require('../src/plugins/progress');
+    // Read on pip 26.2.1 (2026-11-28), `pip download numpy==2.1.3 --progress-bar raw`.
+    assert.deepEqual(pipLine('Downloading numpy-2.1.3-cp312-cp312-win_amd64.whl (12.6 MB)'), { file: 'numpy-2.1.3-cp312-cp312-win_amd64.whl' });
+    assert.equal(pipLine('  Downloading numpy-2.1.3-cp312-cp312-win_amd64.whl.metadata (60 kB)'), null, 'a wheel’s metadata is not the download');
+    assert.deepEqual(pipLine('Progress 262144 of 12566858'), { bytes: 262144, total: 12566858 });
+    assert.deepEqual(pipLine('Downloading https://download.pytorch.org/whl/cpu/torch-2.9.1%2Bcpu-cp312-cp312-win_amd64.whl (110.9 MB)'),
+        { file: 'torch-2.9.1+cpu-cp312-cp312-win_amd64.whl' }, 'a wheel from another index is named by its file');
+    assert.deepEqual(pipLine('Installing collected packages: torch, laya'), { installing: true });
+    // The night's real install (2026-11-28 03:17) took torch from pip's cache: no bytes, so the bar says so. The line read
+    // on pip 26.2.1, a second `pip download six==1.16.0`: "Using cached six-1.16.0-py2.py3-none-any.whl (11 kB)".
+    assert.deepEqual(pipLine('Using cached torch-2.9.1+cpu-cp312-cp312-win_amd64.whl (110.9 MB)'), { cached: 'torch-2.9.1+cpu-cp312-cp312-win_amd64.whl' });
+    assert.equal(pipLine('Collecting laya==0.3.20'), null);
+    const { EventEmitter } = require('events');
+    const { PassThrough } = require('stream');
+    const runPip = (lines, code, withProgress) => {
+        const calls = []; let argv = null; let stdio = null;
+        const spawnFn = (cmd, a, o) => {
+            argv = a; stdio = o.stdio;
+            const child = new EventEmitter();
+            child.stdout = withProgress ? new PassThrough() : null;
+            setImmediate(() => {
+                if (child.stdout) { for (const l of lines) child.stdout.write(l + '\n'); child.stdout.end(); }
+                setTimeout(() => child.emit('exit', code), 5);
+            });
+            return child;
+        };
+        const progress = withProgress ? (m, p, d) => calls.push([m, p, d || null]) : null;
+        return pipInstall('py', ['torch'], { progress, what: 'Installing torch', spawnFn })
+            .then(() => ({ calls, argv, stdio }), (e) => ({ error: e.message, calls, argv }));
+    };
+    const ok = await runPip(['Collecting torch', 'Downloading torch-2.9.1-cp312-cp312-win_amd64.whl (110.9 MB)', 'Progress 55450000 of 110900000', 'Installing collected packages: torch'], 0, true);
+    assert.ok(ok.argv.includes('--progress-bar') && ok.argv.includes('raw') && !ok.argv.includes('-q'), `raw progress, not -q: ${ok.argv}`);
+    assert.deepEqual(ok.calls, [
+        ['Installing torch: downloading torch-2.9.1-cp312-cp312-win_amd64.whl', null, null],
+        ['Installing torch: downloading torch-2.9.1-cp312-cp312-win_amd64.whl', 50, { bytes: 55450000, total: 110900000 }],
+        ['Installing torch: installing', null, null],
+    ]);
+    const boot = await runPip([], 0, false);
+    assert.ok(boot.argv.includes('-q') && !boot.argv.includes('raw') && boot.stdio[1] === 'inherit', 'the boot path: -q and the farm log, as before');
+    const bad = await runPip(['Progress 1 of 2'], 1, true);
+    assert.equal(bad.error, 'pip exited with 1', 'a failed pip rejects, so the install says it failed');
+});
+
+test('PLUGIN_PROGRESS: weights a service downloads at its first start are its folder’s growth, capped below the total', async () => {
+    const { watchDownload, dirBytes } = require('../src/plugins/progress');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lol-dl-'));
+    try {
+        fs.writeFileSync(path.join(dir, 'before.bin'), Buffer.alloc(1000));
+        assert.equal(await dirBytes(dir), 1000);
+        assert.equal(await dirBytes(path.join(dir, 'nope')), 0, 'a folder not there yet is 0');
+        const seen = [];
+        const w = await watchDownload(dir, 10_000, (b, t) => seen.push([b, t]), 20);
+        fs.mkdirSync(path.join(dir, 'blobs'));
+        fs.writeFileSync(path.join(dir, 'blobs', 'part.incomplete'), Buffer.alloc(4000));
+        await new Promise((res) => setTimeout(res, 120));
+        fs.writeFileSync(path.join(dir, 'blobs', 'rest'), Buffer.alloc(9000));
+        await new Promise((res) => setTimeout(res, 120));
+        w.stop();
+        assert.deepEqual(seen[0], [0, 10_000], 'it starts at 0: what was there before is not this download');
+        assert.ok(seen.some(([b]) => b === 4000), `the growth, not the folder: ${JSON.stringify(seen)}`);
+        assert.equal(seen[seen.length - 1][0], 9900, 'never 100 % before the service answers');
+        const n = seen.length;
+        await new Promise((res) => setTimeout(res, 60));
+        assert.equal(seen.length, n, 'stop() stops it');
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('PLUGIN_PROGRESS: Classify counts as installed only with Laya’s weights on disk (a venv alone would download 0.8 GB unseen)', () => {
+    const classify = require('../src/classify');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lol-laya-'));
+    try {
+        assert.equal(classify.weightsOnDisk(dir), false, 'no snapshot');
+        fs.mkdirSync(path.join(dir, 'snapshots', '55cf4c4'), { recursive: true });
+        fs.writeFileSync(path.join(dir, 'snapshots', '55cf4c4', 'rl_agent_config.json'), '{}');
+        assert.equal(classify.weightsOnDisk(dir), false, 'a snapshot without its model is a download cut short');
+        fs.writeFileSync(path.join(dir, 'snapshots', '55cf4c4', 'model.safetensors'), 'x');
+        assert.equal(classify.weightsOnDisk(dir), true);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+    const desc = require('../src/plugins/registry').DESCRIPTORS.find((d) => d.id === 'classify');
+    assert.ok(/classify\.ready\(\)/.test(String(desc.installed)), 'the registry asks ready(): the venv and the weights');
+    assert.equal(typeof desc.download, 'function', 'and follows the weights’ download on the bar');
+});
+
 test('a vLLM start says what it does and that it stops by itself: its note under the bar, the kernel phase\'s true words (FARM_START_PLAN step 2)', async () => {
     // 2026-11-23: a start rebuilding its kernels sat 3 minutes on "the first start takes a few minutes longer" (it was
     // no first start), and was stopped from the panel at 5 min 7 s, about a minute before it would have been ready.
@@ -7811,7 +7954,8 @@ test('presets: the config keeps the preset (its ids are presets.js\'s), the plug
     for (const id of PR.IDS) assert.ok(ConfigSchema.safeParse({ preset: { id } }).success, id);
     assert.equal(defaultConfig().preset, null);
     const up = fs.readFileSync(path.join(__dirname, '..', 'src', 'commands', 'up.js'), 'utf8');
-    const setPlugin = up.slice(up.indexOf('    async function setPlugin(id, on) {'), up.indexOf('    // Recommend (or un-recommend) a CLIENT-side plugin'));
+    const setPlugin = up.slice(up.indexOf('    async function setPlugin(id, on, progress = null) {'), up.indexOf('    // Recommend (or un-recommend) a CLIENT-side plugin'));
+    assert.ok(setPlugin.length > 200, 'up.js moved: update the setPlugin anchor (PLUGIN_PROGRESS added its progress)');
     assert.ok(/const warn = persist\(svc\.configKey, \{ enabled: on \}\);/.test(setPlugin), 'a plugin switch is written to the file');
     assert.ok(setPlugin.indexOf('persist(svc.configKey, { enabled: on })') > setPlugin.indexOf('if (!svc.up) {'), 'only once the change took');
     const panel = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');

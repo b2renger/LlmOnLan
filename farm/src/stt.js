@@ -25,6 +25,7 @@ const { spawn } = require('child_process');
 const log = require('./log');
 const { serviceHosts } = require('./net');
 const { resolvePython } = require('./python');
+const { pipInstall } = require('./plugins/progress');
 
 const IS_WIN = process.platform === 'win32';
 const ROOT = path.join(__dirname, '..', '.stt');        // farm/.stt
@@ -51,6 +52,11 @@ const CUDA_DEPS = {
 };
 // The model and number format per device when `stt.model` / `stt.device` say 'auto'.
 const MODELS = { cuda: 'large-v3-turbo', cpu: 'small' };
+// PLUGIN_PROGRESS_PLAN: what each of those downloads at the service's first start (faster-whisper's allow_patterns:
+// config.json, preprocessor_config.json, model.bin, tokenizer.json, vocabulary.*), read on Hugging Face's API on
+// 2026-11-28 at 02:59: Systran/faster-whisper-small 536b066, mobiuslabsgmbh/faster-whisper-large-v3-turbo (now
+// dropbox-dash/…) 0a363e9. ponytail: constants for the bar's percentage only; another model shows its bytes without one.
+const MODEL_BYTES = { small: 486212372, 'large-v3-turbo': 1621665983 };
 const COMPUTE = { cuda: 'int8_float16', cpu: 'int8' };   // int8_float16: float16's speed and words in 1.7 GB, not 2.7 (measured)
 // GPU memory the service holds with large-v3-turbo in int8_float16 while it transcribes (1.7 GB at its peak on a 30 s clip, RTX PRO 6000, 2026-10-09), rounded up.
 // vLLM's Automatic memory keeps it free while speech to text is on but not running yet (up.js), as for document search.
@@ -134,9 +140,10 @@ function cudaLibDirs(venv = VENV, platform = process.platform) {
 
 // Idempotent setup. Returns true when ready to spawn; false (warned) when the farm should come up
 // WITHOUT speech to text.
-async function ensureStt(config) {
+async function ensureStt(config, progress = null) {
     const device = config.stt.device;
     if (installed(device)) return true;
+    const step = (msg) => { log.step(msg); if (progress) progress(msg, null); };
     const py = findPython();
     if (!py) {
         log.warn('No Python 3.10–3.13 found — cannot install speech to text (needs its own venv).');
@@ -145,14 +152,15 @@ async function ensureStt(config) {
     try {
         fs.mkdirSync(ROOT, { recursive: true });
         if (!fs.existsSync(venvPython())) {
-            log.step(`Creating the speech-to-text venv with ${log.paint.bold(py.version)} …`);
+            step(`Creating speech to text's Python environment (${py.version}) …`);
             await sh(`${py.cmd} -m venv "${VENV}"`);
         }
         const vpy = venvPython();
-        await sh(`"${vpy}" -m pip install -q -U pip`);
+        step('Updating pip in it …');
+        await pipInstall(vpy, ['-U', 'pip'], { progress, what: 'Updating pip' });
         const cuda = device === 'cuda' ? CUDA_DEPS[process.platform] || [] : [];
-        log.step(`Installing faster-whisper ${FW_VERSION} (${cuda.length ? 'with the CUDA libraries for the GPU, ~1 GB' : 'CPU'}, no torch) …`);
-        await sh(`"${vpy}" -m pip install -q ${[...DEPS, ...cuda].join(' ')}`);
+        step(`Installing faster-whisper ${FW_VERSION} (${cuda.length ? 'with the CUDA libraries for the GPU, ~1 GB' : 'CPU'}, no torch) …`);
+        await pipInstall(vpy, [...DEPS, ...cuda], { progress, what: `Installing faster-whisper ${FW_VERSION}` });
         fs.writeFileSync(MARKER, depsSignature(device) + '\n', 'utf8');
         log.ok(`Speech to text installed → ${log.paint.grey(ROOT)} (the model downloads at its first start)`);
         return true;
@@ -243,5 +251,5 @@ async function sttAlive(port, host = '127.0.0.1') {
 
 module.exports = {
     loadError, healthInfo, ensureStt, spawnStt, waitForStt, sttAlive, depsSignature, FW_VERSION, AV_VERSION, CUDA_DEPS, MODELS,
-    RESERVE_GIB, cudaPossible, resolveStt, reserveGib, installed, modelOnDisk, ready, cudaLibDirs, modelsDir,
+    RESERVE_GIB, cudaPossible, resolveStt, reserveGib, installed, modelOnDisk, ready, cudaLibDirs, modelsDir, MODEL_BYTES,
 };

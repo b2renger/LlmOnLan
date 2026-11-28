@@ -72,7 +72,7 @@ been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the 
 | G. LOL Vibe's IDE | 1 laptop, a password farm, a GitHub account, a second drive or USB stick (G11) | 14 | G11, G13 | 3 h (+3 h of waiting for G13) |
 | H. Home Assistant on a real home | the office's Home Assistant Green | 4 | — | 2.5 h |
 | I. Document search on the farm | the farm, 2 laptops (one with old documents) | 6 | I1–I4 | 2 h |
-| J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client; J16: 10 laptops | 23 | J14, J17, J18, J20, J21 | about 8 h in several quiet moments (J16 2 h; +45 min if J1's install still runs here) |
+| J. The PRO 6000 (production, vLLM) | the PRO 6000 at a quiet moment, a client; J16: 10 laptops | 24 | J14, J17, J18, J20–J22 | about 8 h in several quiet moments (J16 2 h; +45 min if J1's install still runs here) |
 | K. A Windows test box with an RTX card | a non-production RTX PC, the 4070/4080, a PC with no NVIDIA GPU | 18 | K1–K5, K11, K12, K14, K15 | 5 h (+45 min K6) |
 | L. The DGX Spark | a Spark with a screen; L4: a second disk | 4 | — | 4 h (+45 min) |
 | M. Reboot tests | the PRO 6000, the Spark | 2 | — | 1 h each |
@@ -80,7 +80,7 @@ been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the 
 | O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 6 | — | 1 h 15 |
 | P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
 | Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q5) | 8 | Q1, Q6 | 2 h 30 |
-| **Total** | | **169** | **38** | about 60–66 h |
+| **Total** | | **170** | **39** | about 60–66 h |
 
 Part 3's measurements (Q4, Q5 step 3, J12–J13 on llama.cpp) are not in these counts: an agent runs them. J16 is
 counted in J, though an agent can run its steps 1–4.
@@ -480,8 +480,8 @@ Open WebUI 0.13.3 lists the tool once a stand-in helper answers and runs a chat'
 *Proves:* [COMPUTER_DOTS_PLAN](plans/COMPUTER_DOTS_PLAN.md) (2026-11-28): the owner's J21 graph can be built from
 nothing without being told which dot is which. The harness checks the positions within 4 px (`k19-dots`), but only a
 person can say whether it reads clearly.
-*Needs:* the local build named in summary n° 19, any farm (Classify answers with the farm's model, or marks every item
-*unsure* without one), 5 minutes. *Was:* new (2026-11-28), after J21 step 2 (2026-11-27).
+*Needs:* the local build `shell\dist\LlmOnLan-Setup-0.2.21+n19-windows-x64.exe` (night n° 19, 03:15, from `58e3969`),
+any farm (Classify answers with the farm's model, or marks every item *unsure* without one), 5 minutes. *Was:* new (2026-11-28), after J21 step 2 (2026-11-27).
 1. The Computer, a new graph. ＋ → a **Text** box; type five lines, one sentence each, mixing sports, politics and
    business. ＋ → a **Classify** box. Type a question in it, and the options `sports, politics, business`.
 2. Look at the Classify box's left edge before wiring. Hover each dot, then the Text box's right dot.
@@ -2130,9 +2130,9 @@ it installs Laya, about 1.7 GB, a few minutes), 5 minutes. *Was:* new (2026-11-2
    start), a few minutes while chats go on. Read without you, 05:27: the PRO 6000 serves `qwen3.6-35b-a3b` on vLLM
    0.33.0 (which has the decision endpoint), and Classify is off there.
 2. On a laptop, the Computer: a **Text** box with five headlines, one per line (two in French), wired into a
-   **Classify** box's **items**, the **top** dot on its left (hover a dot to read its name: the middle one, marked T,
-   is *options*, and a wire there replaces the typed options); type its options `sport`, `politics`, `business` in
-   the box; **Run all**.
+   **Classify** box's **Items** dot: since night n° 19 (COMPUTER_DOTS, the client build of A32) each dot sits beside
+   its row, named, top to bottom *Items*, *Question*, *Options*, and a wired field dims and names its source. Type its
+   options `sport`, `politics`, `business` in the box; **Run all**.
 3. Optional: switch the farm to Ollama in the panel, Run again, switch back.
 
 *Expect:* step 1: *Classify up (Laya 0.3.20, CPU; the farm's vLLM answers instead while it serves Qwen3.6 or Qwen3.8)*.
@@ -2150,6 +2150,33 @@ write it on *Found*, with the vLLM version the panel shows.
     right.
   - Step 2 now names the top dot. Showing the dots' names on the box is a question for the owner
     (DEVLOG 2026-11-27 14:10).
+  - → 2026-11-28 (night n° 19): built, [COMPUTER_DOTS_PLAN](plans/COMPUTER_DOTS_PLAN.md). Run step 2 again with A32's
+    build: the owner's wiring is A32 itself.
+
+### J22 ★ A plugin's first install on the panel's job bar
+*Proves:* [PLUGIN_PROGRESS_PLAN](plans/PLUGIN_PROGRESS_PLAN.md) (2026-11-28), the owner's J21 request ("feedback about
+what is happening in the download … including the download progress"). Measured without you: Classify installed from
+nothing in a scratch copy of the farm, its steps, pip's bytes and Laya's weights reported as the bar would show them
+(DEVLOG 2026-11-28). *Needs:* the local Farm app build named in summary n° 19 installed over 0.0.55+n18 (it carries the
+farm side), the PRO 6000 at a quiet moment, about 5 minutes plus the download. *Was:* new (2026-11-28).
+1. In the farm panel, Plugins: turn **Speech to text** on. It has never been installed there (off today).
+2. Watch the bar at the top, and the plugin's row.
+3. Meanwhile, send a chat from a laptop.
+
+*Expect:*
+- **Step 1:** the answer comes at once. The row reads *installing — the bar at the top shows each step*, and its
+  button *Installing…*.
+- **Step 2:** the bar is titled *Turning on Speech to text*, and names each step:
+  - *Creating speech to text's Python environment*, then *Updating pip in it*;
+  - *Installing faster-whisper 1.2.1: downloading <file>* with its bytes (MB of MB, speed, time left);
+  - *Starting Speech to text*;
+  - *Downloading the Whisper model "large-v3-turbo"*, its bytes growing towards 1.6 GB.
+
+  It ends green with *Speech to text up (faster-whisper large-v3-turbo, GPU) — …* and a toast *Enabled Speech to
+  text*. On the CPU the model is *small*, 486 MB. Note which the row says.
+- **Step 3:** the chat is answered as usual.
+- **If it fails:** the bar turns red, naming the step that failed, and Speech to text stays off. Write the step on
+  *Found*.
 
 ## K. A Windows test box with an RTX card (not production)
 

@@ -138,4 +138,12 @@ plan's built section names the build the owner tests.
     the baseline before this work, and passes 3/3 alone (a flake of the full run).
 - **The lessons:** checked. None depends on the old order. The one sentence naming a dot's place (`examples/think.mjs:82`,
   Code's "upper dot") stays true.
-- **The build for the owner:** HUMAN_TESTS A32, with the local client build named in summary n° 19.
+- **After the advisor** (`58e3969`):
+  - The perf gate passes 9/9 (`perf-graph-500` pan p95 1.0 ms). Its fixtures hold Text boxes only; the load-time
+    measure is a marked ceiling.
+  - Code's *whose* sentence moved into its Code row: as a line of its own it left one line of editor for a program
+    from a wire; now three, as before.
+  - `k19-dots` checks that Filter and Code fit.
+  - The full harness: 427/428, the p2 full-run flake again.
+- **The build for the owner:** `shell\dist\LlmOnLan-Setup-0.2.21+n19-windows-x64.exe` (03:15, from `58e3969`), for
+  HUMAN_TESTS A32.

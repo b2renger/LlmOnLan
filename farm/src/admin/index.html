@@ -531,8 +531,12 @@ function render(s) {
     const p = plugins[k] || {};
     const on = !!p.enabled;
     const dotCls = 'dot' + (on && p.healthy ? ' served' : '');
-    const state = !on ? 'off' : (p.healthy ? 'on' : 'starting…');
-    const btn = on
+    // PLUGIN_PROGRESS_PLAN: its first install runs as the farm's job; the bar at the top says each step and the bytes.
+    const installing = !!(s.job && !s.job.done && s.job.kind === 'plugin' && s.job.plugin === k);
+    const state = installing ? 'installing — the bar at the top shows each step' : !on ? 'off' : (p.healthy ? 'on' : 'starting…');
+    const btn = installing
+      ? `<button class="start" disabled aria-label="Installing ${esc(p.label || k)}">Installing…</button>`
+      : on
       ? `<button class="stop" data-pact="disable" data-id="${esc(k)}" aria-label="Disable ${esc(p.label || k)}">Disable</button>`
       : `<button class="start" data-pact="enable" data-id="${esc(k)}" aria-label="Enable ${esc(p.label || k)}">Enable</button>`;
     return `<div class="row"><span class="${dotCls}"></span>`
@@ -1791,6 +1795,8 @@ async function contextAct(tokens, btn) {
 }
 
 // Toggle a farm plugin on/off (spawns/kills the service — can take a few seconds).
+/** The plugin install job this page started, until its end is said: {id, label} (PLUGIN_PROGRESS_PLAN). */
+let pluginJob = null;
 async function pluginAct(kind, id, btn) {
   if (busy) return;
   busy = true; btn.disabled = true; btn.textContent = '…';
@@ -1799,6 +1805,8 @@ async function pluginAct(kind, id, btn) {
     // Its label (Document search, Speech to text), not its id (embed, stt).
     const label = ((lastState && lastState.plugins || {})[id] || {}).label || id;
     if (!r.ok) toast(r.error || 'Action failed');
+    // PLUGIN_PROGRESS_PLAN: a first install answers at once as a job; its toast waits for the job's end (refresh).
+    else if (r.started && r.job) { pluginJob = { id: r.job.id, label }; toast('Installing ' + label + ': the bar at the top shows each step.'); }
     else toast((kind === 'enable' ? 'Enabled ' : 'Disabled ') + label);
   } catch (e) {
     if (e.unauthorized) { logout('Session expired — re-enter the token.'); return; }
@@ -1862,6 +1870,11 @@ async function refresh(force) {
   try {
     const s = await api('/lol/admin/state');
     render(s);
+    // A plugin's install job, started from this page, has ended: say so once (PLUGIN_PROGRESS_PLAN).
+    if (pluginJob && s.job && s.job.id === pluginJob.id && s.job.done) {
+      toast(s.job.ok ? 'Enabled ' + pluginJob.label : (s.job.error || pluginJob.label + ' did not come up.'));
+      pluginJob = null;
+    }
   } catch (e) {
     if (e.unauthorized) { logout('Wrong token.'); return; }
     app.innerHTML = '<div class="empty">Could not reach the farm: it may be restarting or stopped. Wait a few seconds; if this stays, start the farm again (in the Farm app: Start the farm). ' + esc(e.message || '') + '</div>';

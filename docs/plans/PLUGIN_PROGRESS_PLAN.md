@@ -93,3 +93,36 @@ Not changed:
 
 The three `run.js` tests pass, the farm suite is whole, the sizes are measured, J22 is written, and the plan's built
 section names the build the owner tests.
+
+## Built (night n° 19, 2026-11-28): what changed from the design above, and why
+
+- **The bytes come from pip itself, not from measured folder sizes** (step 2).
+  - pip 24.1 and later prints machine-readable progress with `--progress-bar raw`. Read on the plugins' pip 26.2.1: a
+    `Downloading <file> (<size>)` line, then `Progress <bytes> of <total>` lines.
+  - So each package file's bytes are exact (`plugins/progress.js` `pipInstall`), and no size table drifts with the pins.
+  - `-q` silences them, so a job's pip runs without it; the boot keeps `-q` and the farm log, as before.
+- **The weights stay where the service downloads them, at its first start** (step 3 changed).
+  - Pre-fetching Laya's weights in the install would copy Laya's own file patterns (`laya/agent.py`), and Speech to
+    text's model is fetched the same way by faster-whisper.
+  - Instead, `FarmService.start` follows the folder's growth while the service comes up (`watchDownload`), against the
+    size the Hub gives:
+    - Laya's English checkpoint, 846,201,885 bytes (snapshot `55cf4c4`);
+    - Whisper *small*, 486,212,372 bytes;
+    - Whisper *large-v3-turbo*, 1,621,665,983 bytes (read 2026-11-28 02:59).
+  - Capped at 99 % until it answers.
+  - As planned, `classify.installed()` → `ready()` checks the weights too.
+- **The job** (step 1):
+  - `up.js` `pluginToggle` decides outside `serialize`, since `runJob` takes it itself: inside, it would have waited
+    on its own caller.
+  - The job carries `plugin`, so the panel's button for it reads *Installing…*.
+  - It ends with the plugin's own sentence (`svc.lastStart`), or with the last step and *see the farm log*. The page
+    that started it says so in a toast.
+- **Plugins other than Classify and Speech to text** show the step they already announced (`stepMessage`), then
+  *Starting …*. Their pip runs keep `-q` until they take `progress` too, which is a small change to each install.
+- **Tests:** `run.js`, six:
+  - the job with its steps and bytes;
+  - no job for an installed plugin or for turning one off;
+  - the failed step;
+  - pip's raw lines and `pipInstall`, the boot keeping `-q`;
+  - the folder's growth;
+  - Classify's weights check.

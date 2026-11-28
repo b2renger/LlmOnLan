@@ -22,6 +22,7 @@ const bus = require('../bus');
 const embed = require('../embed');
 const { serviceHosts } = require('../net');
 const storage = require('../storage');
+const { watchDownload } = require('./progress');
 
 // Where each service keeps its models (storage.js): none starts from the farm's model folder while that folder is missing
 // (a drive unplugged), or it would download its models into whatever disk answers to that name now.
@@ -68,7 +69,7 @@ const DESCRIPTORS = [
         enabled: (c) => !!(c.tts && c.tts.enabled),
         port: (c) => c.tts.port,
         installed: () => kokoro.installed(),
-        ensure: () => kokoro.ensureKokoro(),
+        ensure: (c, ctx, progress) => kokoro.ensureKokoro(progress),
         spawn: (c) => kokoro.spawnKokoro(c),
         stepMessage: (c) => `Voice: preparing Kokoro TTS (port ${c.tts.port}) — first run installs it (multi-GB) …`,
         waitReady: async (c) => {
@@ -90,7 +91,7 @@ const DESCRIPTORS = [
             return { key: rt.pluginKey('ocr', farmPassword(c)), model: rt.resolveOcrModel(c), ollamaUrl: localOllama.replace(/\/+$/, '') + '/api/generate' };
         },
         installed: (c) => extract.installed(c),
-        ensure: (c) => extract.ensureExtract(c),
+        ensure: (c, ctx, progress) => extract.ensureExtract(c, progress),
         spawn: (c, ctx) => extract.spawnExtract(c, ctx),
         afterStop: () => extract.clearWork(),
         stepMessage: (c, ctx) => `OCR: preparing document extraction (port ${c.ocr.port}, model ${ctx.model}) — first run installs it …`,
@@ -138,7 +139,7 @@ const DESCRIPTORS = [
         enabled: (c) => !!(c.embed && c.embed.enabled === true),
         port: (c) => c.embed.port,
         makeCtx: (c, rt) => ({ key: rt.pluginKey('embed', farmPassword(c)) }),
-        ensure: (c) => embed.ensureEmbed(c),
+        ensure: (c, ctx, progress) => embed.ensureEmbed(c, progress || undefined),
         spawn: (c, ctx) => embed.spawnEmbed(c, ctx),
         stepMessage: (c) => `Document search: preparing ${embed.MODEL.id} on llama-server (port ${c.embed.port}) — a first start downloads llama.cpp and the model …`,
         waitReady: async (c, ctx, isDead) => {
@@ -156,8 +157,13 @@ const DESCRIPTORS = [
         enabled: (c) => !!(c.classify && c.classify.enabled),
         port: (c) => c.classify.port,
         makeCtx: (c, rt) => ({ key: rt.pluginKey('classify', farmPassword(c)) }),
-        installed: () => classify.installed(),
-        ensure: () => classify.ensureClassify(),
+        // The venv AND Laya's weights: a farm with only the venv would turn it on as installed and download 0.8 GB
+        // with nothing on the panel (PLUGIN_PROGRESS_PLAN).
+        installed: () => classify.ready(),
+        ensure: (c, ctx, progress) => classify.ensureClassify(progress),
+        // The weights the service downloads at its first start, followed on the job bar while it comes up.
+        download: () => (classify.weightsOnDisk() ? null
+            : { dir: classify.weightsDir(), total: classify.WEIGHTS_BYTES, what: 'Downloading Laya’s weights (~0.8 GB)' }),
         spawn: (c, ctx) => classify.spawnClassify(c, ctx),
         stepMessage: (c) => `Classify: preparing Laya on the CPU (port ${c.classify.port}) — first run installs torch + downloads its weights …`,
         waitReady: async (c, ctx, isDead) => {
@@ -181,7 +187,9 @@ const DESCRIPTORS = [
         // The presets' dry run: its venv for this device and its model on disk. Not ready(), which is GPU-only (it says
         // when a boot starts it early) and called every CPU farm's speech to text a first install (review 2026-11-05).
         installed: (c) => stt.installed(c.stt.device) && stt.modelOnDisk(c.stt.model),
-        ensure: (c) => stt.ensureStt(c),
+        ensure: (c, ctx, progress) => stt.ensureStt(c, progress),
+        download: (c) => (stt.modelOnDisk(c.stt.model) ? null
+            : { dir: stt.modelsDir(), total: stt.MODEL_BYTES[c.stt.model] || null, what: `Downloading the Whisper model "${c.stt.model}"` }),
         spawn: (c, ctx) => stt.spawnStt(c, ctx),
         stepMessage: (c) => `Speech to text: preparing faster-whisper "${c.stt.model}" on the ${c.stt.device === 'cuda' ? 'GPU' : 'CPU'} (port ${c.stt.port}) — first run installs it and downloads the model …`,
         waitReady: async (c, ctx, isDead) => {
@@ -223,17 +231,22 @@ class FarmService {
 
     // ensure install → spawn → health-wait. Returns { ok, level, message } for the caller
     // to log (or { ok:false } with no message when ensure declined — it logs its own).
-    // Never throws; used by boot AND control.setPlugin.
-    async start(config, runtime) {
+    // Never throws; used by boot AND control.setPlugin. `progress(message, percent, {bytes, total})`: the panel's job
+    // when a person turned it on (PLUGIN_PROGRESS_PLAN), told each step and the bytes; the boot passes none.
+    async start(config, runtime, progress = null) {
         const log = runtime.log;
         try { this.ctx = this.desc.makeCtx ? await this.desc.makeCtx(config, runtime) : {}; }
         catch { this.ctx = {}; }
         const where = MODELS_IN[this.desc.id] && MODELS_IN[this.desc.id]();
         const missing = where ? storage.missingFor(where) : null;
         if (missing) { this.up = false; return { ok: false, level: 'err', message: `${this.label}: ${missing}` }; }
-        if (this.desc.stepMessage) log.step(this.desc.stepMessage(config, this.ctx));
+        if (this.desc.stepMessage) {
+            const m = this.desc.stepMessage(config, this.ctx);
+            log.step(m);
+            if (progress) progress(m, null);
+        }
         let ensured = false;
-        try { ensured = await this.desc.ensure(config, this.ctx); } catch { ensured = false; }
+        try { ensured = await this.desc.ensure(config, this.ctx, progress); } catch { ensured = false; }
         if (!ensured) { this.up = false; return { ok: false, level: null, message: null }; }
         const child = this.desc.spawn(config, this.ctx);
         this.child = child;
@@ -250,9 +263,20 @@ class FarmService {
         child.on('error', (e) => log.warn(`${this.label} failed to start: ${e.message}`));
         if (child.stdout) child.stdout.on('data', log.childPrefix(this.desc.logPrefix, this.desc.logSkip));
         if (child.stderr) child.stderr.on('data', log.childPrefix(this.desc.logPrefix, this.desc.logSkip));
+        if (progress) progress(`Starting ${this.label} …`, null);
+        // Weights the service downloads now, at its first start: their folder's growth on the bar while it comes up.
+        let watch = null;
+        const dl = progress && this.desc.download ? this.desc.download(config) : null;
+        if (dl) {
+            try {
+                watch = await watchDownload(dl.dir, dl.total,
+                    (bytes, total) => progress(dl.what, total ? (bytes / total) * 100 : null, { bytes, total }));
+            } catch { watch = null; }
+        }
         let res;
         try { res = await this.desc.waitReady(config, this.ctx, () => exited); }
         catch { res = { ok: false, level: 'warn', message: `${this.label} health check failed — continuing without it.` }; }
+        finally { if (watch) watch.stop(); }
         if (exited) { this.up = false; return { ok: false, level: 'warn', message: `${this.label} exited during startup (port ${this.port(config)} already in use? see the [${this.desc.logPrefix}] log above). Continuing without it.` }; }
         this.up = !!res.ok;
         this.wasUp = this.up;

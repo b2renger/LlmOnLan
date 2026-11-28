@@ -296,6 +296,7 @@ function makeJobs({ kick = () => {}, logger = log } = {}) {
         cancellable: !!(j.cancel && !j.done && !j.cancelled), cancelled: !!j.cancelled,
         about: j.about || null,   // a download's library entry (the panel's row says downloading)
         note: j.note || null,     // a line the panel shows under a running job's bar (FARM_START_PLAN step 2)
+        plugin: j.plugin || null, // the plugin a 'plugin' job turns on: the panel's button for it reads Installing… (PLUGIN_PROGRESS)
     };
     // A body that returned is not busy, even in the few microtasks before `done` is set: a restart queued from
     // inside serialize (onVllmDown) must not be refused by the job it follows.
@@ -360,10 +361,11 @@ function makeJobs({ kick = () => {}, logger = log } = {}) {
         });
     }
     const ctl = (j) => ({ cancelled: () => j.cancelled, job: j });
-    function runJob(kind, label, fn, { cancel = null, note = null } = {}) {
+    function runJob(kind, label, fn, { cancel = null, note = null, plugin = null } = {}) {
         if (busy()) return busyErr();
         const j = open(kind, label, cancel);
         j.note = note;
+        j.plugin = plugin;
         job = j;
         // Tell the fleet NOW, not at the next 10 s health tick: clients switch to
         // "the server is switching models…" before the proxy bounce can surface as
@@ -410,6 +412,24 @@ function makeJobs({ kick = () => {}, logger = log } = {}) {
         jobView: () => view(job), downloadView: () => view(dl),
         downloading: () => (dl && !dl.done ? dl : null),
     };
+}
+
+// PLUGIN_PROGRESS_PLAN (the owner, 2026-11-27): turning a plugin on or off from the panel. One that is not installed
+// yet (its venv, its weights) turns on as a 'plugin' job: the request answers at once, the bar the vLLM downloads use
+// shows each step and the bytes, and the job ends with the plugin's own sentence, or with the step that failed. An
+// installed one, and turning one off, stay a quick serialized op. `set(on, progress)` is up.js's setPlugin. No Stop: a
+// pip stopped halfway leaves a venv the next install must clean (a later plan).
+function pluginToggle(jobs, svc, on, config, set) {
+    if (jobs.busy()) return jobs.busyErr();
+    if (!(on && svc && !svc.pid && !svc.installed(config))) return jobs.serialize(() => set(!!on, null));
+    return jobs.runJob('plugin', `Turning on ${svc.label}`, async (progress) => {
+        let last = '';
+        const told = (message, percent, detail) => { last = message; progress(message, percent, detail); };
+        const r = await set(true, told);
+        if (r && r.ok) return { ok: true, message: r.message || `${svc.label} is on.` };
+        const step = String(last).replace(/\s*…\s*$/, '');
+        return { ok: false, error: `${step ? `${step}: ` : ''}${svc.label} did not come up — see the farm log.` };
+    }, { plugin: svc.id });
 }
 
 // Ollama /api/pull status -> something worth showing a person. Its raw statuses
@@ -2048,8 +2068,11 @@ async function run(args) {
             if (beacon) beacon.kick();
         };
     }
-    async function bringUp(svc) {
-        const res = await svc.start(config, pluginRuntime);
+    // `progress`: the panel's job when a person turned it on (PLUGIN_PROGRESS_PLAN). The start's own sentence is kept
+    // on the service (`lastStart`), for that job's end.
+    async function bringUp(svc, progress = null) {
+        const res = await svc.start(config, pluginRuntime, progress);
+        svc.lastStart = res || null;
         if (res && res.level && res.message) log[res.level](res.message);
         applyPluginHealth(svc);
         return svc.up;
@@ -2747,7 +2770,7 @@ async function run(args) {
     // reflect into liveHealth, kick the beacon so clients pick up the change. Kept for the next
     // start (owner, 2026-10-27: by a preset or by hand, like every other setting), written once
     // the change took: a plugin that did not come up stays off in the file too.
-    async function setPlugin(id, on) {
+    async function setPlugin(id, on, progress = null) {
         const svc = svcById[id];
         if (!svc) return { ok: false, error: `Unknown plugin "${id}".` };
         on = !!on;
@@ -2757,7 +2780,7 @@ async function run(args) {
                 const warn = persist(svc.configKey, { enabled: true });
                 return { ok: true, already: true, enabled: true, healthy: svc.up, warning: warn || null };
             }
-            await bringUp(svc);
+            await bringUp(svc, progress);
             if (!svc.up) {
                 // Came up unhealthy (e.g. SearXNG's JSON API off / Kokoro synth failed) but the
                 // child may still be ALIVE — tear it down so we don't leak an unmanaged process,
@@ -2773,7 +2796,8 @@ async function run(args) {
         const warn = persist(svc.configKey, { enabled: on });
         writeRuntimeState();       // service pids changed → keep `lol down` accurate
         if (beacon) beacon.kick();
-        return { ok: true, enabled: on, healthy: svc.up, warning: warn || null };
+        const message = on && svc.lastStart && svc.lastStart.message ? svc.lastStart.message : null;
+        return { ok: true, enabled: on, healthy: svc.up, warning: warn || null, message };
     }
     // Recommend (or un-recommend) a CLIENT-side plugin (e.g. "blender") to the fleet — the
     // farm can't run it, only advertise the intent; clients auto-apply what they can.
@@ -4364,7 +4388,9 @@ async function run(args) {
         stopModel: (id) => busy() ? busyErr() : serialize(() => stopModel(id)),
         setDefaultModel: (id) => busy() ? busyErr() : serialize(() => setDefaultModel(id)),
         setContextLength: (n) => setContextLength(n),   // guards busy() itself (auto + numeric paths)
-        setPlugin: (id, on) => busy() ? busyErr() : serialize(() => setPlugin(id, on)),
+        // PLUGIN_PROGRESS_PLAN: a plugin that is not installed turns on as a panel job (its steps and bytes on the bar);
+        // decided HERE, outside serialize, which runJob takes itself.
+        setPlugin: (id, on) => pluginToggle(jobs, svcById[id], on, config, (yes, progress) => setPlugin(id, yes, progress)),
         recommendClientPlugin,                             // trivial array mutation + kick
         // (engine supervision arms here — see engineDownBox)
         // Structural changes: these persist to lol.config.json and (except the two
@@ -5436,4 +5462,4 @@ function makeStorage(ctx) {
 // the tests: each encodes judgements that are easy to break silently (a negative rate after a
 // restart, a raw digest leaking into the UI, a non-vLLM read as one, a seat hold out
 // of range, a "nothing fits" read as "unknown") and none is reachable through `run`.
-module.exports = { run, resolveOcrModel, makeRateMeter, makeJobs, makeStorage, makePresets, pullPhase, makePerfSampler, seatIdleChange, autoLlamacppContext };
+module.exports = { run, resolveOcrModel, makeRateMeter, makeJobs, pluginToggle, makeStorage, makePresets, pullPhase, makePerfSampler, seatIdleChange, autoLlamacppContext };

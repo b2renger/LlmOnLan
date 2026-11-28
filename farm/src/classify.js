@@ -18,6 +18,7 @@ const { spawn } = require('child_process');
 const log = require('./log');
 const { serviceHosts } = require('./net');
 const { resolvePython } = require('./python');
+const { pipInstall } = require('./plugins/progress');
 
 const IS_WIN = process.platform === 'win32';
 const ROOT = path.join(__dirname, '..', '.classify');   // farm/.classify
@@ -28,6 +29,12 @@ const MARKER = path.join(ROOT, '.installed');
 // ponytail: Laya's PACKAGE is pinned; its weights are fetched by the package from Hugging Face at
 // first start and not pinned to a revision. Upgrade path: pass a revision once laya exposes one.
 const LAYA_VERSION = '0.3.20';
+// PLUGIN_PROGRESS_PLAN: Laya's English checkpoint, which the service downloads at its first start (its allow_patterns:
+// rl_agent_config.json, model.safetensors, tokenizer/*, encoder/*; laya/agent.py). 846,201,885 bytes on disk, snapshot
+// 55cf4c4 (read 2026-11-28 from the 2026-09-27 spike's cache). ponytail: a constant that drifts with Laya's repo; the
+// job bar only uses it for its percentage, capped at 99 % until the service answers. Upgrade path: the Hub's file sizes.
+const LAYA_REPO_DIR = 'models--convaiinnovations--laya';
+const WEIGHTS_BYTES = 846201885;
 const TORCH_CPU_INDEX = 'https://download.pytorch.org/whl/cpu';
 const DEPS = [`laya==${LAYA_VERSION}`, 'fastapi', 'uvicorn'];
 
@@ -62,10 +69,27 @@ function installed() {
     return fs.existsSync(venvPython()) && readTrim(MARKER) === depsSignature();
 }
 
+/** Where the service's Hugging Face cache keeps Laya: the farm's model folder once one is chosen, else the machine's
+ * shared cache (the same rule as spawnClassify's HF_HUB_CACHE). */
+function weightsDir() {
+    const storage = require('./storage');
+    return path.join(storage.classifyCache() || storage.hfHubDir(), LAYA_REPO_DIR);
+}
+/** Laya's English checkpoint is on disk (a snapshot holding its model.safetensors). */
+function weightsOnDisk(dir = weightsDir()) {
+    let snaps = [];
+    try { snaps = fs.readdirSync(path.join(dir, 'snapshots')); } catch { return false; }
+    return snaps.some((r) => fs.existsSync(path.join(dir, 'snapshots', r, 'model.safetensors')));
+}
+/** All a start needs, on disk: the venv AND the weights. A farm with the venv but not the weights would otherwise turn
+ * Classify on as installed, and download 0.8 GB with nothing on the panel (PLUGIN_PROGRESS_PLAN step 3). */
+function ready() { return installed() && weightsOnDisk(); }
+
 // Idempotent setup. Returns true when ready to spawn; false (warned) when the farm should come up
-// WITHOUT Classify.
-async function ensureClassify() {
+// WITHOUT Classify. `progress` (PLUGIN_PROGRESS_PLAN): the panel's job, told each step and pip's bytes.
+async function ensureClassify(progress = null) {
     if (installed()) return true;
+    const step = (msg) => { log.step(msg); if (progress) progress(msg, null); };
     const py = findPython();
     if (!py) {
         log.warn('No Python 3.10–3.13 found — cannot install Classify (needs its own venv).');
@@ -74,15 +98,16 @@ async function ensureClassify() {
     try {
         fs.mkdirSync(ROOT, { recursive: true });
         if (!fs.existsSync(venvPython())) {
-            log.step(`Creating the Classify venv with ${log.paint.bold(py.version)} …`);
+            step(`Creating Classify's Python environment (${py.version}) …`);
             await sh(`${py.cmd} -m venv "${VENV}"`);
         }
         const vpy = venvPython();
-        await sh(`"${vpy}" -m pip install -q -U pip`);
-        log.step('Installing torch (CPU build, ~0.9 GB) for Classify …');
-        await sh(`"${vpy}" -m pip install -q torch --index-url ${TORCH_CPU_INDEX}`);
-        log.step(`Installing Laya ${LAYA_VERSION} …`);
-        await sh(`"${vpy}" -m pip install -q ${DEPS.join(' ')}`);
+        step('Updating pip in it …');
+        await pipInstall(vpy, ['-U', 'pip'], { progress, what: 'Updating pip' });
+        step('Installing torch (CPU build, ~0.9 GB) for Classify …');
+        await pipInstall(vpy, ['torch', '--index-url', TORCH_CPU_INDEX], { progress, what: 'Installing torch (CPU build)' });
+        step(`Installing Laya ${LAYA_VERSION} …`);
+        await pipInstall(vpy, DEPS, { progress, what: `Installing Laya ${LAYA_VERSION}` });
         fs.writeFileSync(MARKER, depsSignature() + '\n', 'utf8');
         log.ok(`Classify installed → ${log.paint.grey(ROOT)} (its ~0.8 GB of weights download at first start)`);
         return true;
@@ -159,4 +184,4 @@ async function classifyAlive(port, host = '127.0.0.1') {
     return !!(r && r.status === 200);
 }
 
-module.exports = { loadError, ensureClassify, spawnClassify, waitForClassify, classifyAlive, depsSignature, installed, LAYA_VERSION };
+module.exports = { loadError, ensureClassify, spawnClassify, waitForClassify, classifyAlive, depsSignature, installed, ready, weightsDir, weightsOnDisk, WEIGHTS_BYTES, LAYA_VERSION };

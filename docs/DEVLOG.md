@@ -9,6 +9,52 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-28 (03:20) — PLUGIN_PROGRESS: a plugin's first install on the panel's job bar, its steps and its bytes
+
+The queue's first item after COMPUTER_DOTS ([PLUGIN_PROGRESS_PLAN](plans/PLUGIN_PROGRESS_PLAN.md), the owner's J21 request).
+
+**The job:**
+- `up.js` `pluginToggle` (module level, testable with `makeJobs`): turning on a plugin that is not installed opens a
+  `runJob('plugin', 'Turning on <label>', …)`, and the request answers `{started, job}` at once.
+- It is decided outside `serialize`: the panel's route used to call `setPlugin` inside `serialize`, and `runJob`
+  takes it itself, so nesting them would wait on itself.
+- The job carries `plugin`, for the panel's *Installing…* button. It ends with the start's own sentence
+  (`svc.lastStart`), or with the last step and *see the farm log*.
+- An installed plugin, turning one off, and a running one are unchanged.
+
+**The steps and bytes:**
+- `FarmService.start(config, runtime, progress)` passes `progress` into each ensure, says the plugin's `stepMessage`
+  and *Starting …*.
+- **pip's bytes:** `plugins/progress.js` `pipInstall` runs pip with `--progress-bar raw` (read on the plugins' pip
+  26.2.1: `Downloading <file> (<size>)`, `Progress <b> of <t>`, `Using cached <file> (<size>)`, checked with
+  `numpy` and `six` in scratch; `-q` silences them).
+  - Classify, Speech to text, Kokoro and OCR take `progress` and use it.
+  - Document search passes it to its existing `onProgress`. SearXNG keeps its step only.
+  - The boot passes none: `-q` and the farm log, as before.
+- **Weights at a first start:** the folder's growth (`watchDownload`, async, links not followed) against the Hub's
+  size, capped at 99 %:
+  - Laya 846,201,885 bytes (`55cf4c4`, from the 2026-09-27 spike's cache);
+  - Whisper *small* 486,212,372 and *large-v3-turbo* 1,621,665,983 (the Hub's API at 02:59).
+- `classify.ready()` (the venv and the weights) is what the registry asks, as the plan's step 3 said. The weights
+  stay downloaded by the service itself, not pre-fetched: the plan's Built section says why.
+
+**The panel:** the plugin's row reads *installing — the bar at the top shows each step* and its button *Installing…*;
+the page that started it toasts the job's end.
+
+**Tests:**
+- `farm/test/run.js`, **304/304**, with six new: the job's steps and bytes and its end, no job when installed or off,
+  the failed step, pip's lines and `pipInstall` (raw vs `-q`), the folder's growth, Classify's weights check.
+- One existing test (the presets' persistence) sliced `up.js` from `setPlugin(id, on) {`; its anchor now follows
+  the new signature and fails loudly if it moves again.
+- `farm-app` `npm test` 13 + 3.
+
+**Run for real, without a person** (03:17–03:20; a scratch copy of `farm/` without its plugin folders,
+`HF_HUB_CACHE` in scratch, the registry's `FarmService.start` for Classify on port 18891, no farm running):
+- 0.1 s the environment, 8 s torch (from pip's cache: no bytes, now said as such), 54 s Laya, 92 s *Starting*;
+- Laya's weights 0 → 32 → 48 → 64 → 99 % (837.7 of 846.2 MB) by 168 s;
+- 171 s Classify's own sentence, installed now true;
+- the service stopped, no process left. The live farm untouched.
+
 ## 2026-11-28 (02:57) — COMPUTER_DOTS after the advisor: the perf gate, the boxes' fit, Code's whose line
 
 - **The perf gate** (`--phase perf`, which the full harness skips): **9/9**. `perf-graph-500`'s pan work is p95

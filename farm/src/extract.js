@@ -23,6 +23,7 @@ const { spawn } = require('child_process');
 const log = require('./log');
 const { serviceHosts } = require('./net');
 const { resolvePython } = require('./python');
+const { pipInstall } = require('./plugins/progress');
 
 const IS_WIN = process.platform === 'win32';
 const ROOT = path.join(__dirname, '..', '.extract');   // farm/.extract
@@ -75,8 +76,10 @@ function installed(config) {
 // Idempotent setup: own venv + pip install the deps (+docling when enabled).
 // Returns true when ready to spawn; false (warned) when the farm should come up
 // WITHOUT OCR (missing python / install failure).
-async function ensureExtract(config) {
+async function ensureExtract(config, progress = null) {
     if (installed(config)) return true;
+    // PLUGIN_PROGRESS_PLAN: the panel's job, told each step and pip's bytes (no progress: the boot, as before).
+    const step = (msg) => { log.step(msg); if (progress) progress(msg, null); };
 
     const py = findPython();
     if (!py) {
@@ -87,16 +90,17 @@ async function ensureExtract(config) {
     try {
         fs.mkdirSync(ROOT, { recursive: true });
         if (!fs.existsSync(venvPython())) {
-            log.step(`Creating OCR venv with ${log.paint.bold(py.version)} …`);
+            step(`Creating the OCR service's Python environment (${py.version}) …`);
             await sh(`${py.cmd} -m venv "${VENV}"`);
         }
         const vpy = venvPython();
-        await sh(`"${vpy}" -m pip install -q -U pip`);
-        log.step('Installing the OCR service deps …');
-        await sh(`"${vpy}" -m pip install -q ${BASE_DEPS.join(' ')}`);
+        step('Updating pip in it …');
+        await pipInstall(vpy, ['-U', 'pip'], { progress, what: 'Updating pip' });
+        step('Installing the OCR service deps …');
+        await pipInstall(vpy, BASE_DEPS, { progress, what: 'Installing the OCR service' });
         if (config.ocr && config.ocr.docling) {
-            log.step('Installing Docling (torch + OCR/layout models; multi-GB, first run only) …');
-            await sh(`"${vpy}" -m pip install -q docling`);
+            step('Installing Docling (torch + OCR/layout models; multi-GB, first run only) …');
+            await pipInstall(vpy, ['docling'], { progress, what: 'Installing Docling' });
         }
         fs.writeFileSync(MARKER, depsSignature(config) + '\n', 'utf8');
         log.ok(`OCR service installed → ${log.paint.grey(ROOT)}`);

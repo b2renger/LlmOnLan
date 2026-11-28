@@ -193,7 +193,17 @@
     model, context, memory, people at once, reply cap or extra flags: `vllm.js` `restart`), and **Free an idle seat after** (`proxy.seatIdleSec`,
     1–60 min, the workshop setting — alone it applies live, no restart); Ollama download/offer/stop/delete/Make default;
     the plugin switches and the Blender fleet recommendation; and the clients with their seats. Long operations run as one
-    job whose progress the panel polls. vLLM's install and model downloads run beside it in a second slot, the download slot, with their own bar and Stop. A bar that
+    job whose progress the panel polls.
+    - **A plugin's first install is such a job** (PLUGIN_PROGRESS_PLAN, 2026-11-28, not released yet):
+      - **When:** turning on a plugin that is not installed (its venv, and for Classify Laya's weights:
+        `classify.ready()`). `up.js` `pluginToggle` decides outside `serialize`, which `runJob` takes itself.
+      - **What the bar shows:** each step the install takes (`FarmService.start` passes the job's `progress` into the
+        plugin's ensure), and pip's bytes per file (`plugins/progress.js` `pipInstall`, pip's `--progress-bar raw`).
+      - **Weights downloaded at the first start** (Laya 846 MB, Whisper *small* 486 MB or *large-v3-turbo* 1.62 GB) show
+        as their folder's growth, capped at 99 % until the service answers.
+      - **The panel:** the plugin's button reads *Installing…*. The job ends with the plugin's own sentence, or with
+        the step that failed. A toast says so on the page that started it.
+      - **Unchanged:** an installed plugin, turning one off, and the boot (`-q`, the farm log). It has no Stop. vLLM's install and model downloads run beside it in a second slot, the download slot, with their own bar and Stop. A bar that
     finished well leaves the top 5 minutes after its end; a failed one stays until the next job (`shownBar`, 2026-11-23). A running
     bar with no bytes to count (a vLLM start, an install's libraries) shows how long it has run, as every download does, and its job's `note` (a vLLM start: *If vLLM writes nothing for 10 minutes, the farm stops it
     by itself*, `waitReady`'s stall rule); the kernel phase says *seconds; several minutes the first time with a model, or after vLLM is

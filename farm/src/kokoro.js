@@ -25,6 +25,7 @@ const { spawn } = require('child_process');
 const log = require('./log');
 const { serviceHosts } = require('./net');
 const { resolvePython } = require('./python');
+const { pipInstall } = require('./plugins/progress');
 const { execFileP } = require('./systemInfo');
 
 // Bump deliberately: change the tag and re-run `lol up` — the next run re-fetches
@@ -123,13 +124,15 @@ async function saveEspeakLibrary() {
 // Idempotent setup: source tarball (pinned tag) + venv + torch (gpu/cpu) + the
 // Kokoro stack + model weights. Returns true when ready to spawn; false (warned)
 // when the farm should come up WITHOUT TTS.
-async function ensureKokoro() {
+async function ensureKokoro(progress = null) {
+    // PLUGIN_PROGRESS_PLAN: the panel's job, told each step and pip's bytes (no progress: the boot, as before).
+    const step = (msg) => { log.step(msg); if (progress) progress(msg, null); };
     if (installed()) {
         // The weights only (a farm folder chosen, or a first start after a tag bump): downloaded, nothing reinstalled.
         try {
             configBeside();
             if (!fs.existsSync(modelPth())) {
-                log.step('Downloading the Kokoro voice model (~312MB) …');
+                step('Downloading the Kokoro voice model (~312MB) …');
                 await download(MODEL_URL, modelPth());
             }
         } catch (e) {
@@ -157,7 +160,7 @@ async function ensureKokoro() {
         // 1. Source at the pinned tag (tarball, like SearXNG — no git prereq). Guard
         //    re-extract on the recorded src tag so bumping PINNED_TAG re-fetches.
         if (!fs.existsSync(path.join(SRC, 'api', 'src', 'main.py')) || readTrim(SRC_TAG_FILE) !== PINNED_TAG) {
-            log.step(`Downloading Kokoro-FastAPI ${PINNED_TAG} …`);
+            step(`Downloading Kokoro-FastAPI ${PINNED_TAG} …`);
             fs.rmSync(SRC, { recursive: true, force: true });
             fs.mkdirSync(SRC, { recursive: true });
             const tarball = path.join(ROOT, 'kokoro-src.tar.gz');
@@ -170,33 +173,34 @@ async function ensureKokoro() {
 
         // 2. Own venv (never the farm/.venv — torch is huge + version-specific).
         if (!fs.existsSync(venvPython())) {
-            log.step(`Creating Kokoro venv with ${log.paint.bold(py.version)} …`);
+            step(`Creating Kokoro's Python environment (${py.version}) …`);
             await sh(`${py.cmd} -m venv "${VENV}"`);
         }
         const vpy = venvPython();
-        await sh(`"${vpy}" -m pip install -q -U pip`);
+        step('Updating pip in it …');
+        await pipInstall(vpy, ['-U', 'pip'], { progress, what: 'Updating pip' });
 
         // 3. torch — cu128 (Ada+Blackwell) when an NVIDIA GPU is present, else CPU.
         //    torch lives only in Kokoro's *extras*, so we install it explicitly from
         //    the right PyTorch index, then the app (base deps) sees it satisfied.
         const gpu = await gpuPresent();
         if (gpu) {
-            log.step('Installing PyTorch (CUDA cu128 — Ada + Blackwell; multi-GB) …');
-            await sh(`"${vpy}" -m pip install -q "torch==2.8.0+cu128" --index-url https://download.pytorch.org/whl/cu128`);
+            step('Installing PyTorch (CUDA cu128 — Ada + Blackwell; multi-GB) …');
+            await pipInstall(vpy, ['torch==2.8.0+cu128', '--index-url', 'https://download.pytorch.org/whl/cu128'], { progress, what: 'Installing PyTorch (CUDA)' });
         } else {
-            log.step('No NVIDIA GPU — installing CPU PyTorch …');
-            await sh(`"${vpy}" -m pip install -q "torch==2.8.0" --index-url https://download.pytorch.org/whl/cpu`);
+            step('No NVIDIA GPU — installing CPU PyTorch …');
+            await pipInstall(vpy, ['torch==2.8.0', '--index-url', 'https://download.pytorch.org/whl/cpu'], { progress, what: 'Installing PyTorch (CPU)' });
         }
 
         // 4. The Kokoro stack (fastapi/uvicorn/kokoro/misaki/espeakng-loader/spacy +
         //    en-core-web-sm URL wheel — all base deps, torch already satisfied).
-        log.step('Installing the Kokoro TTS stack (a few minutes) …');
-        await sh(`"${vpy}" -m pip install -q -e "${SRC}"`, { cwd: SRC });
+        step('Installing the Kokoro TTS stack (a few minutes) …');
+        await pipInstall(vpy, ['-e', SRC], { progress, what: 'Installing the Kokoro TTS stack', cwd: SRC });
 
         // 5. Model weights (~312MB) — voices already ship in the tarball.
         configBeside();
         if (!fs.existsSync(modelPth())) {
-            log.step('Downloading the Kokoro voice model (~312MB) …');
+            step('Downloading the Kokoro voice model (~312MB) …');
             await download(MODEL_URL, modelPth());
         }
 
