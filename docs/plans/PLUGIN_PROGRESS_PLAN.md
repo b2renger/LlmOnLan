@@ -126,3 +126,5 @@ section names the build the owner tests.
   - pip's raw lines and `pipInstall`, the boot keeping `-q`;
   - the folder's growth;
   - Classify's weights check.
+- **The build for the owner:** `farm-app\dist\LlmOnLan-Farm-Setup-0.0.55+n19.exe` (03:25, from `3df0a73`), for
+  HUMAN_TESTS J22.

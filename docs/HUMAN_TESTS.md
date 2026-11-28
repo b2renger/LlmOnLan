@@ -460,7 +460,7 @@ Measured without you (DEVLOG 2026-11-28):
 - *Test connection*'s probe said *lab*.
 
 *Needs:*
-- the local build named in summary n° 19;
+- the local build `shell\dist\LlmOnLan-Setup-0.2.21+n19-windows-x64.exe` (night n° 19, 03:40, from `20989bb`: the dots, Blender Lab);
 - Blender **5.1** with Blender Lab's **MCP** extension (*Edit ▸ Preferences ▸ Get Extensions*, search MCP), and
   *System ▸ Network ▸ Allow Online Access* on;
 - a farm with a model that calls tools (Qwen3.6 on the PRO 6000);
@@ -497,7 +497,7 @@ Measured without you (DEVLOG 2026-11-28):
 *Proves:* [COMPUTER_DOTS_PLAN](plans/COMPUTER_DOTS_PLAN.md) (2026-11-28): the owner's J21 graph can be built from
 nothing without being told which dot is which. The harness checks the positions within 4 px (`k19-dots`), but only a
 person can say whether it reads clearly.
-*Needs:* the local build `shell\dist\LlmOnLan-Setup-0.2.21+n19-windows-x64.exe` (night n° 19, 03:15, from `58e3969`),
+*Needs:* the local build `shell\dist\LlmOnLan-Setup-0.2.21+n19-windows-x64.exe` (night n° 19, 03:40, from `20989bb`: the dots, Blender Lab),
 any farm (Classify answers with the farm's model, or marks every item *unsure* without one), 5 minutes. *Was:* new (2026-11-28), after J21 step 2 (2026-11-27).
 1. The Computer, a new graph. ＋ → a **Text** box; type five lines, one sentence each, mixing sports, politics and
    business. ＋ → a **Classify** box. Type a question in it, and the options `sports, politics, business`.
@@ -2174,8 +2174,8 @@ write it on *Found*, with the vLLM version the panel shows.
 *Proves:* [PLUGIN_PROGRESS_PLAN](plans/PLUGIN_PROGRESS_PLAN.md) (2026-11-28), the owner's J21 request ("feedback about
 what is happening in the download … including the download progress"). Measured without you: Classify installed from
 nothing in a scratch copy of the farm, its steps, pip's bytes and Laya's weights reported as the bar would show them
-(DEVLOG 2026-11-28). *Needs:* the local Farm app build named in summary n° 19 installed over 0.0.55+n18 (it carries the
-farm side), the PRO 6000 at a quiet moment, about 5 minutes plus the download. *Was:* new (2026-11-28).
+(DEVLOG 2026-11-28). *Needs:* the local Farm app build `farm-app\dist\LlmOnLan-Farm-Setup-0.0.55+n19.exe` (night n° 19, 03:25, from
+`3df0a73`) installed over 0.0.55+n18 (it carries the farm side), the PRO 6000 at a quiet moment, about 5 minutes plus the download. *Was:* new (2026-11-28).
 1. In the farm panel, Plugins: turn **Speech to text** on. It has never been installed there (off today).
 2. Watch the bar at the top, and the plugin's row.
 3. Meanwhile, send a chat from a laptop.
