@@ -9,6 +9,36 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-28 (04:52) — A race in the Blender tools' install, found and fixed; the full harness again; the morning tests checked
+
+- **The full harness, again** (04:30–04:47, with the p2 instrumentation): **428/428**. The p2 flake did not show.
+  `p2-search` passed, so the report's store mode is still unseen.
+- **A race the night's BLENDER_LAB_MCP code made worse** (`9f17683`):
+  - **The trigger:** `start()` runs again when the port field changes (a number field's `change`: each click of its
+    arrows, Enter, or leaving it) or when the switch goes off and on. During the first install (about a minute)
+    that second start went through `ensureInstalled` again. The marker was not written yet, so it removed the venv
+    the first pip was writing into.
+  - **Before tonight:** the two installs only overlapped. The venv's removal is new tonight.
+  - **Reproduced** by a `shell-main` test with stand-ins for `python -m venv` and pip: the compiled module reads
+    `child_process.spawn` at call time, and `LOL_MCP_PYTHON` names the base Python. The first install then ended
+    with *Check the internet connection and try again*. On Windows the removal of a venv a pip holds would more
+    likely throw, giving *Could not replace the old Blender tools*.
+  - **The fix:** `ensureInstalled` shares the install that is running, and a failed one is tried again at the next
+    start. The test fails before and passes after.
+  - **Suites:** `test:chat` 2005 (1 skipped), lint 0, `unit.js` 35. `context/client.md` says so.
+  - **The local client build** `0.2.21+n19` was rebuilt from `9f17683` for A31 and A32.
+- **A farm test for the panel's plugin rows** (`f776600`): it renders the rows from `index.html`'s own source. Farm
+  305/305.
+- **The morning tests' texts, checked against the code:**
+  - J22: each step (`stt.js:155-163`), the download line (`registry.js:192`), the end sentence (`registry.js:201`),
+    the toast, and the two sizes.
+  - A32: the Items row's empty text, *output: {kind}*, *From the wire: {names}*, *{n} items, from {names}*.
+  - Lessons and examples name Classify's ports, never their place. `think.mjs:82`'s "upper" Inputs and "lower" code
+    dot are still true.
+- **The packaged build** carries the wheel in `app.asar.unpacked`, sha256 `c3045185…`.
+- **After 04:37's incident:** the farm log shows the farm's services answering their health checks throughout, and
+  no log names the processes stopped.
+
 ## 2026-11-28 (04:38) — The real client installs Blender Lab's server itself; and a cleanup that killed processes not mine
 
 - **The client's own `McpoSupervisor`, run for real** (BLENDER_LAB_MCP):
