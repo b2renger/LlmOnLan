@@ -145,5 +145,5 @@ plan's built section names the build the owner tests.
     from a wire; now three, as before.
   - `k19-dots` checks that Filter and Code fit.
   - The full harness: 427/428, the p2 full-run flake again.
-- **The build for the owner:** `shell\dist\LlmOnLan-Setup-0.2.21+n19-windows-x64.exe` (04:52, from `9f17683`, which
+- **The build for the owner:** `shell\dist\LlmOnLan-Setup-0.2.21+n19-windows-x64.exe` (05:08, from `2707705`, which
   also carries BLENDER_LAB_MCP), for HUMAN_TESTS A32.

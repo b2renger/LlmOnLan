@@ -212,7 +212,11 @@ and the plan's built section names the build the owner tests.
   - `execute_blender_code` added a cube: `['Camera', 'Cube', 'Cube.001', 'Light']`;
   - a hidden tool answered 404, no key answered 401;
   - all stopped. The owner's Blender, profile and port 9876, and the owner's helper (`mcp-tools`), were not touched.
-- **The build for the owner:** `shell\dist\LlmOnLan-Setup-0.2.21+n19-windows-x64.exe` (04:52, from `9f17683`; the
+- **The build for the owner:** `shell\dist\LlmOnLan-Setup-0.2.21+n19-windows-x64.exe` (05:08, from `2707705`; the
   wheel is in `app.asar.unpacked`, same sha256), for HUMAN_TESTS A31.
 - **Found after, fixed** (`9f17683`, 04:52): a start during the first install (the port field, the switch off and on)
   removed the venv the first pip wrote into; `ensureInstalled` now shares the running install (`shell-main` tests it).
+- **Found after, fixed** (`2707705`, 05:06): an installer run over a running client stops the app, not its helper,
+  and Windows keeps a running `.exe`: removing the old venv failed half-way (EPERM, reproduced). Each set of packages
+  now has a venv of its own (`venv-<8 hex of the marker>`); old folders go when nothing runs from them. Run for real
+  beside a running old helper (27 s); `shell-main` tests it.

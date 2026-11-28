@@ -9,6 +9,35 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-28 (05:09) — An old Blender helper still running blocked the new install; each set of packages now has its own venv
+
+- **The advisor's question** (05:00): what if the old client's helper is still running from `mcp-tools\venv` when
+  the new client starts? The dev-client run at 04:36 had removed a stand-in venv that nothing ran from.
+- **How the helper outlives its client:** `before-quit` stops mcpo (`index.ts:1508`, `killTree`), which covers a quit
+  and an auto-update. An installer run by hand over a running client does not quit it: electron-builder's NSIS
+  `CHECK_APP_RUNNING` stops, with `Stop-Process`, every process whose path is under the install folder
+  (`allowOnlyOneInstallerInstance.nsh`, `KILL_PROCESS`). mcpo runs from userData, so it lives on. A crash does the
+  same. At 03:33 the owner's helper ran as 6 processes.
+- **Reproduced** in scratch: a venv whose `python.exe` runs, then `fs.rmSync(dir, {recursive, force})` → **EPERM**.
+  Half the venv was deleted: only `Scripts\python.exe` and `pythonw.exe` were left. The client then said *Could not
+  replace the old Blender tools. Restart LlmOnLan…*, at every start while that helper lived.
+- **The fix** (`2707705`, the advisor's first option, no process handling):
+  - each set of packages installs into `mcp-tools/venv-<first 8 hex of sha256(marker)>`;
+  - `removeOtherVenvs` tries the others (`venv`, older `venv-*`) at each start, and keeps one in use;
+  - the removal before the install is gone.
+- **Run for real:** the compiled supervisor on a scratch userData, beside a running `python.exe` in an old venv with
+  the community marker:
+  - *installing*, then `null` in 27 s, real pip from PyPI and the shipped wheel;
+  - `venv-098709fb` holds `python.exe`, `mcpo.exe` and `blender-mcp.exe`, with the new marker;
+  - the old folder kept only `Scripts`;
+  - after that process ended, the next start removed it.
+- **Tests:** a `shell-main` test where the old folder refuses its removal (EPERM), and the race test on the new
+  folder. `test:chat` 2006 (1 skipped), lint 0, `unit.js` 35. `context/client.md` says so.
+- **The local client build** `0.2.21+n19` was rebuilt at 05:08 from `2707705` (the fix is in `app.asar`; the wheel's
+  sha256 is unchanged), and A31, A32, the two plans and the summary name it.
+- **Also checked:** `probeBlender` answered `lab` against the real extension at 03:33–03:38 (scratch Blender
+  5.1.1). Tonight's Whisper download grew steadily (0 → 28 → 56 → 83 %), so J22's *bytes growing* holds.
+
 ## 2026-11-28 (04:59) — pip's own upgrade ran with raw progress, which an older pip refuses; fixed, the Farm app rebuilt
 
 - **Found while reading PLUGIN_PROGRESS's code again:** `pipInstall` passed `--progress-bar raw` to every install
