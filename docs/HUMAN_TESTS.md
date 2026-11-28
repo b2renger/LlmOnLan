@@ -462,7 +462,7 @@ Measured without you (DEVLOG 2026-11-28):
 - *Test connection*'s probe said *lab*.
 
 *Needs:*
-- the local build `shell\dist\LlmOnLan-Setup-0.2.21+n19-windows-x64.exe` (night n° 19, 03:40, from `20989bb`: the dots, Blender Lab);
+- the local build `shell\dist\LlmOnLan-Setup-0.2.21+n19-windows-x64.exe` (night n° 19, 04:08, from `83df3f2`: the dots, Blender Lab with its screenshots);
 - Blender **5.1** with Blender Lab's **MCP** extension (*Edit ▸ Preferences ▸ Get Extensions*, search MCP), and
   *System ▸ Network ▸ Allow Online Access* on;
 - a farm with a model that calls tools (Qwen3.6 on the PRO 6000);
@@ -500,7 +500,7 @@ Measured without you (DEVLOG 2026-11-28):
 *Proves:* [COMPUTER_DOTS_PLAN](plans/COMPUTER_DOTS_PLAN.md) (2026-11-28): the owner's J21 graph can be built from
 nothing without being told which dot is which. The harness checks the positions within 4 px (`k19-dots`), but only a
 person can say whether it reads clearly.
-*Needs:* the local build `shell\dist\LlmOnLan-Setup-0.2.21+n19-windows-x64.exe` (night n° 19, 03:40, from `20989bb`: the dots, Blender Lab),
+*Needs:* the local build `shell\dist\LlmOnLan-Setup-0.2.21+n19-windows-x64.exe` (night n° 19, 04:08, from `83df3f2`: the dots, Blender Lab with its screenshots),
 any farm (Classify answers with the farm's model, or marks every item *unsure* without one), 5 minutes. *Was:* new (2026-11-28), after J21 step 2 (2026-11-27).
 1. The Computer, a new graph. ＋ → a **Text** box; type five lines, one sentence each, mixing sports, politics and
    business. ＋ → a **Classify** box. Type a question in it, and the options `sports, politics, business`.

@@ -212,5 +212,5 @@ and the plan's built section names the build the owner tests.
   - `execute_blender_code` added a cube: `['Camera', 'Cube', 'Cube.001', 'Light']`;
   - a hidden tool answered 404, no key answered 401;
   - all stopped. The owner's Blender, profile and port 9876, and the owner's helper (`mcp-tools`), were not touched.
-- **The build for the owner:** `shell\dist\LlmOnLan-Setup-0.2.21+n19-windows-x64.exe` (03:40, from `20989bb`; the
+- **The build for the owner:** `shell\dist\LlmOnLan-Setup-0.2.21+n19-windows-x64.exe` (04:08, from `83df3f2`; the
   wheel is in `app.asar.unpacked`, same sha256), for HUMAN_TESTS A31.
