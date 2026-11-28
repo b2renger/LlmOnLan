@@ -43,6 +43,10 @@ function pipLine(line) {
  * @returns {Promise<void>}
  */
 function pipInstall(vpy, args, { progress = null, what = '', cwd = undefined, spawnFn = spawn } = {}) {
+    // An install that lists pip itself (each plugin's first: `-U pip`) runs on the venv's own pip, which may predate
+    // `raw` (pip 24.1): pip 24.0, Ubuntu 24.04's, exits 2 with "invalid choice: 'raw'" (night n° 19). It runs quiet,
+    // its step still on the bar; the installs after it run on the new pip, with their bytes.
+    if (args.includes('pip')) progress = null;
     const argv = ['-m', 'pip', 'install', '--disable-pip-version-check', ...(progress ? ['--progress-bar', 'raw'] : ['-q']), ...args];
     return new Promise((resolve, reject) => {
         const child = spawnFn(vpy, argv, { cwd, windowsHide: true, stdio: ['ignore', progress ? 'pipe' : 'inherit', 'inherit'] });

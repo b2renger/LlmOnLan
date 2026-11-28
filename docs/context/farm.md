@@ -199,6 +199,8 @@
         `classify.ready()`). `up.js` `pluginToggle` decides outside `serialize`, which `runJob` takes itself.
       - **What the bar shows:** each step the install takes (`FarmService.start` passes the job's `progress` into the
         plugin's ensure), and pip's bytes per file (`plugins/progress.js` `pipInstall`, pip's `--progress-bar raw`).
+        An install that lists pip itself (each plugin's first, `-U pip`) runs quiet: it runs on the venv's own pip,
+        which may predate `raw` (pip 24.1; Ubuntu 24.04's 24.0 exits 2 on it).
       - **Weights downloaded at the first start** (Laya 846 MB, Whisper *small* 486 MB or *large-v3-turbo* 1.62 GB) show
         as their folder's growth, capped at 99 % until the service answers.
       - **The panel:** the plugin's button reads *Installing…*. The job ends with the plugin's own sentence, or with

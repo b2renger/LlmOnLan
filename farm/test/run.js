@@ -4995,6 +4995,14 @@ test('PLUGIN_PROGRESS: pip’s raw progress lines become a file, its bytes, and 
     assert.ok(boot.argv.includes('-q') && !boot.argv.includes('raw') && boot.stdio[1] === 'inherit', 'the boot path: -q and the farm log, as before');
     const bad = await runPip(['Progress 1 of 2'], 1, true);
     assert.equal(bad.error, 'pip exited with 1', 'a failed pip rejects, so the install says it failed');
+    // Night n° 19 (04:55): a venv's own pip may predate `raw` (pip 24.0, Ubuntu 24.04's, exits 2 with "invalid choice:
+    // 'raw'", run here), and each plugin's first install upgrades pip on it: that one runs quiet.
+    for (const args of [['-U', 'pip'], ['-U', 'pip', 'setuptools', 'wheel', 'pyyaml']]) {
+        let argv = null; let stdio = null;
+        const spawnFn = (cmd, a, o) => { argv = a; stdio = o.stdio; const c = new EventEmitter(); setImmediate(() => c.emit('exit', 0)); return c; };
+        await pipInstall('py', args, { progress: () => {}, what: 'Updating pip', spawnFn });
+        assert.ok(argv.includes('-q') && !argv.includes('--progress-bar') && stdio[1] === 'inherit', `pip's own upgrade, quiet on any pip: ${argv}`);
+    }
 });
 
 test('PLUGIN_PROGRESS: weights a service downloads at its first start are its folder’s growth, capped below the total', async () => {
