@@ -9,6 +9,35 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-28 (04:38) — The real client installs Blender Lab's server itself; and a cleanup that killed processes not mine
+
+- **The client's own `McpoSupervisor`, run for real** (BLENDER_LAB_MCP):
+  - **The rig:** the built client from `shell/` on a scratch profile (`--user-data-dir` in scratch, the Blender tools
+    on, port 19876), the dev venv's Open WebUI 0.13.3, a dead endpoint, and discovery on an unused port. The profile
+    held the community helper's old marker (`mcpo,blender-mcp`) and a stand-in old venv.
+  - **Seen:** the old venv removed; a new one, pip upgraded, `Processing .\assets\blender-mcp\blender_mcp-1.0.2…whl`
+    with its dependencies; the marker `mcpo==0.0.20,fastapi==0.139.0,blender-mcp-lab@dbbf836`; mcpo started with
+    `--config`, "Filtered out 6", **ready at `http://127.0.0.1:53636/blender`**, 20 tools, none `_for_cli`.
+  - **Preferences' *Test connection*** through the page's own IPC: `{"mcpoUp":true,"blender":"none",
+    "blenderReachable":false,"port":19876,"toolCount":20}` (no Blender on 19876, as set).
+- **A cleanup that killed processes that were not the session's** (04:37):
+  - **What happened:** to stop that client, the session matched command lines on `devclient-ud|LlmOnLan\sidecar\.venv|9341`
+    and stopped every match in the same command. `9341` (its debugging port) also matched the long numeric arguments
+    of other Chromium-based processes.
+  - **What was stopped:** one child process each of **Chrome, VS Code, the live Farm app (`LlmOnLan Farm.exe`) and the
+    owner's client (`LlmOnLan.exe`)**. Their kinds are unknown: they were dead before they could be read.
+  - **Checked after:**
+    - the farm still answers as at 02:00 (`0.0.55+n18`, vLLM, one client);
+    - the Farm app keeps its main process, its window's renderer, its GPU and utility processes and `lol up`;
+    - the client keeps its main process, two renderers, its GPU and two utility processes, and its Open WebUI
+      (3 processes);
+    - Chrome and VS Code run.
+  - **Earlier, 04:29:** a cleanup with `9333|9334` in its pattern stopped 16 `msedge.exe`. They were the session's
+    two headless Edges, and perhaps Edge's own background processes; none runs now, and which ones cannot be told.
+  - **The way back, if anything misbehaves:** restart that app; nothing of any data was touched. The summary says so
+    first, and a memory now forbids matching on a short pattern (list first, stop explicit PIDs, match only full
+    scratch paths).
+
 ## 2026-11-28 (04:33) — PLUGIN_PROGRESS: Web search reports pip's bytes too, installed for real
 
 - **The change:** `searxng.js` `ensureSearxng(progress)` sends its steps to the job and its four pip runs through
