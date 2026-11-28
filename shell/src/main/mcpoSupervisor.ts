@@ -195,9 +195,18 @@ export class McpoSupervisor extends EventEmitter {
         else await this.stop();
     }
 
+    // One install at a time: a start() during the first install (the port changed, the switch turned off and on) waits
+    // for it and gets its result, instead of installing again and removing the venv that pip still writes into (night
+    // n° 19, shell-main's test). A failed install is tried again at the next start.
+    private installing: Promise<string | null> | null = null;
+    private ensureInstalled(): Promise<string | null> {
+        if (!this.installing) this.installing = this.install().finally(() => { this.installing = null; });
+        return this.installing;
+    }
+
     // Idempotent install into the dedicated venv. Returns null on success, else a
     // human-readable message. Skipped fast when the venv + scripts + marker exist.
-    private async ensureInstalled(): Promise<string | null> {
+    private async install(): Promise<string | null> {
         if (fs.existsSync(venvPython()) && fs.existsSync(venvBin('mcpo'))
             && fs.existsSync(venvBin('blender-mcp')) && readMarker() === MARKER_TAG) return null;
 

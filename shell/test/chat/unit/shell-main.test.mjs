@@ -2148,6 +2148,69 @@ export default (test) => {
     } finally { for (const s of [lab, community, silent]) s.close(); }
   });
 
+  // Night n° 19 (04:50): a second start() during the first install (the port field's change, the switch off and on)
+  // went through the install again: the marker not written yet, it removed the venv the first pip was writing into.
+  test('BLENDER_LAB_MCP: a second install during the first waits for it, and never removes the venv under its pip', async () => {
+    const SUP = require(path.join(BUILD, 'mcpoSupervisor.js'));
+    const cp = require('node:child_process');
+    const { EventEmitter } = require('node:events');
+    const tools = path.join(USER_DATA, 'mcp-tools');
+    const venv = path.join(tools, 'venv');
+    const bin = (/** @type {string} */ n) => (process.platform === 'win32' ? path.join(venv, 'Scripts', `${n}.exe`) : path.join(venv, 'bin', n));
+    const touch = (/** @type {string} */ f) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, ''); };
+    // The community helper's venv, as v0.2.21 left it: every script there, another marker.
+    for (const n of ['python', 'mcpo', 'blender-mcp']) touch(bin(n));
+    fs.writeFileSync(path.join(tools, '.installed'), 'mcpo,blender-mcp');
+    const base = path.join(tempDir('basepy'), 'python.exe');
+    touch(base);
+    /** @type {string[]} */
+    const calls = [];
+    let vanished = 0;
+    let pipN = 0;
+    /** @type {() => void} */ let release = () => {};
+    const gate = new Promise((r) => { release = () => r(undefined); });
+    /** @type {() => void} */ let began = () => {};
+    const pipBegan = new Promise((r) => { began = () => r(undefined); });
+    const realSpawn = cp.spawn;
+    // Stand-ins for `python -m venv` and pip: the install's own pip waits at the gate, and fails if its venv went.
+    cp.spawn = (/** @type {string} */ _cmd, /** @type {string[]} */ args) => {
+      const p = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: new EventEmitter() });
+      const exit = (/** @type {number} */ code) => setImmediate(() => p.emit('exit', code));
+      const a = args.join(' ');
+      calls.push(a);
+      if (a.includes('-m venv')) { touch(bin('python')); exit(0); }
+      else if (a.includes('--upgrade pip')) exit(0);
+      else if (a.includes(SUP.MCPO_PIN)) {
+        const mine = path.join(venv, `pip-${++pipN}`);
+        touch(mine);
+        began();
+        gate.then(() => {
+          if (!fs.existsSync(mine)) { vanished++; exit(1); return; }
+          touch(bin('mcpo')); touch(bin('blender-mcp')); exit(0);
+        });
+      } else exit(1);
+      return p;
+    };
+    try {
+      await withEnv({ LOL_MCP_PYTHON: base }, async () => {
+        const sup = new SUP.McpoSupervisor();
+        const first = sup.ensureInstalled();
+        await pipBegan;
+        const second = sup.ensureInstalled();   // what start() does again when the port changes now
+        await new Promise((r) => setTimeout(r, 50));
+        release();
+        assert.deepEqual(await Promise.all([first, second]), [null, null], 'both end well');
+      });
+      assert.equal(vanished, 0, 'no pip had its venv removed under it');
+      assert.equal(calls.filter((a) => a.includes('-m venv')).length, 1, `one venv made: ${JSON.stringify(calls)}`);
+      assert.equal(calls.filter((a) => a.includes(SUP.MCPO_PIN)).length, 1, 'one install');
+      assert.match(fs.readFileSync(path.join(tools, '.installed'), 'utf8'), /blender-mcp-lab@dbbf836/, 'the new marker');
+    } finally {
+      cp.spawn = realSpawn;
+      fs.rmSync(tools, { recursive: true, force: true });
+    }
+  });
+
   // 2026-11-14 (owner: Open WebUI 0.13.3 before the class): 0.13 stopped putting an attached document into the
   // conversation and drops a person's own tool servers (Blender's) unless Direct Integrations is on. Both by env.
   test('OWUI 0.13: attached documents still go into the conversation, and the Blender tool server still reaches chats', () => {

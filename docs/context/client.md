@@ -222,7 +222,9 @@ tools** · **Home Assistant** · startup & updates · **usage report** · about)
   server, shipped as a wheel (`assets/blender-mcp`, sha256 checked, unpacked from `app.asar`), behind `mcpo==0.0.20` (with
   `fastapi==0.139.0`: FastAPI 0.165 stops it) in config mode (`/blender`, `disabledTools`: the six `_for_cli` tools; `BLENDER_PATH` names
   a path that never exists). Its two screenshot tools are on: their picture reaches the farm as an image part
-  (checked on a real Open WebUI 0.13.3, 2026-11-28; `privacy.md`).
+  (checked on a real Open WebUI 0.13.3, 2026-11-28; `privacy.md`). Another set of packages in the tools venv (the
+  community helper's marker) rebuilds the venv from nothing, once: a start during that install (a port change, the
+  switch off and on) waits for it (`ensureInstalled`, one at a time; `shell-main` tests it).
 - **Home Assistant** (2026-09-30) — address + long-lived token → **Link** (tested before anything is kept), **Test
   connection**, **Forget**, and **Allow commands…** / **Stop commands** (main's native dialog lists the devices).
 - **Startup & updates** — "Launch at login"; "Install app updates automatically" (off: a downloaded update installs
