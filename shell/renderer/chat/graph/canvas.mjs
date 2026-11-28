@@ -2041,6 +2041,10 @@ export function createCanvas(o) {
   /** Measure a box's rows and move its dots there. Answers whether a dot moved (the wires need a redraw).
    * @param {any} box @param {number} h the box's height @returns {boolean} */
   function placeRows(box, h) {
+    // ponytail: the measure reads layout even for a box `content-visibility: auto` is skipping (off screen), so a graph
+    // of many Classify, Filter and Code boxes lays each of them out once at load. The perf fixtures hold Text boxes only
+    // and cannot see it (night n° 19: perf-graph-500 pan p95 1.0 ms). Upgrade path, if a graph ever shows it: skip
+    // while `box.body.checkVisibility({contentVisibilityAuto: true})` is false; the observer measures it once shown.
     if (!hasRows(box) || !box.node.isConnected) return false;
     const nr = box.node.getBoundingClientRect();
     const scale = box.node.offsetHeight ? nr.height / box.node.offsetHeight : 0;

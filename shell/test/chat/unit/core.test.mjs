@@ -210,8 +210,8 @@ export default (test) => {
     // The think box beside the Cap (2026-10-05) added two: its label and its checkbox.
     // The Home boxes (2026-10-09) added three: the device picker's list, its rows and a ticked row.
     // COMPUTER_DOTS_PLAN (2026-11-28) added six: the row a dot fills, a hidden row, the dot's name, Classify's name
-    // width, the row's note, and the field a wire replaces.
-    assert.equal(scoped.length, 234, `the graph.css re-scope is ${scoped.length} selectors, not 234`);
+    // width, the row's note, and the field a wire replaces; and took one away, Code's *whose* line, now its Code row.
+    assert.equal(scoped.length, 233, `the graph.css re-scope is ${scoped.length} selectors, not 233`);
     const body = css.replace(/\/\*[\s\S]*?\*\//g, '');
     assert.equal((body.match(/#lolchat /g) || []).length, 0,
       'a `#lolchat ` selector survived the re-scope: that rule paints in the chat and nowhere else');

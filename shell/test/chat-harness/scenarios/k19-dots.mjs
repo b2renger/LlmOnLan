@@ -254,4 +254,46 @@ export default [
             }
         },
     },
+    {
+        // The rows take room: Filter and Code still fit their default sizes, and a Code box whose program arrived from a
+        // wire keeps three lines of editor (its "whose" sentence moved into the Code row, night n° 19: as a line of its
+        // own it left 20 px, one line of code).
+        name: 'k19-dots-filter-and-code-still-fit-their-boxes',
+        needsMock: true,
+        timeoutMs: 60000,
+        allowConsoleErrors: FARM_ERRORS,
+        async run(/** @type {any} */ h) {
+            await h.fresh();
+            await freshDoc(h, 'k19 fit');
+            const fil = await h.computer.place('filter', 40, 40);
+            const code = await h.computer.place('code', 360, 40);
+            const src = await h.computer.place('note', 40, 360);
+            await h.computer.set(src, { text: 'return inputs.in.length;' });
+            await frames(h);
+            const fit = (/** @type {string} */ pid) => h.eval((s) => {
+                const node = document.querySelector(s);
+                const b = node.querySelector('.graph-part-body');
+                const area = node.querySelector('.graph-code-text');
+                const note = node.querySelector('.graph-code-src');
+                return { h: node.offsetHeight, over: b.scrollHeight - b.clientHeight, editor: area ? area.getBoundingClientRect().height : null, note: note ? note.textContent : null };
+            }, box(pid));
+            const f = await fit(fil);
+            h.assert(f.over <= 1, `Filter fits its ${f.h} px: ${JSON.stringify(f)}`);
+            const c = await fit(code);
+            h.assert(c.over <= 1 && c.editor >= 60, `Code fits its ${c.h} px with room to type: ${JSON.stringify(c)}`);
+            await h.computer.wire(src, code, 'code');
+            await h.computer.runFrom(code);
+            await h.waitFor((p) => {
+                const d = window.LolComputer.debug.computer;
+                const part = d.doc().parts.find((x) => x.id === p);
+                return !d.running() && part && part.state === 'done' ? true : null;
+            }, { args: [code], timeout: 20000 });
+            await frames(h);
+            const a = await fit(code);
+            h.assert(a.over <= 1 && a.editor >= 50, `a program from the wire keeps three lines of editor: ${JSON.stringify(a)}`);
+            h.assert(/The model’s/.test(String(a.note)), `the Code row says whose program it is: ${a.note}`);
+            const got = await offsets(h, code, ROWS.code);
+            h.assert(got.code.gap !== null && got.code.gap <= 4 && got.in.gap !== null && got.in.gap <= 4, `and the dots stay on their rows: ${JSON.stringify(got)}`);
+        },
+    },
 ];

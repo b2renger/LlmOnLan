@@ -676,7 +676,6 @@
 :is(#lolchat, #lolcomputer) .graph-code-unlock { align-self: flex-start; }
 :is(#lolchat, #lolcomputer) .graph-code-fold:hover,
 :is(#lolchat, #lolcomputer) .graph-code-unlock:hover { filter: brightness(1.08); }
-:is(#lolchat, #lolcomputer) .graph-code-whose { margin: 0; font-size: 11px; color: var(--muted); }
 :is(#lolchat, #lolcomputer) .graph-code.folded .graph-code-about { font-size: 13px; }
 
 /* P3a-2: the Board row (Send by USB, Receive) and the Receive box. */

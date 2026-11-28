@@ -280,9 +280,6 @@ export const code = /** @type {any} */ ({
     });
     area.addEventListener('change', () => ctx.commit(t('parts.codeLabel')));
 
-    const whose = document.createElement('p');
-    whose.className = 'graph-code-whose';
-    whose.hidden = true;
     const unlock = document.createElement('button');
     unlock.type = 'button';
     unlock.className = 'graph-code-unlock';
@@ -315,7 +312,9 @@ export const code = /** @type {any} */ ({
     const srcNote = document.createElement('span');
     srcNote.className = 'graph-code-src graph-port-note';
     const srcRow = portRow(t('parts.codeCodeIn'), srcNote);
-    wrap.append(head, portRow(t('parts.codeIn'), inNote), srcRow, whose, unlock, area, chip);
+    // The Code row also says whose program the editor shows (it was a line of its own, which left one line of code in a
+    // 200 px box once the rows came): a short note, the whole sentence on hover.
+    wrap.append(head, portRow(t('parts.codeIn'), inNote), srcRow, unlock, area, chip);
     host.replaceChildren(wrap);
 
     /** @param {any} p */
@@ -332,13 +331,13 @@ export const code = /** @type {any} */ ({
       area.hidden = folded;
       srcRow.hidden = folded;
       wrap.classList.toggle('folded', folded);
+      const wired = ARRIVED.has(String(p.id)) && codeWired(ctx, String(p.id)) !== false;
       const fromIn = wiredNames(ctx, 'in');
       inNote.textContent = fromIn && fromIn.length ? t('parts.codeInFrom', { names: quoteNames(fromIn) }) : t('parts.codeInEmpty');
       const fromCode = wiredNames(ctx, 'code');
-      srcNote.textContent = fromCode && fromCode.length ? fromWireText(fromCode) : t('parts.codeSrcEmpty');
-      const wired = ARRIVED.has(String(p.id)) && codeWired(ctx, String(p.id)) !== false;
-      whose.hidden = !wired;
-      if (wired) whose.textContent = s.locked === true ? t('parts.codeWhoseMine') : t('parts.codeWhoseModel');
+      srcNote.textContent = wired ? (s.locked === true ? t('parts.codeSrcMine') : t('parts.codeSrcModel'))
+        : fromCode && fromCode.length ? fromWireText(fromCode) : t('parts.codeSrcEmpty');
+      srcNote.title = wired ? (s.locked === true ? t('parts.codeWhoseMine') : t('parts.codeWhoseModel')) : '';
       unlock.hidden = !(wired && s.locked === true);
       const hint = p.state === 'error' && !folded ? errorHint(p.id) : null;
       chip.hidden = !hint;

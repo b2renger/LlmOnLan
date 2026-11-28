@@ -9,6 +9,29 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-28 (02:57) — COMPUTER_DOTS after the advisor: the perf gate, the boxes' fit, Code's whose line
+
+- **The perf gate** (`--phase perf`, which the full harness skips): **9/9**. `perf-graph-500`'s pan work is p95
+  1.00 ms (median of three; the archive's 1.4–1.6 ms against a 16 ms budget), build 62 ms; `perf-graph-run` 197 ms
+  for 1000 parts.
+  - **What the gate cannot see:** its fixtures hold Text boxes only (`perf-graph.mjs:189`), so the new measure on
+    Classify, Filter and Code is outside it.
+  - The ceiling is marked with a `ponytail:` comment in `placeRows`: it lays out even a box `content-visibility` is
+    skipping, once at load. The upgrade path is a `checkVisibility` guard.
+- **The fit** (a throwaway diagnostic, then made permanent as `k19-dots-filter-and-code-still-fit-their-boxes`):
+  - Filter at 220 px and an empty Code at 200 px: 0 px over.
+  - **But a Code box whose program arrived from a wire showed 20.5 px of editor, one line.** Its *whose* sentence
+    (two lines) sat under the two new rows.
+  - The sentence moved into the Code row: a short note (*The model's: type in it to make it yours* / *Yours: the
+    model's is set aside*), with the whole sentence on hover.
+  - The editor is back to **54.5 px**, three lines, as before the rows.
+  - The dead `.graph-code-whose` rule went (re-scope count 233).
+- **A bug the harness caught at once:** the move first read `wired` before its `const` (a TDZ error in `paint`). The
+  canvas catches a part's render error with a warning, so the box drew half its rows. `k19-dots` failed on the
+  unmeasured Code row; the fix declares it first.
+- The local build `0.2.21+n19` was made at 02:51 from `8594314`, before these; it is rebuilt from the commit that
+  carries them.
+
 ## 2026-11-28 (02:50) — COMPUTER_DOTS: the Computer's input dots sit beside the fields they fill, and say their names
 
 Night n° 19's objective ([COMPUTER_DOTS_PLAN](plans/COMPUTER_DOTS_PLAN.md), the owner's J21 of 2026-11-27).

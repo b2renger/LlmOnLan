@@ -209,6 +209,8 @@ registerStrings('parts', {
   codeInEmpty: 'Wire values here: your code reads inputs.in',
   codeInFrom: 'From the wire: {names} (your code reads inputs.in)',
   codeSrcEmpty: 'Below, or wire in a program a model wrote',
+  codeSrcModel: 'The model’s: type in it to make it yours',
+  codeSrcMine: 'Yours: the model’s is set aside',
   codeAbout: 'What it does',
   codeAboutPlaceholder: 'What this code does, in plain words',
   codeShow: 'Show the code ({n} lines)',
