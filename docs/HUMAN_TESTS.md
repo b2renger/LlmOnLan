@@ -2177,8 +2177,8 @@ write it on *Found*, with the vLLM version the panel shows.
 *Proves:* [PLUGIN_PROGRESS_PLAN](plans/PLUGIN_PROGRESS_PLAN.md) (2026-11-28), the owner's J21 request ("feedback about
 what is happening in the download … including the download progress"). Measured without you: Classify installed from
 nothing in a scratch copy of the farm, its steps, pip's bytes and Laya's weights reported as the bar would show them
-(DEVLOG 2026-11-28). *Needs:* the local Farm app build `farm-app\dist\LlmOnLan-Farm-Setup-0.0.55+n19.exe` (night n° 19, 03:25, from
-`3df0a73`) installed over 0.0.55+n18 (it carries the farm side), the PRO 6000 at a quiet moment, about 5 minutes plus the download. *Was:* new (2026-11-28).
+(DEVLOG 2026-11-28). *Needs:* the local Farm app build `farm-app\dist\LlmOnLan-Farm-Setup-0.0.55+n19.exe` (night n° 19, 04:33, from
+`bf0ad92`) installed over 0.0.55+n18 (it carries the farm side), the PRO 6000 at a quiet moment, about 5 minutes plus the download. *Was:* new (2026-11-28).
 1. In the farm panel, Plugins: turn **Speech to text** on. It has never been installed there (off today).
 2. Watch the bar at the top, and the plugin's row.
 3. Meanwhile, send a chat from a laptop.
