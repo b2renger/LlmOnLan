@@ -5037,6 +5037,33 @@ test('PLUGIN_PROGRESS: Classify counts as installed only with Laya’s weights o
     assert.equal(typeof desc.download, 'function', 'and follows the weights’ download on the bar');
 });
 
+test('PLUGIN_PROGRESS: the panel’s row of the plugin being installed reads installing, its button Installing… and disabled; the others keep theirs', () => {
+    // Night n° 19 saw it in a headless Edge only; this renders the panel's own plugin rows from its source.
+    const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'admin', 'index.html'), 'utf8');
+    const start = html.indexOf('  const plugins = s.plugins || {};');
+    const end = html.indexOf('  // Client-side plugin (Blender)');
+    const escAt = html.indexOf('function esc(s)');
+    assert.ok(start > 0 && end > start && escAt > 0, 'panel source moved — update the extraction anchors');
+    const esc = html.slice(escAt, html.indexOf('\n', escAt));
+    const rows = (/** @type {any} */ s) => {
+        const ctx = {};
+        new Function('ctx', 's', esc + '\n' + html.slice(start, end) + '; ctx.out = pluginRows;')(ctx, s);
+        return /** @type {string} */ (ctx.out).split('<div class="row">').filter(Boolean);
+    };
+    const plugins = { stt: { label: 'Speech to text', enabled: false }, ocr: { label: 'Document OCR', enabled: true, healthy: true } };
+    const [stt, ocr] = rows({ plugins, job: { kind: 'plugin', plugin: 'stt', done: false } });
+    assert.match(stt, /installing — the bar at the top shows each step/);
+    assert.match(stt, /<button class="start" disabled aria-label="Installing Speech to text">Installing…<\/button>/);
+    assert.doesNotMatch(stt, /data-pact/, 'no Enable to press twice while it installs');
+    assert.match(ocr, /runs on this box · on/);
+    assert.match(ocr, /data-pact="disable" data-id="ocr"/, 'another plugin keeps its own button');
+    const [sttDone] = rows({ plugins, job: { kind: 'plugin', plugin: 'stt', done: true, ok: false } });
+    assert.match(sttDone, /runs on this box · off/, 'a job that ended gives the row back');
+    assert.match(sttDone, /data-pact="enable" data-id="stt"/);
+    const [sttOther] = rows({ plugins, job: { kind: 'download', plugin: null, done: false } });
+    assert.match(sttOther, /data-pact="enable" data-id="stt"/, 'another kind of job leaves the rows alone');
+});
+
 test('a vLLM start says what it does and that it stops by itself: its note under the bar, the kernel phase\'s true words (FARM_START_PLAN step 2)', async () => {
     // 2026-11-23: a start rebuilding its kernels sat 3 minutes on "the first start takes a few minutes longer" (it was
     // no first start), and was stopped from the panel at 5 min 7 s, about a minute before it would have been ready.
