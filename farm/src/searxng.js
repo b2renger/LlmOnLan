@@ -34,6 +34,7 @@ const { spawn } = require('child_process');
 const log = require('./log');
 const { serviceHosts } = require('./net');
 const { resolvePython } = require('./python');
+const { pipInstall } = require('./plugins/progress');
 
 // Master HEAD at integration time (2026-07-01), smoke-tested on the dev box.
 // Bump deliberately: change this constant and re-run `lol up` — the next run
@@ -250,10 +251,12 @@ function ensureEnginesDisabled() {
 // Idempotent setup: source tarball (pinned SHA) + venv + pip install + settings.
 // Returns true when SearXNG is ready to spawn; false (with warnings) when the
 // farm should come up WITHOUT websearch (missing python/tar, install failure).
-async function ensureSearxng() {
+async function ensureSearxng(progress = null) {
     writeSettingsIfMissing();
     ensureEnginesDisabled();
     if (installed()) { patchWindowsCompat(); await ensureTzdata(); return true; }
+    // PLUGIN_PROGRESS_PLAN: the panel's job, told each step and pip's bytes (no progress: the boot, as before).
+    const step = (msg) => { log.step(msg); if (progress) progress(msg, null); };
 
     const py = findPython();
     if (!py) {
@@ -269,7 +272,7 @@ async function ensureSearxng() {
         //    PINNED_SHA would silently reuse the old commit's tree. Extracted
         //    WITHOUT utils/ (its colon-named files are invalid on NTFS — see header).
         if (!fs.existsSync(path.join(SRC, 'searx')) || readTrim(SRC_SHA_FILE) !== PINNED_SHA) {
-            log.step(`Downloading SearXNG source @ ${PINNED_SHA.slice(0, 10)} …`);
+            step(`Downloading SearXNG source @ ${PINNED_SHA.slice(0, 10)} …`);
             fs.rmSync(SRC, { recursive: true, force: true });
             fs.mkdirSync(SRC, { recursive: true });
             const tarball = path.join(ROOT, 'searxng-src.tar.gz');
@@ -291,7 +294,7 @@ async function ensureSearxng() {
 
         // 2. Own venv (never the LiteLLM one — conflicting `==` pins).
         if (!fs.existsSync(venvPython())) {
-            log.step(`Creating SearXNG venv with ${log.paint.bold(py.version)} …`);
+            step(`Creating SearXNG's Python environment (${py.version}) …`);
             await sh(`${py.cmd} -m venv "${VENV}"`);
         }
 
@@ -300,16 +303,17 @@ async function ensureSearxng() {
         //    install (per docs.searxng.org: PEP 517, no build isolation) only
         //    works against a venv that already has requirements.txt installed.
         const vpy = venvPython();
-        log.step('Installing SearXNG into its venv (a minute or two) …');
-        await sh(`"${vpy}" -m pip install -q -U pip setuptools wheel pyyaml`);
-        await sh(`"${vpy}" -m pip install -q -r "${path.join(SRC, 'requirements.txt')}"`);
+        step('Installing SearXNG into its venv (a minute or two) …');
+        const what = 'Installing SearXNG';
+        await pipInstall(vpy, ['-U', 'pip', 'setuptools', 'wheel', 'pyyaml'], { progress, what });
+        await pipInstall(vpy, ['-r', path.join(SRC, 'requirements.txt')], { progress, what });
         try {
-            await sh(`"${vpy}" -m pip install -q --use-pep517 --no-build-isolation -e "${SRC}"`, { cwd: SRC });
+            await pipInstall(vpy, ['--use-pep517', '--no-build-isolation', '-e', SRC], { progress, what, cwd: SRC });
         } catch {
             // Editable installs can be fragile (paths with spaces) — plain install
             // works too: setup.py package_data ships settings/static/templates.
             log.warn('Editable install failed — retrying as a regular install.');
-            await sh(`"${vpy}" -m pip install -q --use-pep517 --no-build-isolation "${SRC}"`, { cwd: SRC });
+            await pipInstall(vpy, ['--use-pep517', '--no-build-isolation', SRC], { progress, what, cwd: SRC });
         }
 
         // Stamp what's ACTUALLY installed — the extracted source's SHA, not the pin

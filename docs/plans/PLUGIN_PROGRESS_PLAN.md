@@ -117,8 +117,11 @@ section names the build the owner tests.
   - The job carries `plugin`, so the panel's button for it reads *Installing…*.
   - It ends with the plugin's own sentence (`svc.lastStart`), or with the last step and *see the farm log*. The page
     that started it says so in a toast.
-- **Plugins other than Classify and Speech to text** show the step they already announced (`stepMessage`), then
-  *Starting …*. Their pip runs keep `-q` until they take `progress` too, which is a small change to each install.
+- **Every install reports:**
+  - Classify, Speech to text, Kokoro, OCR and SearXNG pass the job's `progress` to `pipInstall`. SearXNG was added at
+    04:31 and installed for real from the scratch copy: 30.8 s, its editable install through `pipInstall`'s `cwd`.
+  - Document search passes it to its existing `onProgress`.
+  - Each install also says the step it announced (`stepMessage`), then *Starting …*.
 - **Tests:** `run.js`, six:
   - the job with its steps and bytes;
   - no job for an installed plugin or for turning one off;

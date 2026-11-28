@@ -9,6 +9,19 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-28 (04:33) — PLUGIN_PROGRESS: Web search reports pip's bytes too, installed for real
+
+- **The change:** `searxng.js` `ensureSearxng(progress)` sends its steps to the job and its four pip runs through
+  `pipInstall`, the editable install with `cwd: SRC`. The registry passes `progress`. So every plugin that installs
+  now reports pip's bytes. `ensureTzdata`'s small `pip -q tzdata` stays as it was, on every start.
+- **Run for real** from the scratch copy (`plugin-run.js websearch`, port 18888):
+  - the source at `0f9e30e3f9` in 1.9 s, its environment by 5.7 s;
+  - pip's downloads named (`python_socks`, `pytz`) and 43 wheels from pip's cache;
+  - the editable install passed, with no fallback;
+  - *Starting Web search*, then *SearXNG up — clients get web search automatically* at 30.8 s; stopped, nothing left.
+- Farm **304/304**. `context/farm.md`: the paragraph after the plugin job's list had run onto its last line; put back
+  on its own.
+
 ## 2026-11-28 (04:30) — The panel's plugin job seen in a browser; the class rehearsal
 
 - **The panel's plugin job, as a person sees it** (PLUGIN_PROGRESS; the gap "not seen in a browser" closed):

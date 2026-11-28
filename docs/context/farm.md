@@ -203,7 +203,9 @@
         as their folder's growth, capped at 99 % until the service answers.
       - **The panel:** the plugin's button reads *Installing…*. The job ends with the plugin's own sentence, or with
         the step that failed. A toast says so on the page that started it.
-      - **Unchanged:** an installed plugin, turning one off, and the boot (`-q`, the farm log). It has no Stop. vLLM's install and model downloads run beside it in a second slot, the download slot, with their own bar and Stop. A bar that
+      - **Unchanged:** an installed plugin, turning one off, and the boot (`-q`, the farm log). It has no Stop.
+
+    Beside the job, vLLM's install and model downloads run in a second slot, the download slot, with their own bar and Stop. A bar that
     finished well leaves the top 5 minutes after its end; a failed one stays until the next job (`shownBar`, 2026-11-23). A running
     bar with no bytes to count (a vLLM start, an install's libraries) shows how long it has run, as every download does, and its job's `note` (a vLLM start: *If vLLM writes nothing for 10 minutes, the farm stops it
     by itself*, `waitReady`'s stall rule); the kernel phase says *seconds; several minutes the first time with a model, or after vLLM is
