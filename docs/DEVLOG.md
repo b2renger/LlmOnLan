@@ -9,6 +9,34 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-28 (04:30) — The panel's plugin job seen in a browser; the class rehearsal
+
+- **The panel's plugin job, as a person sees it** (PLUGIN_PROGRESS; the gap "not seen in a browser" closed):
+  - **The rig:** a scratch farm from the scratch copy of `farm/`, so a plugin installs into the copy's folders, never
+    the repo's or the Farm app's; its folder with its own config (an external engine on a stand-in OpenAI server on
+    18301, every plugin off, beacon off, LiteLLM from the repo's `.venv`); a scratch Ollama on 11599 with an empty
+    folder of its own, so `lol up` never starts one on Ollama's default folder.
+  - A headless Edge (its DevTools protocol, Node's own WebSocket) opened the panel with its token and pressed
+    *Enable* on **Document OCR**, not installed in the copy.
+  - **Seen:**
+    - the toast *Installing Document OCR: the bar at the top shows each step.*;
+    - the bar *Turning on Document OCR* through *Creating the OCR service's Python environment (Python 3.12.10)*,
+      *Updating pip: installing*, a real download (*4 MB of 4 MB*), *Installing the OCR service: installing*;
+    - in the Plugins card, the row *installing — the bar at the top shows each step* and a greyed *Installing…*;
+    - at the end a green bar with OCR's own sentence (*OCR up (model assistant) — clients get scanned-doc + image OCR
+      automatically (private: this machine only)*), and the row *on* with *Disable*;
+    - the scratch config written `ocr.enabled: true`.
+  - **Left as it is:** after a download the bar keeps that file's *4 MB of 4 MB* through the next phase. That is the
+    bar's existing rule (keep the totals, drop the speed), and it is true.
+  - Stopped with `lol down` from its folder, then the scratch Ollama (by its PID on 11599), the stand-in and Edge. The
+    owner's Ollama (11434) untouched.
+- **The class rehearsal** (CLASS_REHEARSAL_PLAN step 4, v0.2.21's sidecar, Open WebUI 0.13.3, tonight's client build):
+  - 2 clients, 3 min: **0 farm moves, no *keeps exiting*, `sealHeard` []**;
+  - ready in **35.1 and 18.2 s**, first chats in **22.6 and 19.7 s** (n° 18: 48.8 / 30.9 and 35.3 / 32.0);
+  - report `docs/spike/results/rehearsal-2026-11-280323-2c.json`.
+  - The first try failed before any client: `mklink /J` refused the sidecar folder given with forward slashes and the
+    short `ATELIE~1` name. Given as a Windows path, it ran.
+
 ## 2026-11-28 (04:15) — The harness's p2 flake, half found: the store loses the seeded chats; both waits now say what they saw
 
 Approved in advance (test flakes).
