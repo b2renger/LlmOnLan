@@ -12,7 +12,7 @@ import {
   snap, clampZoom, screenToWorld, worldToScreen, zoomAbout,
   bounds, fitView, normaliseRect, marqueeHits, freeSpot, toClipboard, fromClipboard, acceptSeed,
 } from '../../../renderer/chat/graph/canvas.mjs';
-import { HEAD_H, portOffsetY, portPoint, wirePath, wireDistance, wireEnds } from '../../../renderer/chat/graph/wires.mjs';
+import { HEAD_H, portOffsetY, portPoint, rowOffsets, wireAt, wirePath, wireDistance, wireEnds } from '../../../renderer/chat/graph/wires.mjs';
 
 const part = (o) => ({ id: o.id, type: o.type || 'note', x: o.x, y: o.y, w: o.w || 220, h: o.h || 120, settings: o.settings || {} });
 
@@ -222,6 +222,43 @@ export default (test) => {
     assert.equal(ends.b.x, 400);
     assert.equal(ends.b.y, portOffsetY(120, 1, 2), 'the wire must land on the SECOND port');
     assert.equal(wireEnds(d, { from: 'a', to: 'gone', port: 'x' }, specs), null);
+  });
+
+  // COMPUTER_DOTS_PLAN (owner, 2026-11-27): a dot sits level with the field it fills. The canvas measures the row and
+  // hands its y to the geometry; without one, the even spacing stays.
+  test('COMPUTER_DOTS: a measured row y wins over the even spacing in portPoint, wireEnds and wireAt', () => {
+    const specs = new Map([
+      ['note', { type: 'note', output: 'text', inputs: [] }],
+      ['cls', { type: 'cls', output: 'json', inputs: [{ name: 'items' }, { name: 'question' }, { name: 'options' }] }],
+    ]);
+    const d = {
+      parts: [part({ id: 'a', type: 'note', x: 0, y: 0 }), part({ id: 'b', type: 'cls', x: 400, y: 0, h: 230 })],
+      wires: [{ id: 'w', from: 'a', to: 'b', port: 'options' }],
+    };
+    const even = portOffsetY(230, 2, 3);
+    assert.equal(wireEnds(d, d.wires[0], specs).b.y, even, 'no measurement: the even spacing, as before');
+    const rowY = (/** @type {string} */ id, /** @type {string} */ port) => (id === 'b' && port === 'options' ? 150 : undefined);
+    assert.deepEqual(wireEnds(d, d.wires[0], specs, rowY).b, { x: 400, y: 150 }, 'the wire ends on the measured dot');
+    assert.deepEqual(portPoint(d.parts[1], { dir: 'in', index: 2, count: 3, y: 150 }), { x: 400, y: 150 });
+    assert.equal(portPoint(d.parts[1], { dir: 'in', index: 2, count: 3, y: Number.NaN }).y, even, 'a y that is not a number is ignored');
+    const beside = { x: 396, y: 150 };
+    assert.ok(even - 150 > 20, 'the fixture keeps the two ends apart');
+    assert.ok(wireAt(d, specs, beside, 8, rowY), 'a click beside the measured end hits the wire');
+    assert.equal(wireAt(d, specs, beside, 8), null, 'and the old even end is not where the wire is drawn');
+  });
+
+  test('COMPUTER_DOTS: rowOffsets places each measured dot where it measured, the others below the last one', () => {
+    assert.deepEqual(rowOffsets(230, [undefined, undefined, undefined]), [0, 1, 2].map((i) => portOffsetY(230, i, 3)),
+      'nothing measured: the even spacing');
+    assert.deepEqual(rowOffsets(230, [52, 100, 170]), [52, 100, 170], 'everything measured: the rows');
+    // Filter in Length mode: its criterion field is hidden, its items row is drawn.
+    const [items, criterion] = rowOffsets(220, [50, undefined]);
+    assert.equal(items, 50, 'the drawn row keeps its dot');
+    assert.ok(criterion > items + 14 && criterion <= 220 - 7, `the hidden one goes below it, inside the box: ${criterion}`);
+    // A row scrolled out of the body is clamped to the box's edge, never off it.
+    const [top, bottom] = rowOffsets(200, [-40, 900]);
+    assert.equal(top, HEAD_H + 7, 'not above the head');
+    assert.equal(bottom, 200 - 7, 'not below the box');
   });
 
   test('the drawn path and the hit test agree: a point ON the curve is distance ~0', () => {

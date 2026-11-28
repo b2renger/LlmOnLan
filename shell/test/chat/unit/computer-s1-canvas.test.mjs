@@ -11,9 +11,11 @@ import { t } from '../../../renderer/chat/core/i18n.mjs';
 import '../../../renderer/chat/strings/graph.en.mjs';
 import '../../../renderer/chat/strings/computer-canvas.en.mjs';
 import { specs, ids, clock } from './graph-fixture.mjs';
+import { classifyPart } from '../../../renderer/chat/graph/parts/classify.mjs';
 
-/** The fixture's parts, plus a box with three inputs: image-only, text, text. */
+/** The fixture's parts, plus a box with three inputs (image-only, text, text), and the real Classify. */
 const map = specs({
+  classify: classifyPart,
   triple: {
     type: 'triple', label: 'Triple', output: 'text',
     inputs: [
@@ -82,6 +84,21 @@ export default (/** @type {any} */ test) => {
     assert.deepEqual(bodyDropPort(two.doc, two.ids[0], 'gone', map), { port: null, reason: 'no-input' });
     const self = docWith(['ask']);
     assert.deepEqual(bodyDropPort(self.doc, self.ids[0], self.ids[0], map), { port: null, reason: 'self' });
+  });
+
+  // COMPUTER_DOTS_PLAN: Classify's dots follow its rows (Items, Question, Options), and a drop on its body takes the
+  // first free one in that order. Chosen on purpose: a second Text box dropped on the body becomes the QUESTION, not the
+  // options (it was `options` while the order was items, options, question). The names show while the wire is dragged.
+  test('COMPUTER_DOTS bodyDropPort: three Text boxes dropped on Classify land on items, question, options', () => {
+    assert.deepEqual(classifyPart.inputs.map((/** @type {any} */ p) => p.name), ['items', 'question', 'options'],
+      'the dots in the order of the rows');
+    const g = docWith(['note', 'note', 'note', 'classify']);
+    const [a, b, c, box] = g.ids;
+    assert.deepEqual(bodyDropPort(g.doc, a, box, map), { port: 'items', reason: null }, 'the first drop is the items');
+    g.wire(a, box, 'items');
+    assert.deepEqual(bodyDropPort(g.doc, b, box, map), { port: 'question', reason: null }, 'the second, the question');
+    g.wire(b, box, 'question');
+    assert.deepEqual(bodyDropPort(g.doc, c, box, map), { port: 'options', reason: null }, 'the third, the options');
   });
 
   test('S1-5 bodyDropPort: it asks the model and changes nothing', () => {

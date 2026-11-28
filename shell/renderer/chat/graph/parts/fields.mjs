@@ -14,8 +14,53 @@
 
 import { t } from '../../core/i18n.mjs';
 import { itemsOf } from '../values.mjs';
+import '../../strings/parts.en.mjs';
 
 /** @typedef {import('../../core/types.mjs').GraphValue} GraphValue */
+
+// ---- COMPUTER_DOTS_PLAN (owner, 2026-11-27): the rows the input dots fill ----------------------------------------
+
+/** A row an input dot fills: the dot's name in small type, then what the row holds. The canvas puts the dot level with
+ * the row's middle (the spec input names the selector of `kids[0]` or of the row as `row`).
+ * @param {string} name @param {...any} kids @returns {any} */
+export function portRow(name, ...kids) {
+  const row = document.createElement('div');
+  row.className = 'graph-port-row';
+  const tag = document.createElement('span');
+  tag.className = 'graph-port-name';
+  tag.textContent = name;
+  row.append(tag, ...kids);
+  return row;
+}
+
+/** "“Text”, “Fetch”". @param {string[]} names @returns {string} */
+export function quoteNames(names) {
+  return names.map((n) => `“${n}”`).join(', ');
+}
+
+/** "From the wire: “Text”, “Fetch”". @param {string[]} names @returns {string} */
+export function fromWireText(names) {
+  return t('parts.fromWire', { names: quoteNames(names) });
+}
+
+/** Who is wired into `port`: the canvas's answer (PartCtx.wiredFrom), or null when this ctx cannot say (a box example,
+ * the drawer), which must not read as "nothing is wired". @param {any} ctx @param {string} port @returns {string[]|null} */
+export function wiredNames(ctx, port) {
+  if (!ctx || typeof ctx.wiredFrom !== 'function') return null;
+  try { return ctx.wiredFrom(port) || []; } catch { return null; }
+}
+
+/** A field whose dot is wired: read-only, dimmed, empty, its placeholder naming the source. Unplugged, the typed value
+ * is back (it never left the settings). `names` null: unknown, so only the typed value is shown, as before.
+ * @param {any} field an input or a textarea @param {string[]|null} names @param {string} typed @param {string} placeholder */
+export function wireField(field, names, typed, placeholder) {
+  const wired = !!(names && names.length);
+  field.readOnly = wired;
+  field.classList.toggle('graph-from-wire', wired);
+  field.placeholder = wired ? fromWireText(/** @type {string[]} */ (names)) : placeholder;
+  if (wired) field.value = '';
+  else if (document.activeElement !== field && field.value !== typed) field.value = typed;
+}
 
 /** A labelled text input. `onInput` fires per keystroke, `onCommit` closes the undo entry.
  * @param {string} label @param {string} value

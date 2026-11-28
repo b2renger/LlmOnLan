@@ -357,7 +357,9 @@
  *   manual?: boolean, volatile?: boolean, control?: boolean, inert?: boolean, quiet?: boolean,
  *   passes?: boolean, onlyWhenUsed?: boolean,
  *   thinksFor?: (part: GraphPart) => boolean,
- *   inputs: {name: string, label: string, accepts: string[], many?: boolean, required?: boolean}[],
+ *   inputs: {name: string, label: string, accepts: string[], many?: boolean, required?: boolean, row?: string}[],
+ *     // row? (COMPUTER_DOTS_PLAN, 2026-11-28): a selector inside the box's body for the row this input fills; the
+ *     // canvas puts the dot level with it (graph/wires.mjs rowOffsets) instead of spacing the dots evenly.
  *   output: 'text'|'image'|'list'|'json'|'file'|'any'|null,
  *   defaults(): object,
  *   render(host: HTMLElement, part: GraphPart, ctx: PartCtx): {update(part: GraphPart): void, destroy(): void, edit?(): boolean},
@@ -375,8 +377,11 @@
  * edit-draw waits while `ctx.app.host.runner.running()` is true.
  * Critic R2, N3: `update(patch, {stale: false})` is the one edit that changes nothing a run computed
  * (the Instruction's Keep); it is undoable like any other and marks nothing stale.
+ * COMPUTER_DOTS_PLAN (2026-11-28): `wiredFrom(port)` names the boxes wired into one of this box's dots, so a field a
+ * wire replaces can say where its value comes from. The canvas's ctx has it; a ctx without it (a box example, the
+ * drawer) means "unknown", and the box leaves its fields alone (graph/parts/fields.mjs wiredNames).
  * @typedef {{ update(patch: object, opt?: {stale?: boolean}): void, commit(label: string): void, open(value: GraphValue): void,
- *   sandbox(): Promise<SandboxHost|null>,
+ *   sandbox(): Promise<SandboxHost|null>, wiredFrom?(port: string): string[],
  *   app: any, part: GraphPart }} PartCtx */
 
 // ---------------------------------------------------------------------------------------------

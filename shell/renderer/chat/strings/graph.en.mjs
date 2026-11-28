@@ -71,6 +71,8 @@ registerStrings('graph', {
   valueMore: '… {n} more characters',
   portIn: 'Input “{label}”: drop a wire here, from the dot on another box’s right edge',
   portOut: 'Output: drag from this dot to another box to wire them together',
+  // COMPUTER_DOTS_PLAN (2026-11-28): shown beside an output dot's glyph on hover; {kind} is graph.kindList and its kin.
+  portOutName: 'output: {kind}',
   partAria: '{label} — {state}',
   wireAria: 'Wire from {from} to {to}',
 

@@ -33,27 +33,56 @@ export function portOffsetY(h, i, n) {
   return top + (span * (i + 0.5)) / count;
 }
 
-/** World point of one port. `dir` 'out' ignores index/count.
- * @param {any} part @param {{dir: 'in'|'out', index?: number, count?: number}} o
+/** How far a dot's centre stays from the box's head and bottom edge (half the 14 px dot). */
+const PORT_EDGE = 7;
+
+/**
+ * COMPUTER_DOTS_PLAN (owner, 2026-11-27): the local y of each input of a box `h` tall, when some inputs fill a row of
+ * the box (a spec input's `row`). A measured row's middle is used, clamped inside the box; a dot whose row is not
+ * drawn (Filter's criterion in Length mode, a folded Code's editor) goes below the last measured one; with nothing
+ * measured, the even spacing. PURE, so the canvas and the unit test agree on it.
+ * @param {number} h @param {(number|null|undefined)[]} measured one entry per input, in declared order
+ * @returns {number[]}
+ */
+export function rowOffsets(h, measured) {
+  const n = measured.length;
+  const lo = HEAD_H + PORT_EDGE;
+  const hi = Math.max(lo, h - PORT_EDGE);
+  const clamp = (/** @type {number} */ y) => Math.min(hi, Math.max(lo, y));
+  const known = measured.map((y) => (typeof y === 'number' && Number.isFinite(y) ? clamp(y) : null));
+  const ys = /** @type {number[]} */ (known.filter((y) => y !== null));
+  if (!ys.length) return measured.map((_, i) => portOffsetY(h, i, n));
+  const below = Math.max(...ys);
+  const rest = n - ys.length;
+  let k = 0;
+  return known.map((y) => (y !== null ? y : clamp(below + ((hi - below) * ++k) / (rest + 1))));
+}
+
+/** World point of one port. `dir` 'out' ignores index/count. A finite `y` is the input's measured local offset
+ * (COMPUTER_DOTS_PLAN), used instead of the even spacing.
+ * @param {any} part @param {{dir: 'in'|'out', index?: number, count?: number, y?: number}} o
  * @returns {{x: number, y: number}} */
 export function portPoint(part, o) {
   const w = Number(part.w) || 0;
   const h = Number(part.h) || 0;
   if (o.dir === 'out') return { x: part.x + w, y: part.y + h / 2 };
+  if (typeof o.y === 'number' && Number.isFinite(o.y)) return { x: part.x, y: part.y + o.y };
   return { x: part.x, y: part.y + portOffsetY(h, Number(o.index) || 0, Number(o.count) || 1) };
 }
 
-/** Both ends of a wire, from the doc + the specs. @returns {{a: {x, y}, b: {x, y}}|null} */
-export function wireEnds(doc, wire, specs) {
+/** Both ends of a wire, from the doc + the specs. `rowY(partId, port)` is the canvas's measured dot offset, or
+ * undefined (COMPUTER_DOTS_PLAN). @returns {{a: {x, y}, b: {x, y}}|null} */
+export function wireEnds(doc, wire, specs, rowY) {
   const from = doc.parts.find((/** @type {any} */ p) => p.id === wire.from);
   const to = doc.parts.find((/** @type {any} */ p) => p.id === wire.to);
   if (!from || !to) return null;
   const spec = specs && specs.get ? specs.get(to.type) : null;
   const inputs = (spec && spec.inputs) || [];
   const index = Math.max(0, inputs.findIndex((/** @type {any} */ p) => p.name === wire.port));
+  const y = typeof rowY === 'function' ? rowY(to.id, wire.port) : undefined;
   return {
     a: portPoint(from, { dir: 'out' }),
-    b: portPoint(to, { dir: 'in', index, count: inputs.length || 1 }),
+    b: portPoint(to, { dir: 'in', index, count: inputs.length || 1, y }),
   };
 }
 
@@ -101,12 +130,12 @@ export function wireDistance(a, b, p, samples = 24) {
   return Math.sqrt(best);
 }
 
-/** The wire under a world point, or null. Ties go to the LAST drawn (the one on top).
+/** The wire under a world point, or null. Ties go to the LAST drawn (the one on top). `rowY` as in `wireEnds`.
  * @returns {{wire: any, distance: number}|null} */
-export function wireAt(doc, specs, p, tol = WIRE_HIT) {
+export function wireAt(doc, specs, p, tol = WIRE_HIT, rowY = undefined) {
   /** @type {{wire: any, distance: number}|null} */ let best = null;
   for (const wire of doc.wires) {
-    const ends = wireEnds(doc, wire, specs);
+    const ends = wireEnds(doc, wire, specs, rowY);
     if (!ends) continue;
     const d = wireDistance(ends.a, ends.b, p);
     if (d <= tol && (!best || d <= best.distance)) best = { wire, distance: d };
@@ -119,7 +148,7 @@ export function wireAt(doc, specs, p, tol = WIRE_HIT) {
  * and nothing else in the panel touches the svg.
  * @param {SVGSVGElement} svg
  * @param {{specs: Map<string, any>, onLabel?: (wireId: string, text: string) => void,
- *   onDelete?: (wireId: string) => void}} o
+ *   onDelete?: (wireId: string) => void, rowY?: (partId: string, port: string) => number|undefined}} o
  */
 export function createWireLayer(svg, o) {
   const g = document.createElementNS(SVG_NS, 'g');
@@ -152,7 +181,7 @@ export function createWireLayer(svg, o) {
   function render(doc) {
     /** @type {Set<string>} */ const live = new Set();
     for (const wire of doc.wires) {
-      const ends = wireEnds(doc, wire, o.specs);
+      const ends = wireEnds(doc, wire, o.specs, o.rowY);
       if (!ends) continue;
       live.add(wire.id);
       let path = paths.get(wire.id);

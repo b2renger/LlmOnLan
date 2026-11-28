@@ -24,6 +24,7 @@
 
 import { toPlain, valueOf } from '../values.mjs';
 import { partFail } from './common.mjs';
+import { portRow, wiredNames, wireField, fromWireText, quoteNames } from './fields.mjs';
 import { classifyItems } from '../../net/classify.mjs';
 import { t } from '../../core/i18n.mjs';
 import '../../strings/parts-classify.en.mjs';
@@ -47,6 +48,10 @@ const ERR_KEY = {
 
 /** partId -> the face's status line. Never persisted (a render hint, like the Code box's chip). */
 const notes = new Map();
+/** COMPUTER_DOTS_PLAN render hints, never persisted: partId -> how many items the last run read, and the parts whose
+ * last run took its options from the question's wire (a "Write a Laya question" answer). */
+const itemsRead = new Map();
+/** @type {Set<string>} */ const optionsFromQuestion = new Set();
 
 /**
  * PURE: whatever arrived → the items and their ids.
@@ -126,11 +131,13 @@ export const classifyPart = /** @type {any} */ ({
   thinks: false,
   size: { w: 320, h: 230 },
   // Takes the list WHOLE (no fan-out: Laya answers them in one call).
+  // COMPUTER_DOTS_PLAN (owner, 2026-11-27): in the order of the rows, each dot level with its row (`row`). A drop on
+  // the body takes the first free one: a second Text box dropped there is the question (computer-s1-canvas.test.mjs).
   inputs: [
-    { name: 'items', label: t('parts.classifyItemsIn'), accepts: ['json', 'list', 'text'] },
-    { name: 'options', label: t('parts.classifyOptionsIn'), accepts: ['text', 'json', 'list'] },
+    { name: 'items', label: t('parts.classifyItemsIn'), accepts: ['json', 'list', 'text'], row: '.graph-classify-items' },
     // Owner, 2026-09-27: a model can write the question ("＋ → Think → Write a Laya question").
-    { name: 'question', label: t('parts.classifyQuestionIn'), accepts: ['json', 'text'] },
+    { name: 'question', label: t('parts.classifyQuestionIn'), accepts: ['json', 'text'], row: '.graph-classify-q' },
+    { name: 'options', label: t('parts.classifyOptionsIn'), accepts: ['text', 'json', 'list'], row: '.graph-classify-opts' },
   ],
   output: 'json',
   defaults: () => ({ question: t('parts.classifyQuestionPlaceholder'), options: '', threshold: DEFAULT_THRESHOLD }),
@@ -170,15 +177,37 @@ export const classifyPart = /** @type {any} */ ({
     thr.append(document.createTextNode(`${t('parts.classifyThreshold')} `), num);
     const status = document.createElement('div');
     status.className = 'graph-classify-status';
-    wrap.append(q, opts, thr, status);
+    const items = document.createElement('span');
+    items.className = 'graph-classify-items graph-port-note';
+    wrap.append(
+      portRow(t('parts.classifyItemsIn'), items),
+      portRow(t('parts.classifyQuestionIn'), q),
+      portRow(t('parts.classifyOptionsIn'), opts),
+      thr, status,
+    );
     host.replaceChildren(wrap);
     /** @param {any} p */
-    const paint = (p) => { status.textContent = notes.get(String(p.id)) || ''; };
+    const paint = (p) => {
+      const id = String(p.id);
+      const s = p.settings || {};
+      status.textContent = notes.get(id) || '';
+      // COMPUTER_DOTS_PLAN: a wired dot's field says where its value comes from; a ctx that cannot say leaves it alone.
+      const fromItems = wiredNames(ctx, 'items');
+      const fromQuestion = wiredNames(ctx, 'question');
+      let fromOptions = wiredNames(ctx, 'options');
+      // A question wire that brought options replaced the typed ones too (run(), below), for as long as it is plugged.
+      if (fromOptions && !fromOptions.length && fromQuestion && fromQuestion.length && optionsFromQuestion.has(id)) fromOptions = fromQuestion;
+      wireField(q, fromQuestion, String(s.question || ''), t('parts.classifyQuestionPlaceholder'));
+      wireField(opts, fromOptions, String(s.options || ''), t('parts.classifyOptionsPlaceholder'));
+      const n = itemsRead.get(id);
+      items.textContent = !fromItems || !fromItems.length ? t('parts.classifyItemsEmpty')
+        : p.state === 'done' && n !== undefined
+          ? t('parts.itemsReadFrom', { n, names: quoteNames(fromItems) })
+          : fromWireText(fromItems);
+    };
     paint(part);
     return {
       update(next) {
-        if (document.activeElement !== q) q.value = String(next.settings.question || '');
-        if (document.activeElement !== opts) opts.value = String(next.settings.options || '');
         if (document.activeElement !== num) num.value = String(next.settings.threshold ?? DEFAULT_THRESHOLD);
         paint(next);
       },
@@ -201,6 +230,9 @@ export const classifyPart = /** @type {any} */ ({
     if (rows.length > MAX_ITEMS) throw partFail(t('parts.classifyTooMany', { n: rows.length, max: MAX_ITEMS }), 'part');
     const optsIn = (inputs.options || [])[0];
     const options = optsIn ? optionsOf(toPlain(optsIn)) : wired.options || optionsOf(s.options);
+    itemsRead.set(id, rows.length);
+    if (!optsIn && wired.options) optionsFromQuestion.add(id);
+    else optionsFromQuestion.delete(id);
     if (options.length < 2 || options.length > 20) throw partFail(t('parts.classifyBadOptions'), 'part');
     const threshold = Math.min(0.95, Math.max(0.3, Number(s.threshold) || DEFAULT_THRESHOLD));
 

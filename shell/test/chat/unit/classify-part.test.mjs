@@ -10,6 +10,15 @@ const listValue = (items) => ({ kind: 'json', data: { stories: items } });
 const app = (classify) => ({ farm: { get: () => ({ classify }) } });
 const part = (settings = {}) => ({ id: 'c1', type: 'classify', settings: { question: 'What is it about?', options: 'ai\nscience\nbusiness', threshold: 0.6, ...settings } });
 
+/** Run `fn` with the unit runner's DOM shim as `globalThis.document`. */
+async function withDom(/** @type {() => any} */ fn) {
+  const G = /** @type {any} */ (globalThis);
+  const had = Object.prototype.hasOwnProperty.call(G, 'document');
+  const prev = G.document;
+  G.document = G.__chatTestDom.createDocument();
+  try { return await fn(); } finally { if (had) G.document = prev; else delete G.document; }
+}
+
 /** Swap globalThis.fetch for one call. */
 async function withFetch(impl, fn) {
   const saved = globalThis.fetch;
@@ -87,6 +96,80 @@ export default (test) => {
       part: part({ options: 'sports\npolitics\nbusiness' }), inputs: { options: [{ kind: 'text', data: lines }] },
       app: app({ url: 'http://farm:8891', key: 'kk' }), signal: new AbortController().signal,
     })), /Nothing to classify/);
+  });
+
+  // COMPUTER_DOTS_PLAN (the owner's J21, 2026-11-27): each dot has a row, named; a field a wire replaces says so and
+  // cannot be typed into, and what was typed comes back when the wire is unplugged. The canvas tells the box who is
+  // wired into a dot (PartCtx.wiredFrom); a ctx without it (a box example, the drawer) leaves the fields alone.
+  test('COMPUTER_DOTS classify: each dot has a named row; a wired field says where it comes from and gives the typed text back', async () => {
+    assert.deepEqual(classifyPart.inputs.map((/** @type {any} */ p) => [p.name, typeof p.row]),
+      [['items', 'string'], ['question', 'string'], ['options', 'string']], 'every dot names its row');
+    await withDom(async () => {
+      const p = part({ question: 'What is it about?', options: 'sports\npolitics' });
+      /** @type {Record<string, string[]>} */ let wired = {};
+      const ctx = { app: {}, part: p, update() {}, commit() {}, wiredFrom: (/** @type {string} */ port) => wired[port] || [] };
+      const host = document.createElement('div');
+      const inst = classifyPart.render(host, p, /** @type {any} */ (ctx));
+      for (const sel of classifyPart.inputs.map((/** @type {any} */ i) => i.row)) assert.ok(host.querySelector(sel), `the row ${sel} is drawn`);
+      const names = host.querySelectorAll('.graph-port-name').map((/** @type {any} */ n) => n.textContent);
+      assert.deepEqual(names, ['Items', 'Question', 'Options'], 'each row starts with its dot\'s name');
+      const q = host.querySelector('.graph-classify-q');
+      const opts = host.querySelector('.graph-classify-opts');
+      const items = host.querySelector('.graph-classify-items');
+      assert.equal(opts.readOnly, false);
+      assert.equal(opts.value, 'sports\npolitics');
+      assert.match(items.textContent, /Wire a list/, 'the items row says what to wire');
+
+      wired = { options: ['Text'] };
+      inst.update(p);
+      assert.equal(opts.readOnly, true, 'a wired field cannot be typed into');
+      assert.equal(opts.value, '', 'it shows no typed text');
+      assert.match(opts.placeholder, /From the wire: “Text”/, 'it names the box the wire comes from');
+      assert.ok(opts.classList.contains('graph-from-wire'), 'and it is dimmed');
+      assert.equal(q.readOnly, false, 'the other fields are untouched');
+      assert.equal(p.settings.options, 'sports\npolitics', 'the typed options stay in the settings');
+
+      wired = {};
+      inst.update(p);
+      assert.equal(opts.readOnly, false, 'unplugged: typing again');
+      assert.equal(opts.value, 'sports\npolitics', 'and the typed options come back');
+      assert.ok(!opts.classList.contains('graph-from-wire'));
+
+      // The items row names its source, then what a run read from it.
+      wired = { items: ['Text'] };
+      inst.update(p);
+      assert.match(items.textContent, /From the wire: “Text”/);
+      await withFetch(async () => new Response(JSON.stringify({ answers: [1, 2, 3].map(() => ({ choice: 'sports', confidence: 0.9 })), ms: 30, model: 'laya' }),
+        { status: 200, headers: { 'content-type': 'application/json' } }), () => classifyPart.run(/** @type {any} */ ({
+        part: p, inputs: { items: [{ kind: 'text', data: 'a\nb\nc' }] }, app: app({ url: 'http://farm:8891', key: 'kk' }), signal: new AbortController().signal,
+      })));
+      inst.update(p);
+      assert.match(items.textContent, /From the wire: “Text”/, 'the count waits for the runner to mark the box done');
+      /** @type {any} */ (p).state = 'done';
+      inst.update(p);
+      assert.match(items.textContent, /3 items, from “Text”/, 'after a run: how many it read, and from where');
+
+      // A question wire that brought its own options (＋ → Think → Write a Laya question) replaces the typed options too:
+      // after such a run the Options field says so, as long as that wire is there.
+      wired = { items: ['Text'], question: ['Write a Laya question'] };
+      await withFetch(async () => new Response(JSON.stringify({ answers: [1, 2, 3].map(() => ({ choice: 'ai', confidence: 0.9 })), ms: 30, model: 'laya' }),
+        { status: 200, headers: { 'content-type': 'application/json' } }), () => classifyPart.run(/** @type {any} */ ({
+        part: p, inputs: { items: [{ kind: 'text', data: 'a\nb\nc' }], question: [{ kind: 'json', data: { question: 'Topic?', options: ['ai', 'art'] } }] },
+        app: app({ url: 'http://farm:8891', key: 'kk' }), signal: new AbortController().signal,
+      })));
+      inst.update(p);
+      assert.equal(q.readOnly, true, 'the question comes from its wire');
+      assert.equal(opts.readOnly, true, 'and so do the options it brought');
+      assert.match(opts.placeholder, /“Write a Laya question”/);
+      wired = { items: ['Text'] };
+      inst.update(p);
+      assert.equal(opts.readOnly, false, 'that wire unplugged: the typed options are back');
+
+      // No wiredFrom on the ctx (a box example's own ctx): unknown, so nothing is dimmed.
+      const host2 = document.createElement('div');
+      classifyPart.render(host2, { ...part(), id: 'c2' }, /** @type {any} */ ({ app: {}, update() {}, commit() {} }));
+      assert.equal(host2.querySelector('.graph-classify-opts').readOnly, false);
+    });
   });
 
   // CLASSIFY_VLLM_PLAN (2026-11-27): the farm's own vLLM answers when it serves Qwen3.6 or Qwen3.8, and its reply's

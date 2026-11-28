@@ -140,3 +140,17 @@
   plans, archived: [plan](../../docs/archive/plans/COMPUTER_PLAN.md), [live plan](../../docs/archive/plans/COMPUTER_LIVE_PLAN.md),
   [voice plan](../../docs/archive/plans/COMPUTER_VOICE_PLAN.md), [ecosystem plan](../../docs/archive/plans/ECOSYSTEM_PLAN.md); a dated
   [status report](../../docs/archive/COMPUTER_STATUS.md) to 12 Oct; their leftovers go to [docs/plans/README.md](../../docs/plans/README.md).
+- **A box's input dots** (COMPUTER_DOTS_PLAN, 2026-11-28, not released yet):
+  - **Even spacing by default.** A box's input dots sit evenly down its left edge, in the order of its spec's
+    `inputs`.
+  - **Rows instead, on three boxes.** On Classify (*Items*, *Question*, *Options*), Filter (*Items*, *Criterion*) and
+    Code (*Inputs*, *Code*):
+    - each input names the `row` it fills, and the canvas puts the dot level with that row (`graph/wires.mjs`
+      `rowOffsets`);
+    - the measure comes from one ResizeObserver on the box's body, at a resize and on a body scroll, never on a pan;
+    - every wire, snap and hit test reads the measured y.
+  - **Each row starts with its dot's name.**
+  - **A field a wire replaces** turns read-only and dimmed, and reads *From the wire: "<box>"*. The box asks the canvas
+    through `PartCtx.wiredFrom`. Code's editor stays editable.
+  - **Hovering a dot** shows its glyph and name. So does every input dot of a box a wire is dragged over.
+  - **Saved graphs are unchanged:** a wire is saved by its port's name.

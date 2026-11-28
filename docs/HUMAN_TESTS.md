@@ -63,7 +63,7 @@ been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the 
 
 | Session | Setup | Tests | ★ | Time |
 |---|---|---|---|---|
-| A. One laptop + the PRO 6000, installed builds | 1 laptop, the production farm (A20: a ComfyQ box) | 31 | A1, A21, A25–A28, A30, A31 | A1 1 h; the rest 7–8 h in several sittings |
+| A. One laptop + the PRO 6000, installed builds | 1 laptop, the production farm (A20: a ComfyQ box) | 32 | A1, A21, A25–A28, A30–A32 | A1 1 h; the rest 7–8 h in several sittings |
 | B. A fresh laptop, first install, no internet | a laptop never used, a blocked network, a proxy network, a farm without document search | 6 | B1 | 2 h |
 | C. Upgrades and the data folder | a laptop on the previous release, an old client (the owner's, or v0.1.45 on a spare profile), a spare profile, a USB stick | 8 | C1, C2, C7 | 2 h 45 |
 | D. Two machines, two farms, other subnets | 2 laptops, a second farm, a guest Wi-Fi | 17 | D16, D17 | 4 h 15 |
@@ -80,7 +80,7 @@ been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the 
 | O. Model storage on the PRO 6000 | the PRO 6000 at a quiet moment, a client | 6 | — | 1 h 15 |
 | P. The panel's engine sections | any farm, the Farm app | 1 | P1 | 15 min |
 | Q. Presets on the PRO 6000 | the PRO 6000 at a quiet moment, a laptop (client v0.2.14+ for Q5) | 8 | Q1, Q6 | 2 h 30 |
-| **Total** | | **168** | **37** | about 60–66 h |
+| **Total** | | **169** | **38** | about 60–66 h |
 
 Part 3's measurements (Q4, Q5 step 3, J12–J13 on llama.cpp) are not in these counts: an agent runs them. J16 is
 counted in J, though an agent can run its steps 1–4.
@@ -475,6 +475,29 @@ Open WebUI 0.13.3 lists the tool once a stand-in helper answers and runs a chat'
     that the helper (`blender-mcp` 1.6.4) speaks to. The two speak different messages on the same port 9876.
   - **Test connection** only checks that something listens there, so it said ✓.
   - Which add-on the client supports is a question for the owner (DEVLOG 2026-11-27 14:10).
+
+### A32 ★ The Computer's dots sit beside the fields they fill, and say their names
+*Proves:* [COMPUTER_DOTS_PLAN](plans/COMPUTER_DOTS_PLAN.md) (2026-11-28): the owner's J21 graph can be built from
+nothing without being told which dot is which. The harness checks the positions within 4 px (`k19-dots`), but only a
+person can say whether it reads clearly.
+*Needs:* the local build named in summary n° 19, any farm (Classify answers with the farm's model, or marks every item
+*unsure* without one), 5 minutes. *Was:* new (2026-11-28), after J21 step 2 (2026-11-27).
+1. The Computer, a new graph. ＋ → a **Text** box; type five lines, one sentence each, mixing sports, politics and
+   business. ＋ → a **Classify** box. Type a question in it, and the options `sports, politics, business`.
+2. Look at the Classify box's left edge before wiring. Hover each dot, then the Text box's right dot.
+3. Wire the Text box into Classify, the way that seems right to you. Press ▶ Run all.
+4. Wire a second Text box (`sports` and `politics` on two lines) into the dot beside **Options**. Then unplug it:
+   drag its wire's end off the dot.
+
+*Expect:*
+- Step 2: three dots, each level with a row that starts with its name: **Items** (*Wire a list, or lines of text,
+  here*), **Question**, **Options**. Hovering a dot shows its name beside it at once. The Text box's dot reads
+  *output: text*.
+- Step 3: the wire goes to **Items**, whose row then reads *From the wire: "Text"*. After the run: *5 items, from
+  "Text"*, and five labels.
+- Step 4: the Options field dims and reads *From the wire: "Text"*, and typing in it does nothing. Unplugged, your
+  three typed options are back.
+- Note anything that still reads unclear, in your words.
 
 ### A10 Code, pictures and files
 *Proves:* the sandbox and the File box on a real disk. *Was:* 3.1, 3.5, 3.6, 3.9; LOLCHAT_RIG §15, §15b, §18 (a paused

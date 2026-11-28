@@ -148,6 +148,28 @@
 #lolcomputer .graph-port[data-dir='in']::after { right: calc(100% + 3px); }
 #lolcomputer .graph-port[data-dir='out']::after { left: calc(100% + 3px); }
 
+/* COMPUTER_DOTS_PLAN (owner, 2026-11-27: "tooltips when hovering the inputs / outputs"): the same ::after shows the
+   dot's name beside its glyph, at once, on hover, and on every input of the box a dragged wire is over (the canvas marks
+   it data-drop-target), the moment a person chooses. No new pseudo-element: the pan budget above. */
+#lolcomputer .graph-port:hover::after,
+#lolcomputer .graph-part[data-drop-target='true'] .graph-port[data-dir='in']::after {
+  content: var(--kg, '') ' ' attr(data-label);
+  width: max-content;             /* else it shrinks against the 14 px dot and its text runs under the row */
+  margin-top: -8px;
+  padding: 2px 5px;
+  font-size: 11px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  z-index: 4;
+}
+/* A box's paint containment (graph.css, the PERF PASS: content-visibility + overflow-clip-margin: 16px) would cut a
+   name off 16 px past the edge. Only the box under the pointer, or under a dragged wire, lets it reach further: one
+   box at a time, so the measured pan budget does not move. */
+#lolcomputer .graph-part:hover,
+#lolcomputer .graph-part[data-drop-target='true'] { overflow-clip-margin: 160px; }
+
 /* ---- the kind map (see the header: a guarded mirror of the catalogue) ------------------------- */
 
 /* text — spec.output === 'text', and the inputs whose accepts[0] is 'text' */

@@ -703,7 +703,9 @@
 :is(#lolchat, #lolcomputer) .graph-speak-voice { border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; font-size: 12px; padding: 4px 6px; }
 :is(#lolchat, #lolcomputer) .graph-speak-said { margin: 0; font-size: 11px; color: var(--muted); }
 :is(#lolchat, #lolcomputer) .graph-audio-listen { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); margin-top: 4px; }
-:is(#lolchat, #lolcomputer) .graph-classify { display: flex; flex-direction: column; gap: 6px; }
+/* COMPUTER_DOTS_PLAN: 4 px gaps and a 52 px Options field make room for the Items row, so a box saved at 230 px
+   holds what it held before (148 px of rows then, 150 now). */
+:is(#lolchat, #lolcomputer) .graph-classify { display: flex; flex-direction: column; gap: 4px; }
 :is(#lolchat, #lolcomputer) .graph-classify-q,
 :is(#lolchat, #lolcomputer) .graph-classify-opts,
 :is(#lolchat, #lolcomputer) .graph-classify-thr input {
@@ -716,8 +718,28 @@
   font-size: 12px;
   padding: 5px 7px;
 }
-:is(#lolchat, #lolcomputer) .graph-classify-q { width: 100%; }
-:is(#lolchat, #lolcomputer) .graph-classify-opts { width: 100%; min-height: 64px; resize: none; }
+:is(#lolchat, #lolcomputer) .graph-classify-q { flex: 1; min-width: 0; width: auto; }
+:is(#lolchat, #lolcomputer) .graph-classify-opts { flex: 1; min-width: 0; width: auto; min-height: 52px; resize: none; }
+/* COMPUTER_DOTS_PLAN (owner, 2026-11-27): a row an input dot fills starts with the dot's name, in the box's caption
+   style (.graph-part-field-label), so "Options" on the row and on the dot's hover read alike. Classify's names share
+   one width, so its fields line up. */
+:is(#lolchat, #lolcomputer) .graph-port-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+:is(#lolchat, #lolcomputer) .graph-port-row[hidden] { display: none; }
+:is(#lolchat, #lolcomputer) .graph-port-name { flex: 0 0 auto; font-size: 11px; line-height: 1.25; color: var(--muted); }
+:is(#lolchat, #lolcomputer) .graph-classify .graph-port-name { width: 58px; }
+:is(#lolchat, #lolcomputer) .graph-port-note {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--muted);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A field whose dot is wired: read-only, its placeholder naming the source box. */
+:is(#lolchat, #lolcomputer) .graph-from-wire { opacity: 0.65; font-style: italic; cursor: default; }
 :is(#lolchat, #lolcomputer) .graph-classify-thr { font-size: 11px; color: var(--muted); }
 :is(#lolchat, #lolcomputer) .graph-classify-thr input { width: 64px; margin-left: 4px; }
 :is(#lolchat, #lolcomputer) .graph-classify-status { font-size: 11px; color: var(--muted); min-height: 14px; }

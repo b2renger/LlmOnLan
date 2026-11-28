@@ -9,6 +9,75 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-28 (02:50) — COMPUTER_DOTS: the Computer's input dots sit beside the fields they fill, and say their names
+
+Night n° 19's objective ([COMPUTER_DOTS_PLAN](plans/COMPUTER_DOTS_PLAN.md), the owner's J21 of 2026-11-27).
+
+**The baseline** (02:00–02:19, before any change): the build and the full harness, 423/425 (`p2-notify` and
+`p2-groups-pin-rename` timed out; both pass alone, below). `test:chat` was not run at the baseline: the last count was
+1995 (summary n° 18 and the day's test).
+
+**The geometry** (`graph/wires.mjs`):
+- `rowOffsets(h, measured)`: a measured row's middle, clamped 7 px inside the box; a dot whose row is not drawn goes
+  below the last measured one; nothing measured gives the even spacing as before.
+- `portPoint` takes an optional measured `y`; `wireEnds` and `wireAt` take a `rowY(partId, port)` lookup.
+
+**The canvas** (`graph/canvas.mjs`):
+- A map, part → port → y, never saved (wires are saved by port name).
+- **One ResizeObserver**, declared before the wire layer, watches each row box's body, its children and its wrapper's
+  children. A row moves when a line above it appears (Code's *whose*), which the advisor caught.
+- It measures at a resize (`layoutPorts(…, true)`) and on a body scroll, never on a pan.
+- `forgetRows` runs on a box's removal; `resetBoxes` and `destroy` disconnect.
+- Every call site goes through the lookup: `inPorts`, `bodyTarget`, both `wireEnds`, all four `wireAt`, and the
+  layer's render (grepped).
+- **`PartCtx.wiredFrom(port)`** gives the names of the boxes wired in (`titleFor`). It is a change from the plan's
+  "from the graph": only the canvas knows a box's name. The plan and the typedef say so.
+- An output dot gets `data-label` *output: {kind}* (`kindWord`).
+
+**The boxes:**
+- **Classify:** its inputs are now Items, Question, Options, each with its `row`. A second Text box dropped on the
+  body is now the question, on purpose, pinned by a test.
+  - An *Items* row reads *Wire a list, or lines of text, here*, then *From the wire: "Text"*, then, once the run is
+    done, *5 items, from "Text"*.
+  - A wired Question or Options field is read-only, dimmed and named. A question wire that brought its own options
+    dims Options too after the run (the advisor), as long as it is plugged.
+- **Filter:** an *Items* row first; its criterion field (classed `graph-filter-criterion`) is dimmed when wired.
+- **Code:** *Inputs* and *Code* rows above the editor. The *Code* row is hidden when the box is folded. The editor
+  stays editable while wired.
+- **The labels:** Classify's port labels and Code's `code` take a capital (Items, Question, Options, Code), as
+  Filter's do; the hints that quote them follow.
+
+**The CSS:**
+- A row starts with the dot's name in the caption style. Classify's gaps go 6 → 4 px and Options' minimum height
+  64 → 52 px, so a box saved at 230 px holds what it held. Measured after a run: 1 px over.
+- On hover, and on every input of the box a wire is dragged over, the port's `::after` shows `var(--kg) ' '
+  attr(data-label)` with a background.
+- **Found:** that label was styled but not painted, cut at 16 px past the box by the perf pass's
+  `content-visibility` and `overflow-clip-margin: 16px` (`graph.css:302-304`). A throwaway diagnostic at 250 % zoom
+  showed it; the diagnostic was deleted.
+  - The hovered or drop-target box now gets `overflow-clip-margin: 160px`, one box at a time.
+  - `k19-dots` asserts the clip margin exceeds the label's reach: it failed at 16 px before the fix.
+  - `width: max-content` is added too.
+
+**Tests:**
+- unit: `graph-canvas` (the measured y in the three functions, and `wireAt` hits beside the measured end and misses
+  the old even end; `rowOffsets`), `computer-s1-canvas` (Items, Question, Options in that order on three body drops),
+  `classify-part` (the wired fields through the runner's DOM shim). They failed first (02:12).
+- The harness's new `k19-dots`, ×2:
+  - each dot within 4 px of its row (placed, resized by the real handle, at 150 %, unfolded), and the wire's drawn
+    end within 1 px of its dot;
+  - Filter in Length mode and a folded Code (the drawn row stays, the other dot goes below);
+  - the owner's graph by real drags: Text onto Items, Run all gives 5 labels, a second Text onto Options dims the
+    field, unplugging gives the typed options back;
+  - the hover label, painted whole.
+- `test:chat` **1999** passed (1 skipped), lint 0 (`core.test` re-scope count 228 → 234, the six new rules).
+- The full harness **426/427** (02:33–02:49). The failure, `p2-groups-pin-rename`, failed in the baseline too, and
+  passed 3/3 alone with `p2-notify`.
+
+**Docs:** `context/computer.md` (the dots), the plan amended (the advisor's points: per-dot fallback, observe every
+child, one geometry helper, the second drop, the question's options, `wiredFrom`), HUMAN_TESTS **A32**.
+Not run: `e2e.js` (it cannot run here).
+
 ## 2026-11-27 (14:10) — The owner's morning tests of the n18 builds; two failures traced, neither from the night's code
 
 - **J20 passed** (the Farm app `0.0.55+n18` on the PRO 6000). **J21 step 1 passed**; the owner asks that the panel say

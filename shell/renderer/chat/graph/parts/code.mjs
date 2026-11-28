@@ -15,6 +15,7 @@
 
 import { fromPlain, toPlain, isValue } from '../values.mjs';
 import { partFail, sandboxDownText } from './common.mjs';
+import { portRow, wiredNames, fromWireText, quoteNames } from './fields.mjs';
 import { t } from '../../core/i18n.mjs';
 import { unfence } from '../unfence.mjs';
 import '../../strings/sandbox.en.mjs';
@@ -232,10 +233,11 @@ export const code = /** @type {any} */ ({
   //   2. Typing in the code the box is showing makes it yours: the arrival plus the keystroke is
   //      written to `settings.code` and the box locks, so the next run keeps the person's code.
   //      "Use the model's code" unlocks.
+  // COMPUTER_DOTS_PLAN (owner, 2026-11-27): each dot level with its row (`row`): Inputs, then Code, above the editor.
   inputs: [
-    { name: 'in', label: t('parts.codeIn'), accepts: ['text', 'json', 'list', 'image', 'file'], many: true },
+    { name: 'in', label: t('parts.codeIn'), accepts: ['text', 'json', 'list', 'image', 'file'], many: true, row: '.graph-code-in' },
     // Takes a list WHOLE too, like `in`: a list wired here must never fan the box out (BJ-9).
-    { name: 'code', label: t('parts.codeCodeIn'), accepts: ['text', 'json', 'list'] },
+    { name: 'code', label: t('parts.codeCodeIn'), accepts: ['text', 'json', 'list'], row: '.graph-code-src' },
   ],
   output: 'json',
   // `about` is what the code does, in plain words; `folded` hides the code behind it (owner,
@@ -306,7 +308,14 @@ export const code = /** @type {any} */ ({
     const head = document.createElement('div');
     head.className = 'graph-code-head';
     head.append(about, fold);
-    wrap.append(head, whose, unlock, area, chip);
+    // COMPUTER_DOTS_PLAN: the rows of the two dots. The editor stays editable while `code` is wired: typing into the
+    // model's code makes it yours (rule 2 above), so the row says where the program comes from instead.
+    const inNote = document.createElement('span');
+    inNote.className = 'graph-code-in graph-port-note';
+    const srcNote = document.createElement('span');
+    srcNote.className = 'graph-code-src graph-port-note';
+    const srcRow = portRow(t('parts.codeCodeIn'), srcNote);
+    wrap.append(head, portRow(t('parts.codeIn'), inNote), srcRow, whose, unlock, area, chip);
     host.replaceChildren(wrap);
 
     /** @param {any} p */
@@ -321,7 +330,12 @@ export const code = /** @type {any} */ ({
       fold.textContent = folded ? t('parts.codeShow', { n: lines }) : t('parts.codeHide');
       fold.setAttribute('aria-expanded', folded ? 'false' : 'true');
       area.hidden = folded;
+      srcRow.hidden = folded;
       wrap.classList.toggle('folded', folded);
+      const fromIn = wiredNames(ctx, 'in');
+      inNote.textContent = fromIn && fromIn.length ? t('parts.codeInFrom', { names: quoteNames(fromIn) }) : t('parts.codeInEmpty');
+      const fromCode = wiredNames(ctx, 'code');
+      srcNote.textContent = fromCode && fromCode.length ? fromWireText(fromCode) : t('parts.codeSrcEmpty');
       const wired = ARRIVED.has(String(p.id)) && codeWired(ctx, String(p.id)) !== false;
       whose.hidden = !wired;
       if (wired) whose.textContent = s.locked === true ? t('parts.codeWhoseMine') : t('parts.codeWhoseModel');

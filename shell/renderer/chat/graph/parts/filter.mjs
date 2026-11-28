@@ -23,7 +23,7 @@ import { listOf } from '../values.mjs';
 import { t } from '../../core/i18n.mjs';
 import { itemsOf, textOf, pickerRow, partFail, isControl, setPicked, slicer, failFromAsk } from './common.mjs';
 import { modelOptions, optionSig } from './instruction.mjs';
-import { itemsLine, numberField, textField, checkField } from './fields.mjs';
+import { itemsLine, numberField, textField, checkField, portRow, wiredNames, wireField, fromWireText } from './fields.mjs';
 // Room for a thinking model to reason before its verdict (critic S1): the Condition's ceiling
 // (VERDICT_MAX_TOKENS), clamped to what each item's prompt leaves of the window (critic S2-4).
 import { verdictMaxTokens } from './condition.mjs';
@@ -114,9 +114,10 @@ export const filter = /** @type {any} */ ({
   label: t('parts.filterLabel'),
   thinks: true,
   size: { w: 260, h: 220 },
+  // COMPUTER_DOTS_PLAN (owner, 2026-11-27): each dot level with the row it fills (`row`).
   inputs: [
-    { name: 'items', label: t('parts.filterItems'), accepts: ['list'], many: false, required: true },
-    { name: 'criterion', label: t('parts.filterCriterion'), accepts: ['text'], many: false, required: false },
+    { name: 'items', label: t('parts.filterItems'), accepts: ['list'], many: false, required: true, row: '.graph-filter-items' },
+    { name: 'criterion', label: t('parts.filterCriterion'), accepts: ['text'], many: false, required: false, row: '.graph-filter-criterion' },
   ],
   output: 'list',
   defaults: () => ({ mode: 'contains', text: '', min: 0, max: 0, invert: false, model: '' }),
@@ -166,7 +167,11 @@ export const filter = /** @type {any} */ ({
     const modelSel = model.querySelector('select');
     if (modelSel) modelSel.title = t('parts.filterModelHint');
     const count = itemsLine();
-    host.replaceChildren(mode, text.node, min.node, max.node, invert.node, model, count.node);
+    // COMPUTER_DOTS_PLAN: the items dot's row first, then the criterion's (the field it replaces when wired).
+    const itemsNote = document.createElement('span');
+    itemsNote.className = 'graph-filter-items graph-port-note';
+    text.node.classList.add('graph-filter-criterion');
+    host.replaceChildren(portRow(t('parts.filterItems'), itemsNote), mode, text.node, min.node, max.node, invert.node, model, count.node);
 
     /**
      * The farm is discovered AFTER boot, so the catalogue this picker was built from is routinely
@@ -199,6 +204,10 @@ export const filter = /** @type {any} */ ({
       max.node.hidden = m !== 'length';
       model.hidden = m !== 'model';
       text.update(String(next.settings.text || ''));
+      const crit = wiredNames(ctx, 'criterion');
+      if (crit) wireField(text.input, crit, String(next.settings.text || ''), t('parts.filterCriterionPlaceholder'));
+      const from = wiredNames(ctx, 'items');
+      itemsNote.textContent = from && from.length ? fromWireText(from) : t('parts.filterItemsEmpty');
       min.update(Number(next.settings.min) || 0);
       max.update(Number(next.settings.max) || 0);
       invert.update(!!next.settings.invert);

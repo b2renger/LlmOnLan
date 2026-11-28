@@ -31,7 +31,7 @@ import { buildPalette } from './palette.mjs';
 import { createPaletteMenu } from './palette-menu.mjs';
 import { addPart, addWire, movePart, removeParts, removeWire, resizePart, setSettings, setWireLabel } from './model.mjs';
 import { preview } from './values.mjs';
-import { createWireLayer, portOffsetY, portPoint, wireAt, wireEnds, wireMid, SNAP_PX, WIRE_HIT, LABEL_BOX } from './wires.mjs';
+import { createWireLayer, portOffsetY, portPoint, rowOffsets, wireAt, wireEnds, wireMid, SNAP_PX, WIRE_HIT, LABEL_BOX } from './wires.mjs';
 // Critic R1 (Package B): what a wheel, a resize handle, a dropped wire end and Ctrl+C MEAN is
 // decided in a pure module and pinned in Node; this file reads the DOM into it and writes back.
 import { wheelIntent, scrollRoom, zoomStep, resizeRect, rewireOutcome, shouldCopyParts, WHEEL_LATCH_MS } from './gestures.mjs';
@@ -506,8 +506,33 @@ export function createCanvas(o) {
   root.append(toolbar, capBanner, canvas, live);
   o.host.replaceChildren(root);
 
+  /** COMPUTER_DOTS_PLAN (owner, 2026-11-27): partId → (port → the dot's local y), measured from the rows the dots
+   * fill (a spec input's `row`). Never saved: a wire is saved by its port's name. Every geometry call reads it through
+   * `rowY`, so a wire is drawn, clicked and snapped where its dot is. @type {Map<string, Map<string, number>>} */
+  const rowYs = new Map();
+  /** @param {string} partId @param {string} port @returns {number|undefined} */
+  const rowY = (partId, port) => {
+    const m = rowYs.get(partId);
+    return m ? m.get(port) : undefined;
+  };
+
+  /** COMPUTER_DOTS_PLAN: ONE observer for every box with rows; see placeRows. Its callback runs after layout. */
+  const rowObserver = typeof ResizeObserver === 'function' ? new ResizeObserver((entries) => {
+    /** @type {Set<any>} */ const seen = new Set();
+    let moved = false;
+    for (const entry of entries) {
+      const node = entry.target && entry.target.closest ? entry.target.closest('.graph-part') : null;
+      const box = node && node.isConnected ? boxes.get(node.dataset.id) : null;
+      if (!box || box.node !== node || seen.has(box)) continue;      // gone, or a box a lesson replaced
+      seen.add(box);
+      if (placeRows(box, Number(box.last.h) || box.node.offsetHeight)) moved = true;
+    }
+    if (moved) schedule('wires');
+  }) : null;
+
   const wires = createWireLayer(/** @type {any} */ (svg), {
     specs,
+    rowY,
     // The pill types; the DOCUMENT edit happens here, once, so naming an arrow is one undo entry
     // and one re-run of what depends on it (K2-U1, COMPUTER_PLAN §5.1).
     onLabel: (/** @type {string} */ wireId, /** @type {string} */ text) => { commitLabel(wireId, text); },
@@ -1345,7 +1370,7 @@ export function createCanvas(o) {
   function revealWire(from, to) {
     const doc = session.doc();
     const w = doc.wires.find((/** @type {any} */ x) => x.from === from && x.to === to);
-    const ends = w ? wireEnds(doc, w, specs) : null;
+    const ends = w ? wireEnds(doc, w, specs, rowY) : null;
     if (!w || !ends) return false;
     const mid = wireMid(ends.a, ends.b);
     const v = viewport();
@@ -1937,6 +1962,8 @@ export function createCanvas(o) {
       const port = el('span', 'graph-port');
       port.dataset.port = 'out';
       port.dataset.dir = 'out';
+      // COMPUTER_DOTS_PLAN: what the hover shows beside the glyph, "output: a list".
+      port.dataset.label = t('graph.portOutName', { kind: kindWord(spec.output) });
       port.setAttribute('aria-hidden', 'true');
       port.title = t('graph.portOut');
       port.style.top = `${part.h / 2}px`;
@@ -1975,6 +2002,15 @@ export function createCanvas(o) {
       sandbox() {
         return typeof session.sandbox === 'function' ? Promise.resolve(session.sandbox()).catch(() => null) : Promise.resolve(null);
       },
+      /** COMPUTER_DOTS_PLAN: the names of the boxes wired into one of this box's dots, as the document is now, so a
+       * field a wire replaces can say where its value comes from. Only the canvas knows a box's name (`titleFor`). */
+      wiredFrom(/** @type {string} */ port) {
+        const doc = session.doc();
+        return doc.wires
+          .filter((/** @type {any} */ w) => w.to === part.id && w.port === port)
+          .map((/** @type {any} */ w) => titleFor(doc.parts.find((/** @type {any} */ p) => p.id === w.from)))
+          .filter(Boolean);
+      },
     };
     let inst = null;
     if (spec && typeof spec.render === 'function') {
@@ -1988,16 +2024,78 @@ export function createCanvas(o) {
     const box = { node, title, demo, stateText, body, value, cost, error, fanout, items, inst, spec, ports, last: /** @type {any} */ ({}) };
     layer.appendChild(node);
     boxes.set(part.id, box);
+    watchRows(box);
     return box;
   }
 
-  /** Put a box's ports where the wire ends are for height `h` (critic R1, A3).
-   * @param {any} box @param {number} h */
-  function layoutPorts(box, h) {
-    const list = box.ports ? box.ports.in : [];
-    list.forEach((/** @type {HTMLElement} */ port, /** @type {number} */ i) => {
-      port.style.top = `${portOffsetY(h, i, list.length)}px`;
+  // ---- COMPUTER_DOTS_PLAN: a dot level with the row it fills -------------------------------------
+  //
+  // A spec input may name `row`, a selector inside the box's body. The canvas measures that row's middle and puts the
+  // dot there (`rowOffsets`, wires.mjs). It measures when the body's layout changes (ONE ResizeObserver over the
+  // children of the body and of its wrapper, since a row also moves when a line above it appears), at a resize, and
+  // when the body scrolls. Never on a pan or a zoom: the pan budget above stays as it was measured.
+
+  /** @param {any} box */
+  function hasRows(box) { return !!(box && box.spec && Array.isArray(box.spec.inputs) && box.spec.inputs.some((/** @type {any} */ p) => p.row)); }
+
+  /** Measure a box's rows and move its dots there. Answers whether a dot moved (the wires need a redraw).
+   * @param {any} box @param {number} h the box's height @returns {boolean} */
+  function placeRows(box, h) {
+    if (!hasRows(box) || !box.node.isConnected) return false;
+    const nr = box.node.getBoundingClientRect();
+    const scale = box.node.offsetHeight ? nr.height / box.node.offsetHeight : 0;
+    if (!scale) return false;                          // not laid out (another surface is shown): measured when it is
+    const inputs = box.spec.inputs;
+    const measured = inputs.map((/** @type {any} */ p) => {
+      const row = p.row ? box.body.querySelector(p.row) : null;
+      if (!row || !row.getClientRects().length) return undefined;
+      const r = row.getBoundingClientRect();
+      return r.height ? (r.top + r.height / 2 - nr.top) / scale : undefined;
     });
+    const ys = rowOffsets(h, measured);
+    const id = box.node.dataset.id;
+    const was = rowYs.get(id);
+    /** @type {Map<string, number>} */ const next = new Map();
+    let moved = !was;
+    inputs.forEach((/** @type {any} */ p, /** @type {number} */ i) => {
+      next.set(p.name, ys[i]);
+      if (was && !(Math.abs((was.get(p.name) ?? Number.NaN) - ys[i]) < 0.5)) moved = true;
+      if (box.ports.in[i]) box.ports.in[i].style.top = `${ys[i]}px`;
+    });
+    rowYs.set(id, next);
+    return moved;
+  }
+
+
+  /** Watch a box with rows: its body, the body's children and its wrapper's. @param {any} box */
+  function watchRows(box) {
+    if (!hasRows(box) || !rowObserver) return;
+    const watched = [box.body, ...Array.from(box.body.children)];
+    for (const child of Array.from(box.body.children)) watched.push(...Array.from(/** @type {any} */ (child).children || []));
+    for (const elx of watched) rowObserver.observe(elx);
+    box.watched = watched;
+    box.body.addEventListener('scroll', () => {
+      if (placeRows(box, Number(box.last.h) || box.node.offsetHeight)) schedule('wires');
+    }, { passive: true });
+  }
+
+  /** A box leaves: its rows are no longer watched or measured. @param {any} box @param {string} id */
+  function forgetRows(box, id) {
+    if (rowObserver && box && Array.isArray(box.watched)) for (const elx of box.watched) rowObserver.unobserve(elx);
+    rowYs.delete(id);
+  }
+
+  /** Put a box's ports where the wire ends are for height `h` (critic R1, A3). A box with rows keeps its measured dots
+   * (the row observer moves them when the body's layout changes); `measure` is a resize, which measures them now.
+   * @param {any} box @param {number} h @param {boolean} [measure] */
+  function layoutPorts(box, h, measure = false) {
+    const list = box.ports ? box.ports.in : [];
+    if (hasRows(box) && measure) placeRows(box, h);
+    else if (!hasRows(box) || !rowYs.has(box.node.dataset.id)) {
+      list.forEach((/** @type {HTMLElement} */ port, /** @type {number} */ i) => {
+        port.style.top = `${portOffsetY(h, i, list.length)}px`;
+      });
+    }
     if (box.ports && box.ports.out) box.ports.out.style.top = `${h / 2}px`;
   }
 
@@ -2084,6 +2182,8 @@ export function createCanvas(o) {
       }
       box.node.remove();
     }
+    if (rowObserver) rowObserver.disconnect();
+    rowYs.clear();
     boxes.clear();
     editing.clear();
     wireFlags.clear();
@@ -2115,6 +2215,7 @@ export function createCanvas(o) {
         try { box.inst.destroy(); } catch { /* a part never blocks its own removal */ }
       }
       box.node.remove();
+      forgetRows(box, id);
       boxes.delete(id);
       editing.delete(id);
     }
@@ -2185,7 +2286,7 @@ export function createCanvas(o) {
       const spec = specs.get(part.type);
       const inputs = (spec && spec.inputs) || [];
       inputs.forEach((/** @type {any} */ p, /** @type {number} */ i) => {
-        const pt = portPoint(part, { dir: 'in', index: i, count: inputs.length });
+        const pt = portPoint(part, { dir: 'in', index: i, count: inputs.length, y: rowY(part.id, p.name) });
         out.push({ partId: part.id, port: p.name, x: pt.x, y: pt.y });
       });
     }
@@ -2270,7 +2371,7 @@ export function createCanvas(o) {
       const pick = bodyDropPort(doc, d.from, partId, specs);
       const inputs = ((specs.get(part.type) || {}).inputs) || [];
       const index = Math.max(0, inputs.findIndex((/** @type {any} */ p) => p.name === pick.port));
-      const pt = portPoint(part, { dir: 'in', index, count: inputs.length || 1 });
+      const pt = portPoint(part, { dir: 'in', index, count: inputs.length || 1, y: pick.port ? rowY(partId, pick.port) : undefined });
       out = { partId, port: pick.port, reason: pick.reason, x: pt.x, y: pt.y };
     }
     d.bodies.set(partId, out);
@@ -2480,7 +2581,7 @@ export function createCanvas(o) {
       return;
     }
     // Empty space: a wire under the pointer (an 8 SCREEN px band at any zoom), else a marquee.
-    const hit = wireAt(session.doc(), specs, worldOf(ev), WIRE_HIT / (view.zoom || 1));
+    const hit = wireAt(session.doc(), specs, worldOf(ev), WIRE_HIT / (view.zoom || 1), rowY);
     if (hit) {
       selWires = [hit.wire.id];
       wires.setSelected(selWires);
@@ -2559,7 +2660,7 @@ export function createCanvas(o) {
         box.node.style.height = `${size.h}px`;
         box.last.w = size.w;
         box.last.h = size.h;
-        layoutPorts(box, size.h);
+        layoutPorts(box, size.h, true);
       }
       const doc = session.doc();
       dragDoc = { ...doc, parts: doc.parts.map((/** @type {any} */ p) => (p.id === drag.id ? { ...p, w: size.w, h: size.h } : p)) };
@@ -2724,7 +2825,7 @@ export function createCanvas(o) {
         box.node.style.height = `${d.from.h}px`;
         box.last.w = d.from.w;
         box.last.h = d.from.h;
-        layoutPorts(box, d.from.h);
+        layoutPorts(box, d.from.h, true);
       }
     }
     schedule('wires');
@@ -2758,7 +2859,7 @@ export function createCanvas(o) {
       if (doc.wires.length) {
         const r = canvas.getBoundingClientRect();
         const w = screenToWorld(view, pointer.x - r.left, pointer.y - r.top);
-        const hit = wireAt(doc, specs, w, WIRE_HIT / (view.zoom || 1));
+        const hit = wireAt(doc, specs, w, WIRE_HIT / (view.zoom || 1), rowY);
         id = hit ? hit.wire.id : '';
       }
     }
@@ -3016,7 +3117,7 @@ export function createCanvas(o) {
       const pill = target.closest('.graph-wire-pill');
       const doc = session.doc();
       const w = pill ? doc.wires.find((/** @type {any} */ x) => x.id === pill.dataset.wire) : null;
-      const ends = w ? wireEnds(doc, w, specs) : null;
+      const ends = w ? wireEnds(doc, w, specs, rowY) : null;
       if (ends) {
         const mid = wireMid(ends.a, ends.b);
         rect = { x: mid.x - LABEL_BOX.w / 2, y: mid.y - LABEL_BOX.h / 2, w: LABEL_BOX.w, h: LABEL_BOX.h };
@@ -3162,7 +3263,7 @@ export function createCanvas(o) {
     if (target && target.closest && target.closest('.graph-part, .graph-port, .graph-wire-pill, .graph-wire-label, .graph-add-menu, button, input, textarea, select, a')) return;
     if (!hasDoc()) return;
     const world = worldOf(ev);
-    if (wireAt(session.doc(), specs, world, WIRE_HIT / (view.zoom || 1))) return;
+    if (wireAt(session.doc(), specs, world, WIRE_HIT / (view.zoom || 1), rowY)) return;
     ev.preventDefault();
     const r = root.getBoundingClientRect();
     openPalette({ at: world, screen: { x: ev.clientX - r.left, y: ev.clientY - r.top } });
@@ -3296,7 +3397,7 @@ export function createCanvas(o) {
     const partEl = target.closest('.graph-part');
     if (partEl && partEl.dataset.id) { ev.preventDefault(); openPartMenu(partEl.dataset.id, ev); return; }
     const hit = (() => {
-      const w = wireAt(session.doc(), specs, worldOf(ev), WIRE_HIT / (view.zoom || 1));
+      const w = wireAt(session.doc(), specs, worldOf(ev), WIRE_HIT / (view.zoom || 1), rowY);
       return w ? { id: w.wire.id } : null;
     })();
     if (hit && hit.id) { ev.preventDefault(); openWireMenu(hit.id, ev); return; }
@@ -3508,6 +3609,8 @@ export function createCanvas(o) {
           try { box.inst.destroy(); } catch { /* nothing may block teardown */ }
         }
       }
+      if (rowObserver) rowObserver.disconnect();
+      rowYs.clear();
       boxes.clear();
       wires.destroy();
       root.remove();

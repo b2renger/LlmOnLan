@@ -156,6 +156,10 @@ registerStrings('parts', {
   // how many items a list carries — the half the canvas preview cannot say
   itemsOne: '1 item',
   itemsCount: '{n} items',
+  // COMPUTER_DOTS_PLAN (2026-11-28): a field or a row whose dot is wired says where its value comes from.
+  fromWire: 'From the wire: {names}',
+  itemsReadFrom: '{n} items, from {names}',
+  filterItemsEmpty: 'Wire a list here',
 
   // fan-out, on the part
   itemError: 'Item {i}: {message}',
@@ -200,15 +204,19 @@ registerStrings('parts', {
   codeIn: 'Inputs',
   // Owner, 2026-09-27: a model can write the code (the `code` port), and the code can hide behind
   // what it does, in plain words.
-  codeCodeIn: 'code',
+  codeCodeIn: 'Code',
+  // COMPUTER_DOTS_PLAN (2026-11-28): the rows the Code box's two dots fill.
+  codeInEmpty: 'Wire values here: your code reads inputs.in',
+  codeInFrom: 'From the wire: {names} (your code reads inputs.in)',
+  codeSrcEmpty: 'Below, or wire in a program a model wrote',
   codeAbout: 'What it does',
   codeAboutPlaceholder: 'What this code does, in plain words',
   codeShow: 'Show the code ({n} lines)',
   codeHide: 'Hide the code',
-  codeWhoseModel: 'Written by the model wired into “code”. Type in it to make it yours.',
+  codeWhoseModel: 'Written by the model wired into “Code”. Type in it to make it yours.',
   codeWhoseMine: 'Your code: the model’s is ignored while you keep it.',
   codeUseModel: 'Use the model’s code',
-  codeUseModelHint: 'Run the code the model wrote into “code” again, instead of your edits.',
+  codeUseModelHint: 'Run the code the model wrote into “Code” again, instead of your edits.',
   codeAboutHint: 'Say what this code does, in plain words. It stays in view when the code is hidden.',
   codeFoldHint: 'Hide the code behind its “What it does” line, or show it again.',
   codeHint: 'Plain JavaScript, run in the sandbox (no network). `inputs.in` is an array of what arrives on Inputs; return text, a number, an array or an object.',
@@ -329,8 +337,8 @@ registerStrings('parts', {
   timerHint: 'Waits {seconds} s, {repeats}×, then lets the run through.',
   timerWaiting: 'waiting {seconds} s…',
 
-  errCodeEmpty: 'This box has no code yet: write some, or wire a Write code Instruction into its “code” port.',
-  errCodeEmptyWire: 'The box wired into “code” sent no code. Run it again, or write the code here.',
+  errCodeEmpty: 'This box has no code yet: write some, or wire a Write code Instruction into its “Code” port.',
+  errCodeEmptyWire: 'The box wired into “Code” sent no code. Run it again, or write the code here.',
   errCodeLine: 'Line {line}: {message}',
   errRenderNotSvg: 'That text does not start with <svg>, so it cannot be drawn as SVG.',
   errRenderTooBig: 'That picture is too large to keep on the canvas. Draw it smaller.',
