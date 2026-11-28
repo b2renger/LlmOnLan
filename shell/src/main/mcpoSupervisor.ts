@@ -13,9 +13,10 @@
 // config file (`--config`), which mounts it at /blender and drops the tools in `disabledTools` (mcpo 0.0.20
 // main.py: never listed, never callable):
 //   • its `_for_cli` twins run Python in a background Blender the person never opened (BLENDER_PATH, else
-//     `blender` on the PATH): off, and BLENDER_PATH names a path that never exists, as a second layer;
-//   • its two screenshot tools send pixels of the person's Blender window: off until a check shows the picture
-//     reaching the farm as an image, with privacy.md's line (the owner's yes, 2026-11-27 16:04).
+//     `blender` on the PATH): off, and BLENDER_PATH names a path that never exists, as a second layer.
+// Its two screenshot tools stay ON (the owner's yes, 2026-11-27 16:04, once checked): on a real Open WebUI 0.13.3 the
+// picture reaches the farm as an image part of the next request, never inside a text, and Open WebUI keeps its copy in
+// DATA_DIR's uploads (2026-11-28; privacy.md has the line).
 //
 // Design decisions (all validated by a live spike on Windows before writing this):
 //   • Reuse the sidecar's standalone CPython (it ships pip) to build a DEDICATED
@@ -64,8 +65,6 @@ export const HIDDEN_TOOLS = [
     'get_blendfile_summary_of_linked_libraries_for_cli',
     'get_blendfile_summary_path_info_for_cli',
     'get_blendfile_summary_usage_guess_for_cli',
-    'get_screenshot_of_area_as_image',
-    'get_screenshot_of_window_as_image',
 ];
 
 // The environment Lab's server runs in. Which Blender: this computer's MCP extension, on the port Preferences says

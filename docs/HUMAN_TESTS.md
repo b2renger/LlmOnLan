@@ -455,8 +455,10 @@ the Preview and its window, the saved tokens read; the second start as quick as 
 
 Measured without you (DEVLOG 2026-11-28):
 - a scratch Blender 5.1.1 with the extension, on its own profile and port;
-- the shipped wheel behind `mcpo`, as the client starts it;
-- 18 tools served, the 8 hidden ones refused, a cube added;
+- the shipped wheel behind `mcpo`, as the client starts it: 20 tools served, the six `_for_cli` ones refused, a cube
+  added;
+- a real Open WebUI 0.13.3 listing it and calling a tool;
+- a screenshot of a windowed scratch Blender reaching the farm as a picture;
 - *Test connection*'s probe said *lab*.
 
 *Needs:*
@@ -477,11 +479,12 @@ Measured without you (DEVLOG 2026-11-28):
 
 *Expect:*
 - **Step 1:** the chat restarts once; Blender is selected in a new chat.
-- **Step 2:** *helper ✓ (18 tools) · Blender's MCP extension ✓ on port 9876*. If it names the community add-on,
+- **Step 2:** *helper ✓ (20 tools) · Blender's MCP extension ✓ on port 9876*. If it names the community add-on,
   turn that add-on off. If it says nothing is listening, check Allow Online Access.
 - **Step 3:** the cube and the lamp appear in Blender.
-- **Step 4:** the model answers from the scene's data (object names, positions). It **cannot** take a screenshot:
-  those tools are kept out until their picture is checked on the farm's side.
+- **Step 4:** the model takes a screenshot of the window, a call shown in the chat, and says what it sees, the cube
+  and the lamp among it. This needs a model that sees pictures, which Qwen3.6 does. The picture went to the farm with
+  the request, and stays with the chat in your data folder (`privacy.md`).
 - **Step 5:** nothing of Blender.
 - [x] **Run 2026-11-27, of the env route (the owner, `0.2.21+n18`, Blender 5.1.1, on the PRO 6000):**
   - **This plan's part works:** Blender was in the chat's tools and selected, *Test connection* read *helper ✓ (22

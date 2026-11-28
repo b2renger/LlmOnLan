@@ -69,12 +69,12 @@ tested otherwise (HUMAN_TESTS J20, J21, A30, A31).
     exists, and they are filtered out where the tool list allows. The wheel is unpacked from `app.asar` for pip.
   - **M**. Client.
   - **Built night n° 19 (2026-11-28), unreleased:**
-    - mcpo 0.0.20 in config mode hides the six `_for_cli` tools and the two screenshot tools (by name);
+    - mcpo 0.0.20 in config mode hides the six `_for_cli` tools (by name);
     - FastAPI is pinned to 0.139.0 (FastAPI 0.165 stops mcpo 0.0.20);
     - run against a scratch Blender: a cube added;
+    - **the screenshot check done:** on a real Open WebUI 0.13.3 the picture reaches the farm as an image part, so
+      the two screenshot tools are on, with `privacy.md`'s line (the owner's yes, 2026-11-27);
     - HUMAN_TESTS A31 rewritten.
-  - **Not done:** the screenshot check. It needs a chat through Open WebUI that calls the tool, with the farm's
-    gate reading the request. Until then the two tools stay hidden and `privacy.md` is unchanged (plan, Built).
 - **The panel says what a plugin downloads, and how far it has got**
   ([PLUGIN_PROGRESS_PLAN](PLUGIN_PROGRESS_PLAN.md), **approved by the owner 2026-11-27**, the owner's J21 request).
   - Turning a plugin on that is not installed yet becomes a panel job, on the job bar the vLLM downloads already use.

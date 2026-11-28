@@ -164,13 +164,30 @@ and the plan's built section names the build the owner tests.
 - **Step 2:** `BLENDER_MCP_HOST`/`BLENDER_MCP_PORT`. `BLENDER_PATH` names `<mcp-tools>/no-background-blender/blender`,
   which never exists.
 - **Step 5, keeping tools out:** mcpo 0.0.20's config mode (`--config`) mounts the server at `/blender` and drops its
-  `disabledTools` (`main.py:522-528`: never listed, never callable). The list: the six `_for_cli` tools, and the two
-  screenshot tools (`get_screenshot_of_area_as_image`, `get_screenshot_of_window_as_image`, which return PNG
-  images).
-- **The screenshot tools stay out.** The check of what the farm receives needs a chat through Open WebUI with a tool
-  call, which was not built tonight. So `privacy.md` is unchanged.
-  - `get_screenshot_of_window_as_json` stays: it describes the window's layout, no pixels.
+  `disabledTools` (`main.py:522-528`: never listed, never callable). The list: the six `_for_cli` tools.
+- **The screenshot tools: checked, then on** (04:00–04:05, the plan's step 5 test):
+  - **The rig:** a real Open WebUI 0.13.3 (the released sidecar) given the compiled `buildSidecarEnv` with the
+    `/blender` address; the real mcpo; a windowed scratch Blender on 19876; a fake farm that asks for
+    `tool_get_screenshot_of_window_as_image_post`.
+  - **The request after the tool:** `user` text, `assistant` (the call), `tool` text (74 characters: *Image file read
+    successfully.*), then a new `user` message with a text part and one `image_url` part, a
+    `data:image/png;base64` URL: 175,342 characters with a 200 kB cap, 1,012,066 with none (a 759 KB PNG of the
+    scratch window). No pixels in any text.
+  - **Kept:** Open WebUI keeps a copy in DATA_DIR's `uploads` (`<id>_generated-image.png`). mcpo's log and Open
+    WebUI's hold none of its pixels (0 `iVBOR`). The farm's gate pipes the body with no size limit
+    (`seats.js:367`).
+  - **So:** the image-part branch. `HIDDEN_TOOLS` drops them, and `privacy.md` gains its line, worded to what was
+    seen (the copy in `uploads`).
+  - `get_screenshot_of_area_as_image` returns the same `Image` type (read in its source); it was not run.
+  - `get_screenshot_of_window_as_json` describes the window's layout, no pixels.
   - Lab's server reads only those three variables and sends nothing anywhere (its source read).
+- **The tool server through Open WebUI** (the advisor's check of the new `/blender` address):
+  - Open WebUI 0.13.3 lists `server:lol-blender`.
+  - The farm was offered 18 Blender tools with the eight then hidden, none of them among them.
+  - `tool_search_manual_docs_post` reached mcpo with the key (`POST /blender/search_manual_docs 200`), and its
+    result came back to the farm as text (the manual's *Add Cube*).
+  - The renderer selects the server by its id (`server:lol-blender`), so the new address leaves no stale
+    selection.
 - **Step 3, the probe:** `util.ts` `probeBlender`. It sends the request without its zero byte first (only the
   community add-on answers that), then the zero byte (Lab's extension answers JSON ending in one). Its answer is
   *lab*, *community*, *other* or *none*. `tcpProbe` is gone.

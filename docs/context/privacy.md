@@ -25,6 +25,10 @@
   The app repairs a half-downloaded copy there before the start of a folder still on it.
 - **Over the network (all to the trusted‑LAN farm, which stores nothing; the client trusts its network, so use it on one you trust: a device that answers as a farm gets this list, above all a new client's first farm, but every address stays on the host the chat goes to, 2026-11-06):** the chat context per
   completion (from OWUI, LOL Vibe, or a Computer Instruction — with an Image box's or a Preview's rendered pixels when wired);
+  with the Blender tools on, a screenshot of the person's own Blender window or one of its areas, taken when the model
+  calls that tool, goes to the farm's model as a picture in the next request (Open WebUI keeps its copy in DATA_DIR's
+  `uploads` with the chat; the farm keeps nothing; no log holds its pixels) — the owner's yes 2026-11-27 16:04, once
+  checked on a real Open WebUI 0.13.3 on 2026-11-28 (BLENDER_LAB_MCP_PLAN);
   web‑search queries to the farm's SearXNG — since web search v2 sent by this app's main, which then itself
   reads the top pages of each search (up to 6 GETs, to the public internet only, never the LAN; nothing kept),
   while a page the model picks is fetched by OWUI as before (main's page reads are for OWUI's native tool calling,

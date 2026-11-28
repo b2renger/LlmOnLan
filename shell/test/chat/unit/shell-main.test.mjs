@@ -2085,7 +2085,7 @@ export default (test) => {
   });
 
   // BLENDER_LAB_MCP_PLAN (the owner, 2026-11-27: "use the 'official' blender lab MCP"; the wheel, 16:04).
-  test('BLENDER_LAB_MCP: Lab\'s server finds the extension by its own variables, never a background Blender, and mcpo hides those tools and the screenshots', () => {
+  test('BLENDER_LAB_MCP: Lab\'s server finds the extension by its own variables, never a background Blender, and mcpo hides those tools', () => {
     const SUP = require(path.join(BUILD, 'mcpoSupervisor.js'));
     const tools = tempDir('mcptools');
     const env = SUP.helperEnv(9877, tools, { PATH: 'C:\\Program Files\\Blender Foundation\\Blender 5.1', BLENDER_PORT: '1' });
@@ -2097,9 +2097,13 @@ export default (test) => {
     assert.deepEqual(Object.keys(cfg.mcpServers), ['blender'], 'mcpo mounts it at /blender');
     const hidden = cfg.mcpServers.blender.disabledTools;
     assert.equal(hidden.filter((n) => n.endsWith('_for_cli')).length, 6, 'the six tools that run a background Blender (dbbf836)');
-    assert.ok(hidden.includes('get_screenshot_of_area_as_image') && hidden.includes('get_screenshot_of_window_as_image'),
-      'the two screenshot tools, until their picture is seen reaching the farm (privacy.md, the owner\'s yes 2026-11-27)');
+    assert.equal(hidden.length, 6, 'only those');
+    // The owner's yes (2026-11-27 16:04), once checked on a real Open WebUI 0.13.3 (2026-11-28): the picture reaches the
+    // farm as an image part, and privacy.md says so.
+    assert.ok(!hidden.includes('get_screenshot_of_area_as_image') && !hidden.includes('get_screenshot_of_window_as_image'), 'the screenshot tools are on');
     assert.ok(!hidden.includes('execute_blender_code') && !hidden.includes('get_screenshot_of_window_as_json'), 'the rest stay');
+    const privacy = fs.readFileSync(path.join(SHELL, '..', 'docs', 'context', 'privacy.md'), 'utf8');
+    assert.ok(/a screenshot of the person's own Blender window/.test(privacy), 'and the privacy boundary has their line');
     assert.deepEqual([SUP.MCPO_PIN, SUP.FASTAPI_PIN], ['mcpo==0.0.20', 'fastapi==0.139.0'], 'mcpo pinned, with the FastAPI it starts on (0.165 refuses its ssl_certfile)');
   });
 

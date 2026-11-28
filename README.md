@@ -242,8 +242,9 @@ place**: [`docs/GETTING_STARTED.md` ▸ Control Blender from the chat](docs/GETT
   [results](docs/research/agent-spike/RESULTS.md)); Blender's own tools were not measured. If results are
   hit‑or‑miss, serve a model that calls tools well (a **Qwen**, for example) from the farm panel.
 - **Local & private.** The tool server binds to `127.0.0.1` only (never the LAN), behind a random key, and
-  Blender Lab's server sends nothing anywhere. Its tools that run a hidden Blender, and its two screenshot tools,
-  are kept out of the chat. It can run arbitrary Python inside Blender, so treat it like any script you'd run on
+  Blender Lab's server sends nothing anywhere. Its tools that run a hidden Blender are kept out of the chat. Its two
+  screenshot tools send a picture of your Blender window to the farm's model with the request (kept only with the
+  chat, in your data folder). It can run arbitrary Python inside Blender, so treat it like any script you'd run on
   your own scene.
 - Fuller walkthrough: [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md#control-blender-from-the-chat-opt-in).
 

@@ -9,6 +9,46 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-28 (04:07) — BLENDER_LAB_MCP: the tool server through a real Open WebUI; the screenshot check done, the two tools on
+
+The advisor's two checks before a release, then the plan's step 5 test (the owner's yes of 2026-11-27 16:04, on the
+condition that the picture reaches the farm as an image part).
+
+- **The packaged Farm app** (`0.0.55+n19`): `resources/farm/src/plugins/progress.js` is there, and `up.js`, the
+  registry and the four plugin modules load from the packaged copy.
+- **The new `/blender` address through Open WebUI** (`n19/owui-blender-lab.cjs`, n18's `owui-blender.cjs` adapted):
+  - the rig: the released 0.13.3 sidecar, the compiled `buildSidecarEnv`, the real mcpo started from the compiled
+    `helperConfig`/`helperEnv`, and a fake farm;
+  - Open WebUI lists `server:lol-blender` and offers the farm the Blender tools, named after mcpo's operations
+    (`tool_<name>_post`);
+  - `tool_search_manual_docs_post` reached mcpo with the key (`POST /blender/search_manual_docs 200`), and the
+    manual's *Add Cube* came back to the farm as the tool's text;
+  - the renderer selects the server by its id, so the new address leaves no stale selection (`app.js`
+    `seedBlenderToolServer`).
+- **The screenshot check:**
+  - a windowed scratch Blender (scratch profile, `--online-mode`, the extension moved to 19876 by a startup script
+    before its auto-start), and a test config hiding nothing;
+  - the farm asked for `tool_get_screenshot_of_window_as_image_post`;
+  - the request after the tool: `user`, `assistant` (the call), `tool` (74 characters, *Image file read
+    successfully.*), then a new `user` message with a text part and **one `image_url` part** (`data:image/png;base64`,
+    175,342 characters with a 200 kB cap, 1,012,066 with none: a 759 KB PNG of the scratch window, checked by eye);
+  - no pixels in any text; Open WebUI keeps a copy in DATA_DIR's `uploads` (`<id>_generated-image.png`); 0 `iVBOR` in
+    mcpo's log and Open WebUI's; the farm's gate pipes the body with no size limit (`seats.js:367`).
+- **So, the image-part branch:**
+  - `HIDDEN_TOOLS` keeps the six `_for_cli` tools only;
+  - `privacy.md` gains the line, worded to what was seen: the screenshot goes to the farm's model as a picture in the
+    next request, Open WebUI keeps its copy in `uploads` with the chat, the farm keeps nothing, no log holds it;
+  - Preferences, GETTING_STARTED (with the size, and that it rides with each later message of the chat), the
+    README, `client.md`, A31's step 4 and the plans follow.
+  - `get_screenshot_of_area_as_image` returns the same `Image` type (read in its source); it was not run.
+- **The regression run, with the client's own config:**
+  - Open WebUI offered 20 Blender tools (50 with its own), none of the `_for_cli`;
+  - mcpo "Filtered out 6"; the search call went through.
+- **Suites:** `test:chat` 2002 (1 skipped), lint 0 (`shell-main`: the screenshot tools on, six hidden, the privacy
+  line there).
+- **Stopped:** every process of the rig, by its scratch names. The owner's Blender (PID 25124, on 9876) and helper
+  were never touched.
+
 ## 2026-11-28 (03:40) — BLENDER_LAB_MCP: the Blender tools speak to Blender Lab's MCP extension
 
 The third fix holding the releases ([BLENDER_LAB_MCP_PLAN](plans/BLENDER_LAB_MCP_PLAN.md), the owner's two answers of

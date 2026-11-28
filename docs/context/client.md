@@ -219,9 +219,10 @@ tools** · **Home Assistant** · startup & updates · **usage report** · about)
   `TOOL_SERVER_CONNECTIONS`, since 2026-11-27), a "Test connection" button (the local helper, and what answers on the
   Blender port: Lab's MCP extension, the community add-on, something else or nothing: `util.ts` `probeBlender`), and the
   extension's socket port. Since 2026-11-28 (BLENDER_LAB_MCP_PLAN, not released yet) the helper is Blender Lab's MCP
-  server, shipped as a wheel (`assets/blender-mcp`, sha256 checked, unpacked from `app.asar`), behind `mcpo==0.0.20` in
-  config mode (`/blender`, `disabledTools`: the six `_for_cli` tools and the two screenshot tools; `BLENDER_PATH` names
-  a path that never exists).
+  server, shipped as a wheel (`assets/blender-mcp`, sha256 checked, unpacked from `app.asar`), behind `mcpo==0.0.20` (with
+  `fastapi==0.139.0`: FastAPI 0.165 stops it) in config mode (`/blender`, `disabledTools`: the six `_for_cli` tools; `BLENDER_PATH` names
+  a path that never exists). Its two screenshot tools are on: their picture reaches the farm as an image part
+  (checked on a real Open WebUI 0.13.3, 2026-11-28; `privacy.md`).
 - **Home Assistant** (2026-09-30) — address + long-lived token → **Link** (tested before anything is kept), **Test
   connection**, **Forget**, and **Allow commands…** / **Stop commands** (main's native dialog lists the devices).
 - **Startup & updates** — "Launch at login"; "Install app updates automatically" (off: a downloaded update installs
