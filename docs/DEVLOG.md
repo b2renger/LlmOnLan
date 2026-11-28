@@ -9,6 +9,24 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-28 (05:13) — The morning path read once more: the live farm sees pictures, a plugin toggle restarts no engine
+
+- **A31's screenshot reaches a model that sees it:** LiteLLM drops a picture unless the model's entry says `vision`
+  (`context/farm.md`). The PRO 6000's entry, `qwen3.6-35b-a3b`, says `vision: true`, *"Sees images"*
+  (`config.js:454`).
+- **The selection survives the address change:** the address moves from mcpo's root to `/blender`, but Open WebUI
+  lists the server as `server:lol-blender` (`configBridge.ts:256`), the id the renderer selects, not its URL.
+- **J22 on the live farm interrupts no chat:** `setPlugin` brings the plugin up beside the running engine
+  (`up.js:2773-2800`). Only a preset that changes Speech to text on the GPU restarts vLLM (`up.js:4483`). A GPU that
+  cannot load it falls back to the CPU and the row says so (`registry.js:200`).
+- **Sound, not changed:**
+  - `watchDownload` is stopped in a `finally` (`registry.js:279`), and Speech to text's folder holds only Whisper
+    (`storage.sttDir()`).
+  - The Classify service loads Laya at its start in either mode (`classify_server.py:74-78`), so `ready()` comes true
+    after the first start.
+  - Classify's first input stays `items`, so a saved wire with no port keeps its meaning.
+  - The probe's `execute` with empty code does nothing in Lab's Blender.
+
 ## 2026-11-28 (05:09) — An old Blender helper still running blocked the new install; each set of packages now has its own venv
 
 - **The advisor's question** (05:00): what if the old client's helper is still running from `mcp-tools\venv` when
