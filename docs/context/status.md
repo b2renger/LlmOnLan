@@ -55,7 +55,17 @@ shorter (FARM_START step 3); the built-ins read their weights with `prefetch`, ~
 start begins before LiteLLM and the other plugins, ~10 s sooner (step 1). **Open WebUI stays at 0.13.3:** 0.13.4 would drop the Blender tools
 ([BLENDER_TOOLS_ENV_PLAN](../plans/BLENDER_TOOLS_ENV_PLAN.md), approved by the owner 2026-11-26, not built yet).
 
-**On `main`, not released yet (night n° 18, 2026-11-27; the local builds `0.0.55+n18` and `0.2.21+n18`):**
+**On `main`, not released yet (night n° 19, 2026-11-28; the local builds `0.0.55+n19` and `0.2.21+n19`):** the three
+fixes the owner held the releases for (2026-11-27 14:23).
+- **Farm:** a plugin's first install runs as a panel job, with each step, pip's bytes and the weights a service
+  downloads at its first start (PLUGIN_PROGRESS_PLAN, J22). Classify counts as installed only with Laya's weights.
+- **Client:**
+  - the Computer's input dots beside the rows they fill, named, a wired field read-only and naming its source, the
+    names on hover (COMPUTER_DOTS_PLAN, A32);
+  - the Blender tools on Blender Lab's MCP server, shipped as a wheel, its screenshot tools on with `privacy.md`'s
+    line, its background-Blender tools hidden, and *Test connection* naming what answers (BLENDER_LAB_MCP_PLAN, A31).
+
+**Before that, night n° 18 (2026-11-27; the local builds `0.0.55+n18` and `0.2.21+n18`):**
 - **Farm:**
   - `lol up` holds its panel's port before its first WSL call (WSL_PORTS_PLAN, J20);
   - the Classify service answered by the farm's own vLLM when it serves Qwen3.6 or Qwen3.8, else Laya
