@@ -16,6 +16,11 @@ files:
   - assets/**/*
   - package.json
 
+# Blender Lab's MCP server (assets/blender-mcp, BLENDER_LAB_MCP_PLAN): pip installs it from the file, and pip cannot
+# read inside app.asar. Unpacked to app.asar.unpacked/assets/blender-mcp; paths.ts `unpackedPath` points there.
+asarUnpack:
+  - assets/blender-mcp/**
+
 directories:
   output: dist
   buildResources: assets

@@ -17,7 +17,7 @@ const BUILD = path.join(SHELL, 'build', 'main');
 const SRC = path.join(SHELL, 'src', 'main');
 const MODULES = ['farmSelect', 'discovery', 'configBridge', 'sidecar', 'sidecarManager', 'clientData', 'dataMigration', 'store', 'io', 'mcp', 'serial', 'webSearch', 'comfyqPrompts',
   // Loaded by other suites with no staleness check of their own (review 2026-11-05, TST-6), and the ones loaded below.
-  'outputs', 'homeAssistant', 'debugLog', 'projectGit', 'util', 'updater', 'pageWindow'];
+  'outputs', 'homeAssistant', 'debugLog', 'projectGit', 'util', 'updater', 'pageWindow', 'mcpoSupervisor', 'paths'];
 const WEB_FIXTURES = path.join(HERE, '..', 'fixtures', 'web');
 
 /** @type {string[]} */
@@ -2082,6 +2082,66 @@ export default (test) => {
     assert.ok(src.includes("DISABLE_TELEMETRY: 'true', BLENDER_MCP_DISABLE_TELEMETRY: 'true', MCP_DISABLE_TELEMETRY: 'true',"), 'all three names blender-mcp reads');
     const at = src.indexOf("const child = spawn(venvBin('mcpo'), args, {");
     assert.ok(at > 0 && /^[^{]*\{\s*windowsHide: true, detached: !IS_WIN, env, stdio/.test(src.slice(at)), 'and started with those args and that env');
+  });
+
+  // BLENDER_LAB_MCP_PLAN (the owner, 2026-11-27: "use the 'official' blender lab MCP"; the wheel, 16:04).
+  test('BLENDER_LAB_MCP: Lab\'s server finds the extension by its own variables, never a background Blender, and mcpo hides those tools and the screenshots', () => {
+    const SUP = require(path.join(BUILD, 'mcpoSupervisor.js'));
+    const tools = tempDir('mcptools');
+    const env = SUP.helperEnv(9877, tools, { PATH: 'C:\\Program Files\\Blender Foundation\\Blender 5.1', BLENDER_PORT: '1' });
+    assert.deepEqual([env.BLENDER_MCP_HOST, env.BLENDER_MCP_PORT], ['127.0.0.1', '9877'], 'the names Lab\'s connection.py reads');
+    assert.equal(env.BLENDER_PORT, '1', 'the community helper\'s name is no longer set by us (here only the caller\'s own)');
+    assert.ok(env.BLENDER_PATH && env.BLENDER_PATH.startsWith(tools), `BLENDER_PATH is ours: ${env.BLENDER_PATH}`);
+    assert.equal(fs.existsSync(env.BLENDER_PATH), false, 'and never exists, even with a blender on the PATH: Lab\'s helper then raises its own error');
+    const cfg = SUP.helperConfig('C:\\venv\\Scripts\\blender-mcp.exe');
+    assert.deepEqual(Object.keys(cfg.mcpServers), ['blender'], 'mcpo mounts it at /blender');
+    const hidden = cfg.mcpServers.blender.disabledTools;
+    assert.equal(hidden.filter((n) => n.endsWith('_for_cli')).length, 6, 'the six tools that run a background Blender (dbbf836)');
+    assert.ok(hidden.includes('get_screenshot_of_area_as_image') && hidden.includes('get_screenshot_of_window_as_image'),
+      'the two screenshot tools, until their picture is seen reaching the farm (privacy.md, the owner\'s yes 2026-11-27)');
+    assert.ok(!hidden.includes('execute_blender_code') && !hidden.includes('get_screenshot_of_window_as_json'), 'the rest stay');
+    assert.deepEqual([SUP.MCPO_PIN, SUP.FASTAPI_PIN], ['mcpo==0.0.20', 'fastapi==0.139.0'], 'mcpo pinned, with the FastAPI it starts on (0.165 refuses its ssl_certfile)');
+  });
+
+  test('BLENDER_LAB_MCP: the shipped wheel is the one built from Lab\'s dbbf836, unpacked from app.asar for pip', () => {
+    const SUP = require(path.join(BUILD, 'mcpoSupervisor.js'));
+    const PATHS = require(path.join(BUILD, 'paths.js'));
+    const wheel = path.join(SHELL, 'assets', 'blender-mcp', SUP.LAB_WHEEL);
+    const crypto = require('node:crypto');
+    assert.equal(crypto.createHash('sha256').update(fs.readFileSync(wheel)).digest('hex'), SUP.LAB_WHEEL_SHA256, 'the file the code checks before installing');
+    for (const f of ['LICENSE', 'SOURCE.md']) assert.ok(fs.existsSync(path.join(SHELL, 'assets', 'blender-mcp', f)), `its ${f} beside it (GPL-3.0-or-later)`);
+    assert.ok(/GNU GENERAL PUBLIC LICENSE\s+Version 3/.test(fs.readFileSync(path.join(SHELL, 'assets', 'blender-mcp', 'LICENSE'), 'utf8')));
+    const packed = 'C:\\Users\\a\\AppData\\Local\\Programs\\LlmOnLan\\resources\\app.asar\\assets\\blender-mcp\\w.whl';
+    assert.equal(PATHS.unpackedPath(packed), 'C:\\Users\\a\\AppData\\Local\\Programs\\LlmOnLan\\resources\\app.asar.unpacked\\assets\\blender-mcp\\w.whl', 'pip reads the unpacked copy');
+    assert.equal(PATHS.unpackedPath('/opt/LlmOnLan/resources/app.asar/assets/x'), '/opt/LlmOnLan/resources/app.asar.unpacked/assets/x');
+    assert.equal(PATHS.unpackedPath(wheel), wheel, 'in development nothing changes');
+    assert.equal(PATHS.blenderWheelPath(SUP.LAB_WHEEL), wheel, 'and the app finds the file it ships');
+    const yml = fs.readFileSync(path.join(SHELL, 'electron-builder.yml'), 'utf8');
+    assert.ok(/asarUnpack:\s*\n\s*- assets\/blender-mcp\/\*\*/.test(yml), 'electron-builder unpacks it');
+  });
+
+  test('BLENDER_LAB_MCP: Test connection names what answers on the port: Lab\'s extension, the community add-on, something else, nothing', async () => {
+    const { probeBlender } = require(path.join(BUILD, 'util.js'));
+    const net = require('node:net');
+    /** A stand-in on a free loopback port; `onData(sock, all)` answers as it likes. */
+    const standIn = (onData) => new Promise((resolve) => {
+      const srv = net.createServer((sock) => { let all = ''; sock.on('data', (d) => { all += d.toString(); onData(sock, all); }); sock.on('error', () => {}); });
+      srv.listen(0, '127.0.0.1', () => resolve(srv));
+    });
+    // Lab's extension: answers once the zero byte arrives, JSON then a zero byte (mcp_to_blender_server.py).
+    const lab = await standIn((sock, all) => { if (all.includes('\0')) sock.write(JSON.stringify({ status: 'ok', result: null }) + '\0'); });
+    // The community add-on: answers as soon as a whole JSON object arrives, with no zero byte.
+    const community = await standIn((sock, all) => { try { JSON.parse(all); sock.write(JSON.stringify({ status: 'error', message: 'Unknown command type: execute' })); } catch { /* wait */ } });
+    const silent = await standIn(() => {});
+    const closed = await standIn(() => {});
+    const closedPort = closed.address().port;
+    await new Promise((r) => closed.close(r));
+    try {
+      assert.equal(await probeBlender('127.0.0.1', lab.address().port, 1500), 'lab');
+      assert.equal(await probeBlender('127.0.0.1', community.address().port, 1500), 'community', 'the add-on A31 met: no longer a ✓');
+      assert.equal(await probeBlender('127.0.0.1', silent.address().port, 900), 'other', 'listens, says nothing either one says');
+      assert.equal(await probeBlender('127.0.0.1', closedPort, 900), 'none');
+    } finally { for (const s of [lab, community, silent]) s.close(); }
   });
 
   // 2026-11-14 (owner: Open WebUI 0.13.3 before the class): 0.13 stopped putting an attached document into the

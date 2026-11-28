@@ -314,22 +314,21 @@ registers it with Open WebUI for you. (A farm admin can also **recommend** it to
 admin panel; clients that never made an explicit choice then enable it automatically.)
 
 **In Blender (your side, once):**
-1. Install the **BlenderMCP** add-on (from [github.com/ahujasid/blender-mcp](https://github.com/ahujasid/blender-mcp) — download the add-on `.py`, then Blender ▸ Edit ▸ Preferences ▸ Add-ons ▸ Install, and tick it on).
-   **Not** Blender's own **MCP** extension (Blender Lab's, offered in Blender 5.1's *Get Extensions*). It uses the same
-   port, 9876, but different messages, so every call fails with *Incomplete JSON response received*, and **Test
-   connection** cannot tell the two apart. If it is installed, untick its *Auto Start* and press *Stop MCP Server*
-   (or disable it) first. Supporting it is a question for the owner (plans ▸ *Waiting on the owner*, 2026-11-27).
-   Whether the community add-on runs on Blender 5.1 was not checked.
-2. Open its panel: in the 3D viewport press **N** ▸ the **BlenderMCP** tab ▸ **Connect / Start MCP Server**.
+1. Use **Blender 5.1 or later**. In Blender: *Edit ▸ Preferences ▸ Get Extensions*, search **MCP** (by Blender Lab)
+   and install it. Since 2026-11-28 LlmOnLan speaks to this extension, Blender's own; it no longer speaks to the
+   community BlenderMCP add-on (turn that one off if you had it).
+2. In the same Preferences, *System ▸ Network*: turn on **Allow Online Access**. The extension asks for it, and its
+   server then starts by itself each time Blender opens (*Auto Start*, on by default).
 3. In the chat, ask something like *“add a red cube and a sun lamp.”*
 
 **Notes:**
 - **Enabling Blender tools the first time** installs a small local helper (~1 min, needs internet); after that it's instant.
-- It only works while **Blender is open with the MCP server started** — otherwise the tools are listed but a call returns a "can't reach Blender" message.
-- **Port:** the add-on talks on a socket port (default **9876**, shown in its panel). If yours shows a different number, set the same value in Preferences (⚙) ▸ **Assistant tools** ▸ **Blender port** — a mismatch here is the usual cause of "could not connect."
-- **Test connection** (Preferences (⚙) ▸ Assistant tools) checks both hops at once: the local helper, and whether Blender is actually listening on the port. Use it to tell "helper not up" from "Blender not started / wrong port."
+- It only works while **Blender is open with the MCP extension's server running** — otherwise the tools are listed but a call returns a "can't reach Blender" message.
+- **Port:** the extension talks on a socket port (default **9876**, in its preferences). If yours is different, set the same value in Preferences (⚙) ▸ **Assistant tools** ▸ **Blender port** — a mismatch here is the usual cause of "could not connect."
+- **Test connection** (Preferences (⚙) ▸ Assistant tools) checks both hops at once: the local helper, and **what answers** on the port: *Blender's MCP extension ✓*, the community add-on (turn it off), something else, or nothing (install the extension, allow online access, or fix the port).
+- **Kept out of the chat:** the extension's tools that run a hidden Blender in the background, and the two that send a screenshot of your Blender window. The screenshots wait for a check that their picture reaches the farm's model properly (plans, 2026-11-28).
 - Use a model that's **good at tool calling**. `gemma4:12b` made 95% correct tool calls in a test with 8 tools (2026-09-27, [results](research/agent-spike/RESULTS.md)); Blender's own tools were not measured. If results are hit-or-miss, ask the operator to serve a model that calls tools well (a Qwen, for example). OWUI defaults to **Native** tool calling; if the model chats but never calls a tool, try switching **Function Calling** to **Legacy** (Chat Controls → Advanced Params) — some models served via Ollama need the prompt-based path.
-- **Privacy & safety:** the tool server runs on **localhost only** (never exposed to the LAN) and the Blender helper's telemetry is turned **off**. It can run arbitrary Python inside Blender, so treat it like any automation on your own scene.
+- **Privacy & safety:** the tool server runs on **localhost only** (never exposed to the LAN); Blender Lab's server sends nothing anywhere (its source read 2026-11-28). It can run arbitrary Python inside Blender, so treat it like any automation on your own scene.
 - Changed your mind? Uncheck **Blender tools** in the same place — your explicit choice always wins over a farm recommendation.
 
 ## 4. A room full of people (capacity) & multiple GPU boxes

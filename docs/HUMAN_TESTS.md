@@ -447,27 +447,43 @@ the Preview and its window, the saved tokens read; the second start as quick as 
   run: no GitHub token or Home Assistant link was saved yet (Home Assistant is not set up). The tokens' move stays
   measured without a person (DEVLOG 2026-11-26 00:21).
 
-### A31 ★ The Blender tools reach chats through Open WebUI's start settings
-**Optional at the next sitting:** on Open WebUI 0.13.3 the move brings nothing a person sees. It matters once an Open
-WebUI that starts on Windows comes (0.13.5 does not: [OWUI_0135_2026-11-27](research/OWUI_0135_2026-11-27.md)). The real
-client was run without you through its boot, the switch off and on (DEVLOG 2026-11-27 03:08).
-*Proves:* [BLENDER_TOOLS_ENV_PLAN](plans/BLENDER_TOOLS_ENV_PLAN.md) (2026-11-27): Blender's helper (mcpo) reaches Open WebUI by
-its start settings, as the Computer does, no longer as a person's own tool server, which Open WebUI 0.13.4 and later
-drop; so the 0.13.5 update can come with the Blender tools. On a real laptop with Blender, which no harness has.
-*Needs:* the local build `shell\dist\LlmOnLan-Setup-0.2.21+n18-windows-x64.exe` (night n° 18), Blender with the
-BlenderMCP add-on, a farm with a model that calls tools (Qwen3.6 on the PRO 6000), 10 minutes. *Was:* new (2026-11-27).
-1. Install the build over v0.2.21. If the Blender tools were on: open a new chat.
-2. Preferences ▸ Assistant tools: turn **Blender tools** off, then on again.
-3. In Blender, the BlenderMCP panel: **Connect / Start MCP Server**. In LlmOnLan, **Test connection**.
-4. A new chat: Blender is among the chat's tools (Open WebUI's tool list, under the message box), selected. Ask "add a
-   red cube and a sun lamp".
+### A31 ★ The Blender tools speak to Blender Lab's MCP extension (rewritten 2026-11-28)
+*Proves:*
+- [BLENDER_LAB_MCP_PLAN](plans/BLENDER_LAB_MCP_PLAN.md) (2026-11-28): the client's helper is Blender Lab's MCP server,
+  shipped with the client, and it speaks to Blender's own **MCP** extension, the one the owner installed.
+- [BLENDER_TOOLS_ENV_PLAN](plans/BLENDER_TOOLS_ENV_PLAN.md)'s env route still carries it.
+
+Measured without you (DEVLOG 2026-11-28):
+- a scratch Blender 5.1.1 with the extension, on its own profile and port;
+- the shipped wheel behind `mcpo`, as the client starts it;
+- 18 tools served, the 8 hidden ones refused, a cube added;
+- *Test connection*'s probe said *lab*.
+
+*Needs:*
+- the local build named in summary n° 19;
+- Blender **5.1** with Blender Lab's **MCP** extension (*Edit ▸ Preferences ▸ Get Extensions*, search MCP), and
+  *System ▸ Network ▸ Allow Online Access* on;
+- a farm with a model that calls tools (Qwen3.6 on the PRO 6000);
+- 10 minutes.
+
+*Was:* the 2026-11-27 test of the env route, rewritten 2026-11-28.
+
+1. Install the build over the n18 build. The first time the Blender tools come on, they set themselves up again
+   (about a minute: Lab's server replaces the community one).
+2. Open Blender. Preferences ▸ Assistant tools: **Test connection**.
+3. A new chat: Blender among the chat's tools, selected. Ask "add a red cube and a sun lamp".
+4. Ask "what do you see in the viewport?"
 5. Turn the Blender tools off: a new chat has no Blender tool.
 
-*Expect:* step 1: Blender selected in the new chat, the chat started once (no second restart when the helper comes up).
-Step 2: the chat restarts once each time (10–30 s; the chats stay). Step 3: *helper ✓ · Blender ✓*. Step 4: the cube
-and the lamp appear in Blender. Step 5: nothing of Blender. Measured without a person (DEVLOG 2026-11-27 02:35): a real
-Open WebUI 0.13.3 lists the tool once a stand-in helper answers and runs a chat's tool call against it with its key.
-- [x] **Run 2026-11-27 (the owner, `0.2.21+n18`, Blender 5.1.1, on the PRO 6000):**
+*Expect:*
+- **Step 1:** the chat restarts once; Blender is selected in a new chat.
+- **Step 2:** *helper ✓ (18 tools) · Blender's MCP extension ✓ on port 9876*. If it names the community add-on,
+  turn that add-on off. If it says nothing is listening, check Allow Online Access.
+- **Step 3:** the cube and the lamp appear in Blender.
+- **Step 4:** the model answers from the scene's data (object names, positions). It **cannot** take a screenshot:
+  those tools are kept out until their picture is checked on the farm's side.
+- **Step 5:** nothing of Blender.
+- [x] **Run 2026-11-27, of the env route (the owner, `0.2.21+n18`, Blender 5.1.1, on the PRO 6000):**
   - **This plan's part works:** Blender was in the chat's tools and selected, *Test connection* read *helper ✓ (22
     tools) · Blender ✓ on port 9876*, and the model's calls reached the helper.
   - **Step 4 failed:** every call came back *Communication error with Blender: Incomplete JSON response received*.
@@ -475,6 +491,7 @@ Open WebUI 0.13.3 lists the tool once a stand-in helper answers and runs a chat'
     that the helper (`blender-mcp` 1.6.4) speaks to. The two speak different messages on the same port 9876.
   - **Test connection** only checks that something listens there, so it said ✓.
   - Which add-on the client supports is a question for the owner (DEVLOG 2026-11-27 14:10).
+  - → 2026-11-27 16:04, the owner: Blender Lab's, from a shipped wheel. Built 2026-11-28, night n° 19: the test above.
 
 ### A32 ★ The Computer's dots sit beside the fields they fill, and say their names
 *Proves:* [COMPUTER_DOTS_PLAN](plans/COMPUTER_DOTS_PLAN.md) (2026-11-28): the owner's J21 graph can be built from

@@ -53,6 +53,8 @@ tested otherwise (HUMAN_TESTS J20, J21, A30, A31).
   ([COMPUTER_DOTS_PLAN](COMPUTER_DOTS_PLAN.md), **approved by the owner 2026-11-27**, day question 3): the owner's J21
   test wired a Text box into Classify's `options` dot, twice. The dots move level with their rows, each row is named,
   a field a wire replaces says so, and hovering a dot names it. Classify, Filter, Code. **M**. Client.
+  **Built night n° 19 (2026-11-28), unreleased:** unit tests, `k19-dots` ×3, the full harness, the perf gate;
+  HUMAN_TESTS A32.
 - **The Blender tools speak to Blender Lab's official MCP extension**
   ([BLENDER_LAB_MCP_PLAN](BLENDER_LAB_MCP_PLAN.md), **approved by the owner 2026-11-27**, day question 4).
   - The move: Lab's server (`blender-mcp` 1.0.2 from projects.blender.org, pinned) replaces the community one,
@@ -66,12 +68,22 @@ tested otherwise (HUMAN_TESTS J20, J21, A30, A31).
   - Its background-Blender tools stay off, even with Blender on the PATH: `BLENDER_PATH` names a path that never
     exists, and they are filtered out where the tool list allows. The wheel is unpacked from `app.asar` for pip.
   - **M**. Client.
+  - **Built night n° 19 (2026-11-28), unreleased:**
+    - mcpo 0.0.20 in config mode hides the six `_for_cli` tools and the two screenshot tools (by name);
+    - FastAPI is pinned to 0.139.0 (FastAPI 0.165 stops mcpo 0.0.20);
+    - run against a scratch Blender: a cube added;
+    - HUMAN_TESTS A31 rewritten.
+  - **Not done:** the screenshot check. It needs a chat through Open WebUI that calls the tool, with the farm's
+    gate reading the request. Until then the two tools stay hidden and `privacy.md` is unchanged (plan, Built).
 - **The panel says what a plugin downloads, and how far it has got**
   ([PLUGIN_PROGRESS_PLAN](PLUGIN_PROGRESS_PLAN.md), **approved by the owner 2026-11-27**, the owner's J21 request).
   - Turning a plugin on that is not installed yet becomes a panel job, on the job bar the vLLM downloads already use.
   - Each step is named, the bytes are counted on disk against measured sizes, and Classify's weights download in the
     install.
   - **S–M**. Farm.
+  - **Built night n° 19 (2026-11-28), unreleased:** pip's own bytes (`--progress-bar raw`), the weights followed at
+    the first start. A real install of Classify (171 s) and of Speech to text (71 s) from a scratch copy.
+    HUMAN_TESTS J22.
 - **The Blender tools through Open WebUI's env** ([BLENDER_TOOLS_ENV_PLAN](BLENDER_TOOLS_ENV_PLAN.md), **approved by the owner 2026-11-26**, summary n° 17 question 2): `TOOL_SERVER_CONNECTIONS` (env, as the Computer's), so Open WebUI can move to 0.13.5 without losing them; then the bump (the Open WebUI entry below). **S**. Client. **Built night n° 18 (2026-11-27), steps 1–3 and 5, unreleased:** run on a real 0.13.3 with a stand-in mcpo; HUMAN_TESTS A31. Step 4, the bump, blocked (0.13.5 does not start on Windows, below).
 - **Ternary Bonsai 2.5 27B as the llama.cpp default** ([BONSAI_DEFAULT_PLAN](BONSAI_DEFAULT_PLAN.md), night n° 17, **approved by the owner 2026-11-26**, question 3): measured against UD-IQ2_S on the farm's llama.cpp: the quality check 28 (three passes) against 24, one person 183 tok/s with its draft head against 110, the same size; a 12 GB card (the 4070) first. **S**. Farm only. **Built night n° 18 (2026-11-27), unreleased:** the draft's memory in the farm's sizing (measured), Bonsai in the library; the default (step 2) waits on HUMAN_TESTS **K18**, the 4070.
 - **The Classify box answered by the farm's vLLM** ([CLASSIFY_VLLM_PLAN](CLASSIFY_VLLM_PLAN.md), night n° 17, **approved by the owner 2026-11-26**, question 4): 73 % right against Laya's 59 % on 194 English and French headlines, 31 ms an item on the GPU, Laya kept for Ollama and llama.cpp. **S–M**. **Built night n° 18 (2026-11-27), unreleased:** steps 1–4, run against a real vLLM serving Qwen3.6; HUMAN_TESTS J21.

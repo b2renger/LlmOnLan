@@ -38,18 +38,45 @@ export function killTree(pid: number | undefined): Promise<void> {
     });
 }
 
-// Can we open a TCP connection to host:port within timeoutMs? Used to test whether
-// the BlenderMCP add-on's socket is actually listening (the "could not connect" hop).
-export function tcpProbe(host: string, port: number, timeoutMs = 1500): Promise<boolean> {
+
+// What answers on the Blender port (BLENDER_LAB_MCP_PLAN step 3; A31 showed a port-only check say ✓ for an add-on the
+// helper could not speak to). Blender Lab's MCP extension reads a request ended by a zero byte and answers JSON ended
+// by one (its mcp_to_blender_server.py `_encode_response`, read 2026-11-28 at dbbf836); the community BlenderMCP
+// add-on answers bare JSON as soon as a whole object arrives. So the request goes first WITHOUT its zero byte (only
+// the community add-on answers that), then the zero byte (Lab's extension answers). The code is empty: it runs nothing.
+export type BlenderPeer = 'lab' | 'community' | 'other' | 'none';
+export function probeBlender(host: string, port: number, timeoutMs = 2000): Promise<BlenderPeer> {
     return new Promise((resolve) => {
         const sock = new net.Socket();
         let settled = false;
-        const finish = (ok: boolean) => { if (settled) return; settled = true; try { sock.destroy(); } catch { /* ignore */ } resolve(ok); };
-        sock.setTimeout(timeoutMs);
-        sock.once('connect', () => finish(true));
-        sock.once('timeout', () => finish(false));
-        sock.once('error', () => finish(false));
-        try { sock.connect(port, host); } catch { finish(false); }
+        let connected = false;
+        let ended = false;          // the zero byte was sent
+        let got = '';
+        const timers: NodeJS.Timeout[] = [];
+        const finish = (peer: BlenderPeer) => {
+            if (settled) return;
+            settled = true;
+            for (const t of timers) clearTimeout(t);
+            try { sock.destroy(); } catch { /* ignore */ }
+            resolve(peer);
+        };
+        const isJson = (s: string) => { try { return typeof JSON.parse(s) === 'object'; } catch { return false; } };
+        sock.on('data', (d) => {
+            got += d.toString('utf8');
+            if (!ended) { if (isJson(got.trim())) finish('community'); return; }
+            const at = got.indexOf('\0');
+            if (at >= 0) finish(isJson(got.slice(0, at)) ? 'lab' : 'other');
+        });
+        sock.once('connect', () => {
+            connected = true;
+            sock.write(JSON.stringify({ type: 'execute', code: '', strict_json: false }));
+            timers.push(setTimeout(() => { if (!settled) { ended = true; sock.write('\0'); } }, Math.min(700, timeoutMs / 3)));
+            timers.push(setTimeout(() => finish('other'), timeoutMs));   // listens, says nothing either one knows
+        });
+        // Refused: nothing listens. Accepted, then closed or failed without an answer either one gives: something else.
+        sock.once('error', () => finish(connected ? 'other' : 'none'));
+        sock.once('close', () => finish(connected ? 'other' : 'none'));
+        try { sock.connect(port, host); } catch { finish('none'); }
     });
 }
 

@@ -80,6 +80,18 @@ export function mcpToolsDir(): string {
     return path.join(app.getPath('userData'), 'mcp-tools');
 }
 
+// A file the app ships, as a path another program can open (BLENDER_LAB_MCP_PLAN). Packaged, app.getAppPath() is
+// resources/app.asar, which only Electron's own fs reads inside; electron-builder.yml's `asarUnpack` puts such files in
+// app.asar.unpacked, the same path one folder name apart. In development there is no archive and nothing changes.
+export function unpackedPath(p: string): string {
+    return p.replace(/([\\/])app\.asar([\\/])/, '$1app.asar.unpacked$2');
+}
+
+// Blender Lab's MCP server wheel, shipped in assets/blender-mcp (its SOURCE.md says how it was built).
+export function blenderWheelPath(file: string): string {
+    return unpackedPath(path.join(app.getAppPath(), 'assets', 'blender-mcp', file));
+}
+
 // Default per-user DATA_DIR (all OWUI user data lives here unless the user picks
 // another folder). Under Electron's userData so it's per-user + writable.
 export function defaultDataDir(): string {

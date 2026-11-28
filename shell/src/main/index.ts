@@ -14,7 +14,7 @@ import { loadSettings, updateSettings } from './store';
 import { defaultDataDir, bundledOwuiVersion, sidecarRoot } from './paths';
 import { SidecarSupervisor } from './sidecar';
 import { McpoSupervisor } from './mcpoSupervisor';
-import { httpGet, tcpProbe, sameOrigin } from './util';
+import { httpGet, probeBlender, sameOrigin } from './util';
 import { Discovery } from './discovery';
 import { moveDataDir, dirHasData, NOT_EMPTY } from './dataMigration';
 import { clientDataDir, prepareClientData, isInside, CLIENT_DIR_NAME, ClientDataNotice } from './clientData';
@@ -1033,7 +1033,7 @@ function registerIpc(): void {
         return { ...mcpo.getState(), enabled: v };
     });
     // Change the Blender add-on socket port (must match the number the add-on shows).
-    // Persists + restarts mcpo so blender-mcp reconnects on the new BLENDER_PORT.
+    // Persists + restarts mcpo so Lab's server reconnects on the new BLENDER_MCP_PORT.
     ipcMain.handle('set-blender-port', (_e, port: number) => {
         const p = Math.max(1, Math.min(65535, Math.floor(Number(port)) || 9876));
         updateSettings({ blenderPort: p });
@@ -1041,8 +1041,9 @@ function registerIpc(): void {
         return p;
     });
     // Test the two hops: (1) the local mcpo proxy serves its OpenAPI spec (tools),
-    // (2) something is actually listening on the Blender add-on socket port. Lets the
-    // user tell "proxy not up" from "Blender add-on not started / wrong port" at a glance.
+    // (2) WHAT answers on the Blender port: Blender Lab's MCP extension, the community add-on
+    // LlmOnLan no longer speaks to, something else, or nothing (BLENDER_LAB_MCP_PLAN step 3;
+    // a port-only check said ✓ for the wrong add-on in A31).
     ipcMain.handle('test-blender-connection', async () => {
         const port = mcpo.getBlenderPort();
         const conn = mcpo.getConnection();
@@ -1054,8 +1055,8 @@ function registerIpc(): void {
                 if (mcpoUp) { try { toolCount = Object.keys(JSON.parse(r.body).paths || {}).length; } catch { /* not JSON */ } }
             } catch { /* mcpoUp stays false */ }
         }
-        const blenderReachable = await tcpProbe('127.0.0.1', port, 1500);
-        return { mcpoUp, blenderReachable, port, toolCount, enabled: mcpo.isEnabled() };
+        const blender = await probeBlender('127.0.0.1', port, 2000);
+        return { mcpoUp, blender, blenderReachable: blender === 'lab', port, toolCount, enabled: mcpo.isEnabled() };
     });
 
     // --- discovery (M3) ---

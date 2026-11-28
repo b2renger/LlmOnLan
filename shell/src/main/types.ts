@@ -136,7 +136,7 @@ export interface ShellSettings {
     autoUpdate: boolean;
     blenderMcp: boolean;               // local Blender assistant-tools server (mcpo) on/off
     blenderMcpUserSet: boolean;        // user toggled Blender explicitly → farm recommendations won't override
-    blenderPort: number;               // BlenderMCP add-on socket port (BLENDER_PORT; default 9876)
+    blenderPort: number;               // Blender's MCP extension socket port (BLENDER_MCP_PORT; default 9876)
     // The main window's session lives in <DATA_DIR>/lol-client (clientData.ts). A Preferences move
     // cannot copy it while Chromium holds it open, so the move is saved here and done at the next
     // launch, before the window opens; cleared once it landed.

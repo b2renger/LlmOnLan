@@ -216,8 +216,12 @@ tools** · **Home Assistant** · startup & updates · **usage report** · about)
 - **Connection** — "Auto-search the subnet", "Rescan now", the **Search range** (`a.b . c–d . e–f`), and
   "Add by address" + chips (ComfyQ pattern). The farm list and the choice of farm live in the topbar popover.
 - **Assistant tools** — the opt‑in Blender/mcpo toggle (on or off restarts Open WebUI once: the server is in its env,
-  `TOOL_SERVER_CONNECTIONS`, since 2026-11-27), a "Test connection" button (checks both the
-  local helper and whether Blender is listening), and the BlenderMCP socket port.
+  `TOOL_SERVER_CONNECTIONS`, since 2026-11-27), a "Test connection" button (the local helper, and what answers on the
+  Blender port: Lab's MCP extension, the community add-on, something else or nothing: `util.ts` `probeBlender`), and the
+  extension's socket port. Since 2026-11-28 (BLENDER_LAB_MCP_PLAN, not released yet) the helper is Blender Lab's MCP
+  server, shipped as a wheel (`assets/blender-mcp`, sha256 checked, unpacked from `app.asar`), behind `mcpo==0.0.20` in
+  config mode (`/blender`, `disabledTools`: the six `_for_cli` tools and the two screenshot tools; `BLENDER_PATH` names
+  a path that never exists).
 - **Home Assistant** (2026-09-30) — address + long-lived token → **Link** (tested before anything is kept), **Test
   connection**, **Forget**, and **Allow commands…** / **Stop commands** (main's native dialog lists the devices).
 - **Startup & updates** — "Launch at login"; "Install app updates automatically" (off: a downloaded update installs

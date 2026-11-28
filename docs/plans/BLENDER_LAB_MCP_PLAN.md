@@ -146,3 +146,52 @@ key, the switch in Preferences, and the farm's *Recommend* for Blender.
 The unit tests pass, the run on the PRO 6000 adds a cube through `mcpo`, the screenshot check is written down (with
 `privacy.md`'s line if the picture reaches the model), the words are changed in the three places, A31 is rewritten,
 and the plan's built section names the build the owner tests.
+
+## Built (night n° 19, 2026-11-28)
+
+- **The wheel** (step 1):
+  - cloned from Lab's repository (the clone worked) at `dbbf836`;
+  - built in a scratch venv: `blender_mcp-1.0.2-py3-none-any.whl`, 5,948,590 bytes, 4,674 files, sha256 `c3045185…93a7ff`;
+  - in `shell/assets/blender-mcp/` with Lab's `LICENSE` (GPL-3.0) and `SOURCE.md`;
+  - unpacked from `app.asar` (`asarUnpack`, `paths.ts` `unpackedPath`);
+  - the client checks the sha256 before installing it.
+- **The pins** (mcpo, FastAPI):
+  - `mcpo==0.0.20` and **`fastapi==0.139.0`**, as they ran here together on 2026-11-27.
+  - Found: mcpo 0.0.20 passes `ssl_certfile` to `FastAPI()`, and FastAPI 0.165.0 (2026-11-18) refuses it, so mcpo
+    could not start at all in a fresh venv.
+  - mcpo 0.0.21 (2026-11-25) dropped that argument; it is the upgrade path, once it has run here.
+  - A venv from the community helper is rebuilt from nothing (the marker changed).
+- **Step 2:** `BLENDER_MCP_HOST`/`BLENDER_MCP_PORT`. `BLENDER_PATH` names `<mcp-tools>/no-background-blender/blender`,
+  which never exists.
+- **Step 5, keeping tools out:** mcpo 0.0.20's config mode (`--config`) mounts the server at `/blender` and drops its
+  `disabledTools` (`main.py:522-528`: never listed, never callable). The list: the six `_for_cli` tools, and the two
+  screenshot tools (`get_screenshot_of_area_as_image`, `get_screenshot_of_window_as_image`, which return PNG
+  images).
+- **The screenshot tools stay out.** The check of what the farm receives needs a chat through Open WebUI with a tool
+  call, which was not built tonight. So `privacy.md` is unchanged.
+  - `get_screenshot_of_window_as_json` stays: it describes the window's layout, no pixels.
+  - Lab's server reads only those three variables and sends nothing anywhere (its source read).
+- **Step 3, the probe:** `util.ts` `probeBlender`. It sends the request without its zero byte first (only the
+  community add-on answers that), then the zero byte (Lab's extension answers JSON ending in one). Its answer is
+  *lab*, *community*, *other* or *none*. `tcpProbe` is gone.
+- **Step 4, the words:** Preferences, GETTING_STARTED, the README (which also still said the tools reached Open WebUI
+  through the user-settings API: since 2026-11-27 it is the env), `context/client.md`; A31 rewritten.
+- **Tests:**
+  - `shell-main`: three new, 101 in the file.
+    - the env (and no background Blender, even with Blender on the PATH);
+    - the config with its eight hidden tools;
+    - the pins;
+    - the wheel's sha256, `LICENSE` and `SOURCE.md`;
+    - `unpackedPath` for a packaged and a development path;
+    - `asarUnpack`;
+    - the probe against four stand-ins (Lab, community, silent, closed).
+  - TST-15 unchanged and passing.
+- **Run on the PRO 6000 without a person** (03:33–03:38):
+  - a scratch Blender 5.1.1: `BLENDER_USER_RESOURCES` in scratch, the extension installed there from the clone's
+    `addon/`, `blender -b --online-mode --command blender_mcp --port 19876`;
+  - the probe said `lab`;
+  - mcpo started from the compiled `helperConfig`/`helperEnv`, serving 18 tools at `/blender` ("Filtered out 8
+    tool(s)" by name);
+  - `execute_blender_code` added a cube: `['Camera', 'Cube', 'Cube.001', 'Light']`;
+  - a hidden tool answered 404, no key answered 401;
+  - all stopped. The owner's Blender, profile and port 9876, and the owner's helper (`mcp-tools`), were not touched.

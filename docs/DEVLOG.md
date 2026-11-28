@@ -9,6 +9,58 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-28 (03:40) — BLENDER_LAB_MCP: the Blender tools speak to Blender Lab's MCP extension
+
+The third fix holding the releases ([BLENDER_LAB_MCP_PLAN](plans/BLENDER_LAB_MCP_PLAN.md), the owner's two answers of
+2026-11-27 16:04: the wheel; the screenshot tools allowed with a privacy line once checked).
+
+- **The wheel:**
+  - `git clone https://projects.blender.org/lab/blender_mcp.git` worked (the plan's first stop did not apply);
+    checked out `dbbf836`.
+  - `pip wheel --no-deps ./mcp` in a scratch Python 3.12 venv: 5,948,590 bytes, under the 20 MB stop; 4,674 files,
+    Blender's API and manual included; sha256 `c304518555427a29eb1be08f63601f94e4db0a0a4f4b43caaf76e8c14d93a7ff`.
+  - In `shell/assets/blender-mcp/`, with the repository's `LICENSE` (GPL-3.0) and a `SOURCE.md`;
+    `electron-builder.yml` `asarUnpack`.
+- **Lab's server, read before pinning:** it reads only `BLENDER_MCP_HOST`, `BLENDER_MCP_PORT` and `BLENDER_PATH`; it
+  has no HTTP client and sends nothing (the URLs found are in its manual text). Its tools register through
+  `register(mcp)`, with no switch to hide one.
+- **Keeping tools out:** mcpo 0.0.20 has `disabledTools` in its config mode (`main.py:211-219`, `522-528`: no endpoint
+  at all). So the client runs mcpo with `--config` (the server at `/blender`) and the list:
+  - the six `*_for_cli` tools (`execute_blender_code_for_cli`, the five `get_blendfile_summary_*_for_cli`);
+  - the two screenshot tools that return a PNG (`get_screenshot_of_area_as_image`,
+    `get_screenshot_of_window_as_image`).
+
+  `BLENDER_PATH` names a path that never exists, a second layer.
+- **The screenshot check was not built:** it needs Open WebUI to call the tool in a chat and the farm's gate to read
+  the next request. The two tools stay hidden and `privacy.md` is unchanged, as the plan says.
+- **Found: FastAPI 0.165.0 (2026-11-18) stops mcpo 0.0.20 at start** (`FastAPI.__init__() got an unexpected keyword
+  argument 'ssl_certfile'`, `main.py:813-821`), seen in a fresh scratch venv.
+  - The helper on this computer runs on FastAPI 0.139.0; mcpo 0.0.21 (2026-11-25) dropped the argument (read in its
+    wheel).
+  - Pinned: `mcpo==0.0.20` and `fastapi==0.139.0`, the pair that ran here. 0.0.21 is the upgrade path.
+  - Today's unpinned client gets 0.0.21, so it is not broken.
+- **Test connection:** `util.ts` `probeBlender`. Lab's add-on frames with a zero byte (`mcp_to_blender_server.py`
+  `_encode_response`); the community add-on answers bare JSON. So the request goes without the zero byte first, then
+  with it. `tcpProbe` is deleted; Preferences says which of four answers came back.
+- **Words:**
+  - the Preferences hint (Blender 5.1+, Get Extensions ▸ MCP, Allow Online Access, what is kept out), which reverses
+    the n18 hint as the plan said;
+  - GETTING_STARTED, the README (its stale user-settings route fixed to the env), `context/client.md`, the
+    comments; A31 rewritten.
+- **Tests:** `shell-main` 101 (three new: the env and config, the wheel and its path, the probe against four
+  stand-ins); TST-15 unchanged and passing.
+- **Run without a person** (03:33–03:38, the plan's scratch Blender):
+  - `BLENDER_USER_RESOURCES` in scratch, the extension zipped from the clone's `addon/` and installed with
+    `blender -b --online-mode --command extension install-file --repo user_default --enable`, then
+    `--command blender_mcp --port 19876`;
+  - `probeBlender` → `lab`;
+  - a scratch venv installed the client's way (`mcpo==0.0.20 fastapi==0.139.0 <wheel>`), and mcpo started from the
+    compiled `helperConfig`/`helperEnv`: "Filtered out 8 tool(s)", 18 served at `/blender`;
+  - `execute_blender_code` → `['Camera', 'Cube', 'Cube.001', 'Light']`; a hidden tool 404; no key 401;
+  - all stopped (Stop-Process on the scratch names only).
+  - The owner's Blender profile, port 9876 and helper (`mcp-tools`, 6 processes running) untouched; the live farm
+    unchanged.
+
 ## 2026-11-28 (03:24) — PLUGIN_PROGRESS after the advisor: Speech to text for real, the presets' path, the words
 
 - **Speech to text, the plugin J22 tests, installed for real** (03:22–03:23, the scratch copy, CPU, *small*):

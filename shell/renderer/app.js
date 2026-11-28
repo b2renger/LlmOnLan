@@ -298,11 +298,16 @@ prefs.blenderTest.addEventListener('click', async () => {
   const r = await window.lol.testBlenderConnection();
   if (!r.enabled) { el.textContent = 'Blender tools are off — enable them first.'; el.classList.add('err'); return; }
   const proxy = r.mcpoUp ? `helper ✓${r.toolCount ? ` (${r.toolCount} tools)` : ''}` : 'helper ✗ (still starting?)';
-  const blender = r.blenderReachable
-    ? `Blender ✓ on port ${r.port}`
-    : `Blender ✗ — nothing listening on port ${r.port} (start the MCP server in Blender, or fix the port)`;
+  // BLENDER_LAB_MCP_PLAN step 3: what answers on the port, not only that something does (main's probeBlender).
+  const blender = r.blender === 'lab'
+    ? `Blender’s MCP extension ✓ on port ${r.port}`
+    : r.blender === 'community'
+    ? `Blender ✗ — the community BlenderMCP add-on is on port ${r.port}: LlmOnLan now uses Blender’s own MCP extension (Edit ▸ Preferences ▸ Get Extensions ▸ MCP). Turn the add-on off.`
+    : r.blender === 'other'
+    ? `Blender ✗ — something else answers on port ${r.port} (another program, or the wrong port)`
+    : `Blender ✗ — nothing listening on port ${r.port} (in Blender 5.1: install the MCP extension and allow online access, or fix the port)`;
   el.textContent = `${proxy} · ${blender}`;
-  el.classList.toggle('err', !r.mcpoUp || !r.blenderReachable);
+  el.classList.toggle('err', !r.mcpoUp || r.blender !== 'lab');
 });
 // Live install/start progress while the panel is open, and — the important part —
 // register/unregister the Blender tool server with OWUI as mcpo comes up/down.

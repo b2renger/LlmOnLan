@@ -141,9 +141,9 @@
           <div class="pref-row">
             <label class="pref-label" for="pref-blender-port">Blender port</label>
             <input id="pref-blender-port" type="number" min="1" max="65535" class="in-port" />
-            <span class="pref-hint">Must match the port the <strong>BlenderMCP</strong> add-on panel shows (default 9876).</span>
+            <span class="pref-hint">Must match the port in the <strong>MCP</strong> extension's preferences in Blender (default 9876).</span>
           </div>
-          <p class="pref-hint">You only need to set up <strong>Blender</strong>: install the <strong>BlenderMCP</strong> add-on (its <code>addon.py</code>, from github.com/ahujasid/blender-mcp — not Blender's own <strong>MCP</strong> extension from <em>Get Extensions</em>, which LlmOnLan cannot talk to yet: turn its server off), open its panel (sidebar ▸ BlenderMCP) and click <strong>Connect / Start MCP Server</strong> — then ask, e.g. “add a red cube and a sun lamp.” Works best with a tool-calling model (Qwen / Llama); gemma is weak at tools. Uncheck to turn the tools off if you don't use Blender.</p>
+          <p class="pref-hint">You only need to set up <strong>Blender</strong> (5.1 or later): <em>Edit ▸ Preferences ▸ Get Extensions</em>, search <strong>MCP</strong> (by Blender Lab) and install it; in <em>System ▸ Network</em>, turn on <strong>Allow Online Access</strong> (the extension asks for it). Its server then starts by itself with Blender — then ask, e.g. “add a red cube and a sun lamp.” <strong>Test connection</strong> says what answers. LlmOnLan no longer speaks to the community BlenderMCP add-on. The tools that run a hidden Blender, and those that send a screenshot of your Blender, are kept out of the chat. Works best with a tool-calling model (Qwen / Llama); gemma is weak at tools. Uncheck to turn the tools off if you don't use Blender.</p>
         </section>
 
         <!-- Home Assistant (src/main/homeAssistant.ts): the rules and the token live in main -->

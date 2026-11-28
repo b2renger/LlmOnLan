@@ -1,11 +1,21 @@
 // mcpo supervisor — owns the LOCAL "assistant tools" server that lets the chat
 // drive Blender on THIS machine. It runs Open WebUI's own MCP→OpenAPI proxy
-// (`mcpo`) wrapping the Blender MCP server (`blender-mcp`), and OWUI consumes it
-// as an OpenAPI tool server (the renderer registers it through OWUI's user-settings
-// API from the authed webview — env TOOL_SERVER_CONNECTIONS is unreliable upstream,
-// see configBridge.ts). The
-// user owns the Blender side (install the BlenderMCP addon + Start the server);
-// we own making OWUI turnkey — flip the toggle and the Blender tools appear.
+// (`mcpo`) wrapping Blender Lab's MCP server (`blender-mcp`, BLENDER_LAB_MCP_PLAN,
+// the owner 2026-11-27: "use the 'official' blender lab MCP"), and OWUI consumes it
+// as an OpenAPI tool server, by env (configBridge.ts, BLENDER_TOOLS_ENV_PLAN). The
+// person owns the Blender side (Blender 5.1+, Get Extensions ▸ MCP, Allow Online
+// Access: the extension starts its server itself); we own making OWUI turnkey —
+// flip the toggle and the Blender tools appear.
+//
+// Blender Lab's server (2026-11-28): not on PyPI, so it ships as a wheel in assets/blender-mcp (GPL-3.0-or-later,
+// its LICENSE and SOURCE.md beside it), built from its repository at dbbf836, checked by its sha256 and installed
+// from that file; its dependencies (docutils, mcp[cli] < 2, pyyaml) and mcpo come from PyPI. mcpo runs it from a
+// config file (`--config`), which mounts it at /blender and drops the tools in `disabledTools` (mcpo 0.0.20
+// main.py: never listed, never callable):
+//   • its `_for_cli` twins run Python in a background Blender the person never opened (BLENDER_PATH, else
+//     `blender` on the PATH): off, and BLENDER_PATH names a path that never exists, as a second layer;
+//   • its two screenshot tools send pixels of the person's Blender window: off until a check shows the picture
+//     reaching the farm as an image, with privacy.md's line (the owner's yes, 2026-11-27 16:04).
 //
 // Design decisions (all validated by a live spike on Windows before writing this):
 //   • Reuse the sidecar's standalone CPython (it ships pip) to build a DEDICATED
@@ -15,8 +25,9 @@
 //     arbitrary code execution, and mcpo defaults to 0.0.0.0 — localhost-only bind
 //     is the containment; the bearer key (OWUI sends it via the connection) is
 //     defense-in-depth. No --strict-auth so /openapi.json stays fetchable.
-//   • DISABLE_TELEMETRY in the child env — blender-mcp otherwise POSTs telemetry to
-//     a Supabase endpoint (verified in its source); this honors the privacy invariant.
+//   • DISABLE_TELEMETRY in the child env — the community blender-mcp POSTed telemetry to
+//     a Supabase endpoint. Blender Lab's server sends nothing (its source read 2026-11-28:
+//     no HTTP client, only BLENDER_MCP_HOST/PORT and BLENDER_PATH read); kept, harmless.
 //   • Health-wait on /openapi.json: mcpo serves the full tool schema even when
 //     Blender ISN'T running (connection is per-call/lazy), so the tool server
 //     registers immediately and the user can start Blender whenever.
@@ -26,17 +37,62 @@ import { spawn, ChildProcess, execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { resolveSidecarPython, mcpToolsDir } from './paths';
+import { resolveSidecarPython, mcpToolsDir, blenderWheelPath } from './paths';
 import { findFreePort, killTree, waitForHttp } from './util';
 import { McpoState } from './types';
 
 const HOST = '127.0.0.1';
 const IS_WIN = process.platform === 'win32';
 const MAX_CRASH_RESTARTS = 3;
-// Installed into the tools venv. blender-mcp = the MCP server that talks to the
-// user's Blender addon; mcpo = OWUI's proxy that exposes it as an OpenAPI server.
-const PACKAGES = ['mcpo', 'blender-mcp'];
-const MARKER_TAG = PACKAGES.join(','); // changing the set re-triggers install
+// Installed into the tools venv: mcpo (OWUI's proxy) and FastAPI as they ran here together on 2026-11-27, and Blender
+// Lab's server from the shipped wheel. A different set (the community helper's, before 2026-11-28) rebuilds the venv
+// from nothing. FastAPI is pinned because mcpo 0.0.20 passes `ssl_certfile` to FastAPI(), which FastAPI 0.165.0
+// (2026-11-18) refuses: mcpo then cannot start at all (seen 2026-11-28 in scratch). ponytail: upgrade path, mcpo 0.0.21
+// (2026-11-25) dropped that argument and keeps `disabledTools`; pin it alone once it has run here.
+export const MCPO_PIN = 'mcpo==0.0.20';
+export const FASTAPI_PIN = 'fastapi==0.139.0';
+export const LAB_WHEEL = 'blender_mcp-1.0.2-py3-none-any.whl';
+export const LAB_WHEEL_SHA256 = 'c304518555427a29eb1be08f63601f94e4db0a0a4f4b43caaf76e8c14d93a7ff';
+const MARKER_TAG = `${MCPO_PIN},${FASTAPI_PIN},blender-mcp-lab@dbbf836`;
+// The server's name in mcpo's config: its tools are served under /blender.
+export const SERVER_NAME = 'blender';
+// The tools mcpo keeps out of the chat (see the header), by their names in Lab's server at dbbf836.
+export const HIDDEN_TOOLS = [
+    'execute_blender_code_for_cli',
+    'get_blendfile_summary_datablocks_for_cli',
+    'get_blendfile_summary_missing_files_for_cli',
+    'get_blendfile_summary_of_linked_libraries_for_cli',
+    'get_blendfile_summary_path_info_for_cli',
+    'get_blendfile_summary_usage_guess_for_cli',
+    'get_screenshot_of_area_as_image',
+    'get_screenshot_of_window_as_image',
+];
+
+// The environment Lab's server runs in. Which Blender: this computer's MCP extension, on the port Preferences says
+// (the extension's own preference, 9876 by default). BLENDER_PATH: a path that never exists, so a `_for_cli` tool
+// that got through would fail with Lab's own error (blender_cli.py: os.environ.get("BLENDER_PATH", "blender"), and
+// FileNotFoundError → its RuntimeError) instead of running the `blender` on the PATH.
+export function helperEnv(blenderPort: number, toolsDir: string, base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+    return {
+        ...base,
+        BLENDER_MCP_HOST: '127.0.0.1',
+        BLENDER_MCP_PORT: String(blenderPort),
+        BLENDER_PATH: path.join(toolsDir, 'no-background-blender', 'blender'),
+        // Privacy: the community helper's telemetry switches (all three names it read); Lab's sends none.
+        DISABLE_TELEMETRY: 'true', BLENDER_MCP_DISABLE_TELEMETRY: 'true', MCP_DISABLE_TELEMETRY: 'true',
+        // Same UTF-8 guard the OWUI/LiteLLM children use against a cp1252 console.
+        PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8',
+    };
+}
+
+// mcpo's config file: Lab's server, by its console script, with the hidden tools.
+export function helperConfig(serverBin: string): object {
+    return { mcpServers: { [SERVER_NAME]: { command: serverBin, args: [], disabledTools: HIDDEN_TOOLS } } };
+}
+
+function sha256Of(file: string): string | null {
+    try { return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); } catch { return null; }
+}
 
 function venvDir(): string { return path.join(mcpToolsDir(), 'venv'); }
 function venvBin(name: string): string {
@@ -91,8 +147,8 @@ export class McpoSupervisor extends EventEmitter {
     // the OWUI SidecarSupervisor).
     private gen = 0;
     private crashRestarts = 0;
-    // The Blender add-on's socket port (BLENDER_PORT). blender-mcp connects to Blender
-    // at 127.0.0.1:<this>; it must match the number the BlenderMCP add-on panel shows.
+    // The Blender MCP extension's port (BLENDER_MCP_PORT). Lab's server connects to Blender
+    // at 127.0.0.1:<this>; it must match the extension's own preference (9876 by default).
     private blenderPort = 9876;
     private state: McpoState = { status: 'idle', url: null };
 
@@ -107,7 +163,7 @@ export class McpoSupervisor extends EventEmitter {
         const next = Number.isFinite(p) && p >= 1 && p <= 65535 ? Math.floor(p) : 9876;
         if (next === this.blenderPort) return;
         this.blenderPort = next;
-        if (this.enabled) this.start();   // respawn with the new BLENDER_PORT
+        if (this.enabled) this.start();   // respawn with the new BLENDER_MCP_PORT
     }
 
     // The connection Preferences' "Test" probes — null unless actually ready.
@@ -125,7 +181,7 @@ export class McpoSupervisor extends EventEmitter {
     // What Open WebUI's env carries for the Blender tools: while they are on and a port is chosen, whether or not
     // mcpo answers yet (Open WebUI fetches its spec again at each tool listing).
     plannedConnection(): { url: string; apiKey: string } | null {
-        return this.enabled && this.port ? { url: `http://${HOST}:${this.port}`, apiKey: this.apiKey } : null;
+        return this.enabled && this.port ? { url: `http://${HOST}:${this.port}/${SERVER_NAME}`, apiKey: this.apiKey } : null;
     }
 
     private setState(patch: Partial<McpoState>): void {
@@ -148,9 +204,16 @@ export class McpoSupervisor extends EventEmitter {
 
         const base = resolveBasePython();
         if (!base) return 'No Python found to set up the Blender tools (need Python 3.10–3.12 installed).';
+        // The shipped server, as it was built (SOURCE.md): never install a file that changed.
+        const wheel = blenderWheelPath(LAB_WHEEL);
+        if (sha256Of(wheel) !== LAB_WHEEL_SHA256) return 'The Blender tools in this installation are damaged. Reinstall LlmOnLan.';
 
         try { fs.mkdirSync(mcpToolsDir(), { recursive: true }); } catch { /* handled below */ }
         this.setState({ status: 'installing', url: null, message: 'Setting up the Blender tools (first time only, ~1 min)…' });
+        // Another set of packages (the community helper, before 2026-11-28): its venv goes, so nothing of it stays.
+        if (readMarker() !== MARKER_TAG && fs.existsSync(venvDir())) {
+            try { fs.rmSync(venvDir(), { recursive: true, force: true }); } catch { return 'Could not replace the old Blender tools. Restart LlmOnLan and turn them on again.'; }
+        }
 
         if (!fs.existsSync(venvPython())) {
             const r = await run(base.cmd, [...base.args, '-m', 'venv', venvDir()]);
@@ -158,9 +221,9 @@ export class McpoSupervisor extends EventEmitter {
         }
         // pip self-upgrade is best-effort (old pip still installs fine).
         await run(venvPython(), ['-m', 'pip', 'install', '--disable-pip-version-check', '--upgrade', 'pip']);
-        const r2 = await run(venvPython(), ['-m', 'pip', 'install', '--disable-pip-version-check', ...PACKAGES]);
+        const r2 = await run(venvPython(), ['-m', 'pip', 'install', '--disable-pip-version-check', MCPO_PIN, FASTAPI_PIN, wheel]);
         if (r2 !== 0 || !fs.existsSync(venvBin('mcpo')) || !fs.existsSync(venvBin('blender-mcp'))) {
-            return 'Could not install the Blender tools (mcpo + blender-mcp). Check the internet connection and try again.';
+            return 'Could not install the Blender tools (mcpo + Blender Lab’s MCP server). Check the internet connection and try again.';
         }
         try { fs.writeFileSync(markerFile(), MARKER_TAG, 'utf8'); } catch { /* non-fatal; re-checks each start */ }
         return null;
@@ -178,22 +241,15 @@ export class McpoSupervisor extends EventEmitter {
 
         this.port = await findFreePort(this.port || 8765);   // the kept port while it is free (reservePort)
         if (myGen !== this.gen) return;
-        const url = `http://${HOST}:${this.port}`;
+        const url = `http://${HOST}:${this.port}/${SERVER_NAME}`;
         this.setState({ status: 'starting', url: null, message: undefined });
 
-        // mcpo --host 127.0.0.1 --port <p> --api-key <k> -- <blender-mcp>
-        const args = ['--host', HOST, '--port', String(this.port), '--api-key', this.apiKey, '--', venvBin('blender-mcp')];
-        const env = {
-            ...process.env,
-            // Which Blender to drive: this machine's BlenderMCP add-on socket. The port
-            // is user-configurable (Settings) so it can match what the add-on panel shows.
-            BLENDER_HOST: '127.0.0.1',
-            BLENDER_PORT: String(this.blenderPort),
-            // Privacy: stop blender-mcp's telemetry POSTs (all three aliases it checks).
-            DISABLE_TELEMETRY: 'true', BLENDER_MCP_DISABLE_TELEMETRY: 'true', MCP_DISABLE_TELEMETRY: 'true',
-            // Same UTF-8 guard the OWUI/LiteLLM children use against a cp1252 console.
-            PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8',
-        };
+        // mcpo --host 127.0.0.1 --port <p> --api-key <k> --config <file>: Lab's server at /blender, its hidden tools out.
+        const cfg = path.join(mcpToolsDir(), 'mcpo-config.json');
+        try { fs.writeFileSync(cfg, JSON.stringify(helperConfig(venvBin('blender-mcp')), null, 2), 'utf8'); }
+        catch (e) { this.setState({ status: 'error', url: null, message: `Could not write the Blender tools' settings: ${(e as Error).message}` }); return; }
+        const args = ['--host', HOST, '--port', String(this.port), '--api-key', this.apiKey, '--config', cfg];
+        const env = helperEnv(this.blenderPort, mcpToolsDir());
         console.log(`[mcpo] spawning: ${venvBin('mcpo')} ${args.join(' ')}`);
         const child = spawn(venvBin('mcpo'), args, {
             windowsHide: true, detached: !IS_WIN, env, stdio: ['ignore', 'pipe', 'pipe'],

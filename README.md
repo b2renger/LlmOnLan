@@ -216,13 +216,12 @@ The chat can drive **Blender running on the same machine as the client** — cre
 Blender, inspect the scene — over the [Model Context Protocol](https://modelcontextprotocol.io). It's
 **opt‑in per client** (off by default): tick Preferences (⚙) → **Assistant tools** → **Blender tools** and the
 client configures everything automatically — it runs a **local** MCP→OpenAPI proxy
-([`mcpo`](https://github.com/open-webui/mcpo)) in front of the
-[BlenderMCP](https://github.com/ahujasid/blender-mcp) server and registers it through OWUI's own
-supported **user‑settings API** (`POST /api/v1/users/user/settings/update`, appending to
-`ui.toolServers` and selecting it via `ui.tools`) — not an env var: when this was built (Open WebUI 0.10.2), a tool
-server set through env was not reliably shown (upstream issue #18140), and the user‑settings API adds or removes it
-while the app runs, without restarting Open WebUI. (The Computer's MCP server, by contrast, is set at boot through
-`TOOL_SERVER_CONNECTIONS`.) Nothing is exposed to the network and OWUI is never modified. **You only enable the toggle and set up Blender.** (A farm operator can
+([`mcpo`](https://github.com/open-webui/mcpo)) in front of
+[Blender Lab's MCP server](https://projects.blender.org/lab/blender_mcp) (since 2026-11-28; shipped with the client as
+a wheel, GPL-3.0-or-later, `shell/assets/blender-mcp`), and gives it to Open WebUI at its start through
+`TOOL_SERVER_CONNECTIONS`, as the Computer's MCP server (since 2026-11-27: Open WebUI 0.13.4 and later drop a
+person's own tool servers); the renderer then selects it for new chats through OWUI's user‑settings API. Nothing is
+exposed to the network and OWUI is never modified. **You only enable the toggle and set up Blender.** (A farm operator can
 also **recommend** Blender to the whole fleet from the admin panel — clients that never made an explicit
 choice then enable it automatically.)
 
@@ -231,7 +230,8 @@ each person controls their own Blender.
 
 ### Set up Blender (your side, once)
 
-Three steps — enable the toggle, install the **BlenderMCP** add‑on, start its server — then ask the chat
+Three steps — enable the toggle, install Blender's own **MCP** extension (Blender 5.1+, *Get Extensions*), allow
+online access — then ask the chat
 for a red cube. The **step‑by‑step walkthrough, the port setting, and the troubleshooting live in one
 place**: [`docs/GETTING_STARTED.md` ▸ Control Blender from the chat](docs/GETTING_STARTED.md#control-blender-from-the-chat-opt-in).
 
@@ -242,8 +242,9 @@ place**: [`docs/GETTING_STARTED.md` ▸ Control Blender from the chat](docs/GETT
   [results](docs/research/agent-spike/RESULTS.md)); Blender's own tools were not measured. If results are
   hit‑or‑miss, serve a model that calls tools well (a **Qwen**, for example) from the farm panel.
 - **Local & private.** The tool server binds to `127.0.0.1` only (never the LAN), behind a random key, and
-  BlenderMCP's telemetry is disabled. It can run arbitrary Python inside Blender, so treat it like any
-  script you'd run on your own scene.
+  Blender Lab's server sends nothing anywhere. Its tools that run a hidden Blender, and its two screenshot tools,
+  are kept out of the chat. It can run arbitrary Python inside Blender, so treat it like any script you'd run on
+  your own scene.
 - Fuller walkthrough: [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md#control-blender-from-the-chat-opt-in).
 
 ## License
