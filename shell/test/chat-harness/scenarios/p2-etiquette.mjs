@@ -696,7 +696,14 @@ export default [
             await h.waitFor(() => (document.querySelector('.chat-msg.assistant[data-status="streaming"]') ? true : null));
             await h.sleep(1500);
             await h.click('#chat-stop');
-            await h.waitFor(() => (document.querySelectorAll('.chat-msg.assistant[data-status="aborted"]').length >= 2 ? true : null));
+            // Night n° 19: this wait timed out in 2 of 4 full runs, never alone. On a timeout, say what the replies were.
+            try {
+                await h.waitFor(() => (document.querySelectorAll('.chat-msg.assistant[data-status="aborted"]').length >= 2 ? true : null));
+            } catch (err) {
+                const st = await h.eval(() => [...document.querySelectorAll('.chat-msg.assistant')]
+                    .map((m) => `${m.getAttribute('data-status')}:${(m.textContent || '').trim().length}`)).catch(() => null);
+                throw new Error(`${/** @type {any} */ (err).message} | assistant replies (status:chars): ${JSON.stringify(st)}`);
+            }
             h.eq((await notifications()).length, 0, 'pref:notify false means silence');
         },
     },

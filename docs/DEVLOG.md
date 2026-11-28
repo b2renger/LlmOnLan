@@ -9,6 +9,31 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-28 (04:15) — The harness's p2 flake, half found: the store loses the seeded chats; both waits now say what they saw
+
+Approved in advance (test flakes).
+
+- **The flake:** `p2-groups-pin-rename` or `p2-notify` timed out in three of tonight's four full runs:
+  - the baseline: both;
+  - 02:33: `p2-groups-pin-rename`;
+  - 02:57: `p2-notify`;
+  - 03:44: none.
+
+  Each passed alone (3/3), and the pair `p2-export-skips-ephemeral` + `p2-groups-pin-rename` passed 2/2.
+- **Instrumented:**
+  - `p2-library.mjs` `waitRows` now reports, on a timeout, the rows on screen and the store's own `listThreads()`,
+    with the store's mode, a failed write, and whether the list is hidden;
+  - `p2-etiquette.mjs`'s last wait reports each assistant reply's status and length.
+- **Caught once** (`--only p2-notify,p2-groups-pin-rename`, 1 of 15 runs):
+  - `wanted 2 rows, the sidebar held: [] | {"stored":[], …}`. **The store itself held no chats** just after the
+    scenario seeded two (`repo.createThread`, synchronous). The sidebar was right.
+  - The store journals writes made before IndexedDB attaches and replays them, so a write before `LolChat.ready`'s
+    IDB attach is not lost by design. **The suspect is the harness's `fresh()`:** `Storage.clearDataForOrigin` right
+    after `about:blank` and a 60 ms sleep, with the clear landing after the new page attached. Not proven: the mode
+    field was added after that catch, and 12 more runs did not fail.
+- **Next time it fails, the report says the store's mode.** If it is `idb` with nothing stored, `fresh()` should wait
+  for the clear (for example, a page that checks `indexedDB.databases()` is empty before the reload).
+
 ## 2026-11-28 (04:07) — BLENDER_LAB_MCP: the tool server through a real Open WebUI; the screenshot check done, the two tools on
 
 The advisor's two checks before a release, then the plan's step 5 test (the owner's yes of 2026-11-27 16:04, on the

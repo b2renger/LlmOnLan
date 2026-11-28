@@ -41,11 +41,35 @@ const listRows = (/** @type {any} */ h) => h.eval(() => {
     return out;
 });
 
-/** Wait until the sidebar shows exactly `n` rows. */
-const waitRows = (/** @type {any} */ h, /** @type {number} */ n, timeout = 15000) => h.waitFor((want) => {
-    const rows = [...document.querySelectorAll('.chat-thread-row')];
-    return rows.length === want ? rows.map((r) => r.getAttribute('data-id')) : null;
-}, { timeout, args: [n] });
+/** Wait until the sidebar shows exactly `n` rows. On a timeout it says what the sidebar held: this wait timed out
+ * in full runs only (night n° 19, 2 of 4 runs; never alone or after p2-export-skips-ephemeral), and "last value:
+ * null" said nothing about why. */
+const waitRows = async (/** @type {any} */ h, /** @type {number} */ n, timeout = 15000) => {
+    try {
+        return await h.waitFor((want) => {
+            const rows = [...document.querySelectorAll('.chat-thread-row')];
+            return rows.length === want ? rows.map((r) => r.getAttribute('data-id')) : null;
+        }, { timeout, args: [n] });
+    } catch (err) {
+        const seen = await listRows(h).catch(() => null);
+        const more = await h.eval(async () => {
+            const app = window.LolChat && window.LolChat.app;
+            const list = document.getElementById('chat-threads');
+            let stored = null;
+            try { stored = (await app.repo.listThreads()).map((t) => t.title); } catch (e) { stored = `listThreads threw: ${e && e.message}`; }
+            return {
+                stored,
+                mode: app && app.repo ? app.repo.mode : null,
+                writeFailed: app && app.repo ? app.repo.writeFailed || null : null,
+                children: list ? list.children.length : null,
+                listHidden: list ? (list.closest('[hidden], .hidden') ? 'hidden' : 'shown') : 'no #chat-threads',
+                view: document.body.dataset.view || null,
+                search: (document.querySelector('#chat-search, .chat-search input') || {}).value || '',
+            };
+        }).catch((e) => `eval failed: ${e && e.message}`);
+        throw new Error(`${/** @type {any} */ (err).message} | wanted ${n} rows, the sidebar held: ${JSON.stringify(seen)} | ${JSON.stringify(more)}`);
+    }
+};
 
 /** Seed threads + messages straight into the repo (no farm traffic, no seats taken). */
 const seedThreads = (/** @type {any} */ h, /** @type {any[]} */ spec) => h.eval(async (rows) => {
