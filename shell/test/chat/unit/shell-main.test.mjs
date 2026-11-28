@@ -2155,11 +2155,12 @@ export default (test) => {
     const cp = require('node:child_process');
     const { EventEmitter } = require('node:events');
     const tools = path.join(USER_DATA, 'mcp-tools');
-    const venv = path.join(tools, 'venv');
-    const bin = (/** @type {string} */ n) => (process.platform === 'win32' ? path.join(venv, 'Scripts', `${n}.exe`) : path.join(venv, 'bin', n));
+    const venv = path.join(tools, SUP.VENV_NAME);
+    const binIn = (/** @type {string} */ dir, /** @type {string} */ n) => (process.platform === 'win32' ? path.join(dir, 'Scripts', `${n}.exe`) : path.join(dir, 'bin', n));
+    const bin = (/** @type {string} */ n) => binIn(venv, n);
     const touch = (/** @type {string} */ f) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, ''); };
     // The community helper's venv, as v0.2.21 left it: every script there, another marker.
-    for (const n of ['python', 'mcpo', 'blender-mcp']) touch(bin(n));
+    for (const n of ['python', 'mcpo', 'blender-mcp']) touch(binIn(path.join(tools, 'venv'), n));
     fs.writeFileSync(path.join(tools, '.installed'), 'mcpo,blender-mcp');
     const base = path.join(tempDir('basepy'), 'python.exe');
     touch(base);
@@ -2205,8 +2206,59 @@ export default (test) => {
       assert.equal(calls.filter((a) => a.includes('-m venv')).length, 1, `one venv made: ${JSON.stringify(calls)}`);
       assert.equal(calls.filter((a) => a.includes(SUP.MCPO_PIN)).length, 1, 'one install');
       assert.match(fs.readFileSync(path.join(tools, '.installed'), 'utf8'), /blender-mcp-lab@dbbf836/, 'the new marker');
+      assert.equal(fs.existsSync(path.join(tools, 'venv')), false, 'the community helper\'s venv, which nothing ran from, is gone');
     } finally {
       cp.spawn = realSpawn;
+      fs.rmSync(tools, { recursive: true, force: true });
+    }
+  });
+
+  // Night n° 19 (05:03): an installer run over a running client stops the app, not its helper (NSIS stops what runs
+  // from the install folder; mcpo runs from userData), and Windows refuses to delete a running .exe: rmSync on that
+  // venv failed with EPERM half-way (reproduced in scratch: only python.exe and pythonw.exe were left), and every start
+  // after failed the same way while the helper lived. Here the old folder refuses its removal, as there.
+  test('BLENDER_LAB_MCP: an old helper still running from the old venv never blocks the install: its folder is kept, the new set gets its own', async () => {
+    const SUP = require(path.join(BUILD, 'mcpoSupervisor.js'));
+    const cp = require('node:child_process');
+    const nodeFs = require('node:fs');
+    const { EventEmitter } = require('node:events');
+    const tools = path.join(USER_DATA, 'mcp-tools');
+    const old = path.join(tools, 'venv');
+    const venv = path.join(tools, SUP.VENV_NAME);
+    const binIn = (/** @type {string} */ dir, /** @type {string} */ n) => (process.platform === 'win32' ? path.join(dir, 'Scripts', `${n}.exe`) : path.join(dir, 'bin', n));
+    const touch = (/** @type {string} */ f) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, ''); };
+    for (const n of ['python', 'mcpo', 'blender-mcp']) touch(binIn(old, n));
+    fs.writeFileSync(path.join(tools, '.installed'), 'mcpo,blender-mcp');
+    const base = path.join(tempDir('basepy2'), 'python.exe');
+    touch(base);
+    const realSpawn = cp.spawn;
+    const realRm = nodeFs.rmSync;
+    let refused = 0;
+    nodeFs.rmSync = (/** @type {string} */ p, /** @type {any} */ o) => {
+      if (path.resolve(String(p)) === path.resolve(old)) { refused++; throw Object.assign(new Error(`EPERM, Permission denied: '${p}'`), { code: 'EPERM' }); }
+      return realRm(p, o);
+    };
+    cp.spawn = (/** @type {string} */ _cmd, /** @type {string[]} */ args) => {
+      const p = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: new EventEmitter() });
+      const a = args.join(' ');
+      if (a.includes('-m venv')) touch(binIn(venv, 'python'));
+      if (a.includes(SUP.MCPO_PIN)) { touch(binIn(venv, 'mcpo')); touch(binIn(venv, 'blender-mcp')); }
+      setImmediate(() => p.emit('exit', 0));
+      return p;
+    };
+    try {
+      await withEnv({ LOL_MCP_PYTHON: base }, async () => {
+        const sup = new SUP.McpoSupervisor();
+        assert.equal(await sup.ensureInstalled(), null, 'installed, though the old folder cannot go');
+      });
+      assert.ok(refused >= 1, 'the old folder was tried');
+      assert.ok(fs.existsSync(binIn(old, 'mcpo')), 'and kept: the running helper is left alone');
+      assert.ok(fs.existsSync(binIn(venv, 'mcpo')) && fs.existsSync(binIn(venv, 'blender-mcp')), 'the new set in its own folder');
+      assert.match(fs.readFileSync(path.join(tools, '.installed'), 'utf8'), /blender-mcp-lab@dbbf836/);
+      assert.match(SUP.VENV_NAME, /^venv-[0-9a-f]{8}$/, 'named after the set, so the next pin gets another folder');
+    } finally {
+      cp.spawn = realSpawn;
+      nodeFs.rmSync = realRm;
       fs.rmSync(tools, { recursive: true, force: true });
     }
   });

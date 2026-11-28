@@ -46,8 +46,8 @@ const HOST = '127.0.0.1';
 const IS_WIN = process.platform === 'win32';
 const MAX_CRASH_RESTARTS = 3;
 // Installed into the tools venv: mcpo (OWUI's proxy) and FastAPI as they ran here together on 2026-11-27, and Blender
-// Lab's server from the shipped wheel. A different set (the community helper's, before 2026-11-28) rebuilds the venv
-// from nothing. FastAPI is pinned because mcpo 0.0.20 passes `ssl_certfile` to FastAPI(), which FastAPI 0.165.0
+// Lab's server from the shipped wheel. A different set (the community helper's, before 2026-11-28) installs into a
+// venv of its own (VENV_NAME). FastAPI is pinned because mcpo 0.0.20 passes `ssl_certfile` to FastAPI(), which FastAPI 0.165.0
 // (2026-11-18) refuses: mcpo then cannot start at all (seen 2026-11-28 in scratch). ponytail: upgrade path, mcpo 0.0.21
 // (2026-11-25) dropped that argument and keeps `disabledTools`; pin it alone once it has run here.
 export const MCPO_PIN = 'mcpo==0.0.20';
@@ -93,7 +93,21 @@ function sha256Of(file: string): string | null {
     try { return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); } catch { return null; }
 }
 
-function venvDir(): string { return path.join(mcpToolsDir(), 'venv'); }
+// This set of packages' own venv: another set (the community helper's `venv`, an older pin's) is another folder, so an
+// install never removes a folder in its way. An installer run over a running client stops the app, not its helper, and
+// Windows refuses to delete a running .exe: removing the old venv failed half-way, and kept failing while that helper
+// lived (night n° 19, reproduced). The old folders go when nothing runs from them (removeOtherVenvs).
+export const VENV_NAME = `venv-${crypto.createHash('sha256').update(MARKER_TAG).digest('hex').slice(0, 8)}`;
+function venvDir(): string { return path.join(mcpToolsDir(), VENV_NAME); }
+function removeOtherVenvs(): void {
+    let names: string[] = [];
+    try { names = fs.readdirSync(mcpToolsDir()); } catch { return; }
+    for (const d of names) {
+        if ((d === 'venv' || d.startsWith('venv-')) && d !== VENV_NAME) {
+            try { fs.rmSync(path.join(mcpToolsDir(), d), { recursive: true, force: true }); } catch { /* in use: kept, tried at the next start */ }
+        }
+    }
+}
 function venvBin(name: string): string {
     return IS_WIN ? path.join(venvDir(), 'Scripts', `${name}.exe`) : path.join(venvDir(), 'bin', name);
 }
@@ -207,6 +221,7 @@ export class McpoSupervisor extends EventEmitter {
     // Idempotent install into the dedicated venv. Returns null on success, else a
     // human-readable message. Skipped fast when the venv + scripts + marker exist.
     private async install(): Promise<string | null> {
+        removeOtherVenvs();
         if (fs.existsSync(venvPython()) && fs.existsSync(venvBin('mcpo'))
             && fs.existsSync(venvBin('blender-mcp')) && readMarker() === MARKER_TAG) return null;
 
@@ -218,10 +233,6 @@ export class McpoSupervisor extends EventEmitter {
 
         try { fs.mkdirSync(mcpToolsDir(), { recursive: true }); } catch { /* handled below */ }
         this.setState({ status: 'installing', url: null, message: 'Setting up the Blender tools (first time only, ~1 min)…' });
-        // Another set of packages (the community helper, before 2026-11-28): its venv goes, so nothing of it stays.
-        if (readMarker() !== MARKER_TAG && fs.existsSync(venvDir())) {
-            try { fs.rmSync(venvDir(), { recursive: true, force: true }); } catch { return 'Could not replace the old Blender tools. Restart LlmOnLan and turn them on again.'; }
-        }
 
         if (!fs.existsSync(venvPython())) {
             const r = await run(base.cmd, [...base.args, '-m', 'venv', venvDir()]);
