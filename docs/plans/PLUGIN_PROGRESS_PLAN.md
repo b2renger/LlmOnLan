@@ -129,5 +129,7 @@ section names the build the owner tests.
   - pip's raw lines and `pipInstall`, the boot keeping `-q`;
   - the folder's growth;
   - Classify's weights check.
-- **The build for the owner:** `farm-app\dist\LlmOnLan-Farm-Setup-0.0.55+n19.exe` (04:33, from `bf0ad92`), for
+- **The build for the owner:** `farm-app\dist\LlmOnLan-Farm-Setup-0.0.55+n19.exe` (04:57, from `74a751f`), for
   HUMAN_TESTS J22.
+- **Found after, fixed** (`74a751f`, 04:56): an install that lists pip itself (each plugin's first, `-U pip`) runs quiet:
+  the venv's own pip may predate `--progress-bar raw` (pip 24.1; pip 24.0 exits 2 on it, run in scratch). Farm test.

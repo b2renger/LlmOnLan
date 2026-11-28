@@ -9,6 +9,27 @@ commit so the history records that a feature was tested + documented before it w
 
 ---
 
+## 2026-11-28 (04:59) — pip's own upgrade ran with raw progress, which an older pip refuses; fixed, the Farm app rebuilt
+
+- **Found while reading PLUGIN_PROGRESS's code again:** `pipInstall` passed `--progress-bar raw` to every install
+  with progress. That option exists only in pip 24.1 and later, and each plugin's first install (`-U pip`) runs on
+  the venv's own pip.
+- **Reproduced for real** in scratch: `py -3.12 -m venv`, then pip 24.0 put in, then the farm's `pipInstall(vpy,
+  ['-U', 'pip'], {progress})`. pip answered `option --progress-bar: invalid choice: 'raw' (choose from 'on', 'off')`
+  and exited 2.
+- **Who it hits:**
+  - Venvs made from Ubuntu 24.04's Python 3.12.3 (pip 24.0) or 22.04's 3.10 (pip 22.0): a `lol` CLI farm on a
+    system Python. Every plugin turned on there from the panel ended red at *Updating pip*.
+  - Not the Farm app's farms: `LOL_PYTHON` is its bundled CPython 3.12.16, whose venvs start on pip 25.
+- **The fix** (`74a751f`): an install that lists `pip` runs `-q`. Each plugin's own step text (*Updating pip in
+  it…*) still reaches the bar. Run again on the pip-24.0 venv: pip 24.0 → 26.3 quietly, then `six==1.17.0` through
+  raw progress (*downloading six-…whl*, *installing*).
+- **Tests:** the farm's `pipInstall` test asserts `-q` for `['-U', 'pip']` and for Web search's
+  `['-U', 'pip', 'setuptools', 'wheel', 'pyyaml']`. The HEAD code fails it (run on a copy). Farm 305/305.
+  `context/farm.md` says so.
+- **The local Farm app build** `0.0.55+n19` was rebuilt at 04:57 from `74a751f`. Its packed farm carries the fix and
+  holds no `lol.config.json`, venv or runtime file. J22, the plan and the summary name it.
+
 ## 2026-11-28 (04:52) — A race in the Blender tools' install, found and fixed; the full harness again; the morning tests checked
 
 - **The full harness, again** (04:30–04:47, with the p2 instrumentation): **428/428**. The p2 flake did not show.
