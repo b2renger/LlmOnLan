@@ -54,6 +54,7 @@ The owner released these builds for a phase of human testing (2026-11-09): ★ m
 | 4 | The fixes v0.2.16 brings | **A21**, **A22**, **A23**, **A18** step 5, **C7**, **D16**, **D17**, **G13** | about 3 h, + 3 h of waiting for G13 | each checks one fix that build brings: Open WebUI's links and the microphone, a move into a folder that holds data, the password through a farm restart, a schedule above an hour, a first plugin install that froze the farm |
 | 5 | The default model (farm-v0.0.53) | **K14**, **K15** | about 3 h (mostly downloads: 27 GB) | the owner's ask of 2026-11-10: a farm that starts as Balanced on a model that reads documents, sees pictures and codes a little, on 24 GB and above; measured only on a scratch farm |
 | 6 | The next release (2026-11-13's batch) | **A24** (client), **K16** (Farm app) | about 25 min | the usage report, the panel's token delay, the wizard's timeouts, the OCR stop and its caps (200 pages, 100 MB), none run in an app yet |
+| 7 | The next releases, farm-v0.0.56 and client v0.2.22 (nights n° 17–19) | **A32**, **A31**, **J22**, **J21** step 2 again; done: **J20** (passed), **A30** (but step 4) | about 35 min, + the download | the three fixes the owner held them for (2026-11-27): the Computer's dots, Blender Lab's MCP with its screenshots, a plugin's first install on the panel's bar |
 
 **Proposed off the ★:** I5 (the MiniLM path is the fallback of a folder that never met document search); J1 (vLLM has
 been installed on the PRO 6000 since about 2026-10-12, how is not recorded: the owner's question 12); J2–J4
